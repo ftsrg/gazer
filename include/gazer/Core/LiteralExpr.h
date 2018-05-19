@@ -9,19 +9,27 @@ namespace gazer
 class IntLiteralExpr : public LiteralExpr
 {
 private:
-    IntLiteralExpr(long value)
+    IntLiteralExpr(int value)
         : LiteralExpr(*IntType::get()), mValue(value)
     {}
+public:
+    virtual void print(std::ostream& os) const override;
 
 public:
-    static std::shared_ptr<IntLiteralExpr> get(long value);
+    static std::shared_ptr<IntLiteralExpr> get(int value);
+
+    int getValue() const { return mValue; }
 
     static bool classof(const Expr* expr) {
         return expr->getKind() == Literal && expr->getType().isIntType();
     }
 
+    static bool classof(const Expr& expr) {
+        return expr.getKind() == Literal && expr.getType().isIntType();
+    }
+
 private:
-    long mValue;
+    int mValue;
 };
 
 }

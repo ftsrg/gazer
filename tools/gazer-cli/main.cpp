@@ -3,6 +3,9 @@
 #include "gazer/Core/LiteralExpr.h"
 #include "gazer/Core/ExprTypes.h"
 
+#include "gazer/Core/Solver/Solver.h"
+#include "gazer/Z3Solver/Z3Solver.h"
+
 #include <fmt/format.h>
 
 #include <sstream>
@@ -21,6 +24,8 @@ int main(int argc, char* argv[])
     Location& loc1 = cfa.createLocation();
     Location& loc2 = cfa.createLocation();
 
+
+#if 0
     auto condition = LtExpr::Create(
         y.getRefExpr(), IntLiteralExpr::get(10)
     );
@@ -55,6 +60,28 @@ int main(int argc, char* argv[])
     }
     std::cerr << "};\n";
 
+#endif
+    //x >= 1 and y < x + 3
+    Z3Solver solver;
+    solver.add(GtEqExpr::Create(
+        x.getRefExpr(), IntLiteralExpr::get(1)
+    ));
+    solver.add(LtExpr::Create(
+        y.getRefExpr(), AddExpr::Create(x.getRefExpr(), IntLiteralExpr::get(1))
+    ));
+    solver.add(EqExpr::Create(
+        y.getRefExpr(), IntLiteralExpr::get(10)
+    ));
+    //solver.add(EqExpr::Create(
+    //    y.getRefExpr(), IntLiteralExpr::get(1)
+    //));
+
+    auto status = solver.run();
+    switch (status) {
+        case Solver::SAT: std::cerr << "SAT\n"; break;
+        case Solver::UNSAT: std::cerr << "UNSAT\n"; break;
+        case Solver::UNKNOWN: std::cerr << "UNKNOWN\n"; break;
+    }
 
     return 0;
 }

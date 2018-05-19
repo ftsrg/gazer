@@ -36,7 +36,7 @@ void AssignEdge::print(std::ostream& os) const
     for (auto& assign : mAssignments) {
         os << assign.variable.getName() << " := ";
         assign.expr->print(os);
-        os << "\n";
+        os << "\\n";
     }
 }
 

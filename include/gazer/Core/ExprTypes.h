@@ -1,3 +1,6 @@
+#ifndef _GAZER_CORE_EXPRTYPES_H
+#define _GAZER_CORE_EXPRTYPES_H
+
 #include "gazer/Core/Expr.h"
 
 #include <llvm/ADT/APInt.h>
@@ -11,52 +14,11 @@
 namespace gazer
 {
 
-/**
- * Base class for all expressions holding one or more operands.
- */
-template<unsigned N>
-class NonNullaryExpr : public Expr
-{
-protected:
-    NonNullaryExpr(ExprKind kind, const Type& type, std::array<ExprPtr, N> operands)
-        : Expr(kind, type), mOperands(operands)
-    {}
-public:
-    using op_iterator = typename std::array<ExprPtr, N>::iterator;
-    using op_const_iterator = typename std::array<ExprPtr, N>::const_iterator;
-
-    op_iterator op_begin() { return mOperands.begin(); }
-    op_iterator op_end() { return mOperands.end(); }
-
-    op_const_iterator op_begin() const { return mOperands.begin(); }
-    op_const_iterator op_end() const { return mOperands.end(); }
-
-    llvm::iterator_range<op_iterator> operands() {
-        return llvm::make_range(op_begin(), op_end());
-    }
-    llvm::iterator_range<op_const_iterator> operands() const {
-        return llvm::make_range(op_begin(), op_end());
-    }
-
-    ExprPtr getOperand(size_t idx) const { return mOperands[idx]; }
-
-    static bool classof(const Expr* expr) {
-        return expr->getKind() >= FirstUnary;
-    }
-
-    static bool classof(const Expr& expr) {
-        return expr.getKind() >= FirstUnary;
-    }
-
-private:
-    std::array<ExprPtr, N> mOperands;
-};
-
 //============
 // Unary expressions
 //============
 
-class UnaryExpr : public NonNullaryExpr<1>
+class UnaryExpr : public NonNullaryExpr
 {
 public:
     UnaryExpr(ExprKind kind, const Type& type, ExprPtr operand)
@@ -73,6 +35,7 @@ protected:
     NotExpr(ExprPtr operand)
         : UnaryExpr(Expr::Not, *BoolType::get(), operand)
     {}
+
 public:
     static std::shared_ptr<NotExpr> Create(ExprPtr operand)
     {
@@ -83,9 +46,13 @@ public:
     static bool classof(const Expr* expr) {
         return expr->getKind() == Expr::Not;
     }
+
+    static bool classof(const Expr& expr) {
+        return expr.getKind() == Expr::Not;
+    }
 };
 
-class BinaryExpr : public NonNullaryExpr<2>
+class BinaryExpr : public NonNullaryExpr
 {
 protected:
     BinaryExpr(ExprKind kind, const Type& type, ExprPtr left, ExprPtr right)
@@ -120,6 +87,9 @@ public:
     static bool classof(const Expr* expr) {
         return expr->getKind() == Kind;
     }
+    static bool classof(const Expr& expr) {
+        return expr.getKind() == Kind;
+    }
 };
 
 using AddExpr = ArithmeticExpr<Expr::Add>;
@@ -148,6 +118,9 @@ public:
      */
     static bool classof(const Expr* expr) {
         return expr->getKind() == Kind;
+    }
+    static bool classof(const Expr& expr) {
+        return expr.getKind() == Kind;
     }
 };
 
@@ -181,13 +154,16 @@ public:
     static bool classof(const Expr* expr) {
         return expr->getKind() == Kind;
     }
+    static bool classof(const Expr& expr) {
+        return expr.getKind() == Kind;
+    }
 };
 
 using AndExpr = BinaryLogicExpr<Expr::And>;
 using OrExpr  = BinaryLogicExpr<Expr::Or>;
 using XorExpr = BinaryLogicExpr<Expr::Xor>;
 
-class SelectExpr final : public NonNullaryExpr<3>
+class SelectExpr final : public NonNullaryExpr
 {
 protected:
     SelectExpr(const Type& type, ExprPtr condition, ExprPtr then, ExprPtr elze)
@@ -206,6 +182,11 @@ public:
     static bool classof(const Expr* expr) {
         return expr->getKind() == Expr::Select;
     }
+    static bool classof(const Expr& expr) {
+        return expr.getKind() == Expr::Select;
+    }
 };
 
 }
+
+#endif

@@ -70,8 +70,6 @@ public:
     ExprKind getKind() const { return mKind; }
     const Type& getType() const { return mType; }
 
-    void print(std::ostream& os) const;
-
     bool isNullary() const { return mKind <= FirstUnary; }
     bool isUnary() const { return FirstUnary <= mKind && mKind <= LastUnary; }
 
@@ -85,6 +83,9 @@ public:
         return FirstCompare <= mKind && mKind <= LastCompare;
     }
 
+    virtual void print(std::ostream& os) const = 0;
+
+    virtual ~Expr() {}
 
 public:
     static std::string getKindName(ExprKind kind);
@@ -98,6 +99,9 @@ using ExprPtr = std::shared_ptr<Expr>;
 
 std::ostream& operator<<(std::ostream& os, const Expr& expr);
 
+/**
+ * Base class for all literals.
+ */
 class LiteralExpr : public Expr
 {
 protected:
@@ -108,6 +112,53 @@ public:
     static bool classof(const Expr* expr) {
         return expr->getKind() == Literal;
     }
+};
+
+/**
+ * Base class for all expressions holding one or more operands.
+ */
+class NonNullaryExpr : public Expr
+{
+protected:
+    NonNullaryExpr(ExprKind kind, const Type& type, std::vector<ExprPtr> operands)
+        : Expr(kind, type), mOperands(operands)
+    {
+        assert(mOperands.size() >= 1 && "Non-nullary expressions must have at least one operand.");
+    }
+public:
+    virtual void print(std::ostream& os) const override;
+
+    //---- Operand handling ----//
+    using op_iterator = typename std::vector<ExprPtr>::iterator;
+    using op_const_iterator = typename std::vector<ExprPtr>::const_iterator;
+
+    op_iterator op_begin() { return mOperands.begin(); }
+    op_iterator op_end() { return mOperands.end(); }
+
+    op_const_iterator op_begin() const { return mOperands.begin(); }
+    op_const_iterator op_end() const { return mOperands.end(); }
+
+    llvm::iterator_range<op_iterator> operands() {
+        return llvm::make_range(op_begin(), op_end());
+    }
+    llvm::iterator_range<op_const_iterator> operands() const {
+        return llvm::make_range(op_begin(), op_end());
+    }
+
+    size_t getNumOperands() const { return mOperands.size(); }
+    ExprPtr getOperand(size_t idx) const { return mOperands[idx]; }
+
+public:
+    static bool classof(const Expr* expr) {
+        return expr->getKind() >= FirstUnary;
+    }
+
+    static bool classof(const Expr& expr) {
+        return expr.getKind() >= FirstUnary;
+    }
+
+private:
+    std::vector<ExprPtr> mOperands;
 };
 
 }
