@@ -1,5 +1,6 @@
 #include "gazer/LLVM/Transform/BoundedUnwindPass.h"
 #include "gazer/LLVM/Analysis/CfaBuilderPass.h"
+#include "gazer/LLVM/Analysis/BmcPass.h"
 
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/LegacyPassManager.h>
@@ -44,6 +45,7 @@ int main(int argc, char* argv[])
     //pm->add(new llvm::LoopInfoWrapperPass());
     //pm->add(new gazer::BoundedUnwindPass(bound));
     pm->add(new gazer::CfaBuilderPass());
+    pm->add(new gazer::BmcPass());
     pm->add(llvm::createCFGPrinterLegacyPassPass());
 
     pm->run(*module);

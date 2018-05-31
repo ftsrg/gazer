@@ -12,6 +12,7 @@
 #include <sstream>
 
 using namespace gazer;
+
 using llvm::Instruction;
 using llvm::BasicBlock;
 using llvm::Function;
@@ -39,6 +40,10 @@ gazer::Type& TypeFromLLVMType(llvm::Type* type)
     }
 
     assert(false && "Unsupported LLVM type.");
+}
+
+bool isUnconditionalError(const std::string& name) {
+    return name == "__assert_fail" || name == "__VERIFIER_error";
 }
 
 bool isLogicInstruction(unsigned opcode) {
@@ -373,6 +378,8 @@ void CfaBuilderVisitor::visitICmpInst(llvm::ICmpInst& icmp)
             assert(false && "Unhandled ICMP predicate.");
     }
 
+    #undef HANDLE_PREDICATE
+
     mInstructions.push_back({*icmpVar, expr});
 }
 
@@ -394,7 +401,27 @@ void CfaBuilderVisitor::visitCastInst(llvm::CastInst& cast)
 
 void CfaBuilderVisitor::visitCallInst(llvm::CallInst& call)
 {
-    // Ignored.
+    const Function* callee = call.getCalledFunction();
+    assert(callee != nullptr && "Indirect calls are not supported.");
+
+    if (isUnconditionalError(callee->getName())) {
+        // Split the block here
+        mBlockReturned = true;
+        mCFA->insertEdge(
+            AssignEdge::Create(*mCurrentLocs.first, *mErrorLoc, mInstructions)
+        );
+    } else if (callee->isDeclaration()) {
+        // If this function has no definition,
+        // we just replace the call with a Havoc statement
+        if (call.getName() != "") {
+            auto variable = getVariable(&call);
+            mInstructions.push_back(
+                {*variable, UndefExpr::Get(variable->getType())}
+            );
+        }
+    } else {
+        assert(false && "Procedure calls are not supported (with the exception of assert).");
+    }
 }
 
 void CfaBuilderVisitor::visitReturnInst(llvm::ReturnInst& ret)
@@ -428,13 +455,12 @@ bool CfaBuilderPass::runOnFunction(Function& function)
 {
     CfaBuilderVisitor visitor(function);
 
-    std::unique_ptr<Automaton> cfa = visitor.transform();
+    mCFA = visitor.transform();
 
-    printAutomaton(*cfa);
+    printAutomaton(*mCFA);
     
     return false;
 }
-
 
 static void printAutomaton(Automaton& cfa)
 {
