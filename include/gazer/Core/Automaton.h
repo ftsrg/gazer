@@ -95,18 +95,23 @@ class CfaEdge
 public:
     enum EdgeKind
     {
-        Edge_Skip,
-        Edge_Assume,
+        //Edge_Skip,
+        //Edge_Assume,
         Edge_Assign,
-        Edge_Havoc,
+        //Edge_Havoc,
         //Edge_Call,
         //Edge_Return
     };
 
 protected:
-    CfaEdge(EdgeKind type, Location& source, Location& target)
-        : mKind(type), mSource(source), mTarget(target)
-    {}
+    CfaEdge(EdgeKind type, Location& source, Location& target, ExprPtr guard = nullptr)
+        : mKind(type), mSource(source), mTarget(target), mGuard(guard)
+    {
+        if (mGuard != nullptr) {
+            assert(mGuard->getType().isBoolType()
+                && "Only booleans can be edge guards.");
+        }
+    }
 
 public:
     CfaEdge(const CfaEdge&) = delete;
@@ -125,11 +130,12 @@ public:
     bool operator!=(const CfaEdge& rhs) const { return !(*this == rhs); }
 
     EdgeKind getKind() const { return mKind; }
+    ExprPtr getGuard() const { return mGuard; }
 
-    bool isSkip()   const { return mKind == Edge_Skip; }
-    bool isAssume() const { return mKind == Edge_Assume; }
+    //bool isSkip()   const { return mKind == Edge_Skip; }
+    //bool isAssume() const { return mKind == Edge_Assume; }
     bool isAssign() const { return mKind == Edge_Assign; }
-    bool isHavoc()  const { return mKind == Edge_Havoc; }
+    //bool isHavoc()  const { return mKind == Edge_Havoc; }
     //bool isCall() const     { return mKind == Edge_Call; }
     //bool isReturn() const   { return mKind == Edge_Return; }
 
@@ -140,75 +146,7 @@ private:
     EdgeKind mKind;
     Location& mSource;
     Location& mTarget;
-};
-
-/**
- * An edge class which represents a simple no-op.
- */
-class SkipEdge final : public CfaEdge
-{
-protected:
-    SkipEdge(Location& source, Location& target)
-        : CfaEdge(Edge_Skip, source, target)
-    {}
-public:
-    virtual void print(std::ostream& os) const override {
-        os << "";
-    }
-
-public:
-    static std::unique_ptr<SkipEdge> Create(Location& source, Location& target) {
-        return std::unique_ptr<SkipEdge>(new SkipEdge(source, target));
-    }
-
-    static bool classof(const CfaEdge* edge) {
-        return edge->getKind() == Edge_Skip;
-    }
-
-    static bool classof(const CfaEdge& edge) {
-        return edge.getKind() == Edge_Skip;
-    }   
-};
-
-/**
- * Represents an automaton edge with branch conditions and guards.
- */
-class AssumeEdge final : public CfaEdge
-{
-protected:
-    AssumeEdge(Location& source, Location& target, ExprPtr condition)
-        : CfaEdge(Edge_Assume, source, target), mCondition(condition) 
-    {
-        if (!condition->getType().isBoolType()) {
-            throw TypeCastError("Only boolean expressions may be edge guards.");
-        }
-    }
-
-public:
-    static std::unique_ptr<AssumeEdge> Create(Location& source, Location& target, ExprPtr condition)
-    {
-        return std::unique_ptr<AssumeEdge>(new AssumeEdge(source, target, condition));
-    }
-
-public:
-    virtual void print(std::ostream& os) const override {
-        os << "[ ";
-        getCondition()->print(os);
-        os << " ]";
-    }
-
-    ExprPtr getCondition() const { return mCondition; }
-
-    static bool classof(const CfaEdge* edge) {
-        return edge->getKind() == Edge_Assume;
-    }
-
-    static bool classof(const CfaEdge& edge) {
-        return edge.getKind() == Edge_Assume;
-    }
-
-private:
-    ExprPtr mCondition;
+    ExprPtr mGuard;
 };
 
 /**
@@ -243,14 +181,24 @@ public:
     };
 
 protected:
-    AssignEdge(Location& source, Location& target, std::vector<Assignment> assignments)
-        : CfaEdge(Edge_Assign, source, target), mAssignments(assignments)
+    AssignEdge(Location& source, Location& target, std::vector<Assignment> assignments, ExprPtr guard = nullptr)
+        : CfaEdge(Edge_Assign, source, target, guard), mAssignments(assignments)
     {}
 
 public:
-    static std::unique_ptr<AssignEdge> Create(Location& source, Location& target, std::vector<Assignment> assignments = {})
+    static std::unique_ptr<AssignEdge> Create(
+        Location& source, Location& target,
+        ExprPtr guard)
     {
-        return std::unique_ptr<AssignEdge>(new AssignEdge(source, target, assignments));
+        return std::unique_ptr<AssignEdge>(new AssignEdge(source, target, {}, guard));
+    }
+
+    static std::unique_ptr<AssignEdge> Create(
+        Location& source, Location& target,
+        std::vector<Assignment> assignments = {},
+        ExprPtr guard = nullptr)
+    {
+        return std::unique_ptr<AssignEdge>(new AssignEdge(source, target, assignments, guard));
     }
 
 public:
@@ -283,50 +231,6 @@ public:
 
 private:
     std::vector<Assignment> mAssignments;
-};
-
-/**
- * Represents an edge which assigns nondetermistic values to a set of variables
- */
-class HavocEdge final : public CfaEdge
-{
-protected:
-    HavocEdge(Location& source, Location& target, std::vector<Variable*> vars)
-        : CfaEdge(Edge_Havoc, source, target), mVars(vars)
-    {}
-
-public:
-    static std::unique_ptr<HavocEdge> Create(Location& source, Location& target, std::vector<Variable*> vars) {
-        return std::unique_ptr<HavocEdge>(new HavocEdge(source, target, vars));
-    }
-
-public:
-    void addVariable(Variable* variable) {
-        mVars.push_back(variable);
-    }
-
-    //--- Inherited functions ---//
-    virtual void print(std::ostream& os) const override;
-
-    //----- Iterator access -----//
-    using var_iterator = std::vector<Variable*>::iterator;
-    var_iterator var_begin() { return mVars.begin(); }
-    var_iterator var_end() { return mVars.end(); }
-
-    llvm::iterator_range<var_iterator> vars() {
-        return llvm::make_range(var_begin(), var_end());
-    }
-
-    //---- Type inqueries ----//
-    static bool classof(const CfaEdge* edge) {
-        return edge->getKind() == Edge_Havoc;
-    }
-
-    static bool classof(const CfaEdge& edge) {
-        return edge.getKind() == Edge_Havoc;
-    }
-private:
-    std::vector<Variable*> mVars;
 };
 
 /**

@@ -62,10 +62,12 @@ void PathToExprs(SymbolTable& st, InputIterator begin, InputIterator end, Output
     
     for (InputIterator it = begin; it != end; ++it) {
         CfaEdge* edge = *it;
-        if (edge->isAssume()) {
-            auto assume = llvm::dyn_cast<AssumeEdge>(edge);
-            *(out++) = visitor->visit(assume->getCondition());
-        } else if (edge->isAssign()) {
+        auto guard = edge->getGuard();
+        if (guard != nullptr) {
+            *(out++) = visitor->visit(guard);
+        }
+        
+        if (edge->isAssign()) {
             auto assignEdge = llvm::dyn_cast<AssignEdge>(edge);
             for (auto& assignment : assignEdge->assignments()) {
                 Variable* variable = &(assignment.variable);
@@ -75,13 +77,6 @@ void PathToExprs(SymbolTable& st, InputIterator begin, InputIterator end, Output
                 ExprPtr assignExpr = EqExpr::Create(newVar->getRefExpr(), rhs);
                 *(out++) = assignExpr;
             }
-        } else if (edge->isHavoc()) {
-            auto havocEdge = llvm::dyn_cast<HavocEdge>(edge);
-            for (Variable* nondetVar : havocEdge->vars()) {
-                vi.increment(nondetVar);
-            }
-        } else if (edge->isSkip()) {
-            // We do nothing here
         } else {
             llvm_unreachable("Unhandled edge type.");
         }

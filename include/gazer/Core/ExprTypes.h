@@ -57,6 +57,40 @@ public:
     }
 };
 
+template<Expr::ExprKind Kind>
+class CastExpr final : public UnaryExpr
+{    
+    static_assert(Expr::FirstUnaryCast <= Kind && Kind <= Expr::LastUnaryCast,
+        "A unary cast expression must have a unary cast expression kind.");
+private:
+    CastExpr(ExprPtr operand, const Type& type)
+        : UnaryExpr(Kind, type, {operand})
+    {}
+
+protected:
+    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
+        return new CastExpr<Kind>(ops[0], getType());
+    }
+
+public:
+    static std::shared_ptr<CastExpr<Kind>> Create(ExprPtr operand, const Type& type) {
+        assert(operand->getType().isIntType() && "Can only do bitwise cast on integers");
+        assert(type.isIntType() && "Can only do bitwise cast on integers");
+        return std::shared_ptr<CastExpr<Kind>>(new CastExpr(operand, type));
+    }
+
+    static bool classof(const Expr* expr) {
+        return expr->getKind() == Kind;
+    }
+
+    static bool classof(const Expr& expr) {
+        return expr.getKind() == Kind;
+    }
+};
+
+using ZExtExpr = CastExpr<Expr::ZExt>;
+using SExtExpr = CastExpr<Expr::SExt>;
+
 class BinaryExpr : public NonNullaryExpr
 {
 protected:

@@ -43,19 +43,19 @@ int main(int argc, char* argv[])
       //  {y, UndefExpr::Get(*IntType::get(32))}
         {y, zero}
     }));
-    cfa.insertEdge(AssumeEdge::Create(loc1, loc2, condition));
+    cfa.insertEdge(AssignEdge::Create(loc1, loc2, condition));
     cfa.insertEdge(AssignEdge::Create(loc2, loc1, {
         {x, AddExpr::Create(x.getRefExpr(), y.getRefExpr()) },
         {y, AddExpr::Create(y.getRefExpr(), IntLiteralExpr::get(*IntType::get(32), 1)) }
     }));
-    cfa.insertEdge(AssumeEdge::Create(loc1, loc3, NotExpr::Create(condition)));
+    cfa.insertEdge(AssignEdge::Create(loc1, loc3, NotExpr::Create(condition)));
 
     auto assertCond = EqExpr::Create(
         y.getRefExpr(), zero
     );
 
-    cfa.insertEdge(AssumeEdge::Create(loc3, cfa.exit(), assertCond));
-    cfa.insertEdge(AssumeEdge::Create(loc3, err, NotExpr::Create(assertCond)));
+    cfa.insertEdge(AssignEdge::Create(loc3, cfa.exit(), assertCond));
+    cfa.insertEdge(AssignEdge::Create(loc3, err, NotExpr::Create(assertCond)));
 
     Z3Solver solver;
     BoundedModelChecker bmc([](Location* location) {
@@ -68,7 +68,6 @@ int main(int argc, char* argv[])
     } else {
         std::cerr << "UNKNOWN\n";
     }
-
 
     return 0;
 }

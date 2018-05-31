@@ -19,6 +19,12 @@ public:
     ExprPtr Not(const ExprPtr& op) override {
         return NotExpr::Create(op);
     }
+    ExprPtr ZExt(const ExprPtr& op, const Type& type) override {
+        return ZExtExpr::Create(op, type);
+    }
+    ExprPtr SExt(const ExprPtr& op, const Type& type) override {
+        return SExtExpr::Create(op, type);
+    }
 
     ExprPtr Add(const ExprPtr& left, const ExprPtr& right) override {
         return AddExpr::Create(left, right);

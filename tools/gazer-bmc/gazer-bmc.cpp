@@ -1,4 +1,5 @@
-#include <gazer/LLVM/Transform/BoundedUnwindPass.h>
+#include "gazer/LLVM/Transform/BoundedUnwindPass.h"
+#include "gazer/LLVM/Analysis/CfaBuilderPass.h"
 
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/LegacyPassManager.h>
@@ -37,10 +38,12 @@ int main(int argc, char* argv[])
     auto pm = std::make_unique<llvm::legacy::PassManager>();
 
     pm->add(llvm::createPromoteMemoryToRegisterPass());
-    pm->add(llvm::createLoopRotatePass());
+    pm->add(llvm::createInstructionNamerPass());
+    //pm->add(llvm::createLoopRotatePass());
     //pm->add(llvm::createLoopSimplifyPass());
     //pm->add(new llvm::LoopInfoWrapperPass());
-    pm->add(new gazer::BoundedUnwindPass(bound));
+    //pm->add(new gazer::BoundedUnwindPass(bound));
+    pm->add(new gazer::CfaBuilderPass());
     pm->add(llvm::createCFGPrinterLegacyPassPass());
 
     pm->run(*module);

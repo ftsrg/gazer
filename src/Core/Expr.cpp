@@ -6,9 +6,12 @@ using namespace gazer;
 std::string Expr::getKindName(ExprKind kind)
 {
     const char* const Names[] = {
+        "Undef",
         "Literal",
         "VarRef",
         "Not",
+        "ZExt",
+        "SExt",
         "Add",
         "Sub",
         "Mul",
@@ -25,7 +28,7 @@ std::string Expr::getKindName(ExprKind kind)
         "Select"
     };
 
-    if (Expr::Literal <= kind && kind <= Expr::Select) {
+    if (Expr::FirstExprKind <= kind && kind <= Expr::LastExprKind) {
         return Names[kind];
     }
 

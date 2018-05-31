@@ -16,7 +16,7 @@ namespace gazer
 class ExprBuilder
 {
 protected:
-    ExprBuilder();
+    ExprBuilder() {}
 
 public:
     virtual ~ExprBuilder() {}
@@ -28,9 +28,12 @@ public:
 
     ExprPtr True()  { return BoolLiteralExpr::getTrue(); }
     ExprPtr False() { return BoolLiteralExpr::getFalse(); }
+    ExprPtr Undef(const Type& type) { return UndefExpr::Get(type); }
 
     //--- Unary ---//
     virtual ExprPtr Not(const ExprPtr& op) = 0;
+    virtual ExprPtr ZExt(const ExprPtr& op, const Type& type) = 0;
+    virtual ExprPtr SExt(const ExprPtr& op, const Type& type) = 0;
 
     //--- Binary ---//
     virtual ExprPtr Add(const ExprPtr& left, const ExprPtr& right) = 0;

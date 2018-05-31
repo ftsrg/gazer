@@ -27,6 +27,10 @@ public:
         // Unary logic
         Not,
 
+        // Cast
+        ZExt,
+        SExt,
+
         // Binary arithmetic
         Add,
         Sub,
@@ -51,7 +55,9 @@ public:
     };
 
     static constexpr int FirstUnary = Not;
-    static constexpr int LastUnary = Not;
+    static constexpr int LastUnary = SExt;
+    static constexpr int FirstUnaryCast = ZExt;
+    static constexpr int LastUnaryCast = SExt;
     static constexpr int FirstBinaryArithmetic = Add;
     static constexpr int LastBinaryArithmetic = Div;
     static constexpr int FirstLogic = And;

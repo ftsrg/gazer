@@ -28,6 +28,8 @@ public:
             HANDLE_EXPRCASE(Literal)
             HANDLE_EXPRCASE(VarRef)
             HANDLE_EXPRCASE(Not)
+            HANDLE_EXPRCASE(ZExt)
+            HANDLE_EXPRCASE(SExt)
             HANDLE_EXPRCASE(Add)
             HANDLE_EXPRCASE(Sub)
             HANDLE_EXPRCASE(Mul)
@@ -80,6 +82,12 @@ protected:
     // Unary
     virtual ReturnT visitNot(const std::shared_ptr<NotExpr>& expr) {
         return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitZExt(const std::shared_ptr<ZExtExpr>& expr) {
+        return this->visitExpr(expr);
+    }
+    virtual ReturnT visitSExt(const std::shared_ptr<SExtExpr>& expr) {
+        return this->visitExpr(expr);
     }
 
     // Binary
