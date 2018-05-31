@@ -24,6 +24,7 @@ public:
                 return this->visit##KIND(std::static_pointer_cast<KIND##Expr>(expr));   \
 
         switch (expr->getKind()) {
+            HANDLE_EXPRCASE(Undef)
             HANDLE_EXPRCASE(Literal)
             HANDLE_EXPRCASE(VarRef)
             HANDLE_EXPRCASE(Not)
@@ -66,6 +67,9 @@ protected:
     }
 
     // Nullary
+    virtual ReturnT visitUndef(const std::shared_ptr<UndefExpr>& expr) {
+        return this->visitExpr(expr);
+    }
     virtual ReturnT visitLiteral(const std::shared_ptr<LiteralExpr>& expr) {
         return this->visitExpr(expr);
     }

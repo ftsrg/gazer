@@ -16,9 +16,6 @@ public:
     {}
 
     virtual bool runOnFunction(llvm::Function& function) override;
-
-private:
-    llvm::DenseMap<BasicBlock*, std::pair<Location*, Location*>> mMap;
 };
 
 }

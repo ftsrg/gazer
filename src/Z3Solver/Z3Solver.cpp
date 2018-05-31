@@ -21,6 +21,22 @@ protected:
         throw std::logic_error("Unhandled expression type in Z3ExprTransformer.");
     }
 
+    virtual z3::expr visitUndef(const std::shared_ptr<UndefExpr>& expr) override {
+        std::string name = "__gazer_undef:" + std::to_string(mTmpCount);
+        
+        if (expr->getType().isBoolType()) {
+            return mContext.bool_const(name.c_str());
+        } else if (expr->getType().isIntType()) {
+            auto intType = llvm::dyn_cast<IntType>(&expr->getType());
+            return mContext.bv_const(
+                name.c_str(),
+                intType->getWidth()
+            );
+        }
+
+        assert(false && "Unsupported operand type.");
+    }
+
     virtual z3::expr visitLiteral(const std::shared_ptr<LiteralExpr>& expr) override {
         if (expr->getType().isIntType()) {
             auto lit = llvm::dyn_cast<IntLiteralExpr>(&*expr);
@@ -110,6 +126,7 @@ protected:
     }
 private:
     z3::context& mContext;
+    unsigned mTmpCount;
 };
 
 }

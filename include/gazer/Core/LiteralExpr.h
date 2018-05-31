@@ -8,6 +8,17 @@
 namespace gazer
 {
 
+class UndefExpr final : public Expr
+{
+private:
+    UndefExpr(const Type& type)
+        : Expr(Expr::Undef, type)
+    {}
+public:
+    virtual void print(std::ostream& os) const override;
+    static std::shared_ptr<UndefExpr> Get(const Type& type);
+};
+
 class BoolLiteralExpr final : public LiteralExpr
 {
 private:

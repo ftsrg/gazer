@@ -40,6 +40,7 @@ int main(int argc, char* argv[])
 
     cfa.insertEdge(AssignEdge::Create(cfa.entry(), loc1, {
         {x, zero},
+      //  {y, UndefExpr::Get(*IntType::get(32))}
         {y, zero}
     }));
     cfa.insertEdge(AssumeEdge::Create(loc1, loc2, condition));

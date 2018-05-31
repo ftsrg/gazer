@@ -20,6 +20,10 @@ public:
     {}
 protected:
     // Nullary
+    virtual ExprPtr visitUndef(const std::shared_ptr<UndefExpr>& expr) override {
+        return expr;
+    }
+
     virtual ExprPtr visitLiteral(const std::shared_ptr<LiteralExpr>& expr) override {
         return expr;
     }

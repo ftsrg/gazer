@@ -104,8 +104,8 @@ public:
     };
 
 protected:
-    CfaEdge(EdgeKind type, Location& source, Location& target, ExprPtr guard = nullptr)
-        : mKind(type), mSource(source), mTarget(target), mGuard(guard)
+    CfaEdge(EdgeKind type, Location& source, Location& target)
+        : mKind(type), mSource(source), mTarget(target)
     {}
 
 public:
@@ -140,7 +140,6 @@ private:
     EdgeKind mKind;
     Location& mSource;
     Location& mTarget;
-    ExprPtr mGuard = nullptr;
 };
 
 /**

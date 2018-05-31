@@ -38,6 +38,7 @@ public:
     }
 
     void transform();
+    void transformBlock(BasicBlock& bb);
 
 public:
     void visitBinaryOperator(BinaryOperator &binop);
@@ -63,6 +64,8 @@ private:
     Location* mErrorLoc;
     DenseMap<const Value*, gazer::Variable*> mVariables;
     DenseMap<const BasicBlock*, std::pair<Location*, Location*>> mLocations;
+    std::pair<Location*, Location*> mCurrentLocs;
+    bool mBlockReturned = false;
 };
 
 void CfaBuilderVisitor::transform()
@@ -94,6 +97,16 @@ void CfaBuilderVisitor::transform()
     }
 
     // Perform the transformation
+    for (auto& bb : mFunction) {
+        mBlockReturned = false;
+        mCurrentLocs = mLocations[&bb];
+        transformBlock(bb);
+    }
+}
+
+void CfaBuilderVisitor::transformBlock(BasicBlock& bb)
+{
+
 }
 
 } // end anonymous namespace

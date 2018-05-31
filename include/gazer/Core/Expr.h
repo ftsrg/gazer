@@ -20,7 +20,8 @@ public:
     enum ExprKind
     {
         // Nullary
-        Literal = 0,
+        Undef = 0,
+        Literal,
         VarRef,
 
         // Unary logic
@@ -58,7 +59,7 @@ public:
     static constexpr int FirstCompare = Eq;
     static constexpr int LastCompare = GtEq;
 
-    static constexpr int FirstExprKind = Literal;
+    static constexpr int FirstExprKind = Undef;
     static constexpr int LastExprKind = Select;
 
 protected:
