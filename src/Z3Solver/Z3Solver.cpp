@@ -16,80 +16,96 @@ public:
         : mContext(context)
     {}
 
-    virtual z3::expr visitLiteral(LiteralExpr& expr) override {
-        if (expr.getType().isIntType()) {
-            auto value = llvm::dyn_cast<IntLiteralExpr>(&expr)->getValue();
-            return mContext.int_val(value);
-        }
-
-        llvm_unreachable("Unsupported operand type.");
+protected:
+    virtual z3::expr visitExpr(const ExprPtr& expr) override {
+        throw std::logic_error("Unhandled expression type in Z3ExprTransformer.");
     }
 
-    virtual z3::expr visitVarRef(VarRefExpr& expr) override {
-        if (expr.getType().isBoolType()) {
-            return mContext.bool_const(expr.getVariable().getName().c_str());
-        } else if (expr.getType().isIntType()) {
-            return mContext.int_const(expr.getVariable().getName().c_str());
+    virtual z3::expr visitLiteral(const std::shared_ptr<LiteralExpr>& expr) override {
+        if (expr->getType().isIntType()) {
+            auto lit = llvm::dyn_cast<IntLiteralExpr>(&*expr);
+            auto value = lit->getValue();
+            return mContext.bv_val(
+                static_cast<__uint64>(value),
+                lit->getType().getWidth()
+            );
+        } else if (expr->getType().isBoolType()) {
+            auto value = llvm::dyn_cast<BoolLiteralExpr>(&*expr)->getValue();
+            return mContext.bool_val(value);
         }
 
-        llvm_unreachable("Unsupported operand type.");
+        assert(false && "Unsupported operand type.");
+    }
+
+    virtual z3::expr visitVarRef(const std::shared_ptr<VarRefExpr>& expr) override {
+        if (expr->getType().isBoolType()) {
+            return mContext.bool_const(expr->getVariable().getName().c_str());
+        } else if (expr->getType().isIntType()) {
+            auto intType = llvm::dyn_cast<IntType>(&expr->getType());
+            return mContext.bv_const(
+                expr->getVariable().getName().c_str(),
+                intType->getWidth()
+            );
+        }
+
+        assert(false && "Unsupported operand type.");
     }
 
     // Unary
-    virtual z3::expr visitNot(NotExpr& expr) override {
-        return !(visit(expr.getOperand()));
+    virtual z3::expr visitNot(const std::shared_ptr<NotExpr>& expr) override {
+        return !(visit(expr->getOperand()));
     }
 
     // Binary
-    virtual z3::expr visitAdd(AddExpr& expr) override {
-        return visit(expr.getLeft()) + visit(expr.getRight());
+    virtual z3::expr visitAdd(const std::shared_ptr<AddExpr>& expr) override {
+        return visit(expr->getLeft()) + visit(expr->getRight());
     }
-    virtual z3::expr visitSub(SubExpr& expr) override {
-        return visit(expr.getLeft()) - visit(expr.getRight());
+    virtual z3::expr visitSub(const std::shared_ptr<SubExpr>& expr) override {
+        return visit(expr->getLeft()) - visit(expr->getRight());
     }
-    virtual z3::expr visitMul(MulExpr& expr) override {
-        return visit(expr.getLeft()) * visit(expr.getRight());
+    virtual z3::expr visitMul(const std::shared_ptr<MulExpr>& expr) override {
+        return visit(expr->getLeft()) * visit(expr->getRight());
     }
-    virtual z3::expr visitDiv(DivExpr& expr) override {
-        return visit(expr.getLeft()) / visit(expr.getRight());}
+    virtual z3::expr visitDiv(const std::shared_ptr<DivExpr>& expr) override {
+        return visit(expr->getLeft()) / visit(expr->getRight());}
 
     // Logic
-    virtual z3::expr visitAnd(AndExpr& expr) override {
-        return visit(expr.getLeft()) && visit(expr.getRight());
+    virtual z3::expr visitAnd(const std::shared_ptr<AndExpr>& expr) override {
+        return visit(expr->getLeft()) && visit(expr->getRight());
     }
-    virtual z3::expr visitOr(OrExpr& expr) override {
-        return visit(expr.getLeft()) || visit(expr.getRight());
+    virtual z3::expr visitOr(const std::shared_ptr<OrExpr>& expr) override {
+        return visit(expr->getLeft()) || visit(expr->getRight());
     }
-    virtual z3::expr visitXor(XorExpr& expr) override {
-        return visit(expr.getLeft()) ^ visit(expr.getRight());
+    virtual z3::expr visitXor(const std::shared_ptr<XorExpr>& expr) override {
+        return visit(expr->getLeft()) ^ visit(expr->getRight());
     }
 
     // Compare
-    virtual z3::expr visitEq(EqExpr& expr) override {
-        return visit(expr.getLeft()) == visit(expr.getRight());
+    virtual z3::expr visitEq(const std::shared_ptr<EqExpr>& expr) override {
+        return visit(expr->getLeft()) == visit(expr->getRight());
     }
-    virtual z3::expr visitNotEq(NotEqExpr& expr) override {
-        return visit(expr.getLeft()) != visit(expr.getRight());
+    virtual z3::expr visitNotEq(const std::shared_ptr<NotEqExpr>& expr) override {
+        return visit(expr->getLeft()) != visit(expr->getRight());
     }
-    virtual z3::expr visitLt(LtExpr& expr) override {
-        return visit(expr.getLeft()) < visit(expr.getRight());
+    virtual z3::expr visitLt(const std::shared_ptr<LtExpr>& expr) override {
+        return visit(expr->getLeft()) < visit(expr->getRight());
     }
-    virtual z3::expr visitLtEq(LtEqExpr& expr) override {
-        return visit(expr.getLeft()) <= visit(expr.getRight());
+    virtual z3::expr visitLtEq(const std::shared_ptr<LtEqExpr>& expr) override {
+        return visit(expr->getLeft()) <= visit(expr->getRight());
     }
-    virtual z3::expr visitGt(GtExpr& expr) override {
-        return visit(expr.getLeft()) > visit(expr.getRight());
+    virtual z3::expr visitGt(const std::shared_ptr<GtExpr>& expr) override {
+        return visit(expr->getLeft()) > visit(expr->getRight());
     }
-    virtual z3::expr visitGtEq(GtEqExpr& expr) override {
-        return visit(expr.getLeft()) >= visit(expr.getRight());
+    virtual z3::expr visitGtEq(const std::shared_ptr<GtEqExpr>& expr) override {
+        return visit(expr->getLeft()) >= visit(expr->getRight());
     }
 
     // Ternary
-    virtual z3::expr visitSelect(SelectExpr& expr) override {
+    virtual z3::expr visitSelect(const std::shared_ptr<SelectExpr>& expr) override {
         return z3::ite(
-            visit(expr.getCondition()),
-            visit(expr.getThen()),
-            visit(expr.getElse())
+            visit(expr->getCondition()),
+            visit(expr->getThen()),
+            visit(expr->getElse())
         );
     }
 private:
@@ -107,7 +123,6 @@ Solver::SolverStatus Z3Solver::run()
         case z3::sat: return SolverStatus::SAT;
         case z3::unknown: return SolverStatus::UNKNOWN;
     }
-
 
     llvm_unreachable("Unknown solver status encountered.");
 }

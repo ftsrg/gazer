@@ -1,6 +1,5 @@
 #include "gazer/Core/Expr.h"
-
-#include <llvm/Support/raw_ostream.h>
+#include "gazer/Core/ExprTypes.h"
 
 using namespace gazer;
 
@@ -51,4 +50,11 @@ std::ostream& gazer::operator<<(std::ostream& os, const Expr& expr)
 {
     expr.print(os);
     return os;
+}
+
+std::shared_ptr<SelectExpr> SelectExpr::Create(ExprPtr condition, ExprPtr then, ExprPtr elze)
+{
+    assert(then->getType() == elze->getType() && "Select expression operand types must match.");
+    assert(condition->getType().isBoolType() && "Select expression condition type must be boolean.");
+    return std::shared_ptr<SelectExpr>(new SelectExpr(then->getType(), condition, then, elze));
 }

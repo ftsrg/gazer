@@ -9,7 +9,6 @@ class Stmt
 public:
     enum StmtKind
     {
-        Stmt_Skip,
         Stmt_Assume,
         Stmt_Assign,
         Stmt_Assert

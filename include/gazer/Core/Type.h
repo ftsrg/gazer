@@ -111,18 +111,34 @@ public:
 class IntType final : public Type
 {
 protected:
-    IntType()
-        : Type(IntTypeID)
+    IntType(unsigned width)
+        : Type(IntTypeID), mWidth(width)
     {}
 public:
-    static IntType* get() {
-        static IntType instance;
-        return &instance;
+    unsigned getWidth() const { return mWidth; }
+
+    static IntType* get(unsigned width) {
+        switch (width) {
+            case 1: return &Int1Ty;
+            case 8: return &Int8Ty;
+            case 16: return &Int16Ty;
+            case 32: return &Int32Ty;
+            case 64: return &Int64Ty;
+        }
+
+        assert(false && "Unsupported integer type");
     }
 
     static bool classof(const Type* type) {
         return type->getTypeID() == IntTypeID;
     }
+
+    static bool classof(const Type& type) {
+        return type.getTypeID() == IntTypeID;
+    }
+private:
+    unsigned mWidth;
+    static IntType Int1Ty, Int8Ty, Int16Ty, Int32Ty, Int64Ty;
 };
 
 class ArrayType final : public Type

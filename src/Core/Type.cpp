@@ -8,6 +8,12 @@
 
 using namespace gazer;
 
+IntType IntType::Int1Ty(1);
+IntType IntType::Int8Ty(8);
+IntType IntType::Int16Ty(16);
+IntType IntType::Int32Ty(32);
+IntType IntType::Int64Ty(64);
+
 static std::string getArrayTypeStr(Type* indexType, Type* elemType)
 {
     return fmt::format("[{0} -> {1}]",
@@ -72,6 +78,11 @@ bool Type::equals(const Type* other) const
 {
     if (getTypeID() != other->getTypeID()) {
         return false;
+    } else if (getTypeID() == IntTypeID) {
+        auto left = llvm::dyn_cast<IntType>(this);
+        auto right = llvm::dyn_cast<IntType>(other);
+
+        return left->getWidth() == right->getWidth();
     } else if (getTypeID() == ArrayTypeID) {
         auto left = llvm::dyn_cast<ArrayType>(this);
         auto right = llvm::dyn_cast<ArrayType>(other);

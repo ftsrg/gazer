@@ -90,8 +90,8 @@ public:
 public:
     static std::string getKindName(ExprKind kind);
 
-private:
-    ExprKind mKind;
+protected:
+    const ExprKind mKind;
     const Type& mType;
 };
 
@@ -125,8 +125,43 @@ protected:
     {
         assert(mOperands.size() >= 1 && "Non-nullary expressions must have at least one operand.");
     }
-public:
+
+protected:
+    virtual Expr* withOps(std::vector<ExprPtr> ops) const = 0;
+
+public: 
     virtual void print(std::ostream& os) const override;
+
+    template<class Iter>
+    Expr* with(Iter begin, Iter end) {
+        // Check if all operands are the same
+        bool equals = true;
+        auto it = begin;
+        auto opIt = op_begin();
+
+        size_t itCount = 0;
+        while (it != end && opIt != op_end()) {
+            assert(*it != nullptr && "nullptr in NonNullaryExpr::with()");
+            if (*it != *opIt) {
+                equals = false;
+                // Cannot break here, because we need
+                // to update the itCount variable.
+            }
+            ++itCount;
+            ++it, ++opIt;
+        }
+
+        if (equals) {
+            // The operands are the same, we can just return this instance
+            return this;
+        }
+        
+        assert(itCount == getNumOperands()
+            && "NonNullaryExpr::with() operand counts must match");
+
+        // Operand types must match to the operands of this class
+        return this->withOps({begin, end});
+    }
 
     //---- Operand handling ----//
     using op_iterator = typename std::vector<ExprPtr>::iterator;
@@ -156,6 +191,9 @@ public:
     static bool classof(const Expr& expr) {
         return expr.getKind() >= FirstUnary;
     }
+
+private:
+    static ExprPtr CreateSubClass(ExprKind kind, std::vector<ExprPtr> ops);
 
 private:
     std::vector<ExprPtr> mOperands;

@@ -78,6 +78,11 @@ public:
         return std::optional<std::reference_wrapper<ValueT>>(*result->second);
     }
 
+    using iterator = typename VariableMapT::iterator;
+
+    iterator begin() { return mVariableMap.begin(); }
+    iterator end()   { return mVariableMap.end(); }
+
 private:
     VariableMapT mVariableMap;
 };
@@ -89,8 +94,16 @@ public:
     using SymbolTableBase::operator[];
     using SymbolTableBase::SymbolTableBase;
 
+    using SymbolTableBase::iterator;
+    using SymbolTableBase::begin;
+    using SymbolTableBase::end;
+
     Variable& create(std::string name, const Type* type) {
         return SymbolTableBase::create(name, name, *type);
+    }
+    
+    Variable& create(std::string name, const Type& type) {
+        return SymbolTableBase::create(name, name, type);
     }
 };
 

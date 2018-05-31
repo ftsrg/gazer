@@ -36,6 +36,11 @@ protected:
         : UnaryExpr(Expr::Not, *BoolType::get(), operand)
     {}
 
+protected:
+    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
+        return new NotExpr(ops[0]);
+    }
+
 public:
     static std::shared_ptr<NotExpr> Create(ExprPtr operand)
     {
@@ -72,6 +77,12 @@ protected:
     ArithmeticExpr(const Type& type, ExprPtr left, ExprPtr right)
         : BinaryExpr(Kind, type, left, right)
     {}
+
+protected:
+    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
+        return new ArithmeticExpr<Kind>(getType(), ops[0], ops[1]);
+    }
+
 public:
     static std::shared_ptr<ArithmeticExpr<Kind>> Create(ExprPtr left, ExprPtr right)
     {
@@ -105,13 +116,20 @@ class CompareExpr final : public BinaryExpr
 protected:
     CompareExpr(ExprPtr left, ExprPtr right)
         : BinaryExpr(Kind, *BoolType::get(), left, right)
-    {}
+    {
+        assert(left->getType() == right->getType()
+            && "Compare expression operand types must match.");
+    }
+
+    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
+        return new CompareExpr(ops[0], ops[1]);
+    }
+
 public:
     static std::shared_ptr<CompareExpr<Kind>> Create(ExprPtr left, ExprPtr right)
     {
-        assert((left->getType() == right->getType()) && "Compare expression operand types must match.");
         return std::shared_ptr<CompareExpr<Kind>>(new CompareExpr(left, right));
-    }    
+    }
     
     /**
      * Type inquiry support.
@@ -139,12 +157,17 @@ class BinaryLogicExpr final : public BinaryExpr
 protected:
     BinaryLogicExpr(ExprPtr left, ExprPtr right)
         : BinaryExpr(Kind, *BoolType::get(), left, right)
-    {}
-public:
-    static std::shared_ptr<BinaryLogicExpr<Kind>> Create(ExprPtr left, ExprPtr right)
     {
         assert(left->getType().isBoolType() && "Logic expression operands can only be booleans.");
         assert((left->getType() == right->getType()) && "Logic expression operand types must match.");
+    }
+
+    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
+        return new BinaryLogicExpr<Kind>(ops[0], ops[1]);
+    }
+public:
+    static std::shared_ptr<BinaryLogicExpr<Kind>> Create(ExprPtr left, ExprPtr right)
+    {
         return std::shared_ptr<BinaryLogicExpr<Kind>>(new BinaryLogicExpr(left, right));
     }    
     
@@ -169,6 +192,13 @@ protected:
     SelectExpr(const Type& type, ExprPtr condition, ExprPtr then, ExprPtr elze)
         : NonNullaryExpr(Expr::Select, type, {condition, then, elze})
     {}
+
+    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
+        assert(ops[0]->getType().isBoolType() && "Select expression condition type must be boolean.");
+        assert(ops[1]->getType() == ops[2]->getType() && "Select expression operand types must match.");
+        assert(ops[1]->getType() == getType() && "withOps() can only construct ");
+        return new SelectExpr(getType(), ops[0], ops[1], ops[2]);
+    }
 public:
     static std::shared_ptr<SelectExpr> Create(ExprPtr condition, ExprPtr then, ExprPtr elze);
 

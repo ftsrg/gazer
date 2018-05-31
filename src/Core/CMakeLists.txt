@@ -5,6 +5,8 @@ set(SOURCE_FILES
     Variable.cpp
     SymbolTable.cpp
     Automaton.cpp
+    Utils/VariableRewriter.cpp
+    Utils/ExprBuilder.cpp
 )
 
 add_library(GazerCore ${SOURCE_FILES})

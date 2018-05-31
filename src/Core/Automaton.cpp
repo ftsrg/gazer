@@ -5,6 +5,8 @@
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 
+#include <iostream>
+
 using namespace gazer;
 
 bool Location::operator==(const Location& rhs) const{
@@ -48,7 +50,12 @@ Location& Automaton::createLocation(std::string name)
 
 CfaEdge& Automaton::insertEdge(std::unique_ptr<CfaEdge> edge)
 {
+    std::cerr << *edge << std::endl;
+
+    edge->getSource().addOutgoing(edge.get());
+    edge->getTarget().addIncoming(edge.get());
+
     mEdges.push_back(std::move(edge));
+
     return *edge;
 }
-

@@ -3,6 +3,7 @@
 
 #include "gazer/Core/Expr.h"
 #include "gazer/Core/Variable.h"
+#include "gazer/Core/SymbolTable.h"
 
 #include <llvm/ADT/iterator_range.h>
 
@@ -12,11 +13,6 @@
 #include <string>
 #include <memory>
 #include <iosfwd>
-
-
-namespace llvm {
-    class raw_ostream;
-}
 
 namespace gazer
 {
@@ -102,13 +98,14 @@ public:
         Edge_Skip,
         Edge_Assume,
         Edge_Assign,
+        Edge_Havoc,
         //Edge_Call,
         //Edge_Return
     };
 
 protected:
-    CfaEdge(EdgeKind type, Location& source, Location& target)
-        : mKind(type), mSource(source), mTarget(target)
+    CfaEdge(EdgeKind type, Location& source, Location& target, ExprPtr guard = nullptr)
+        : mKind(type), mSource(source), mTarget(target), mGuard(guard)
     {}
 
 public:
@@ -129,8 +126,10 @@ public:
 
     EdgeKind getKind() const { return mKind; }
 
-    bool isAssume() const   { return mKind == Edge_Assume; }
-    bool isAssign() const   { return mKind == Edge_Assign; }
+    bool isSkip()   const { return mKind == Edge_Skip; }
+    bool isAssume() const { return mKind == Edge_Assume; }
+    bool isAssign() const { return mKind == Edge_Assign; }
+    bool isHavoc()  const { return mKind == Edge_Havoc; }
     //bool isCall() const     { return mKind == Edge_Call; }
     //bool isReturn() const   { return mKind == Edge_Return; }
 
@@ -141,8 +140,12 @@ private:
     EdgeKind mKind;
     Location& mSource;
     Location& mTarget;
+    ExprPtr mGuard = nullptr;
 };
 
+/**
+ * An edge class which represents a simple no-op.
+ */
 class SkipEdge final : public CfaEdge
 {
 protected:
@@ -168,6 +171,9 @@ public:
     }   
 };
 
+/**
+ * Represents an automaton edge with branch conditions and guards.
+ */
 class AssumeEdge final : public CfaEdge
 {
 protected:
@@ -180,7 +186,6 @@ protected:
     }
 
 public:
-
     static std::unique_ptr<AssumeEdge> Create(Location& source, Location& target, ExprPtr condition)
     {
         return std::unique_ptr<AssumeEdge>(new AssumeEdge(source, target, condition));
@@ -207,6 +212,9 @@ private:
     ExprPtr mCondition;
 };
 
+/**
+ * Represents an automaton edge containing assignments.
+ */
 class AssignEdge final : public CfaEdge
 {
 public:
@@ -252,7 +260,6 @@ public:
 
     //---- Assignments ----//
     size_t getNumAssignments() const { return mAssignments.size(); }
-    void insert(Assignment&& assignment) { mAssignments.push_back(assignment); }
     void addAssignment(Variable& variable, ExprPtr value) {
         mAssignments.push_back({variable, value});
     }
@@ -280,6 +287,50 @@ private:
 };
 
 /**
+ * Represents an edge which assigns nondetermistic values to a set of variables
+ */
+class HavocEdge final : public CfaEdge
+{
+protected:
+    HavocEdge(Location& source, Location& target, std::vector<Variable*> vars)
+        : CfaEdge(Edge_Havoc, source, target), mVars(vars)
+    {}
+
+public:
+    static std::unique_ptr<HavocEdge> Create(Location& source, Location& target, std::vector<Variable*> vars) {
+        return std::unique_ptr<HavocEdge>(new HavocEdge(source, target, vars));
+    }
+
+public:
+    void addVariable(Variable* variable) {
+        mVars.push_back(variable);
+    }
+
+    //--- Inherited functions ---//
+    virtual void print(std::ostream& os) const override;
+
+    //----- Iterator access -----//
+    using var_iterator = std::vector<Variable*>::iterator;
+    var_iterator var_begin() { return mVars.begin(); }
+    var_iterator var_end() { return mVars.end(); }
+
+    llvm::iterator_range<var_iterator> vars() {
+        return llvm::make_range(var_begin(), var_end());
+    }
+
+    //---- Type inqueries ----//
+    static bool classof(const CfaEdge* edge) {
+        return edge->getKind() == Edge_Havoc;
+    }
+
+    static bool classof(const CfaEdge& edge) {
+        return edge.getKind() == Edge_Havoc;
+    }
+private:
+    std::vector<Variable*> mVars;
+};
+
+/**
  * Create a type-checked assignment.
  */
 inline AssignEdge::Assignment mk_assign(Variable& variable, ExprPtr expr)
@@ -293,6 +344,11 @@ inline AssignEdge::Assignment mk_assign(Variable& variable, ExprPtr expr)
 std::ostream& operator<<(std::ostream& os, const Location& location);
 std::ostream& operator<<(std::ostream& os, const CfaEdge& edge);
 
+/**
+ * A Control Flow Automaton (CFA) class.
+ * Each automaton contains a set of locations and edges.
+ * Furthermore, each automaton has its own symbol table.
+ */
 class Automaton final
 {
 public:
@@ -303,19 +359,21 @@ public:
 
     Automaton(const Automaton&) = delete;
     Automaton& operator=(const Automaton&) = delete;
-
 public:
+    SymbolTable& getSymbols() { return mSymbolTable; }
+
     Location& entry() { return *mEntry; }
     Location& exit()  { return *mExit; }
 
     Location& createLocation() {
         return createLocation(std::to_string(mTempCounter++));
     }
-
     Location& createLocation(std::string name);
 
     CfaEdge& insertEdge(std::unique_ptr<CfaEdge> edge);
 
+    CfaEdge& skip(Location& source, Location& target);
+    //CfaEdge& assign(Location& source, Location& target)
 
 public:
     using loc_iterator = std::vector<std::unique_ptr<Location>>::iterator;
@@ -334,14 +392,13 @@ public:
     }
 
 private:
+    SymbolTable mSymbolTable;
     std::vector<std::unique_ptr<Location>> mLocs;
     std::vector<std::unique_ptr<CfaEdge>> mEdges;
     Location* mEntry;
     Location* mExit;
     size_t mTempCounter = 1;
 };
-
-
 
 } // end namespace gazer
 
