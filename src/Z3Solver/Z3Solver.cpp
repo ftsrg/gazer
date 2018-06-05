@@ -12,8 +12,8 @@ namespace
 class Z3ExprTransformer : public ExprVisitor<z3::expr>
 {
 public:
-    Z3ExprTransformer(z3::context& context)
-        : mContext(context)
+    Z3ExprTransformer(z3::context& context, unsigned& tmpCount)
+        : mContext(context), mTmpCount(tmpCount)
     {}
 
 protected:
@@ -22,8 +22,8 @@ protected:
     }
 
     virtual z3::expr visitUndef(const std::shared_ptr<UndefExpr>& expr) override {
-        std::string name = "__gazer_undef:" + std::to_string(mTmpCount);
-        
+        std::string name = "__gazer_undef:" + std::to_string(mTmpCount++);
+
         if (expr->getType().isBoolType()) {
             return mContext.bool_const(name.c_str());
         } else if (expr->getType().isIntType()) {
@@ -72,6 +72,14 @@ protected:
         return !(visit(expr->getOperand()));
     }
 
+    virtual z3::expr visitZExt(const std::shared_ptr<ZExtExpr>& expr) override {
+        return this->visitExpr(expr);
+    }
+    
+    virtual z3::expr visitSExt(const std::shared_ptr<SExtExpr>& expr) override {
+        return this->visitExpr(expr);
+    }
+
     // Binary
     virtual z3::expr visitAdd(const std::shared_ptr<AddExpr>& expr) override {
         return visit(expr->getLeft()) + visit(expr->getRight());
@@ -93,7 +101,10 @@ protected:
         return visit(expr->getLeft()) || visit(expr->getRight());
     }
     virtual z3::expr visitXor(const std::shared_ptr<XorExpr>& expr) override {
-        return visit(expr->getLeft()) ^ visit(expr->getRight());
+        if (expr->getType().isBoolType()) {
+            return visit(expr->getLeft()) != visit(expr->getRight());
+        }
+        assert(false && "Can only handle boolean XORs");
     }
 
     // Compare
@@ -126,7 +137,7 @@ protected:
     }
 private:
     z3::context& mContext;
-    unsigned mTmpCount;
+    unsigned& mTmpCount;
 };
 
 }
@@ -146,6 +157,7 @@ Solver::SolverStatus Z3Solver::run()
 
 void Z3Solver::addConstraint(ExprPtr expr)
 {
-    Z3ExprTransformer transformer(mContext);
-    mSolver.add(transformer.visit(expr));
+    Z3ExprTransformer transformer(mContext, mTmpCount);
+    auto z3Expr = transformer.visit(expr);
+    mSolver.add(z3Expr);
 }

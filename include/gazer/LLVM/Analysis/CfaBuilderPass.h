@@ -13,8 +13,8 @@ class CfaBuilderPass final : public llvm::FunctionPass
 public:
     static char ID;
 
-    CfaBuilderPass()
-        : FunctionPass(ID)
+    CfaBuilderPass(bool isLBE)
+        : FunctionPass(ID), mLBE(isLBE)
     {}
 
     Automaton& getCFA() { return *mCFA; }
@@ -23,7 +23,11 @@ public:
 
 private:
     std::unique_ptr<Automaton> mCFA;
+    bool mLBE;
 };
+
+llvm::Pass* createCfaBuilderPass();
+llvm::Pass* createCfaPrinterPass();
 
 }
 

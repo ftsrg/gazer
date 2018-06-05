@@ -1,3 +1,4 @@
+/*
 #include "gazer/Core/Automaton.h"
 #include "gazer/Core/SymbolTable.h"
 #include "gazer/Core/LiteralExpr.h"
@@ -16,6 +17,10 @@
 #include <iostream>
 
 using namespace gazer;
+*/
+int main(void) {}
+
+#if 0
 
 static void printAutomaton(Automaton& cfa);
 
@@ -93,3 +98,4 @@ static void printAutomaton(Automaton& cfa)
     }
     std::cerr << "};\n";
 }
+#endif

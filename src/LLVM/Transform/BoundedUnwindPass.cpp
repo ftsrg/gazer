@@ -30,8 +30,8 @@ bool BoundedUnwindPass::runOnFunction(Function& function)
 
         auto result = UnrollLoop(
             loop, mBound, mBound,
-            true, true, true, true, true,
-            0, 0, false,
+            true, true, true, false, false,
+            1, 0, false,
             &loopInfo,
             &getAnalysis<ScalarEvolutionWrapperPass>().getSE(),
             &getAnalysis<DominatorTreeWrapperPass>().getDomTree(),

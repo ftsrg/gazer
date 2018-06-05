@@ -83,6 +83,8 @@ public:
     iterator begin() { return mVariableMap.begin(); }
     iterator end()   { return mVariableMap.end(); }
 
+    size_t size() const { return mVariableMap.size(); }
+
 private:
     VariableMapT mVariableMap;
 };
@@ -93,6 +95,7 @@ public:
     using SymbolTableBase::get;
     using SymbolTableBase::operator[];
     using SymbolTableBase::SymbolTableBase;
+    using SymbolTableBase::size;
 
     using SymbolTableBase::iterator;
     using SymbolTableBase::begin;

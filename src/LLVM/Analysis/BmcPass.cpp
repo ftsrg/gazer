@@ -22,7 +22,7 @@ bool BmcPass::runOnFunction(llvm::Function& function)
     Z3Solver solver;
     BoundedModelChecker bmc([](Location* location) {
         return location->getName() == "error";
-    }, 100, &solver);
+    }, mBound, &solver);
     auto status = bmc.check(cfa);
 
     llvm::errs() << "Checking " << function.getName() << "...\n";

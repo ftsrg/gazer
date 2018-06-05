@@ -70,7 +70,7 @@ void PathToExprs(SymbolTable& st, InputIterator begin, InputIterator end, Output
         if (edge->isAssign()) {
             auto assignEdge = llvm::dyn_cast<AssignEdge>(edge);
             for (auto& assignment : assignEdge->assignments()) {
-                Variable* variable = &(assignment.variable);
+                Variable* variable = assignment.variable;
                 auto rhs = visitor->visit(assignment.expr);
                 Variable* newVar = vi.increment(variable);
                 

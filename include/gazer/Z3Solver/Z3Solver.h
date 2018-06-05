@@ -23,6 +23,7 @@ protected:
 private:
     z3::context mContext;
     z3::solver mSolver;
+    unsigned mTmpCount = 0;
 };
 
 }

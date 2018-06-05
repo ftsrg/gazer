@@ -57,6 +57,7 @@ public:
     static std::shared_ptr<IntLiteralExpr> get(IntType& type, uint64_t value);
 
     uint64_t getValue() const { return mValue; }
+
     const IntType& getType() const {
         return static_cast<const IntType&>(mType);
     }
@@ -71,6 +72,7 @@ public:
 
 private:
     uint64_t mValue;
+    //llvm::APInt mValue;
 };
 
 }

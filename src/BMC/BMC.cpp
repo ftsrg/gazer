@@ -25,6 +25,14 @@ public:
     BmcState(unsigned depth, Location* location, BmcState* parent = nullptr, CfaEdge* edge = nullptr)
         : depth(depth), loc(location), parent(parent), edge(edge)
     {}
+
+    void print(std::ostream& os) {
+        os << "BmcState(loc=" << *loc << ", edge=";
+        if (edge != nullptr) {
+            os << *edge;
+        }
+        os << ", depth=" << depth << ")";
+    }
 };
 
 }
@@ -32,16 +40,22 @@ public:
 auto BoundedModelChecker::check(Automaton& cfa) -> Status
 {
     unsigned depth = 0;
-    std::vector<BmcState*> states;
+    unsigned currentBound = 1;
+    std::vector<std::unique_ptr<BmcState>> states;
     std::queue<BmcState*> queue;
 
-    auto entry = new BmcState(0, &cfa.entry());
-    states.push_back(entry);
+    auto entry = states.emplace_back(new BmcState(0, &cfa.entry())).get();
     queue.push(entry);
 
     while (!queue.empty()) {
         auto state = queue.front();
         queue.pop();
+
+        //std::cerr << "Current states: " << states.size() << "\n";
+        //std::cerr << "Queue size: " << queue.size() << "\n";
+        //std::cerr << "Current state: ";
+        //state->print(std::cerr);
+        //std::cerr << "\n";
 
         depth = state->depth;
         if (mCriterion(state->loc)) {
@@ -63,6 +77,7 @@ auto BoundedModelChecker::check(Automaton& cfa) -> Status
                 cfa.getSymbols(), edges.rbegin(), edges.rend(),
                 Solver::InsertIterator(*solver)
             );
+            std::cerr << "Generated " << solver->getNumConstraints() << " formulas.\n";
             std::cerr << "Running solver.\n";
             Solver::SolverStatus status = solver->run();
             if (status == Solver::SAT) {
@@ -76,17 +91,13 @@ auto BoundedModelChecker::check(Automaton& cfa) -> Status
             }
         } else if (depth + 1 < mBound) {
             for (auto& edge : state->loc->outgoing()) {
-                auto newState = new BmcState(depth + 1, &edge->getTarget(), state, edge);
-                states.push_back(newState);
-                queue.push(newState);
+                //auto newState = new BmcState(depth + 1, &edge->getTarget(), state, edge);
+                auto& newState = states.emplace_back(new BmcState(depth + 1, &edge->getTarget(), state, edge));
+                queue.push(newState.get());
             }
         } else {
             // We reached the bound, do nothing.
         }
-    }
-
-    for (BmcState* state : states) {
-        delete[] state;
     }
 
     return Status::STATUS_UNKNOWN;

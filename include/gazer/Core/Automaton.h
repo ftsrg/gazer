@@ -70,14 +70,15 @@ public:
     llvm::iterator_range<edge_iterator> incoming() {
         return llvm::make_range(incoming_begin(), incoming_end());
     }
-private:
-    void addIncoming(CfaEdge* edge) {
-        mIncoming.push_back(edge);
-    }
 
-    void addOutgoing(CfaEdge* edge) {
-        mOutgoing.push_back(edge);
-    }
+    size_t getNumIncoming() const { return mIncoming.size(); }
+    size_t getNumOutgoing() const { return mOutgoing.size(); }
+private:
+    void addIncoming(CfaEdge* edge) { mIncoming.push_back(edge); }
+    void addOutgoing(CfaEdge* edge) { mOutgoing.push_back(edge); }
+
+    void removeIncoming(CfaEdge* edge);
+    void removeOutgoing(CfaEdge* edge);
 
 private:
     std::string mName;
@@ -157,21 +158,21 @@ class AssignEdge final : public CfaEdge
 public:
     struct Assignment
     {
-        Variable& variable;
+        Variable* variable;
         ExprPtr expr;
 
-        Assignment(std::pair<Variable, ExprPtr> pair)
+        Assignment(std::pair<Variable*, ExprPtr> pair)
             : Assignment(pair.first, pair.second)
         {}
 
-        Assignment(Variable& variable, ExprPtr expr)
+        Assignment(Variable* variable, ExprPtr expr)
             : variable(variable), expr(expr)
         {
-            if (variable.getType() != expr->getType()) {
+            if (variable->getType() != expr->getType()) {
                 throw TypeCastError(fmt::format(
                     "Cannot assign an expression type of {0}"
                     "to the variable '{1}' (type of {2}).",
-                    variable.getName(), variable.getType().getName(), expr->getType().getName()
+                    variable->getName(), variable->getType().getName(), expr->getType().getName()
                 ));
             }
         }
@@ -207,7 +208,7 @@ public:
 
     //---- Assignments ----//
     size_t getNumAssignments() const { return mAssignments.size(); }
-    void addAssignment(Variable& variable, ExprPtr value) {
+    void addAssignment(Variable* variable, ExprPtr value) {
         mAssignments.push_back({variable, value});
     }
 
@@ -232,14 +233,6 @@ public:
 private:
     std::vector<Assignment> mAssignments;
 };
-
-/**
- * Create a type-checked assignment.
- */
-inline AssignEdge::Assignment mk_assign(Variable& variable, ExprPtr expr)
-{
-    return AssignEdge::Assignment(variable, expr);
-}
 
 /**
  * Output operators.
@@ -275,9 +268,11 @@ public:
 
     CfaEdge& insertEdge(std::unique_ptr<CfaEdge> edge);
 
-    CfaEdge& skip(Location& source, Location& target);
-    //CfaEdge& assign(Location& source, Location& target)
+    void removeEdge(CfaEdge* edge);
+    void removeLocation(Location* location);
 
+
+    //CfaEdge& assign(Location& source, Location& target)
 public:
     using loc_iterator = std::vector<std::unique_ptr<Location>>::iterator;
     using edge_iterator = typename std::vector<std::unique_ptr<CfaEdge>>::iterator;
@@ -293,6 +288,9 @@ public:
     llvm::iterator_range<edge_iterator> edges() {
         return llvm::make_range(edge_begin(), edge_end());
     }
+
+    size_t getNumLocs() const { return mLocs.size(); }
+    size_t getNumEdges() const { return mEdges.size(); }
 
 private:
     SymbolTable mSymbolTable;

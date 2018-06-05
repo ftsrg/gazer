@@ -49,16 +49,22 @@ public:
 
     void add(ExprPtr expr) {
         assert(expr->getType().isBoolType() && "Can only add bool expressions to a solver.");
+        mStatCount++;
         addConstraint(expr);
     }
 
     void dump(std::ostream& os);
+    unsigned getNumConstraints() const { return mStatCount; }
 
     virtual SolverStatus run() = 0;
 
     virtual ~Solver() {}
+
 protected:
     virtual void addConstraint(ExprPtr expr) = 0;
+
+private:
+    unsigned mStatCount = 0;
 };
 
 }

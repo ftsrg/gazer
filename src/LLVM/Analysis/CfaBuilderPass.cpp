@@ -2,6 +2,7 @@
 #include "gazer/Core/Automaton.h"
 #include "gazer/Core/Type.h"
 #include "gazer/Core/Utils/ExprBuilder.h"
+#include "gazer/Core/Utils/CfaSimplify.h"
 
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Instruction.h>
@@ -248,7 +249,7 @@ void CfaBuilderVisitor::insertPHIAssignments(
                 ExprPtr   expr = operand(value);
                 Variable* phiVar  = getVariable(phi);
 
-                instructions.push_back({*phiVar, expr});
+                instructions.push_back({phiVar, expr});
             }
         }
     }
@@ -277,7 +278,7 @@ void CfaBuilderVisitor::visitBinaryOperator(llvm::BinaryOperator& binop)
                 llvm_unreachable("Unknown logic instruction opcode");
             }
 
-            mInstructions.push_back({*variable, expr});
+            mInstructions.push_back({variable, expr});
         } else {
             assert(false && "Unsupported operator kind.");
         }
@@ -299,7 +300,7 @@ void CfaBuilderVisitor::visitBinaryOperator(llvm::BinaryOperator& binop)
             assert(false && "Unsupported arithmetic instruction opcode");
         }
 
-        mInstructions.push_back({*variable, expr});
+        mInstructions.push_back({variable, expr});
     }
 }
 
@@ -325,7 +326,6 @@ void CfaBuilderVisitor::visitBranchInst(llvm::BranchInst& br)
         std::vector<AssignEdge::Assignment> elzeAssigns;
         insertPHIAssignments(elzeAssigns, *fromBB, *thenBB);
 
-
         mCFA->insertEdge(AssignEdge::Create(
             *mCurrentLocs.second, *thenLoc, thenAssigns, condition
         ));
@@ -334,6 +334,29 @@ void CfaBuilderVisitor::visitBranchInst(llvm::BranchInst& br)
         ));
     }
 }
+
+#if 0
+void CfaBuilderVisitor::visitSwitchInst(llvm::SwitchInst& swi)
+{
+    auto condition = operand(swi.getCondition());
+    llvm::DenseMap<const BasicBlock*, Location*> cases;
+
+    for (auto& ci : swi.cases()) {
+        const BasicBlock* target = ci.getCaseSuccessor();
+        const Value* value = ci.getCaseValue();
+
+        auto valueOp = operand(value);
+        auto jumpCondition = EqExpr::Create(condition, valueOp);
+
+        auto targetLoc = mLocations[target].first;
+        mCFA->insertEdge(AssignEdge::Create(
+            *mCurrentLocs.second,
+            *targetLoc,
+            jumpCondition
+        ));
+    }
+}
+#endif
 
 void CfaBuilderVisitor::visitSelectInst(llvm::SelectInst& select)
 {
@@ -344,7 +367,7 @@ void CfaBuilderVisitor::visitSelectInst(llvm::SelectInst& select)
     auto then = castResult(operand(select.getTrueValue()), type);
     auto elze = castResult(operand(select.getFalseValue()), type);
 
-    mInstructions.push_back({*selectVar, mExprBuilder->Select(cond, then, elze)});
+    mInstructions.push_back({selectVar, mExprBuilder->Select(cond, then, elze)});
 }
 
 void CfaBuilderVisitor::visitICmpInst(llvm::ICmpInst& icmp)
@@ -380,7 +403,7 @@ void CfaBuilderVisitor::visitICmpInst(llvm::ICmpInst& icmp)
 
     #undef HANDLE_PREDICATE
 
-    mInstructions.push_back({*icmpVar, expr});
+    mInstructions.push_back({icmpVar, expr});
 }
 
 void CfaBuilderVisitor::visitCastInst(llvm::CastInst& cast)
@@ -396,7 +419,7 @@ void CfaBuilderVisitor::visitCastInst(llvm::CastInst& cast)
         // Other cast types are ignored at the moment.
     }
 
-    mInstructions.push_back({*variable, castOp});
+    mInstructions.push_back({variable, castOp});
 }
 
 void CfaBuilderVisitor::visitCallInst(llvm::CallInst& call)
@@ -416,7 +439,7 @@ void CfaBuilderVisitor::visitCallInst(llvm::CallInst& call)
         if (call.getName() != "") {
             auto variable = getVariable(&call);
             mInstructions.push_back(
-                {*variable, UndefExpr::Get(variable->getType())}
+                {variable, UndefExpr::Get(variable->getType())}
             );
         }
     } else {
@@ -449,20 +472,30 @@ void CfaBuilderVisitor::visitInstruction(llvm::Instruction &instr)
 
 } // end anonymous namespace
 
-static void printAutomaton(Automaton& cfa);
 
 bool CfaBuilderPass::runOnFunction(Function& function)
 {
     CfaBuilderVisitor visitor(function);
 
     mCFA = visitor.transform();
+    if (mLBE) {
+        SimplifyCFA(*mCFA);
+    }
 
-    printAutomaton(*mCFA);
+    llvm::errs() << "FINISHED BUILDING AUTOMATON. STATS:\n";
+    llvm::errs() << "   Encoding: " << (mLBE ? "LargeBlock" : "SmallBlock") << "\n";
+    llvm::errs() << "   Locations: " << mCFA->getNumLocs() << "\n";
+    llvm::errs() << "   Edges: " << mCFA->getNumEdges() << "\n";
+    llvm::errs() << "   Variables: " << mCFA->getSymbols().size() << "\n";
+    //printAutomaton(*mCFA);
     
     return false;
 }
 
-static void printAutomaton(Automaton& cfa)
+namespace
+{
+
+void printAutomaton(Automaton& cfa)
 {
     llvm::errs() << "digraph G {\n";
     for (auto& loc : cfa.locs()) {
@@ -482,5 +515,35 @@ static void printAutomaton(Automaton& cfa)
         );
     }
     llvm::errs() << "};\n";
+}
+
+struct CfaPrinterPass final : public llvm::FunctionPass
+{
+    static char ID;
+
+    CfaPrinterPass()
+        : FunctionPass(ID)
+    {}
+
+    virtual void getAnalysisUsage(llvm::AnalysisUsage& au) const override {
+        au.addRequired<CfaBuilderPass>();
+        au.setPreservesAll();
+    }
+
+    virtual bool runOnFunction(llvm::Function& function) override {
+        Automaton& cfa = getAnalysis<CfaBuilderPass>().getCFA();
+        printAutomaton(cfa);
+
+        return false;
+    }
+};
+
+char CfaPrinterPass::ID;
+
+} // end anonymous namespace
+
+namespace gazer {
+    llvm::Pass* createCfaBuilderPass(bool isLBE) { return new CfaBuilderPass(isLBE); }
+    llvm::Pass* createCfaPrinterPass() { return new CfaPrinterPass(); }
 }
 

@@ -3,4 +3,4 @@ set(SOURCE_FILES
 )
 
 add_executable(gazer-bmc ${SOURCE_FILES})
-target_link_libraries(gazer-bmc GazerCore GazerZ3Solver GazerBMC GazerLLVM)
+target_link_libraries(gazer-bmc GazerLLVM GazerZ3Solver)

@@ -12,12 +12,14 @@ class BmcPass final : public llvm::FunctionPass
 public:
     static char ID;
 
-    BmcPass()
-        : FunctionPass(ID)
+    BmcPass(unsigned bound)
+        : FunctionPass(ID), mBound(bound)
     {}
 
     virtual void getAnalysisUsage(llvm::AnalysisUsage& au) const override;
     virtual bool runOnFunction(llvm::Function& function) override;
+private:
+    unsigned mBound;
 };
 
 }

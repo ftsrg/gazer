@@ -8,7 +8,7 @@ namespace
 {
 
 std::string getIndexedVariableName(std::string name, unsigned index) {
-    return name + "_" + std::to_string(index);
+    return name + ":" + std::to_string(index);
 }
 
 class VariableIndexVisitor : public ExprVisitor<ExprPtr>
