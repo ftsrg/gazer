@@ -1,7 +1,9 @@
 set(SOURCE_FILES
+    Ir2Expr.cpp
     Analysis/CfaBuilderPass.cpp
     Analysis/BmcPass.cpp
     Analysis/ProgramDependence.cpp
+    Analysis/TopologicalSort.cpp
     Transform/BoundedUnwindPass.cpp
     Transform/BackwardSlicer.cpp
     Transform/InlineGlobalVariablesPass.cpp

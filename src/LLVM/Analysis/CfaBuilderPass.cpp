@@ -11,6 +11,7 @@
 #include <llvm/Support/raw_ostream.h>
 
 #include <sstream>
+#include <algorithm>
 
 using namespace gazer;
 
@@ -29,15 +30,15 @@ char CfaBuilderPass::ID = 0;
 namespace
 {
 
-gazer::Type& TypeFromLLVMType(llvm::Type* type)
+gazer::Type& TypeFromLLVMType(const llvm::Value* value)
 {
-    if (type->isIntegerTy()) {
-        auto width = type->getIntegerBitWidth();
+    if (value->getType()->isIntegerTy()) {
+        auto width = value->getType()->getIntegerBitWidth();
         if (width == 1) {
             return *BoolType::get();
         }
 
-        return *IntType::get(type->getIntegerBitWidth());
+        return *IntType::get(width);
     }
 
     assert(false && "Unsupported LLVM type.");
@@ -111,7 +112,7 @@ std::unique_ptr<Automaton> CfaBuilderVisitor::transform()
     for (auto& arg : mFunction.args()) {
         Variable& variable = mCFA->getSymbols().create(
             arg.getName(),
-            TypeFromLLVMType(arg.getType())
+            TypeFromLLVMType(&arg)
         );
         mVariables[&arg] = &variable;
     }
@@ -128,12 +129,13 @@ std::unique_ptr<Automaton> CfaBuilderVisitor::transform()
             if (instr.getName() != "") {
                 Variable& variable = mCFA->getSymbols().create(
                     instr.getName(),
-                    TypeFromLLVMType(instr.getType())
+                    TypeFromLLVMType(&instr)
                 );
                 mVariables[&instr] = &variable;
             }
         }
     }
+
     // Add a transition from the initial location
     auto initLoc = mLocations[&(mFunction.getEntryBlock())].first;
     mCFA->insertEdge(AssignEdge::Create(mCFA->entry(), *initLoc));
@@ -169,7 +171,7 @@ ExprPtr CfaBuilderVisitor::operand(const Value* value)
     } else if (isNonConstValue(value)) {
         return getVariable(value)->getRefExpr();
     } else if (isa<llvm::UndefValue>(value)) {
-        return mExprBuilder->Undef(TypeFromLLVMType(value->getType()));
+        return mExprBuilder->Undef(TypeFromLLVMType(value));
     } else {
         assert(false && "Unhandled value type");
     }
@@ -263,11 +265,11 @@ void CfaBuilderVisitor::visitBinaryOperator(llvm::BinaryOperator& binop)
 
     auto opcode = binop.getOpcode();
     if (isLogicInstruction(opcode)) {
+        ExprPtr expr;
         if (binop.getType()->isIntegerTy(1)) {
             auto boolLHS = asBool(lhs);
             auto boolRHS = asBool(rhs);
 
-            ExprPtr expr;
             if (binop.getOpcode() == Instruction::And) {
                 expr = mExprBuilder->And(boolLHS, boolRHS);
             } else if (binop.getOpcode() == Instruction::Or) {
@@ -277,11 +279,26 @@ void CfaBuilderVisitor::visitBinaryOperator(llvm::BinaryOperator& binop)
             } else {
                 llvm_unreachable("Unknown logic instruction opcode");
             }
-
-            mInstructions.push_back({variable, expr});
         } else {
-            assert(false && "Unsupported operator kind.");
+            assert(binop.getType()->isIntegerTy()
+                && "Integer operations on non-integer types");
+            auto iTy = llvm::dyn_cast<llvm::IntegerType>(binop.getType());
+
+            auto intLHS = asInt(lhs, iTy->getBitWidth());
+            auto intRHS = asInt(rhs, iTy->getBitWidth());
+
+            if (binop.getOpcode() == Instruction::And) {
+                expr = mExprBuilder->BAnd(intLHS, intRHS);
+            } else if (binop.getOpcode() == Instruction::Or) {
+                expr = mExprBuilder->BOr(intLHS, intRHS);
+            } else if (binop.getOpcode() == Instruction::Xor) {
+                expr = mExprBuilder->BXor(intLHS, intRHS);
+            } else {
+                llvm_unreachable("Unknown logic instruction opcode");
+            }
         }
+
+        mInstructions.push_back({variable, expr});
     } else {
         const IntType* type = llvm::dyn_cast<IntType>(&variable->getType());
         assert(type && "Arithmetic results must be integer types");
@@ -289,16 +306,24 @@ void CfaBuilderVisitor::visitBinaryOperator(llvm::BinaryOperator& binop)
         auto intLHS = asInt(lhs, type->getWidth());
         auto intRHS = asInt(rhs, type->getWidth());
 
+        #define HANDLE_INSTCASE(OPCODE, EXPRNAME)                 \
+            case OPCODE:                                          \
+                expr = mExprBuilder->EXPRNAME(intLHS, intRHS);    \
+                break;                                            \
+
         ExprPtr expr;
-        if (binop.getOpcode() == Instruction::Add) {
-            expr = mExprBuilder->Add(intLHS,intRHS);
-        } else if (binop.getOpcode() == Instruction::Sub) {
-            expr = mExprBuilder->Sub(intLHS,intRHS);
-        } else if (binop.getOpcode() == Instruction::Mul) {
-            expr = mExprBuilder->Mul(intLHS,intRHS);
-        } else {
-            assert(false && "Unsupported arithmetic instruction opcode");
+        switch (binop.getOpcode()) {
+            HANDLE_INSTCASE(Instruction::Add, Add)
+            HANDLE_INSTCASE(Instruction::Sub, Sub)
+            HANDLE_INSTCASE(Instruction::Mul, Mul)
+            HANDLE_INSTCASE(Instruction::Shl, Shl)
+            HANDLE_INSTCASE(Instruction::LShr, LShr)
+            HANDLE_INSTCASE(Instruction::AShr, AShr)
+            default:
+                assert(false && "Unsupported arithmetic instruction opcode");
         }
+
+        #undef HANDLE_INSTCASE
 
         mInstructions.push_back({variable, expr});
     }
@@ -389,14 +414,14 @@ void CfaBuilderVisitor::visitICmpInst(llvm::ICmpInst& icmp)
     switch (pred) {
         HANDLE_PREDICATE(CmpInst::ICMP_EQ, Eq)
         HANDLE_PREDICATE(CmpInst::ICMP_NE, NotEq)
-        HANDLE_PREDICATE(CmpInst::ICMP_UGT, Gt)
-        HANDLE_PREDICATE(CmpInst::ICMP_UGE, GtEq)
-        HANDLE_PREDICATE(CmpInst::ICMP_ULT, Lt)
-        HANDLE_PREDICATE(CmpInst::ICMP_ULE, LtEq)
-        HANDLE_PREDICATE(CmpInst::ICMP_SGT, Gt)
-        HANDLE_PREDICATE(CmpInst::ICMP_SGE, GtEq)
-        HANDLE_PREDICATE(CmpInst::ICMP_SLT, Lt)
-        HANDLE_PREDICATE(CmpInst::ICMP_SLE, LtEq)
+        HANDLE_PREDICATE(CmpInst::ICMP_UGT, UGt)
+        HANDLE_PREDICATE(CmpInst::ICMP_UGE, UGtEq)
+        HANDLE_PREDICATE(CmpInst::ICMP_ULT, ULt)
+        HANDLE_PREDICATE(CmpInst::ICMP_ULE, ULtEq)
+        HANDLE_PREDICATE(CmpInst::ICMP_SGT, SGt)
+        HANDLE_PREDICATE(CmpInst::ICMP_SGE, SGtEq)
+        HANDLE_PREDICATE(CmpInst::ICMP_SLT, SLt)
+        HANDLE_PREDICATE(CmpInst::ICMP_SLE, SLtEq)
         default:
             assert(false && "Unhandled ICMP predicate.");
     }
@@ -409,12 +434,27 @@ void CfaBuilderVisitor::visitICmpInst(llvm::ICmpInst& icmp)
 void CfaBuilderVisitor::visitCastInst(llvm::CastInst& cast)
 {
     auto variable = getVariable(&cast);
-    auto castOp   = operand(cast.getOperand(0));
+    auto intTy = llvm::dyn_cast<gazer::IntType>(&variable->getType());
+
+    auto castOp = operand(cast.getOperand(0));
+    
+    unsigned width = 0;
+    if (castOp->getType().isBoolType()) {
+        width = 1;        
+    } else if (castOp->getType().isIntType()) {
+        width = dyn_cast<IntType>(&castOp->getType())->getWidth();
+    } else {
+        assert(false && "Unsupported cast type.");
+    }
+
+    auto intOp = asInt(castOp, width);
 
     if (cast.getOpcode() == Instruction::ZExt) {
-        castOp = mExprBuilder->ZExt(castOp, variable->getType());
+        castOp = mExprBuilder->ZExt(intOp, *intTy);
     } else if (cast.getOpcode() == Instruction::SExt) {
-        castOp = mExprBuilder->SExt(castOp, variable->getType());
+        castOp = mExprBuilder->SExt(intOp, *intTy);
+    } else if (cast.getOpcode() == Instruction::Trunc) {
+        castOp = mExprBuilder->Trunc(intOp, *intTy);
     } else {
         // Other cast types are ignored at the moment.
     }

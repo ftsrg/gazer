@@ -4,6 +4,7 @@
 #include "gazer/LLVM/Analysis/ProgramDependence.h"
 #include "gazer/LLVM/Transform/Passes.h"
 #include "gazer/LLVM/Analysis/ProgramDependence.h"
+#include "gazer/LLVM/Analysis/TopologicalSort.h"
 
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/LegacyPassManager.h>
@@ -116,14 +117,29 @@ int main(int argc, char* argv[])
         pm->add(llvm::createCFGSimplificationPass());  
     }
 
-    pm->add(new gazer::CfaBuilderPass(LargeBlockCFA));
-    if (PrintCFA) {
-        pm->add(createCfaPrinterPass());
-    }
     if (RunBmc) {
+        pm->add(llvm::createLoopSimplifyPass());
+        pm->add(llvm::createLoopRotatePass());
+        pm->add(llvm::createIndVarSimplifyPass());
+        pm->add(llvm::createLoopSimplifyPass());
+        
+        pm->add(new llvm::DominatorTreeWrapperPass());
+        //pm->add(new llvm::LoopInfoWrapperPass());
+        //pm->add(new llvm::ScalarEvolutionWrapperPass());
+        //pm->add(new llvm::AssumptionCacheTracker());
+        pm->add(new gazer::BoundedUnwindPass(bound));
+        //pm->add(llvm::createCFGSimplificationPass());
+        pm->add(createTopologicalSortPass());
+        //pm->add(llvm::createVerifierPass());
+        //pm->add(new gazer::CfaBuilderPass(LargeBlockCFA));
+        //if (PrintCFA) {
+        //    pm->add(createCfaPrinterPass());
+        //}
+        pm->add(llvm::createCFGPrinterLegacyPassPass());
         pm->add(new gazer::BmcPass(bound));
     }
-    pm->add(llvm::createCFGPrinterLegacyPassPass());
+
+    //pm->add(llvm::createCFGPrinterLegacyPassPass());
 
     pm->run(*module);
 
@@ -131,3 +147,4 @@ int main(int argc, char* argv[])
 
     return 0;
 }
+

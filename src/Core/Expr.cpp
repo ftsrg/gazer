@@ -12,21 +12,37 @@ std::string Expr::getKindName(ExprKind kind)
         "Not",
         "ZExt",
         "SExt",
+        "Trunc",
         "Add",
         "Sub",
         "Mul",
         "Div",
+        "Shl",
+        "LShr",
+        "AShr",
+        "BAnd",
+        "BOr",
+        "BXor",
         "And",
         "Or",
         "Xor",
         "Eq",
         "NotEq",
-        "Lt",
-        "LtEq",
-        "Gt",
-        "GtEq",
+        "SLt",
+        "SLtEq",
+        "SGt",
+        "SGtEq",
+        "ULt",
+        "ULtEq",
+        "UGt",
+        "UGtEq",
         "Select"
     };
+
+    static_assert(
+        (sizeof(Names) / sizeof(Names[0])) == LastExprKind + 1,
+        "Missing ExprKind in Expr::print()"
+    );
 
     if (Expr::FirstExprKind <= kind && kind <= Expr::LastExprKind) {
         return Names[kind];
@@ -38,7 +54,7 @@ std::string Expr::getKindName(ExprKind kind)
 void NonNullaryExpr::print(std::ostream& os) const
 {
     size_t i = 0;
-    os << Expr::getKindName(getKind()) << "(";
+    os << getType().getName() << " " << Expr::getKindName(getKind()) << "(";
     while (i < getNumOperands() - 1) {
         getOperand(i)->print(os);
         os << ",";

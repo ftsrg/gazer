@@ -2,21 +2,28 @@
 #include "gazer/Core/ExprTypes.h"
 #include "gazer/Core/LiteralExpr.h"
 
-#include <llvm/ADT/APInt.h>
-
 using namespace gazer;
 
 namespace
 {
 
-class DefaultExprBuilder : public ExprBuilder
+class FoldingExprBuilder : public ExprBuilder
 {
 public:
-    DefaultExprBuilder()
+    FoldingExprBuilder()
         : ExprBuilder()
     {}
 
     ExprPtr Not(const ExprPtr& op) override {
+        if (op->getKind() == Expr::Literal) {
+            auto lit = llvm::dyn_cast<BoolLiteralExpr>(op.get());
+            if (lit->getValue() == true) {
+                return BoolLiteralExpr::getFalse();
+            } else {
+                return BoolLiteralExpr::getTrue();
+            }
+        }
+
         return NotExpr::Create(op);
     }
     ExprPtr ZExt(const ExprPtr& op, const IntType& type) override {
@@ -61,11 +68,65 @@ public:
     }
 
     ExprPtr And(const ExprVector& vector) override {
-        return AndExpr::Create(vector.begin(), vector.end());
+        ExprVector newOps;
+
+        for (const ExprPtr& op : vector) {
+            if (op->getKind() == Expr::Literal) {
+                auto lit = llvm::dyn_cast<BoolLiteralExpr>(op.get());
+                if (lit->getValue() == false) {
+                    return BoolLiteralExpr::getFalse();
+                } else {
+                    // We are not adding unnecessary true literals
+                }
+            } else if (op->getKind() == Expr::And) {
+                // For AndExpr operands, we try to flatten the expression
+                auto andExpr = llvm::dyn_cast<AndExpr>(op.get());    
+                newOps.insert(newOps.end(), andExpr->op_begin(), andExpr->op_end());
+            } else {
+                newOps.push_back(op);
+            }
+        }
+
+        if (newOps.size() == 0) {
+            // If we eliminated all operands
+            return BoolLiteralExpr::getTrue();
+        } else if (newOps.size() == 1) {
+            return *newOps.begin();
+        }
+
+        return AndExpr::Create(newOps.begin(), newOps.end());
     }
+
     ExprPtr Or(const ExprVector& vector) override {
-        return OrExpr::Create(vector.begin(), vector.end());
+        ExprVector newOps;
+
+        for (const ExprPtr& op : vector) {
+            if (op->getKind() == Expr::Literal) {
+                auto lit = llvm::dyn_cast<BoolLiteralExpr>(op.get());
+                if (lit->getValue() == true) {
+                    return BoolLiteralExpr::getTrue();
+                } else {
+                    // We are not adding unnecessary false literals
+                }
+            } else if (op->getKind() == Expr::Or) {
+                // For OrExpr operands, we try to flatten the expression
+                auto orExpr = llvm::dyn_cast<OrExpr>(op.get());    
+                newOps.insert(newOps.end(), orExpr->op_begin(), orExpr->op_end());
+            } else {
+                newOps.push_back(op);
+            }
+        }
+
+        if (newOps.size() == 0) {
+            // If we eliminated all operands
+            return BoolLiteralExpr::getFalse();
+        } else if (newOps.size() == 1) {
+            return *newOps.begin();
+        }
+
+        return OrExpr::Create(newOps.begin(), newOps.end());
     }
+
     ExprPtr Xor(const ExprPtr& left, const ExprPtr& right) override {
         return XorExpr::Create(left, right);
     }
@@ -104,12 +165,21 @@ public:
     }
 
     ExprPtr Select(const ExprPtr& condition, const ExprPtr& then, const ExprPtr& elze) override {
+        if (condition->getKind() == Expr::Literal) {
+            auto lit = llvm::dyn_cast<BoolLiteralExpr>(condition.get());
+            if (lit->getValue() == true) {
+                return then;
+            } else {
+                return elze;
+            }
+        }
+
         return SelectExpr::Create(condition, then, elze);
     }
 };
 
 } // end anonymous namespace
 
-std::unique_ptr<ExprBuilder> gazer::CreateExprBuilder() {
-    return std::unique_ptr<ExprBuilder>(new DefaultExprBuilder());
+std::unique_ptr<ExprBuilder> gazer::CreateFoldingExprBuilder() {
+    return std::unique_ptr<ExprBuilder>(new FoldingExprBuilder());
 }

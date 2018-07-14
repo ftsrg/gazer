@@ -24,7 +24,10 @@ static bool isSingleOutgoingLocation(const Location& loc)
         && std::all_of(loc.incoming_begin(), loc.incoming_end(), [](CfaEdge* edge) {
             return edge->getKind() == CfaEdge::Edge_Assign;
         })
-        && (*loc.outgoing_begin())->getKind() == CfaEdge::Edge_Assign;
+        && (*loc.outgoing_begin())->getKind() == CfaEdge::Edge_Assign
+        && (&loc.getParent()->entry() != &loc)
+        && (&loc.getParent()->exit() != &loc)
+        && (loc.getName() != "error");
 }
 
 void gazer::SimplifyCFA(Automaton& cfa)

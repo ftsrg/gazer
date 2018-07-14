@@ -9,5 +9,5 @@ Variable::Variable(std::string name, const Type& type)
 }
 
 void VarRefExpr::print(std::ostream& os) const {
-    os << mVariable.getName();
+    os << mVariable.getType().getName() << " " << mVariable.getName();
 }

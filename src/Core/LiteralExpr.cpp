@@ -52,7 +52,6 @@ std::shared_ptr<IntLiteralExpr> IntLiteralExpr::get(IntType& type, uint64_t valu
     return std::shared_ptr<IntLiteralExpr>(new IntLiteralExpr(type, value));
 }
 
-
 void UndefExpr::print(std::ostream& os) const {
     os << "undef";
 }

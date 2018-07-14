@@ -15,8 +15,6 @@ class ExprVisitor
 public:
     /**
      * Handler for expression pointers.
-     * This method should be overridden if you
-     * wish to use the shared_ptr-based API.
      */
     virtual ReturnT visit(const ExprPtr& expr) {
         #define HANDLE_EXPRCASE(KIND)                                       \
@@ -30,19 +28,30 @@ public:
             HANDLE_EXPRCASE(Not)
             HANDLE_EXPRCASE(ZExt)
             HANDLE_EXPRCASE(SExt)
+            HANDLE_EXPRCASE(Trunc)
             HANDLE_EXPRCASE(Add)
             HANDLE_EXPRCASE(Sub)
             HANDLE_EXPRCASE(Mul)
             HANDLE_EXPRCASE(Div)
+            HANDLE_EXPRCASE(Shl)
+            HANDLE_EXPRCASE(LShr)
+            HANDLE_EXPRCASE(AShr)
+            HANDLE_EXPRCASE(BAnd)
+            HANDLE_EXPRCASE(BOr)
+            HANDLE_EXPRCASE(BXor)
             HANDLE_EXPRCASE(And)
             HANDLE_EXPRCASE(Or)
             HANDLE_EXPRCASE(Xor)
             HANDLE_EXPRCASE(Eq)
             HANDLE_EXPRCASE(NotEq)
-            HANDLE_EXPRCASE(Lt)
-            HANDLE_EXPRCASE(LtEq)
-            HANDLE_EXPRCASE(Gt)
-            HANDLE_EXPRCASE(GtEq)
+            HANDLE_EXPRCASE(SLt)
+            HANDLE_EXPRCASE(SLtEq)
+            HANDLE_EXPRCASE(SGt)
+            HANDLE_EXPRCASE(SGtEq)
+            HANDLE_EXPRCASE(ULt)
+            HANDLE_EXPRCASE(ULtEq)
+            HANDLE_EXPRCASE(UGt)
+            HANDLE_EXPRCASE(UGtEq)
             HANDLE_EXPRCASE(Select)
         }
 
@@ -84,10 +93,13 @@ protected:
         return this->visitNonNullary(expr);
     }
     virtual ReturnT visitZExt(const std::shared_ptr<ZExtExpr>& expr) {
-        return this->visitExpr(expr);
+        return this->visitNonNullary(expr);
     }
     virtual ReturnT visitSExt(const std::shared_ptr<SExtExpr>& expr) {
-        return this->visitExpr(expr);
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitTrunc(const std::shared_ptr<TruncExpr>& expr) {
+        return this->visitNonNullary(expr);
     }
 
     // Binary
@@ -101,6 +113,24 @@ protected:
         return this->visitNonNullary(expr);
     }
     virtual ReturnT visitDiv(const std::shared_ptr<DivExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitShl(const std::shared_ptr<ShlExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitLShr(const std::shared_ptr<LShrExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitAShr(const std::shared_ptr<AShrExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitBAnd(const std::shared_ptr<BAndExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitBOr(const std::shared_ptr<BOrExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitBXor(const std::shared_ptr<BXorExpr>& expr) {
         return this->visitNonNullary(expr);
     }
 
@@ -122,16 +152,30 @@ protected:
     virtual ReturnT visitNotEq(const std::shared_ptr<NotEqExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitLt(const std::shared_ptr<LtExpr>& expr) {
+    
+    virtual ReturnT visitSLt(const std::shared_ptr<SLtExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitLtEq(const std::shared_ptr<LtEqExpr>& expr) {
+    virtual ReturnT visitSLtEq(const std::shared_ptr<SLtEqExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitGt(const std::shared_ptr<GtExpr>& expr) {
+    virtual ReturnT visitSGt(const std::shared_ptr<SGtExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitGtEq(const std::shared_ptr<GtEqExpr>& expr) {
+    virtual ReturnT visitSGtEq(const std::shared_ptr<SGtEqExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+
+    virtual ReturnT visitULt(const std::shared_ptr<ULtExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitULtEq(const std::shared_ptr<ULtEqExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitUGt(const std::shared_ptr<UGtExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitUGtEq(const std::shared_ptr<UGtEqExpr>& expr) {
         return this->visitNonNullary(expr);
     }
 

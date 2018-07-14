@@ -9,6 +9,8 @@ using namespace gazer;
 namespace
 {
 
+// Z3 
+
 class Z3ExprTransformer : public ExprVisitor<z3::expr>
 {
 public:
@@ -73,11 +75,13 @@ protected:
     }
 
     virtual z3::expr visitZExt(const std::shared_ptr<ZExtExpr>& expr) override {
-        return this->visitExpr(expr);
+        return z3::zext(visit(expr->getOperand()), expr->getWidthDiff());
     }
-    
     virtual z3::expr visitSExt(const std::shared_ptr<SExtExpr>& expr) override {
-        return this->visitExpr(expr);
+        return z3::sext(visit(expr->getOperand()), expr->getWidthDiff());
+    }
+    virtual z3::expr visitTrunc(const std::shared_ptr<TruncExpr>& expr) override {
+        return visit(expr->getOperand()).extract(expr->getTruncatedWidth() - 1, 0);
     }
 
     // Binary
@@ -91,14 +95,46 @@ protected:
         return visit(expr->getLeft()) * visit(expr->getRight());
     }
     virtual z3::expr visitDiv(const std::shared_ptr<DivExpr>& expr) override {
-        return visit(expr->getLeft()) / visit(expr->getRight());}
+        return visit(expr->getLeft()) / visit(expr->getRight());
+    }
+
+    virtual z3::expr visitShl(const std::shared_ptr<ShlExpr>& expr) override {
+        return z3::shl(visit(expr->getLeft()), visit(expr->getRight()));
+    }
+    virtual z3::expr visitLShr(const std::shared_ptr<LShrExpr>& expr) override {
+        return z3::lshr(visit(expr->getLeft()), visit(expr->getRight()));
+    }
+    virtual z3::expr visitAShr(const std::shared_ptr<AShrExpr>& expr) override {
+        return z3::ashr(visit(expr->getLeft()), visit(expr->getRight()));
+    }
+    virtual z3::expr visitBAnd(const std::shared_ptr<BAndExpr>& expr) override {
+        return visit(expr->getLeft()) & visit(expr->getRight());
+    }
+    virtual z3::expr visitBOr(const std::shared_ptr<BOrExpr>& expr) override {
+        return visit(expr->getLeft()) | visit(expr->getRight());
+    }
+    virtual z3::expr visitBXor(const std::shared_ptr<BXorExpr>& expr) override {
+        return visit(expr->getLeft()) ^ visit(expr->getRight());
+    }
 
     // Logic
     virtual z3::expr visitAnd(const std::shared_ptr<AndExpr>& expr) override {
-        return visit(expr->getLeft()) && visit(expr->getRight());
+        z3::expr_vector ops(mContext);
+
+        for (ExprPtr& op : expr->operands()) {
+            ops.push_back(visit(op));
+        }
+
+        return z3::mk_and(ops);
     }
     virtual z3::expr visitOr(const std::shared_ptr<OrExpr>& expr) override {
-        return visit(expr->getLeft()) || visit(expr->getRight());
+        z3::expr_vector ops(mContext);
+
+        for (ExprPtr& op : expr->operands()) {
+            ops.push_back(visit(op));
+        }
+
+        return z3::mk_or(ops);
     }
     virtual z3::expr visitXor(const std::shared_ptr<XorExpr>& expr) override {
         if (expr->getType().isBoolType()) {
@@ -114,17 +150,31 @@ protected:
     virtual z3::expr visitNotEq(const std::shared_ptr<NotEqExpr>& expr) override {
         return visit(expr->getLeft()) != visit(expr->getRight());
     }
-    virtual z3::expr visitLt(const std::shared_ptr<LtExpr>& expr) override {
+
+    virtual z3::expr visitSLt(const std::shared_ptr<SLtExpr>& expr) override {
         return visit(expr->getLeft()) < visit(expr->getRight());
     }
-    virtual z3::expr visitLtEq(const std::shared_ptr<LtEqExpr>& expr) override {
+    virtual z3::expr visitSLtEq(const std::shared_ptr<SLtEqExpr>& expr) override {
         return visit(expr->getLeft()) <= visit(expr->getRight());
     }
-    virtual z3::expr visitGt(const std::shared_ptr<GtExpr>& expr) override {
+    virtual z3::expr visitSGt(const std::shared_ptr<SGtExpr>& expr) override {
         return visit(expr->getLeft()) > visit(expr->getRight());
     }
-    virtual z3::expr visitGtEq(const std::shared_ptr<GtEqExpr>& expr) override {
+    virtual z3::expr visitSGtEq(const std::shared_ptr<SGtEqExpr>& expr) override {
         return visit(expr->getLeft()) >= visit(expr->getRight());
+    }
+
+    virtual z3::expr visitULt(const std::shared_ptr<ULtExpr>& expr) override {
+        return z3::ult(visit(expr->getLeft()), visit(expr->getRight()));
+    }
+    virtual z3::expr visitULtEq(const std::shared_ptr<ULtEqExpr>& expr) override {
+        return z3::ule(visit(expr->getLeft()), visit(expr->getRight()));
+    }
+    virtual z3::expr visitUGt(const std::shared_ptr<UGtExpr>& expr) override {
+        return z3::ugt(visit(expr->getLeft()), visit(expr->getRight()));
+    }
+    virtual z3::expr visitUGtEq(const std::shared_ptr<UGtEqExpr>& expr) override {
+        return z3::uge(visit(expr->getLeft()), visit(expr->getRight()));
     }
 
     // Ternary

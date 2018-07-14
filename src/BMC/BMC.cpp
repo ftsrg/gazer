@@ -1,7 +1,7 @@
 #include "gazer/BMC/BMC.h"
 #include "gazer/Core/Utils/CfaUtils.h"
-#include "gazer/Core/Solver/Solver.h"
 #include "gazer/Z3Solver/Z3Solver.h"
+#include "gazer/Core/Solver/Solver.h"
 
 #include <llvm/ADT/DenseMap.h>
 
@@ -47,13 +47,13 @@ auto BoundedModelChecker::check(Automaton& cfa) -> Status
     auto entry = states.emplace_back(new BmcState(0, &cfa.entry())).get();
     queue.push(entry);
 
+    std::cerr << "Running BMC check...\n";
+
     while (!queue.empty()) {
         auto state = queue.front();
         queue.pop();
-
-        //std::cerr << "Current states: " << states.size() << "\n";
-        //std::cerr << "Queue size: " << queue.size() << "\n";
-        //std::cerr << "Current state: ";
+        
+        //std::cerr << "Current state=";
         //state->print(std::cerr);
         //std::cerr << "\n";
 
@@ -71,7 +71,7 @@ auto BoundedModelChecker::check(Automaton& cfa) -> Status
                 parent = parent->parent;
             }
 
-            std::unique_ptr<Solver> solver = std::make_unique<Z3Solver>();
+            std::unique_ptr<Z3Solver> solver = std::make_unique<Z3Solver>();
             std::cerr << "Transforming CFA path to SMT formulas.\n";
             PathToExprs(
                 cfa.getSymbols(), edges.rbegin(), edges.rend(),
@@ -80,8 +80,11 @@ auto BoundedModelChecker::check(Automaton& cfa) -> Status
             std::cerr << "Generated " << solver->getNumConstraints() << " formulas.\n";
             std::cerr << "Running solver.\n";
             Solver::SolverStatus status = solver->run();
+
             if (status == Solver::SAT) {
-                // We found a counterexample.           
+                // We found a counterexample.       
+                std::cerr << "Formula is SAT. Model:\n";
+                std::cerr << solver->getModel() << "\n";    
                 return Status::STATUS_UNSAFE;
             } else if (status == Solver::UNSAT) {
                 // Continue checking.
@@ -102,3 +105,4 @@ auto BoundedModelChecker::check(Automaton& cfa) -> Status
 
     return Status::STATUS_UNKNOWN;
 }
+

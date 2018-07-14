@@ -170,8 +170,8 @@ public:
         {
             if (variable->getType() != expr->getType()) {
                 throw TypeCastError(fmt::format(
-                    "Cannot assign an expression type of {0}"
-                    "to the variable '{1}' (type of {2}).",
+                    "Cannot assign an expression type of {2} "
+                    "to the variable '{0}' (type of {1}).",
                     variable->getName(), variable->getType().getName(), expr->getType().getName()
                 ));
             }
@@ -260,6 +260,9 @@ public:
 
     Location& entry() { return *mEntry; }
     Location& exit()  { return *mExit; }
+
+    const Location& entry() const { return *mEntry; }
+    const Location& exit() const  { return *mExit; }
 
     Location& createLocation() {
         return createLocation(std::to_string(mTempCounter++));

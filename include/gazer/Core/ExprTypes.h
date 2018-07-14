@@ -58,25 +58,41 @@ public:
 };
 
 template<Expr::ExprKind Kind>
-class CastExpr final : public UnaryExpr
+class ExtCastExpr final : public UnaryExpr
 {    
     static_assert(Expr::FirstUnaryCast <= Kind && Kind <= Expr::LastUnaryCast,
         "A unary cast expression must have a unary cast expression kind.");
 private:
-    CastExpr(ExprPtr operand, const Type& type)
+    ExtCastExpr(ExprPtr operand, const IntType& type)
         : UnaryExpr(Kind, type, {operand})
     {}
 
 protected:
     virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
-        return new CastExpr<Kind>(ops[0], getType());
+        auto& intTy = *llvm::dyn_cast<IntType>(&getType());
+        return new ExtCastExpr<Kind>(ops[0], intTy);
     }
 
 public:
-    static std::shared_ptr<CastExpr<Kind>> Create(ExprPtr operand, const Type& type) {
+    unsigned getExtendedWidth() const {
+        return llvm::dyn_cast<IntType>(&getType())->getWidth();
+    }
+    unsigned getWidthDiff() const {
+        auto opType = llvm::dyn_cast<IntType>(&getOperand(0)->getType());
+        return getExtendedWidth() - opType->getWidth();
+    }
+
+    static std::shared_ptr<ExtCastExpr<Kind>> Create(ExprPtr operand, const Type& type) {
         assert(operand->getType().isIntType() && "Can only do bitwise cast on integers");
         assert(type.isIntType() && "Can only do bitwise cast on integers");
-        return std::shared_ptr<CastExpr<Kind>>(new CastExpr(operand, type));
+        
+        auto lhsTy = llvm::dyn_cast<IntType>(&operand->getType());
+        auto rhsTy = llvm::dyn_cast<IntType>(&type);
+        if (lhsTy->getWidth() >= rhsTy->getWidth()) {
+            throw TypeCastError("Extend casts must increase bit width");
+        }
+
+        return std::shared_ptr<ExtCastExpr<Kind>>(new ExtCastExpr(operand, *rhsTy));
     }
 
     static bool classof(const Expr* expr) {
@@ -88,8 +104,47 @@ public:
     }
 };
 
-using ZExtExpr = CastExpr<Expr::ZExt>;
-using SExtExpr = CastExpr<Expr::SExt>;
+using ZExtExpr = ExtCastExpr<Expr::ZExt>;
+using SExtExpr = ExtCastExpr<Expr::SExt>;
+
+class TruncExpr : public UnaryExpr
+{
+private:
+    TruncExpr(ExprPtr operand, const IntType& type)
+        : UnaryExpr(Expr::Trunc, type, {operand})
+    {}
+
+protected:
+    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
+        auto& intTy = *llvm::dyn_cast<IntType>(&getType());
+        return new TruncExpr(ops[0], intTy);
+    }
+
+public:
+    unsigned getTruncatedWidth() const {
+        return llvm::dyn_cast<IntType>(&getType())->getWidth();
+    }
+
+    static std::shared_ptr<TruncExpr> Create(ExprPtr operand, const Type& type) {
+        assert(operand->getType().isIntType() && "Can only do bitwise cast on integers");
+        assert(type.isIntType() && "Can only do bitwise cast on integers");
+        
+        auto lhsTy = llvm::dyn_cast<IntType>(&operand->getType());
+        auto rhsTy = llvm::dyn_cast<IntType>(&type);
+        if (lhsTy->getWidth() <= rhsTy->getWidth()) {
+            throw TypeCastError("Extend casts must increase bit width");
+        }
+
+        return std::shared_ptr<TruncExpr>(new TruncExpr(operand, *rhsTy));
+    }
+    static bool classof(const Expr* expr) {
+        return expr->getKind() == Expr::Trunc;
+    }
+
+    static bool classof(const Expr& expr) {
+        return expr.getKind() == Expr::Trunc;
+    }
+};
 
 class BinaryExpr : public NonNullaryExpr
 {
@@ -141,6 +196,12 @@ using AddExpr = ArithmeticExpr<Expr::Add>;
 using SubExpr = ArithmeticExpr<Expr::Sub>;
 using MulExpr = ArithmeticExpr<Expr::Mul>;
 using DivExpr = ArithmeticExpr<Expr::Div>;
+using ShlExpr = ArithmeticExpr<Expr::Shl>;
+using LShrExpr = ArithmeticExpr<Expr::LShr>;
+using AShrExpr = ArithmeticExpr<Expr::AShr>;
+using BAndExpr = ArithmeticExpr<Expr::BAnd>;
+using BOrExpr = ArithmeticExpr<Expr::BOr>;
+using BXorExpr = ArithmeticExpr<Expr::BXor>;
 
 template<Expr::ExprKind Kind>
 class CompareExpr final : public BinaryExpr
@@ -160,8 +221,7 @@ protected:
     }
 
 public:
-    static std::shared_ptr<CompareExpr<Kind>> Create(ExprPtr left, ExprPtr right)
-    {
+    static std::shared_ptr<CompareExpr<Kind>> Create(ExprPtr left, ExprPtr right) {
         return std::shared_ptr<CompareExpr<Kind>>(new CompareExpr(left, right));
     }
     
@@ -176,34 +236,55 @@ public:
     }
 };
 
-using EqExpr    = CompareExpr<Expr::Eq>;
-using NotEqExpr = CompareExpr<Expr::NotEq>;
-using LtExpr    = CompareExpr<Expr::Lt>;
-using LtEqExpr  = CompareExpr<Expr::LtEq>;
-using GtExpr    = CompareExpr<Expr::Gt>;
-using GtEqExpr  = CompareExpr<Expr::GtEq>;
+using EqExpr     = CompareExpr<Expr::Eq>;
+using NotEqExpr  = CompareExpr<Expr::NotEq>;
+using SLtExpr    = CompareExpr<Expr::SLt>;
+using SLtEqExpr  = CompareExpr<Expr::SLtEq>;
+using SGtExpr    = CompareExpr<Expr::SGt>;
+using SGtEqExpr  = CompareExpr<Expr::SGtEq>;
+using ULtExpr    = CompareExpr<Expr::ULt>;
+using ULtEqExpr  = CompareExpr<Expr::ULtEq>;
+using UGtExpr    = CompareExpr<Expr::UGt>;
+using UGtEqExpr  = CompareExpr<Expr::UGtEq>;
 
 template<Expr::ExprKind Kind>
-class BinaryLogicExpr final : public BinaryExpr
+class MultiaryLogicExpr final : public NonNullaryExpr
 {
-    static_assert(Expr::FirstLogic <= Kind && Kind <= Expr::LastLogic,
+    static_assert(Expr::And == Kind || Expr::Or == Kind,
         "A logic expression must have a logic expression kind.");
 protected:
-    BinaryLogicExpr(ExprPtr left, ExprPtr right)
-        : BinaryExpr(Kind, *BoolType::get(), left, right)
+    
+    template<class InputIterator>
+    MultiaryLogicExpr(InputIterator begin, InputIterator end)
+        : NonNullaryExpr(Kind, *BoolType::get(), begin, end)
+    {
+        for (auto it = begin; it != end; ++it) {
+            if (!((*it)->getType().isBoolType())) {
+                throw TypeCastError("Logic expression operands can only be booleans.");
+            }
+        }
+    }
+
+    MultiaryLogicExpr(ExprPtr left, ExprPtr right)
+        : NonNullaryExpr(Kind, *BoolType::get(), {left, right})
     {
         assert(left->getType().isBoolType() && "Logic expression operands can only be booleans.");
         assert((left->getType() == right->getType()) && "Logic expression operand types must match.");
     }
 
     virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
-        return new BinaryLogicExpr<Kind>(ops[0], ops[1]);
+        return new MultiaryLogicExpr<Kind>(ops[0], ops[1]);
     }
 public:
-    static std::shared_ptr<BinaryLogicExpr<Kind>> Create(ExprPtr left, ExprPtr right)
-    {
-        return std::shared_ptr<BinaryLogicExpr<Kind>>(new BinaryLogicExpr(left, right));
-    }    
+    static std::shared_ptr<MultiaryLogicExpr<Kind>> Create(ExprPtr left, ExprPtr right) {
+        return std::shared_ptr<MultiaryLogicExpr<Kind>>(new MultiaryLogicExpr(left, right));
+    }
+
+    template<class InputIterator>
+    static std::shared_ptr<MultiaryLogicExpr<Kind>> Create(InputIterator begin, InputIterator end) {
+        return std::shared_ptr<MultiaryLogicExpr<Kind>>(new MultiaryLogicExpr(begin, end));
+    }
+
     
     /**
      * Type inquiry support.
@@ -216,9 +297,38 @@ public:
     }
 };
 
-using AndExpr = BinaryLogicExpr<Expr::And>;
-using OrExpr  = BinaryLogicExpr<Expr::Or>;
-using XorExpr = BinaryLogicExpr<Expr::Xor>;
+using AndExpr = MultiaryLogicExpr<Expr::And>;
+using OrExpr  = MultiaryLogicExpr<Expr::Or>;
+
+class XorExpr final : public BinaryExpr
+{
+protected:
+    XorExpr(ExprPtr left, ExprPtr right)
+        : BinaryExpr(Expr::Xor, *BoolType::get(), left, right)
+    {}
+
+protected:
+    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
+        return new XorExpr(ops[0], ops[1]);
+    }
+
+public:
+    static std::shared_ptr<XorExpr> Create(ExprPtr left, ExprPtr right)
+    {
+        assert(left->getType().isBoolType() && "Can only XOR boolean expressions.");
+        assert(right->getType().isBoolType() && "Can only XOR boolean expressions.");
+        
+        return std::shared_ptr<XorExpr>(new XorExpr(left, right));
+    }
+
+    static bool classof(const Expr* expr) {
+        return expr->getKind() == Expr::Xor;
+    }
+
+    static bool classof(const Expr& expr) {
+        return expr.getKind() == Expr::Xor;
+    }
+};
 
 class SelectExpr final : public NonNullaryExpr
 {

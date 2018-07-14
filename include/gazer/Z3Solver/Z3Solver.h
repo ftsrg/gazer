@@ -17,6 +17,8 @@ public:
 
     virtual SolverStatus run() override;
 
+    z3::model getModel() { return mSolver.get_model(); }
+
 protected:
     virtual void addConstraint(ExprPtr expr) override;
 

@@ -7,6 +7,7 @@ set(SOURCE_FILES
     Automaton.cpp
     Utils/VariableRewriter.cpp
     Utils/ExprBuilder.cpp
+    Utils/FoldingExprBuilder.cpp
 )
 
 add_library(GazerCore ${SOURCE_FILES})

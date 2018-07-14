@@ -15,7 +15,6 @@ namespace gazer
  */
 class Expr
 {
-    friend class ExprRef;
 public:
     enum ExprKind
     {
@@ -30,12 +29,21 @@ public:
         // Cast
         ZExt,
         SExt,
+        Trunc,
 
         // Binary arithmetic
         Add,
         Sub,
         Mul,
         Div,
+
+        // Bit operations
+        Shl,
+        LShr,
+        AShr,
+        BAnd,
+        BOr,
+        BXor,
 
         // Binary logic
         And,
@@ -45,10 +53,14 @@ public:
         // Compare
         Eq,
         NotEq,
-        Lt,
-        LtEq,
-        Gt,
-        GtEq,
+        SLt,
+        SLtEq,
+        SGt,
+        SGtEq,
+        ULt,
+        ULtEq,
+        UGt,
+        UGtEq,
 
         // Ternary
         Select
@@ -57,13 +69,13 @@ public:
     static constexpr int FirstUnary = Not;
     static constexpr int LastUnary = SExt;
     static constexpr int FirstUnaryCast = ZExt;
-    static constexpr int LastUnaryCast = SExt;
+    static constexpr int LastUnaryCast = Trunc;
     static constexpr int FirstBinaryArithmetic = Add;
-    static constexpr int LastBinaryArithmetic = Div;
+    static constexpr int LastBinaryArithmetic = BXor;
     static constexpr int FirstLogic = And;
     static constexpr int LastLogic = Xor;
     static constexpr int FirstCompare = Eq;
-    static constexpr int LastCompare = GtEq;
+    static constexpr int LastCompare = UGtEq;
 
     static constexpr int FirstExprKind = Undef;
     static constexpr int LastExprKind = Select;
@@ -103,6 +115,7 @@ protected:
 };
 
 using ExprPtr = std::shared_ptr<Expr>;
+using ExprVector = std::vector<ExprPtr>;
 
 std::ostream& operator<<(std::ostream& os, const Expr& expr);
 
@@ -127,8 +140,13 @@ public:
 class NonNullaryExpr : public Expr
 {
 protected:
-    NonNullaryExpr(ExprKind kind, const Type& type, std::vector<ExprPtr> operands)
-        : Expr(kind, type), mOperands(operands)
+    NonNullaryExpr(ExprKind kind, const Type& type, std::vector<ExprPtr> ops)
+        : NonNullaryExpr(kind, type, ops.begin(), ops.end())
+    {}
+
+    template<class InputIterator>
+    NonNullaryExpr(ExprKind kind, const Type& type, InputIterator begin, InputIterator end)
+        : Expr(kind, type), mOperands(begin, end)
     {
         assert(mOperands.size() >= 1 && "Non-nullary expressions must have at least one operand.");
     }

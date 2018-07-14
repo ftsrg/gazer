@@ -53,10 +53,10 @@ std::string Type::getName() const
     switch (getTypeID()) {
         case BoolTypeID:
             return "Bool";
-        case IntTypeID:
-            return "Int";
-        //case RealTypeID:
-        //    return "Real";
+        case IntTypeID: {
+            auto intType = llvm::dyn_cast<IntType>(this);
+            return "Int" + std::to_string(intType->getWidth());
+        }
         case ArrayTypeID: {
             auto arrayType = llvm::dyn_cast<ArrayType>(this);
             return getArrayTypeStr(
@@ -70,6 +70,8 @@ std::string Type::getName() const
             );
         }
     }
+
+    std::cerr << getTypeID() << "\n";
 
     llvm_unreachable("Invalid TypeID");
 }
