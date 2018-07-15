@@ -8,6 +8,7 @@ set(SOURCE_FILES
     Utils/VariableRewriter.cpp
     Utils/ExprBuilder.cpp
     Utils/FoldingExprBuilder.cpp
+    Utils/ExprPrinter.cpp
 )
 
 add_library(GazerCore ${SOURCE_FILES})

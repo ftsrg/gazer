@@ -2,6 +2,7 @@
 #define _GAZER_CORE_SOLVER_SOLVER_H
 
 #include "gazer/Core/Expr.h"
+#include "gazer/Core/Valuation.h"
 
 #include <iostream>
 
@@ -57,6 +58,7 @@ public:
     unsigned getNumConstraints() const { return mStatCount; }
 
     virtual SolverStatus run() = 0;
+    virtual Valuation getModel() = 0;
 
     virtual ~Solver() {}
 

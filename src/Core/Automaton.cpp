@@ -50,14 +50,16 @@ void AssignEdge::print(std::ostream& os) const
 {
     if (getGuard() != nullptr) {
         os << "[ ";
-        getGuard()->print(os);
+        // TODO
+        //getGuard()->print(os);
 
         os << " ]\\n";
     }
 
     for (auto& assign : mAssignments) {
         os << assign.variable->getName() << " := ";
-        assign.expr->print(os);
+        // TODO
+        // assign.expr->print(os);
         os << "\\n";
     }
 }

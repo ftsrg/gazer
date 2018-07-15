@@ -1,5 +1,7 @@
 #include "gazer/Core/LiteralExpr.h"
 
+#include <llvm/Support/raw_ostream.h>
+
 #include <map>
 
 using namespace gazer;
@@ -19,7 +21,6 @@ std::shared_ptr<UndefExpr> UndefExpr::Get(const Type& type)
 
     return result->second;
 }
-
 
 std::shared_ptr<BoolLiteralExpr> BoolLiteralExpr::getTrue()
 {
@@ -52,14 +53,14 @@ std::shared_ptr<IntLiteralExpr> IntLiteralExpr::get(IntType& type, uint64_t valu
     return std::shared_ptr<IntLiteralExpr>(new IntLiteralExpr(type, value));
 }
 
-void UndefExpr::print(std::ostream& os) const {
+void UndefExpr::print(llvm::raw_ostream& os) const {
     os << "undef";
 }
 
-void BoolLiteralExpr::print(std::ostream& os) const {
-    os << std::boolalpha << mValue;
+void BoolLiteralExpr::print(llvm::raw_ostream& os) const {
+    os << (mValue ? "True" : "False");
 }
 
-void IntLiteralExpr::print(std::ostream& os) const {
+void IntLiteralExpr::print(llvm::raw_ostream& os) const {
     os << mValue;
 }

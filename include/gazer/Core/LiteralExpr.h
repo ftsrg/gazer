@@ -15,7 +15,7 @@ private:
         : Expr(Expr::Undef, type)
     {}
 public:
-    virtual void print(std::ostream& os) const override;
+    virtual void print(llvm::raw_ostream& os) const override;
     static std::shared_ptr<UndefExpr> Get(const Type& type);
 };
 
@@ -30,7 +30,11 @@ public:
     static std::shared_ptr<BoolLiteralExpr> getTrue();
     static std::shared_ptr<BoolLiteralExpr> getFalse();
 
-    virtual void print(std::ostream& os) const override;
+    static std::shared_ptr<BoolLiteralExpr> Get(bool value) {
+        return value ? getTrue() : getFalse();
+    }
+
+    virtual void print(llvm::raw_ostream& os) const override;
     bool getValue() const { return mValue; }
 
     static bool classof(const Expr* expr) {
@@ -51,7 +55,7 @@ private:
         : LiteralExpr(type), mValue(value)
     {}
 public:
-    virtual void print(std::ostream& os) const override;
+    virtual void print(llvm::raw_ostream& os) const override;
 
 public:
     static std::shared_ptr<IntLiteralExpr> get(IntType& type, uint64_t value);

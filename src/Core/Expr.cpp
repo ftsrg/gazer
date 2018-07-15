@@ -1,6 +1,9 @@
 #include "gazer/Core/Expr.h"
 #include "gazer/Core/ExprTypes.h"
 
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/raw_os_ostream.h>
+
 using namespace gazer;
 
 std::string Expr::getKindName(ExprKind kind)
@@ -51,7 +54,7 @@ std::string Expr::getKindName(ExprKind kind)
     llvm_unreachable("Invalid expression kind.");
 }
 
-void NonNullaryExpr::print(std::ostream& os) const
+void NonNullaryExpr::print(llvm::raw_ostream& os) const
 {
     size_t i = 0;
     os << getType().getName() << " " << Expr::getKindName(getKind()) << "(";
@@ -67,7 +70,8 @@ void NonNullaryExpr::print(std::ostream& os) const
 
 std::ostream& gazer::operator<<(std::ostream& os, const Expr& expr)
 {
-    expr.print(os);
+    llvm::raw_os_ostream ros(os);
+    expr.print(ros);
     return os;
 }
 

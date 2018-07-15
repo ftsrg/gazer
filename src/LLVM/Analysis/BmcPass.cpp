@@ -6,6 +6,7 @@
 #include "gazer/Core/Expr.h"
 #include "gazer/Core/LiteralExpr.h"
 #include "gazer/Core/ExprTypes.h"
+#include "gazer/Core/Utils/ExprUtils.h"
 
 #include "gazer/LLVM/Ir2Expr.h"
 
@@ -48,7 +49,11 @@ static bool isErrorBlock(const BasicBlock& bb)
     return false;
 }
 
-static ExprPtr encodeEdge(BasicBlock* from, BasicBlock* to, InstToExpr& ir2expr)
+static ExprPtr encodeEdge(
+    BasicBlock* from,
+    BasicBlock* to,
+    InstToExpr& ir2expr,
+    llvm::DenseMap<const BasicBlock*, ExprPtr>& cache)
 {
     std::vector<ExprPtr> exprs;
 
@@ -67,9 +72,20 @@ static ExprPtr encodeEdge(BasicBlock* from, BasicBlock* to, InstToExpr& ir2expr)
     assert(succIdx != terminator->getNumSuccessors()
         && "'From' should be a parent of 'to'");
 
-    // We are starting from the non-phi nodes at the 'from' part of the block
-    for (auto it = from->getFirstInsertionPt(); it != from->end(); ++it) {
-        exprs.push_back(ir2expr.transform(*it, succIdx));
+    auto cacheResult = cache.find(from);
+    if (cacheResult == cache.end()) {
+        std::vector<ExprPtr> fromExprs;
+
+        // We are starting from the non-phi nodes at the 'from' part of the block
+        for (auto it = from->getFirstInsertionPt(); it != from->end(); ++it) {
+            fromExprs.push_back(ir2expr.transform(*it, succIdx));
+        }
+
+        auto fromExpr = ir2expr.getBuilder()->And(fromExprs.begin(), fromExprs.end());
+        cache[from] = fromExpr;
+        exprs.push_back(fromExpr);
+    } else {
+        exprs.push_back(cacheResult->second);
     }
 
     // Handle the PHI nodes and branches
@@ -87,6 +103,7 @@ static llvm::SmallDenseMap<BasicBlock*, ExprPtr, 1>
     encode(Function& function, TopologicalSort& topo, SymbolTable& symbols)
 {
     auto builder = CreateFoldingExprBuilder();
+    //auto builder = CreateExprBuilder();
     InstToExpr ir2expr(function, symbols, builder.get());
 
     size_t numBB = function.getBasicBlockList().size();
@@ -103,82 +120,47 @@ static llvm::SmallDenseMap<BasicBlock*, ExprPtr, 1>
         blocks.insert({topo[i], i});
     }
 
-    using ExprVector = std::vector<ExprPtr>;
-    std::vector<ExprVector> dp(numBB, ExprVector(numBB, BoolLiteralExpr::getFalse()));
+    llvm::DenseMap<const BasicBlock*, ExprPtr> formulaCache;
 
+    std::vector<ExprPtr> dp(numBB, BoolLiteralExpr::getFalse());
     llvm::SmallDenseMap<BasicBlock*, ExprPtr, 1> result;
 
     // The entry block is always reachable
-    dp[0][0] = BoolLiteralExpr::getTrue();
+    dp[0] = BoolLiteralExpr::getTrue();
 
-    for (size_t j = 1; j < numBB; ++j) {
-        //llvm::dbgs() << "Length i = " << i << "\n";
-        for (size_t i = 1; i <= j; ++i) {
-            BasicBlock* bb = topo[j];
-            #if 0
-            llvm::dbgs() << "Doing block ";
-            bb->printAsOperand(llvm::dbgs());
-            llvm::dbgs() << "\n";
-            #endif
-        
-            llvm::SmallVector<ExprPtr, 2> exprs;
+    for (size_t i = 1; i < numBB; ++i) {
+        BasicBlock* bb = topo[i];       
+        llvm::SmallVector<ExprPtr, 2> exprs;
 
-            for (BasicBlock* pred : llvm::predecessors(bb)) {
-                auto predIt = blocks.find(pred);
-                assert(predIt != blocks.end()
-                    && "All blocks must be present in the block map");
+        for (BasicBlock* pred : llvm::predecessors(bb)) {
+            auto predIt = blocks.find(pred);
+            assert(predIt != blocks.end() && "All blocks must be present in the block map");
 
-                size_t predIdx = blocks[pred];
-                assert(predIdx < j
-                   && "Predecessors must be before block in a topological sort");
-                
-                //llvm::dbgs() << "Getting formula (" << (i - 1) << ", " << predIdx << ") ";
-                ExprPtr predFormula = dp[i - 1][predIdx];            
-                if (predFormula != BoolLiteralExpr::getFalse()) {
-                    auto andFormula = builder->And(
-                        predFormula,
-                        encodeEdge(pred, bb, ir2expr)
-                    );
-                    exprs.push_back(andFormula);
+            size_t predIdx = blocks[pred];
+            assert(predIdx < i && "Predecessors must be before block in a topological sort");
+
+            ExprPtr predFormula = dp[predIdx];
+            if (predFormula != BoolLiteralExpr::getFalse()) {
+                auto andFormula = builder->And(
+                    predFormula,
+                    encodeEdge(pred, bb, ir2expr, formulaCache)
+                );
+                exprs.push_back(andFormula);
+            }
+        }
+
+        if (!exprs.empty()) {
+            // Try to optimize for the binary case
+            if (exprs.size() == 2) {
+                // The folding builder may have optimized the And operands,
+                // therefore we need to check
+                if (exprs[0]->getKind() == Expr::And && exprs[1]->getKind() == Expr::And) {
+                    // (F1 & F2) | (F1 & F3) => F1 & (F1 | F3)
                 }
             }
 
-            //llvm::errs() << "Doing i=" << i << " j=" << j << "\n";
-
-            if (!exprs.empty()) {
-                auto expr = builder->Or(exprs.begin(), exprs.end());
-
-                if (errorBlocks.count(j) != 0) {
-                    llvm::errs() << "Found error path to block '";
-                    bb->printAsOperand(llvm::errs());
-                    llvm::errs() << "' with the length of " << i << "\n";
-
-                    Z3Solver solver;
-
-                    llvm::errs() << "   Transforming formula.\n";
-
-                    try {
-                        solver.add(expr);
-                        //expr->print(std::cerr);
-
-                        llvm::errs() << "   Running solver.\n";
-                        auto result = solver.run();
-
-                        if (result == Solver::SAT) {
-                            llvm::errs() << "   Formula is SAT\n";
-                        } else if (result == Solver::UNSAT) {
-                            llvm::errs() << "   Formula is UNSAT\n";
-                            dp[i][j] = BoolLiteralExpr::getFalse();
-                        } else {
-                            llvm::errs() << "   Unknown solver state.";
-                        }
-                    } catch (z3::exception& e) {
-                        llvm::errs() << e.msg() << "\n";
-                    }
-                } else {
-                    dp[i][j] = expr;
-                }
-            }
+            auto expr = builder->Or(exprs.begin(), exprs.end());
+            dp[i] = expr;
         }
     }
 
@@ -205,19 +187,7 @@ static llvm::SmallDenseMap<BasicBlock*, ExprPtr, 1>
         size_t idx = entry.first;
         BasicBlock* block  = entry.second;
 
-        // We are looking for the largest index for which the formula is not false
-        size_t length = numBB - 1;
-        while (length > 0) {
-            if (dp[length][idx] != BoolLiteralExpr::getFalse()) {
-                break;
-            }
-
-            length--;
-        }
-
-        llvm::errs() << "Adding error block at (" << length << ", " << idx << ")\n";
-
-        result[block] = dp[length][idx];
+        result[block] = dp[idx];
     }
 
     return result;
@@ -241,28 +211,31 @@ bool BmcPass::runOnFunction(llvm::Function& function)
     llvm::errs() << "Program size: \n";
     llvm::errs() << "   Blocks: " << function.getBasicBlockList().size() << "\n";
     llvm::errs() << "Encoding program into SMT formula.\n";
-    auto formulae = encode(function, topo, st);
+    auto result = encode(function, topo, st);
 
-    #if 0
-    for (auto& entry : formulae) {
+    #if 1
+    for (auto& entry : result) {
         llvm::errs() << "Checking for error block '";
         entry.first->printAsOperand(llvm::errs());
         llvm::errs() << "'\n";
 
-        Z3Solver solver;
+        CachingZ3Solver solver;
 
         llvm::errs() << "   Transforming formula.\n";
 
         try {
+            //entry.second->print(llvm::errs());
+            //FormatPrintExpr(entry.second, llvm::errs());
+            //llvm::errs() << "\n";
             solver.add(entry.second);
-            //entry.second->print(std::cerr);
 
             llvm::errs() << "   Running solver.\n";
-            auto result = solver.run();
+            auto status = solver.run();
 
-            if (result == Solver::SAT) {
+            if (status == Solver::SAT) {
                 llvm::errs() << "   Formula is SAT\n";
-            } else if (result == Solver::UNSAT) {
+                solver.getModel();
+            } else if (status == Solver::UNSAT) {
                 llvm::errs() << "   Formula is UNSAT\n";
             } else {
                 llvm::errs() << "   Unknown solver state.";

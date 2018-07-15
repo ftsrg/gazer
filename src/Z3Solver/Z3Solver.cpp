@@ -4,6 +4,8 @@
 
 #include "gazer/Core/ExprVisitor.h"
 
+#include <unordered_map>
+
 using namespace gazer;
 
 namespace
@@ -185,9 +187,40 @@ protected:
             visit(expr->getElse())
         );
     }
-private:
+
+protected:
     z3::context& mContext;
     unsigned& mTmpCount;
+};
+
+class CachingZ3ExprTransformer : public Z3ExprTransformer
+{
+public:
+    CachingZ3ExprTransformer(
+        z3::context& context,
+        unsigned& tmpCount,
+        CachingZ3Solver::CacheMapT& cache)
+        : Z3ExprTransformer(context, tmpCount), mCache(cache)
+    {}
+
+    z3::expr visit(const ExprPtr& expr) override {
+        if (expr->isNullary() || expr->isUnary()) {
+            return ExprVisitor::visit(expr);
+        }
+
+        auto result = mCache.find(expr.get());
+        if (result != mCache.end()) {
+            return z3::expr(mContext, result->second);
+        }
+
+        auto z3Expr = ExprVisitor::visit(expr);
+
+        mCache[expr.get()] = (Z3_ast) z3Expr;
+
+        return z3Expr;
+    }
+private:
+    CachingZ3Solver::CacheMapT& mCache;
 };
 
 }
@@ -210,4 +243,19 @@ void Z3Solver::addConstraint(ExprPtr expr)
     Z3ExprTransformer transformer(mContext, mTmpCount);
     auto z3Expr = transformer.visit(expr);
     mSolver.add(z3Expr);
+}
+
+void CachingZ3Solver::addConstraint(ExprPtr expr)
+{
+    CachingZ3ExprTransformer transformer(mContext, mTmpCount, mCache);
+    auto z3Expr = transformer.visit(expr);
+    mSolver.add(z3Expr);
+}
+
+Valuation Z3Solver::getModel()
+{
+    // TODO: Check whether the formula is SAT
+    z3::model model = mSolver.get_model();
+    std::cerr << model << "\n";
+    return {};
 }

@@ -11,9 +11,9 @@
 
 using namespace gazer;
 
+#if 0
 namespace
 {
-
 class BmcState
 {
 public:
@@ -105,4 +105,4 @@ auto BoundedModelChecker::check(Automaton& cfa) -> Status
 
     return Status::STATUS_UNKNOWN;
 }
-
+#endif

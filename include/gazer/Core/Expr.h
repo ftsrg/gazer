@@ -5,7 +5,10 @@
 
 #include <memory>
 #include <string>
-#include <iosfwd>
+
+namespace llvm {
+    class raw_ostream;
+}
 
 namespace gazer
 {
@@ -102,7 +105,7 @@ public:
         return FirstCompare <= mKind && mKind <= LastCompare;
     }
 
-    virtual void print(std::ostream& os) const = 0;
+    virtual void print(llvm::raw_ostream& os) const = 0;
 
     virtual ~Expr() {}
 
@@ -155,7 +158,7 @@ protected:
     virtual Expr* withOps(std::vector<ExprPtr> ops) const = 0;
 
 public: 
-    virtual void print(std::ostream& os) const override;
+    virtual void print(llvm::raw_ostream& os) const override;
 
     template<class Iter>
     Expr* with(Iter begin, Iter end) {

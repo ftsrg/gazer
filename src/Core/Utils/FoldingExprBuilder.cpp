@@ -1,6 +1,7 @@
 #include "gazer/Core/Utils/ExprBuilder.h"
 #include "gazer/Core/ExprTypes.h"
 #include "gazer/Core/LiteralExpr.h"
+#include "gazer/Core/Variable.h"
 
 using namespace gazer;
 
@@ -124,6 +125,13 @@ public:
             return *newOps.begin();
         }
 
+        // Try some optimizations for the binary case
+        if (newOps.size() == 2) {
+            if (newOps[0]->getKind() == Expr::And && newOps[1]->getKind() == Expr::And) {
+                // (F1 & F2) | (F1 & F3) => F1 & (F1 | F3)
+            }
+        }
+       
         return OrExpr::Create(newOps.begin(), newOps.end());
     }
 
@@ -132,6 +140,27 @@ public:
     }
 
     ExprPtr Eq(const ExprPtr& left, const ExprPtr& right) override {
+        if (left == right) {
+            return BoolLiteralExpr::getTrue();
+        }
+
+        if (left->getKind() == Expr::Literal && right->getKind() == Expr::Literal) {
+            if (left->getType().isIntType()) {
+                assert(right->getType().isIntType() && "EqExpr operand types should match");
+                auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get());
+                auto rhsLit = llvm::dyn_cast<IntLiteralExpr>(right.get());
+
+                return BoolLiteralExpr::Get(lhsLit->getValue() == rhsLit->getValue());
+            }
+        } else if (left->getKind() == Expr::VarRef && right->getKind() == Expr::VarRef) {
+            auto lhsVar = &(llvm::dyn_cast<VarRefExpr>(left.get())->getVariable());
+            auto rhsVar = &(llvm::dyn_cast<VarRefExpr>(right.get())->getVariable());
+
+            if (lhsVar == rhsVar) {
+                return BoolLiteralExpr::getTrue();
+            }
+        }
+
         return EqExpr::Create(left, right);
     }
     ExprPtr NotEq(const ExprPtr& left, const ExprPtr& right) override {

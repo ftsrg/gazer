@@ -40,7 +40,11 @@ private:
 public:
     const Variable& getVariable() const { return mVariable; }
 
-    virtual void print(std::ostream& os) const override;
+    virtual void print(llvm::raw_ostream& os) const override;
+
+    static bool classof(const Expr* expr) {
+        return expr->getKind() == Expr::VarRef;
+    }
 
 private:
     const Variable& mVariable;
