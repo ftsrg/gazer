@@ -138,7 +138,7 @@ int main(int argc, char* argv[])
         //if (PrintCFA) {
         //    pm->add(createCfaPrinterPass());
         //}
-        pm->add(llvm::createCFGPrinterLegacyPassPass());
+        //pm->add(llvm::createCFGPrinterLegacyPassPass());
         pm->add(new gazer::BmcPass(bound));
     }
 
