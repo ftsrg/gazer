@@ -5,6 +5,7 @@ set(SOURCE_FILES
     Variable.cpp
     SymbolTable.cpp
     Automaton.cpp
+    Valuation.cpp
     Utils/VariableRewriter.cpp
     Utils/ExprBuilder.cpp
     Utils/FoldingExprBuilder.cpp

@@ -12,9 +12,14 @@
 
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Instructions.h>
+#include <llvm/IR/IntrinsicInst.h>
 #include <llvm/IR/CFG.h>
+#include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/Debug.h>
+#include <llvm/IR/DebugInfo.h>
+#include <llvm/IR/InstIterator.h>
+
 
 
 #include <vector>
@@ -26,6 +31,174 @@ using llvm::BasicBlock;
 using llvm::Instruction;
 
 char BmcPass::ID = 0;
+
+namespace
+{
+
+class BmcTrace
+{
+public:
+    struct LocationInfo
+    {
+        int row;
+        int column;
+    };
+
+    struct Assignment
+    {
+        Variable* variable;
+        std::shared_ptr<LiteralExpr> expr;
+
+        llvm::Value* value;
+        LocationInfo location;
+        std::string variableName;
+    };
+private:
+    BmcTrace(std::vector<Assignment> assignments)
+        : mAssignments(assignments)
+    {}
+
+public:
+    static BmcTrace Create(
+        llvm::Function& function,
+        TopologicalSort& topo,
+        Valuation& model,
+        const InstToExpr::ValueToVariableMapT& valueMap
+    );
+
+    using iterator = std::vector<Assignment>::iterator;
+    iterator begin() { return mAssignments.begin(); }
+    iterator end() { return mAssignments.end(); }
+
+private:
+    std::vector<Assignment> mAssignments;
+};
+
+}
+
+BmcTrace BmcTrace::Create(
+    Function& function,
+    TopologicalSort& topo,
+    Valuation& model,
+    const InstToExpr::ValueToVariableMapT& valueMap
+) {
+    std::vector<Assignment> assigns;
+
+    llvm::DenseMap<llvm::Value*, std::string> assignmentMap;
+    for (Instruction& instr : llvm::instructions(function)) {
+        if (auto dvi = llvm::dyn_cast<llvm::DbgValueInst>(&instr)) {
+            if (dvi->getValue() && dvi->getVariable()) {
+                assignmentMap[dvi->getValue()] = dvi->getVariable()->getName();
+            }
+        }
+    }
+
+    for (BasicBlock* bb : topo) {
+        for (Instruction& instr : *bb) {
+            if (auto dvi = llvm::dyn_cast<llvm::DbgValueInst>(&instr)) {
+                if (dvi->getValue() && dvi->getVariable()) {
+                    llvm::Value* value = dvi->getValue();
+                    llvm::DILocalVariable* diVar = dvi->getVariable();
+
+                    auto result = valueMap.find(value);
+                    
+                    if (result == valueMap.end()) {
+                        // This is an unknown value for a given variable
+                        //assigns.push_back({
+                        //    nullptr, nullptr, value, {-1, -1}, diVar->getName()
+                        //});
+                        continue;
+                    }
+                    //assert(result != valueMap.end()
+                    //    && "Named values should be present in the value map");
+
+                    Variable* variable = result->second;
+                    auto exprResult = model.find(variable);
+
+                    if (exprResult == model.end()) {
+                        continue;
+                    }
+                    
+                    std::shared_ptr<LiteralExpr> expr = exprResult->second;
+                    LocationInfo location = { -1, -1 };
+
+                    if (auto valInst = llvm::dyn_cast<llvm::Instruction>(value)) {
+                        llvm::DebugLoc debugLoc = nullptr;
+                        if (valInst->getDebugLoc()) {
+                            debugLoc = valInst->getDebugLoc();
+                        } else if (dvi->getDebugLoc()) {
+                            debugLoc = dvi->getDebugLoc();
+                        }
+
+                        if (debugLoc) {
+                            location.row = debugLoc->getLine();
+                            location.column = debugLoc->getColumn();
+                        }
+                    }
+
+                    assigns.push_back({
+                        variable,
+                        exprResult->second,
+                        value,
+                        location,
+                        diVar->getName()
+                    });
+                }
+            }
+            /*
+            if (instr.getName() != "") {
+                auto result = valueMap.find(&instr);
+                assert(result != valueMap.end()
+                    && "Named values should be present in the value map");
+
+                Variable* variable = result->second;
+                auto exprResult = model.find(variable);
+
+                if (exprResult == model.end()) {
+                    continue;
+                }
+                //assert(exprResult != model.end()
+                //    && "Variables should be present in the model");
+
+                std::shared_ptr<LiteralExpr> expr = exprResult->second;
+
+                // Try to find the metadata info for this value
+                LocationInfo location = { -1, -1 };
+
+                auto debugLoc = instr.getDebugLoc();
+                if (debugLoc) {
+                    location.row = debugLoc->getLine();
+                    location.column = debugLoc->getColumn();
+                }
+
+                // Try to get the variable's name
+                std::string name = "<unknown>";
+
+                for (llvm::User* user : instr.users()) {
+                    if (llvm::isa<llvm::DbgValueInst>(user)) {
+                        auto dbgValue = llvm::dyn_cast<llvm::DbgValueInst>(user);
+                        if (dbgValue->getValue() == &instr) {
+                            auto diVariable = dbgValue->getVariable();
+                            name = diVariable->getName();
+                        }
+                    }
+                }
+
+                Assignment assign = {
+                    variable,
+                    expr,
+                    &instr,
+                    location,
+                    name
+                };
+
+                assigns.push_back(assign);
+            }*/
+        }
+    }
+
+    return BmcTrace(assigns);
+}
 
 static bool isErrorFunctionName(llvm::StringRef name)
 {
@@ -99,12 +272,13 @@ static ExprPtr encodeEdge(
 /**
  * Encodes the bounded reachability of assertion failures into SMT formulas.
  */
-static llvm::SmallDenseMap<BasicBlock*, ExprPtr, 1>
-    encode(Function& function, TopologicalSort& topo, SymbolTable& symbols)
-{
-    auto builder = CreateFoldingExprBuilder();
-    //auto builder = CreateExprBuilder();
-    InstToExpr ir2expr(function, symbols, builder.get());
+static llvm::SmallDenseMap<BasicBlock*, ExprPtr, 1> encode(
+    Function& function,
+    TopologicalSort& topo,
+    SymbolTable& symbols,
+    InstToExpr& ir2expr
+) {
+    ExprBuilder* builder = ir2expr.getBuilder();
 
     size_t numBB = function.getBasicBlockList().size();
 
@@ -150,38 +324,10 @@ static llvm::SmallDenseMap<BasicBlock*, ExprPtr, 1>
         }
 
         if (!exprs.empty()) {
-            // Try to optimize for the binary case
-            if (exprs.size() == 2) {
-                // The folding builder may have optimized the And operands,
-                // therefore we need to check
-                if (exprs[0]->getKind() == Expr::And && exprs[1]->getKind() == Expr::And) {
-                    // (F1 & F2) | (F1 & F3) => F1 & (F1 | F3)
-                }
-            }
-
             auto expr = builder->Or(exprs.begin(), exprs.end());
             dp[i] = expr;
         }
     }
-
-    #if 0
-    for (size_t i = 0; i < numBB; ++i) {
-        llvm::errs() << i << " : ";
-        topo[i]->printAsOperand(llvm::errs());
-        llvm::errs() << "\n";
-    }
-    #endif
-
-    #if 0
-    for (size_t i = 0; i < numBB; ++i) {
-        for (size_t j = 0; j < numBB; ++j) {
-            std::cerr << "dp[" << i << ", " << j << "] = ";
-            dp[i][j]->print(std::cerr);
-            std::cerr << "\n";
-        }
-    }
-
-    #endif
 
     for (auto& entry : errorBlocks) {
         size_t idx = entry.first;
@@ -207,19 +353,23 @@ bool BmcPass::runOnFunction(llvm::Function& function)
     //Automaton& cfa = getAnalysis<CfaBuilderPass>().getCFA();
 
     SymbolTable st;
+    llvm::DenseMap<const Variable*, llvm::Value*> variableToValueMap;
 
     llvm::errs() << "Program size: \n";
     llvm::errs() << "   Blocks: " << function.getBasicBlockList().size() << "\n";
     llvm::errs() << "Encoding program into SMT formula.\n";
-    auto result = encode(function, topo, st);
 
-    #if 1
+    auto builder = CreateFoldingExprBuilder();
+    //auto builder = CreateExprBuilder();
+    InstToExpr ir2expr(function, st, builder.get(), &variableToValueMap);
+    auto result = encode(function, topo, st, ir2expr);
+
     for (auto& entry : result) {
         llvm::errs() << "Checking for error block '";
         entry.first->printAsOperand(llvm::errs());
         llvm::errs() << "'\n";
 
-        CachingZ3Solver solver;
+        CachingZ3Solver solver(st);
 
         llvm::errs() << "   Transforming formula.\n";
 
@@ -234,7 +384,25 @@ bool BmcPass::runOnFunction(llvm::Function& function)
 
             if (status == Solver::SAT) {
                 llvm::errs() << "   Formula is SAT\n";
-                solver.getModel();
+                Valuation model = solver.getModel();
+                model.print(llvm::errs());
+                // Display a counterexample trace
+                auto trace = BmcTrace::Create(function, topo, model, ir2expr.getVariableMap());
+                for (auto& assignment : trace) {
+                    llvm::errs()
+                        << "Variable '"
+                        << assignment.variableName
+                        << "' := '";
+                    assignment.expr->print(llvm::errs());
+                    llvm::errs()
+                        << "' at "
+                        << assignment.location.row
+                        << ":"
+                        << assignment.location.column
+                        << " (LLVM value='"
+                        << assignment.value->getName()
+                        << "')\n";
+                }
             } else if (status == Solver::UNSAT) {
                 llvm::errs() << "   Formula is UNSAT\n";
             } else {
@@ -244,7 +412,6 @@ bool BmcPass::runOnFunction(llvm::Function& function)
             llvm::errs() << e.msg() << "\n";
         }
     }
-    #endif
 
     return false;
 }

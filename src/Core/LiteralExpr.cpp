@@ -36,7 +36,7 @@ std::shared_ptr<BoolLiteralExpr> BoolLiteralExpr::getFalse()
     return expr;
 }
 
-std::shared_ptr<IntLiteralExpr> IntLiteralExpr::get(IntType& type, uint64_t value)
+std::shared_ptr<IntLiteralExpr> IntLiteralExpr::get(IntType& type, llvm::APInt value)
 {
     //static std::map<int, std::shared_ptr<IntLiteralExpr>> exprs;
     

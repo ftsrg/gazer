@@ -12,8 +12,8 @@ namespace gazer
 class Z3Solver : public Solver
 {
 public:
-    Z3Solver()
-        : mContext(), mSolver(mContext)
+    Z3Solver(SymbolTable& symbols)
+        : mContext(), mSolver(mContext), mSymbols(symbols)
     {}
 
     virtual SolverStatus run() override;
@@ -26,6 +26,7 @@ protected:
     z3::context mContext;
     z3::solver mSolver;
     unsigned mTmpCount = 0;
+    SymbolTable& mSymbols;
 };
 
 class CachingZ3Solver final : public Z3Solver

@@ -13,31 +13,48 @@ class Valuation
 {
     using ValuationMapT = llvm::DenseMap<Variable*, std::shared_ptr<LiteralExpr>>;
 public:
-    class Builder;
+    class Builder
+    {
+    public:
+        Valuation build() {
+            return Valuation(mMap);
+        }
+
+        void put(Variable* variable, const std::shared_ptr<LiteralExpr>& expr) {
+            assert((variable->getType() == expr->getType()) && "Types must match.");
+            mMap[variable] = expr;
+        }
+
+    private:
+        ValuationMapT mMap;
+    };
+
+    static Builder CreateBuilder() { return Builder(); }
+private:
+    Valuation(ValuationMapT map)
+        : mMap(map)
+    {}
+
 public:
     std::shared_ptr<LiteralExpr> eval(const ExprPtr& expr);
+    std::shared_ptr<LiteralExpr> operator[](const Variable& variable);
+    
+    using iterator = ValuationMapT::iterator;
+    using const_iterator = ValuationMapT::const_iterator;
+
+    iterator find(const Variable* variable) { return mMap.find(variable); }
+    const_iterator find(const Variable* variable) const { return mMap.find(variable); }
+
+    iterator begin() { return mMap.begin(); }
+    iterator end() { return mMap.end(); }
+    const_iterator begin() const { return mMap.begin(); }
+    const_iterator end() const { return mMap.end(); }
+
+    void print(llvm::raw_ostream& os);
 
 private:
     ValuationMapT mMap;
 };
-
-/**
- * Builder class for valuations.
- */
-class Valuation::Builder
-{
-public:
-    Valuation build();
-
-    void put(Variable* variable, const std::shared_ptr<LiteralExpr>& expr) {
-        assert((variable->getType() == expr->getType()) && "Types must match.");
-        mMap[variable] = expr;
-    }
-
-private:
-    ValuationMapT mMap;
-};
-
 }
 
 #endif

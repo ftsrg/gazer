@@ -14,12 +14,21 @@ namespace gazer
 class InstToExpr
 {
 public:
-    InstToExpr(llvm::Function& function, SymbolTable& symbols, ExprBuilder* builder);
+    using ValueToVariableMapT = llvm::DenseMap<const llvm::Value*, Variable*>;
+public:
+    InstToExpr(
+        llvm::Function& function,
+        SymbolTable& symbols,
+        ExprBuilder* builder,
+        llvm::DenseMap<const Variable*, llvm::Value*>* variableToValueMap = nullptr
+    );
 
     ExprPtr transform(llvm::Instruction& inst, size_t succIdx);
     ExprPtr transform(llvm::Instruction& inst);
 
     ExprBuilder* getBuilder() const { return mExprBuilder; }
+
+    const ValueToVariableMapT& getVariableMap() const { return mVariables; }
 
 public:
     ExprPtr visitBinaryOperator(llvm::BinaryOperator &binop);
@@ -43,9 +52,8 @@ private:
 private:
     llvm::Function& mFunction;
     SymbolTable& mSymbols;
-    llvm::DenseMap<const llvm::Value*, Variable*> mVariables;
+    ValueToVariableMapT mVariables;
     ExprBuilder* mExprBuilder;
-
 };
 
 }

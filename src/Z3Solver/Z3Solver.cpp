@@ -6,6 +6,8 @@
 
 #include <unordered_map>
 
+#include <llvm/Support/raw_os_ostream.h>
+
 using namespace gazer;
 
 namespace
@@ -46,7 +48,7 @@ protected:
             auto lit = llvm::dyn_cast<IntLiteralExpr>(&*expr);
             auto value = lit->getValue();
             return mContext.bv_val(
-                static_cast<__uint64>(value),
+                static_cast<__uint64>(value.getLimitedValue()),
                 lit->getType().getWidth()
             );
         } else if (expr->getType().isBoolType()) {
@@ -227,6 +229,7 @@ private:
 
 Solver::SolverStatus Z3Solver::run()
 {
+    std::cerr << mSolver << "\n";
     z3::check_result result = mSolver.check();
 
     switch (result) {
@@ -255,7 +258,45 @@ void CachingZ3Solver::addConstraint(ExprPtr expr)
 Valuation Z3Solver::getModel()
 {
     // TODO: Check whether the formula is SAT
+    auto builder = Valuation::CreateBuilder();
     z3::model model = mSolver.get_model();
+
+    for (size_t i = 0; i < model.num_consts(); ++i) {
+        z3::func_decl decl = model.get_const_decl(i);
+        z3::expr z3Expr = model.get_const_interp(decl);
+
+        auto name = decl.name().str();
+        if (name.find("__gazer_undef") == 0) {
+            continue;
+        }
+
+        auto variableOpt = mSymbols.get(name);
+        assert(variableOpt.has_value() && "The symbol table must contain a referenced variable.");
+
+        Variable& variable = variableOpt->get();
+        std::shared_ptr<LiteralExpr> expr = nullptr;
+
+        if (z3Expr.is_bool()) {
+            bool value = z3::eq(model.eval(z3Expr), mContext.bool_val(true));
+            expr = BoolLiteralExpr::Get(value);            
+        } else if (z3Expr.is_bv()) {
+            std::cerr << "BV " <<  z3Expr << "\n";
+            unsigned int width = Z3_get_bv_sort_size(mContext, z3Expr.get_sort());
+            unsigned long long value;
+            Z3_get_numeral_uint64(mContext, z3Expr, &value);
+
+            auto iVal = llvm::APInt(width, value);
+            expr = IntLiteralExpr::get(
+                *IntType::get(width),
+                iVal
+            );
+        } else {
+            assert(false && "Unhandled Z3 expression type.");
+        }
+
+        builder.put(&variable, expr);
+    }
+
     std::cerr << model << "\n";
-    return {};
+    return builder.build();
 }

@@ -40,7 +40,12 @@ static bool isNonConstValue(const llvm::Value* value) {
     return isa<Instruction>(value) || isa<Argument>(value) || isa<GlobalVariable>(value);
 }
 
-InstToExpr::InstToExpr(Function& function, SymbolTable& symbols, ExprBuilder* builder)
+InstToExpr::InstToExpr(
+    Function& function,
+    SymbolTable& symbols,
+    ExprBuilder* builder,
+    llvm::DenseMap<const Variable*, llvm::Value*>* variableToValueMap
+)
     : mFunction(function), mSymbols(symbols), mExprBuilder(builder)
 {
     // Add arguments as local variables
@@ -50,6 +55,9 @@ InstToExpr::InstToExpr(Function& function, SymbolTable& symbols, ExprBuilder* bu
             TypeFromLLVMType(&arg)
         );
         mVariables[&arg] = &variable;
+        if (variableToValueMap != nullptr) {
+            (*variableToValueMap)[&variable] = &arg;
+        }
     }
 
     // Add local values as variables
@@ -60,6 +68,9 @@ InstToExpr::InstToExpr(Function& function, SymbolTable& symbols, ExprBuilder* bu
                 TypeFromLLVMType(&instr)
             );
             mVariables[&instr] = &variable;
+            if (variableToValueMap != nullptr) {
+                (*variableToValueMap)[&variable] = &instr;
+            }
         }
     }
 }

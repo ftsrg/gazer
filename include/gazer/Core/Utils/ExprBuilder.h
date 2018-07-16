@@ -23,7 +23,10 @@ public:
 
     //--- Literals ---//
     ExprPtr IntLit(uint64_t value, unsigned bits) {
-        return IntLiteralExpr::get(*IntType::get(bits), value);
+        return IntLiteralExpr::get(*IntType::get(bits), llvm::APInt(bits, value));
+    }
+    ExprPtr IntLit(llvm::APInt value) {
+        return IntLiteralExpr::get(*IntType::get(value.getBitWidth()), value);
     }
 
     ExprPtr True()  { return BoolLiteralExpr::getTrue(); }

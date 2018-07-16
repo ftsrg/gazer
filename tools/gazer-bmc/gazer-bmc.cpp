@@ -6,6 +6,8 @@
 #include "gazer/LLVM/Analysis/ProgramDependence.h"
 #include "gazer/LLVM/Analysis/TopologicalSort.h"
 
+#include "gazer/LLVM/InstrumentationPasses.h"
+
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Verifier.h>
@@ -128,6 +130,7 @@ int main(int argc, char* argv[])
         //pm->add(new llvm::ScalarEvolutionWrapperPass());
         //pm->add(new llvm::AssumptionCacheTracker());
         pm->add(new gazer::BoundedUnwindPass(bound));
+        pm->add(gazer::createPromoteUndefsPass());
         //pm->add(llvm::createCFGSimplificationPass());
         pm->add(createTopologicalSortPass());
         //pm->add(llvm::createVerifierPass());

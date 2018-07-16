@@ -51,16 +51,18 @@ private:
 class IntLiteralExpr final : public LiteralExpr
 {
 private:
-    IntLiteralExpr(IntType& type, uint64_t value)
+    IntLiteralExpr(IntType& type, llvm::APInt value)
         : LiteralExpr(type), mValue(value)
-    {}
+    {
+        assert(type.getWidth() == value.getBitWidth() && "Type and literal bit width must match.");
+    }
 public:
     virtual void print(llvm::raw_ostream& os) const override;
 
 public:
-    static std::shared_ptr<IntLiteralExpr> get(IntType& type, uint64_t value);
+    static std::shared_ptr<IntLiteralExpr> get(IntType& type, llvm::APInt value);
 
-    uint64_t getValue() const { return mValue; }
+    llvm::APInt getValue() const { return mValue; }
 
     const IntType& getType() const {
         return static_cast<const IntType&>(mType);
@@ -75,8 +77,8 @@ public:
     }
 
 private:
-    uint64_t mValue;
-    //llvm::APInt mValue;
+    //uint64_t mValue;
+    llvm::APInt mValue;
 };
 
 }
