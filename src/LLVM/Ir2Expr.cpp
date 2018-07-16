@@ -75,14 +75,15 @@ InstToExpr::InstToExpr(
     }
 }
 
-ExprPtr InstToExpr::transform(llvm::Instruction& inst, size_t succIdx)
+ExprPtr InstToExpr::transform(llvm::Instruction& inst, size_t succIdx, BasicBlock* pred)
 {
     if (inst.isTerminator()) {
         if (inst.getOpcode() == Instruction::Br) {
             return handleBr(*dyn_cast<llvm::BranchInst>(&inst), succIdx);
         }
     } else if (inst.getOpcode() == Instruction::PHI) {
-        return handlePHINode(*dyn_cast<llvm::PHINode>(&inst), succIdx);
+        assert(pred && "Cannot handle PHIs without know predecessor");
+        return handlePHINode(*dyn_cast<llvm::PHINode>(&inst), pred);
     }
     
     return transform(inst);
@@ -283,13 +284,10 @@ ExprPtr InstToExpr::visitCallInst(llvm::CallInst& call)
 }
 
 //----- Branches and PHI nodes -----//
-ExprPtr InstToExpr::handlePHINode(llvm::PHINode& phi, size_t succIdx)
-{
-    assert(phi.getNumIncomingValues() > succIdx
-        && "Invalid successor index for PHI node");
-    
+ExprPtr InstToExpr::handlePHINode(llvm::PHINode& phi, BasicBlock* pred)
+{    
     auto variable = getVariable(&phi);
-    auto expr = operand(phi.getIncomingValue(succIdx));
+    auto expr = operand(phi.getIncomingValueForBlock(pred));
 
     return EqExpr::Create(variable->getRefExpr(), expr);
 }

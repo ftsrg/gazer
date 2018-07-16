@@ -23,7 +23,7 @@ public:
         llvm::DenseMap<const Variable*, llvm::Value*>* variableToValueMap = nullptr
     );
 
-    ExprPtr transform(llvm::Instruction& inst, size_t succIdx);
+    ExprPtr transform(llvm::Instruction& inst, size_t succIdx, llvm::BasicBlock* pred = nullptr);
     ExprPtr transform(llvm::Instruction& inst);
 
     ExprBuilder* getBuilder() const { return mExprBuilder; }
@@ -37,7 +37,7 @@ public:
     ExprPtr visitCastInst(llvm::CastInst& cast);
     ExprPtr visitCallInst(llvm::CallInst& call);
     
-    ExprPtr handlePHINode(llvm::PHINode& phi, size_t succIdx);
+    ExprPtr handlePHINode(llvm::PHINode& phi, llvm::BasicBlock* pred);
     ExprPtr handleBr(llvm::BranchInst& br, size_t succIdx);
     ExprPtr handleSwitch(llvm::SwitchInst& swi, size_t succIdx);
 

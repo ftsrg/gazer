@@ -229,7 +229,6 @@ private:
 
 Solver::SolverStatus Z3Solver::run()
 {
-    std::cerr << mSolver << "\n";
     z3::check_result result = mSolver.check();
 
     switch (result) {
@@ -280,7 +279,6 @@ Valuation Z3Solver::getModel()
             bool value = z3::eq(model.eval(z3Expr), mContext.bool_val(true));
             expr = BoolLiteralExpr::Get(value);            
         } else if (z3Expr.is_bv()) {
-            std::cerr << "BV " <<  z3Expr << "\n";
             unsigned int width = Z3_get_bv_sort_size(mContext, z3Expr.get_sort());
             unsigned long long value;
             Z3_get_numeral_uint64(mContext, z3Expr, &value);
@@ -297,6 +295,5 @@ Valuation Z3Solver::getModel()
         builder.put(&variable, expr);
     }
 
-    std::cerr << model << "\n";
     return builder.build();
 }

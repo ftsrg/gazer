@@ -62,6 +62,9 @@ public:
     static BmcTrace Create(
         llvm::Function& function,
         TopologicalSort& topo,
+        llvm::DenseMap<BasicBlock*, size_t>& blocks,
+        llvm::DenseMap<BasicBlock*, llvm::Value*>& preds,
+        BasicBlock* errorBlock,
         Valuation& model,
         const InstToExpr::ValueToVariableMapT& valueMap
     );
@@ -79,10 +82,105 @@ private:
 BmcTrace BmcTrace::Create(
     Function& function,
     TopologicalSort& topo,
+    llvm::DenseMap<BasicBlock*, size_t>& blocks,
+    llvm::DenseMap<BasicBlock*, llvm::Value*>& preds,
+    BasicBlock* errorBlock,
     Valuation& model,
     const InstToExpr::ValueToVariableMapT& valueMap
 ) {
     std::vector<Assignment> assigns;
+    std::vector<BasicBlock*> traceBlocks;
+
+    bool hasParent = true;
+    BasicBlock* current = errorBlock;
+
+    while (hasParent) {
+        traceBlocks.push_back(current);
+
+        auto predRes = preds.find(current);
+        if (predRes != preds.end()) {
+            size_t predId;
+            if (auto ci = llvm::dyn_cast<llvm::ConstantInt>(predRes->second)) {
+                predId = ci->getLimitedValue();
+            } else {
+                auto varRes = valueMap.find(predRes->second);
+                assert(varRes != valueMap.end()
+                    && "Pred variables should be in the variable map");
+                
+                auto exprRes = model.find(varRes->second);
+                assert(exprRes != model.end()
+                    && "Pred values should be present in the model");
+                
+                auto lit = llvm::dyn_cast<IntLiteralExpr>(exprRes->second.get());
+                predId = lit->getValue().getLimitedValue();
+
+            }
+
+            current->printAsOperand(llvm::errs());
+            llvm::errs() << " PRED " << predId << "\n";
+            current = topo[predId];
+        } else {
+            hasParent = false;
+        }
+    }
+
+    std::reverse(traceBlocks.begin(), traceBlocks.end());
+    
+    for (BasicBlock* bb : traceBlocks) {
+        for (Instruction& instr : *bb) {
+            if (auto dvi = llvm::dyn_cast<llvm::DbgValueInst>(&instr)) {
+                if (dvi->getValue() && dvi->getVariable()) {
+                    llvm::Value* value = dvi->getValue();
+                    llvm::DILocalVariable* diVar = dvi->getVariable();
+
+                    auto result = valueMap.find(value);
+                    
+                    if (result == valueMap.end()) {
+                        // This is an unknown value for a given variable
+                        //assigns.push_back({
+                        //    nullptr, nullptr, value, {-1, -1}, diVar->getName()
+                        //});
+                        continue;
+                    }
+                    //assert(result != valueMap.end()
+                    //    && "Named values should be present in the value map");
+
+                    Variable* variable = result->second;
+                    auto exprResult = model.find(variable);
+
+                    if (exprResult == model.end()) {
+                        continue;
+                    }
+                    
+                    std::shared_ptr<LiteralExpr> expr = exprResult->second;
+                    LocationInfo location = { -1, -1 };
+
+                    if (auto valInst = llvm::dyn_cast<llvm::Instruction>(value)) {
+                        llvm::DebugLoc debugLoc = nullptr;
+                        if (valInst->getDebugLoc()) {
+                            debugLoc = valInst->getDebugLoc();
+                        } else if (dvi->getDebugLoc()) {
+                            debugLoc = dvi->getDebugLoc();
+                        }
+
+                        if (debugLoc) {
+                            location.row = debugLoc->getLine();
+                            location.column = debugLoc->getColumn();
+                        }
+                    }
+
+                    assigns.push_back({
+                        variable,
+                        exprResult->second,
+                        value,
+                        location,
+                        diVar->getName()
+                    });
+                }
+            }
+        }
+    }
+#if 0
 
     llvm::DenseMap<llvm::Value*, std::string> assignmentMap;
     for (Instruction& instr : llvm::instructions(function)) {
@@ -193,10 +291,10 @@ BmcTrace BmcTrace::Create(
                 };
 
                 assigns.push_back(assign);
-            }*/
+            } */
         }
     }
-
+#endif
     return BmcTrace(assigns);
 }
 
@@ -228,6 +326,14 @@ static ExprPtr encodeEdge(
     InstToExpr& ir2expr,
     llvm::DenseMap<const BasicBlock*, ExprPtr>& cache)
 {
+    /*
+    llvm::errs() << "encoding edge between ";
+    from->printAsOperand(llvm::errs());
+    llvm::errs() << " and ";
+    to->printAsOperand(llvm::errs());
+    llvm::errs() << "\n";
+    */
+
     std::vector<ExprPtr> exprs;
 
     // Find which branch we are taking
@@ -251,7 +357,12 @@ static ExprPtr encodeEdge(
 
         // We are starting from the non-phi nodes at the 'from' part of the block
         for (auto it = from->getFirstInsertionPt(); it != from->end(); ++it) {
-            fromExprs.push_back(ir2expr.transform(*it, succIdx));
+            if (it->isTerminator()) {
+                // TODO: Quick hack to avoid handling terminators
+                continue;
+            }
+
+            fromExprs.push_back(ir2expr.transform(*it));
         }
 
         auto fromExpr = ir2expr.getBuilder()->And(fromExprs.begin(), fromExprs.end());
@@ -261,9 +372,15 @@ static ExprPtr encodeEdge(
         exprs.push_back(cacheResult->second);
     }
 
-    // Handle the PHI nodes and branches
+    // Handle the branch
+    exprs.push_back(ir2expr.transform(*from->getTerminator(), succIdx));
+
+    // Handle the PHI nodes
     for (auto it = to->begin(); it != to->getFirstInsertionPt(); ++it) {
-        exprs.push_back(ir2expr.transform(*it, succIdx));
+        auto expr = ir2expr.transform(*it, succIdx, from);
+        //FormatPrintExpr(expr, llvm::errs());
+        //llvm::errs() << "\n";
+        exprs.push_back(expr);
     }
 
     return ir2expr.getBuilder()->And(exprs.begin(), exprs.end());
@@ -303,7 +420,7 @@ static llvm::SmallDenseMap<BasicBlock*, ExprPtr, 1> encode(
     dp[0] = BoolLiteralExpr::getTrue();
 
     for (size_t i = 1; i < numBB; ++i) {
-        BasicBlock* bb = topo[i];       
+        BasicBlock* bb = topo[i];
         llvm::SmallVector<ExprPtr, 2> exprs;
 
         for (BasicBlock* pred : llvm::predecessors(bb)) {
@@ -359,6 +476,51 @@ bool BmcPass::runOnFunction(llvm::Function& function)
     llvm::errs() << "   Blocks: " << function.getBasicBlockList().size() << "\n";
     llvm::errs() << "Encoding program into SMT formula.\n";
 
+    auto& context = function.getContext();
+
+    llvm::DenseMap<BasicBlock*, size_t> blocks(topo.size());
+    llvm::DenseMap<BasicBlock*, llvm::Value*> preds;
+
+    for (size_t i = 0; i < topo.size(); ++i) {
+        blocks.insert({topo[i], i});
+    }
+
+    // Create predecessor identifications
+    llvm::Type* predTy = llvm::IntegerType::get(context, 32);
+    for (BasicBlock& bb : function) {
+        size_t bbID = blocks[&bb];
+
+        auto phi = llvm::PHINode::Create(
+            predTy,
+            0,
+            "pred" + llvm::Twine(bbID)
+        );
+
+        for (BasicBlock* pred : llvm::predecessors(&bb)) {
+            size_t predID = blocks[pred];
+
+            phi->addIncoming(
+                llvm::ConstantInt::get(
+                    predTy,
+                    llvm::APInt(predTy->getIntegerBitWidth(), predID)
+                ),
+                pred
+            );
+        }
+
+        if (phi->getNumIncomingValues() > 1) {
+            bb.getInstList().push_front(phi);
+            preds[&bb] = phi;
+        } else {
+            if (phi->getNumIncomingValues() == 1) {
+                preds[&bb] = phi->getIncomingValue(0);
+            }
+
+            phi->dropAllReferences();
+            phi->deleteValue();
+        }
+    }
+   
     auto builder = CreateFoldingExprBuilder();
     //auto builder = CreateExprBuilder();
     InstToExpr ir2expr(function, st, builder.get(), &variableToValueMap);
@@ -386,8 +548,17 @@ bool BmcPass::runOnFunction(llvm::Function& function)
                 llvm::errs() << "   Formula is SAT\n";
                 Valuation model = solver.getModel();
                 model.print(llvm::errs());
+                
                 // Display a counterexample trace
-                auto trace = BmcTrace::Create(function, topo, model, ir2expr.getVariableMap());
+                auto trace = BmcTrace::Create(
+                    function,
+                    topo,
+                    blocks,
+                    preds,
+                    entry.first,
+                    model,
+                    ir2expr.getVariableMap()
+                );
                 for (auto& assignment : trace) {
                     llvm::errs()
                         << "Variable '"
