@@ -187,7 +187,7 @@ BmcTrace BmcTrace::Create(
 static bool isErrorFunctionName(llvm::StringRef name)
 {
     return name == "__VERIFIER_error" || name == "__assert_fail"
-        || name == "__gazer__error";
+        || name == "__gazer_error";
 }
 
 static bool isErrorBlock(const BasicBlock& bb)
@@ -353,7 +353,6 @@ void BmcPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
 bool BmcPass::runOnFunction(llvm::Function& function)
 {
     TopologicalSort& topo = getAnalysis<TopologicalSortPass>().getTopologicalSort();    
-    //Automaton& cfa = getAnalysis<CfaBuilderPass>().getCFA();
 
     SymbolTable st;
     llvm::DenseMap<const Variable*, llvm::Value*> variableToValueMap;
@@ -445,7 +444,7 @@ bool BmcPass::runOnFunction(llvm::Function& function)
                     model,
                     ir2expr.getVariableMap()
                 );
-                /*
+
                 for (auto& assignment : trace) {
                     llvm::errs()
                         << "Variable '"
@@ -460,7 +459,10 @@ bool BmcPass::runOnFunction(llvm::Function& function)
                         << " (LLVM value='"
                         << assignment.value->getName()
                         << "')\n";
-                } */
+                }
+
+                llvm::errs() << "Assertion failure found.\n";
+                break;
             } else if (status == Solver::UNSAT) {
                 llvm::errs() << "   Formula is UNSAT\n";
             } else {

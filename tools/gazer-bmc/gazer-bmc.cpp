@@ -42,6 +42,7 @@ namespace {
     cl::opt<bool> PrintPDG("print-pdg", cl::desc("Print the Program Dependence Graph (PDG)"));
     cl::opt<bool> BackwardSlice("slice", cl::desc("Perform static backward slicing"));
     cl::opt<bool> LargeBlockCFA("lbe-cfa", cl::desc("Transform the CFA to large block encoding"));
+    cl::opt<bool> ShowUnrolledCFG("show-unrolled-cfg", cl::desc("Display the unrolled CFG"));
 }
 
 int main(int argc, char* argv[])
@@ -96,30 +97,14 @@ int main(int argc, char* argv[])
         pm->add(llvm::createDeadCodeEliminationPass());
         pm->add(llvm::createCFGSimplificationPass());
         pm->add(llvm::createStructurizeCFGPass());
-        pm->add(llvm::createLowerSwitchPass());
     }
 
     pm->add(llvm::createPromoteMemoryToRegisterPass());
     pm->add(llvm::createInstructionNamerPass());
 
-    bool NeedsPDG = BackwardSlice || PrintPDG;
-
-    if (NeedsPDG) {
-        pm->add(llvm::createPostDomTree());
-        pm->add(gazer::createProgramDependenceWrapperPass());
-    }
-    if (PrintPDG) {
-        pm->add(gazer::createProgramDependencePrinterPass());
-    }
-    if (BackwardSlice) {
-        pm->add(gazer::createBackwardSlicerPass());
-        pm->add(llvm::createVerifierPass());
-        pm->add(llvm::createConstantPropagationPass());
-        pm->add(llvm::createDeadCodeEliminationPass());
-        pm->add(llvm::createCFGSimplificationPass());  
-    }
-
     if (RunBmc) {
+        pm->add(llvm::createCFGSimplificationPass());
+        pm->add(llvm::createLowerSwitchPass());
         pm->add(llvm::createLoopSimplifyPass());
         pm->add(llvm::createLoopRotatePass());
         pm->add(llvm::createIndVarSimplifyPass());
@@ -130,15 +115,35 @@ int main(int argc, char* argv[])
         //pm->add(new llvm::ScalarEvolutionWrapperPass());
         //pm->add(new llvm::AssumptionCacheTracker());
         pm->add(new gazer::BoundedUnwindPass(bound));
-        pm->add(gazer::createPromoteUndefsPass());
+        bool NeedsPDG = BackwardSlice || PrintPDG;
+
+        if (NeedsPDG) {
+            pm->add(llvm::createPostDomTree());
+            pm->add(gazer::createProgramDependenceWrapperPass());
+        }
+        if (PrintPDG) {
+            pm->add(gazer::createProgramDependencePrinterPass());
+        }
+        if (BackwardSlice) {
+            pm->add(gazer::createBackwardSlicerPass());
+            pm->add(llvm::createVerifierPass());
+            pm->add(llvm::createConstantPropagationPass());
+            pm->add(llvm::createDeadCodeEliminationPass());
+            pm->add(llvm::createCFGSimplificationPass());
+        }
+
+        //pm->add(gazer::createPromoteUndefsPass());
         //pm->add(llvm::createCFGSimplificationPass());
+        pm->add(createCombineErrorCallsPass());
         pm->add(createTopologicalSortPass());
         //pm->add(llvm::createVerifierPass());
         //pm->add(new gazer::CfaBuilderPass(LargeBlockCFA));
         //if (PrintCFA) {
         //    pm->add(createCfaPrinterPass());
         //}
-        //pm->add(llvm::createCFGPrinterLegacyPassPass());
+        if (ShowUnrolledCFG) {
+            pm->add(llvm::createCFGPrinterLegacyPassPass());
+        }
         pm->add(new gazer::BmcPass(bound));
     }
 

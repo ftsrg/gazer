@@ -10,6 +10,8 @@ llvm::Pass* createInlineGlobalVariablesPass();
 
 llvm::Pass* createBackwardSlicerPass();
 
+llvm::Pass* createCombineErrorCallsPass();
+
 }
 
 #endif

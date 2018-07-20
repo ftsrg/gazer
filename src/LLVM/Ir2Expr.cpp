@@ -80,6 +80,8 @@ ExprPtr InstToExpr::transform(llvm::Instruction& inst, size_t succIdx, BasicBloc
     if (inst.isTerminator()) {
         if (inst.getOpcode() == Instruction::Br) {
             return handleBr(*dyn_cast<llvm::BranchInst>(&inst), succIdx);
+        } else if (inst.getOpcode() == Instruction::Switch) {
+            return handleSwitch(*dyn_cast<llvm::SwitchInst>(&inst), succIdx);
         }
     } else if (inst.getOpcode() == Instruction::PHI) {
         assert(pred && "Cannot handle PHIs without know predecessor");
@@ -309,6 +311,50 @@ ExprPtr InstToExpr::handleBr(llvm::BranchInst& br, size_t succIdx)
     } else {
         return NotExpr::Create(cond);
     }
+}
+
+
+ExprPtr InstToExpr::handleSwitch(llvm::SwitchInst& swi, size_t succIdx)
+{
+    ExprPtr condition = operand(swi.getCondition());
+    
+    llvm::SwitchInst::CaseIt caseIt = swi.case_begin();
+
+    if (succIdx == 0) {
+        // The SwitchInst is taking the default branch
+        ExprPtr expr = BoolLiteralExpr::getTrue();
+        while (caseIt != swi.case_end()) {
+            if (caseIt != swi.case_default()) {
+                ExprPtr value = operand(caseIt->getCaseValue());
+
+                // A folding ExprBuilder will optimize this
+                expr = mExprBuilder->And(
+                    expr,
+                    mExprBuilder->NotEq(condition, value)
+                );
+            }
+
+            ++caseIt;
+        }
+
+        return expr;
+    }
+
+    // A normal case branch is taken
+    while (caseIt != swi.case_end()) {
+        if (caseIt->getSuccessorIndex() == succIdx) {
+            break;
+        }
+
+        ++caseIt;
+    }
+
+    assert(caseIt != swi.case_end()
+        && "The successor should be present in the SwitchInst");
+
+    ExprPtr value = operand(caseIt->getCaseValue());
+
+    return mExprBuilder->Eq(condition, value);
 }
 
 //----- Utils and casting -----//

@@ -8,6 +8,7 @@ set(SOURCE_FILES
     Transform/BackwardSlicer.cpp
     Transform/InlineGlobalVariablesPass.cpp
     Transform/SimplifyCFA.cpp
+    Transform/CombineErrorCalls.cpp
     Instrumentation/PromoteUndefs.cpp
 )
 
