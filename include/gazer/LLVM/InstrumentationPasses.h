@@ -8,6 +8,8 @@ namespace gazer
 
 llvm::Pass* createPromoteUndefsPass();
 
+llvm::Pass* createMarkFunctionEntriesPass();
+
 }
 
 #endif

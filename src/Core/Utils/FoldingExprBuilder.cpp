@@ -3,6 +3,8 @@
 #include "gazer/Core/LiteralExpr.h"
 #include "gazer/Core/Variable.h"
 
+#include <llvm/ADT/DenseMap.h>
+
 using namespace gazer;
 
 namespace
@@ -27,6 +29,7 @@ public:
 
         return NotExpr::Create(op);
     }
+
     ExprPtr ZExt(const ExprPtr& op, const IntType& type) override {
         return ZExtExpr::Create(op, type);
     }
@@ -163,7 +166,29 @@ public:
 
         return EqExpr::Create(left, right);
     }
+
     ExprPtr NotEq(const ExprPtr& left, const ExprPtr& right) override {
+        if (left == right) {
+            return BoolLiteralExpr::getFalse();
+        }
+
+        if (left->getKind() == Expr::Literal && right->getKind() == Expr::Literal) {
+            if (left->getType().isIntType()) {
+                assert(right->getType().isIntType() && "EqExpr operand types should match");
+                auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get());
+                auto rhsLit = llvm::dyn_cast<IntLiteralExpr>(right.get());
+
+                return BoolLiteralExpr::Get(lhsLit->getValue() != rhsLit->getValue());
+            }
+        } else if (left->getKind() == Expr::VarRef && right->getKind() == Expr::VarRef) {
+            auto lhsVar = &(llvm::dyn_cast<VarRefExpr>(left.get())->getVariable());
+            auto rhsVar = &(llvm::dyn_cast<VarRefExpr>(right.get())->getVariable());
+
+            if (lhsVar == rhsVar) {
+                return BoolLiteralExpr::getFalse();
+            }
+        }
+        
         return NotEqExpr::Create(left, right);
     }
 

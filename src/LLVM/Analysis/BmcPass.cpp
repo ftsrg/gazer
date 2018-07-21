@@ -25,10 +25,7 @@
 #include <vector>
 
 using namespace gazer;
-
-using llvm::Function;
-using llvm::BasicBlock;
-using llvm::Instruction;
+using namespace llvm;
 
 char BmcPass::ID = 0;
 
@@ -54,8 +51,8 @@ public:
         std::string variableName;
     };
 private:
-    BmcTrace(std::vector<Assignment> assignments)
-        : mAssignments(assignments)
+    BmcTrace(std::vector<BasicBlock*> blocks, std::vector<Assignment> assignments = {})
+        : mBlocks(blocks), mAssignments(assignments)
     {}
 
 public:
@@ -75,9 +72,11 @@ public:
 
 private:
     std::vector<Assignment> mAssignments;
+    std::vector<BasicBlock*> mBlocks;
 };
 
 }
+
 
 BmcTrace BmcTrace::Create(
     Function& function,
@@ -128,6 +127,13 @@ BmcTrace BmcTrace::Create(
     
     for (BasicBlock* bb : traceBlocks) {
         for (Instruction& instr : *bb) {
+            llvm::CallInst* call = llvm::dyn_cast<llvm::CallInst>(&instr);
+            if (!call) {
+                continue;
+            }
+
+            llvm::Function* callee = call->getCalledFunction();
+
             if (auto dvi = llvm::dyn_cast<llvm::DbgValueInst>(&instr)) {
                 if (dvi->getValue() && dvi->getVariable()) {
                     llvm::Value* value = dvi->getValue();
@@ -177,11 +183,50 @@ BmcTrace BmcTrace::Create(
                         diVar->getName()
                     });
                 }
+            } else if (callee->getName() == "gazer.inlined_global.write") {
+                auto mdValue = cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata();
+                auto value = cast<ValueAsMetadata>(mdValue)->getValue();
+
+                auto mdGlobal = dyn_cast<DIGlobalVariable>(
+                    cast<MetadataAsValue>(call->getArgOperand(1))->getMetadata()
+                );
+
+                std::shared_ptr<LiteralExpr> expr = nullptr;
+                if (auto ci = dyn_cast<ConstantInt>(value)) {
+                    expr = IntLiteralExpr::get(
+                        *IntType::get(ci->getBitWidth()),
+                        ci->getValue()
+                    );
+                } else {
+                    auto result = valueMap.find(value);
+                    if (result != valueMap.end()) {
+                        Variable* variable = result->second;
+                        auto exprResult = model.find(variable);
+
+                        if (exprResult != model.end()) {
+                            expr = exprResult->second;
+                        }
+                    }
+                }
+
+                LocationInfo location = { -1, -1 };
+                if (auto debugLoc = call->getDebugLoc()) {
+                    location.row = debugLoc->getLine();
+                    location.column = debugLoc->getColumn();
+                }
+
+                assigns.push_back({
+                    nullptr,
+                    expr,
+                    value,
+                    location,
+                    mdGlobal->getName()
+                });
             }
         }
     }
 
-    return BmcTrace(assigns);
+    return BmcTrace(traceBlocks, assigns);
 }
 
 static bool isErrorFunctionName(llvm::StringRef name)
@@ -450,7 +495,11 @@ bool BmcPass::runOnFunction(llvm::Function& function)
                         << "Variable '"
                         << assignment.variableName
                         << "' := '";
-                    assignment.expr->print(llvm::errs());
+                    if (assignment.expr != nullptr) {
+                        assignment.expr->print(llvm::errs());
+                    } else {
+                        llvm::errs() << "????";
+                    }
                     llvm::errs()
                         << "' at "
                         << assignment.location.row

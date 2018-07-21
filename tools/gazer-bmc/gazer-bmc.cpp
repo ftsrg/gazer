@@ -78,6 +78,7 @@ int main(int argc, char* argv[])
             gv.setLinkage(GlobalValue::InternalLinkage);
         }
 
+        pm->add(gazer::createMarkFunctionEntriesPass());
         pm->add(llvm::createAlwaysInlinerLegacyPass());
 
         if (InlineGlobals) {

@@ -10,6 +10,7 @@ set(SOURCE_FILES
     Transform/SimplifyCFA.cpp
     Transform/CombineErrorCalls.cpp
     Instrumentation/PromoteUndefs.cpp
+    Instrumentation/MarkFunctionEntries.cpp
 )
 
 llvm_map_components_to_libnames(LLVM_LIBS support core irreader transformutils scalaropts ipo)

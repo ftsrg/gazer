@@ -39,11 +39,13 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
         return false;
     }
 
-    llvm::Constant* mark = module.getOrInsertFunction(
-        "gazer.inlined_global.write",
-        llvm::Type::getVoidTy(module.getContext()),
+    auto fType = llvm::FunctionType::get(llvm::Type::getVoidTy(module.getContext()), {
         llvm::Type::getMetadataTy(module.getContext()),
         llvm::Type::getMetadataTy(module.getContext())
+    }, false);
+
+    llvm::Constant* mark = module.getOrInsertFunction(
+        "gazer.inlined_global.write", fType
     );
 
     Function* dbgDecl = Intrinsic::getDeclaration(&module, Intrinsic::dbg_declare);
@@ -64,9 +66,34 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
         StoreInst* store = builder.CreateStore(init, alloc);
 
         // Add some metadata stuff
-        if (gv.hasMetadata()) {
-            llvm::SmallVector<std::pair<unsigned, llvm::MDNode*>, 2> metadata;
-            gv.getAllMetadata(metadata);
+        // FIXME: There should be a more intelligent way for finding
+        //  the DIGlobalVariable
+        llvm::SmallVector<std::pair<unsigned, MDNode*>, 2> md;
+        gv.getAllMetadata(md);
+
+        llvm::DIGlobalVariableExpression* diGlobalExpr = nullptr;
+        std::for_each(md.begin(), md.end(), [&diGlobalExpr](auto pair) {
+            if (auto ge = dyn_cast<DIGlobalVariableExpression>(pair.second)) {
+                diGlobalExpr = ge;
+            }
+        });
+
+        if (diGlobalExpr) {
+            auto diGlobalVariable = diGlobalExpr->getVariable();
+            for (llvm::Value* user : gv.users()) {
+                if (auto inst = llvm::dyn_cast<StoreInst>(user)) {
+                    llvm::Value* value = inst->getOperand(0);
+                    CallInst* call = CallInst::Create(
+                        fType, mark, {
+                            MetadataAsValue::get(module.getContext(), ValueAsMetadata::get(value)),
+                            MetadataAsValue::get(module.getContext(), diGlobalVariable)
+                        }
+                    );
+
+                    call->setDebugLoc(inst->getDebugLoc());
+                    call->insertAfter(inst);
+                }
+            }
         }
 
         gv.replaceAllUsesWith(alloc);
