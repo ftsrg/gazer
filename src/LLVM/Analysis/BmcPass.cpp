@@ -1,7 +1,7 @@
 #include "gazer/LLVM/Analysis/BmcPass.h"
 #include "gazer/LLVM/Analysis/TopologicalSort.h"
 #include "gazer/LLVM/Analysis/CfaBuilderPass.h"
-#include "gazer/BMC/BMC.h"
+#include "gazer/LLVM/BMC/BmcTrace.h"
 #include "gazer/Z3Solver/Z3Solver.h"
 #include "gazer/Core/Expr.h"
 #include "gazer/Core/LiteralExpr.h"
@@ -29,9 +29,9 @@ using namespace llvm;
 
 char BmcPass::ID = 0;
 
+#if 0
 namespace
 {
-
 class BmcTrace
 {
 public:
@@ -228,6 +228,7 @@ BmcTrace BmcTrace::Create(
 
     return BmcTrace(traceBlocks, assigns);
 }
+#endif
 
 static bool isErrorFunctionName(llvm::StringRef name)
 {
@@ -481,7 +482,6 @@ bool BmcPass::runOnFunction(llvm::Function& function)
                 
                 // Display a counterexample trace
                 auto trace = BmcTrace::Create(
-                    function,
                     topo,
                     blocks,
                     preds,
@@ -490,25 +490,10 @@ bool BmcPass::runOnFunction(llvm::Function& function)
                     ir2expr.getVariableMap()
                 );
 
-                for (auto& assignment : trace) {
-                    llvm::errs()
-                        << "Variable '"
-                        << assignment.variableName
-                        << "' := '";
-                    if (assignment.expr != nullptr) {
-                        assignment.expr->print(llvm::errs());
-                    } else {
-                        llvm::errs() << "????";
-                    }
-                    llvm::errs()
-                        << "' at "
-                        << assignment.location.row
-                        << ":"
-                        << assignment.location.column
-                        << " (LLVM value='"
-                        << assignment.value->getName()
-                        << "')\n";
-                }
+                auto writer = bmc::CreateTextTraceWriter(llvm::errs());
+                llvm::errs() << "Error trace:\n";
+                llvm::errs() << "-----------\n";
+                writer->write(trace);
 
                 llvm::errs() << "Assertion failure found.\n";
                 break;

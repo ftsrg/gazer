@@ -29,6 +29,11 @@ public:
             llvm::Type::getVoidTy(module.getContext()),
             llvm::Type::getMetadataTy(module.getContext())
         );
+        auto argMark = module.getOrInsertFunction(
+            "gazer.function.arg",
+            llvm::Type::getVoidTy(module.getContext()),
+            llvm::Type::getMetadataTy(module.getContext())
+        );
 
         IRBuilder<> builder(module.getContext());
         for (Function& function : module) {
@@ -44,6 +49,16 @@ public:
                 builder.CreateCall(mark, {
                     MetadataAsValue::get(module.getContext(), dsp)
                 });
+
+                for (llvm::Argument& argument : function.args()) {
+                    llvm::errs() << "Found argument\n";
+                    builder.CreateCall(argMark, {
+                        MetadataAsValue::get(
+                            module.getContext(),
+                            ValueAsMetadata::get(&argument)
+                        )
+                    });
+                }
             } else {
                 llvm::errs()
                     << "Cannot insert function entry marks: "
