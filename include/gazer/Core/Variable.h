@@ -6,6 +6,8 @@
 #include <string>
 #include <memory>
 
+// TODO: Move this header into Expr or ExprTypes?
+
 namespace gazer
 {
 

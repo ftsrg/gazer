@@ -58,6 +58,8 @@ public:
     bool isIntType() const { return getTypeID() == IntTypeID; }
     //bool isRealType() const { return getTypeID() == RealTypeID; }
 
+    bool isArrayType() const { return getTypeID() == ArrayTypeID; }
+
     bool equals(const Type* other) const;
 
     bool operator==(const Type& other) const { return equals(&other); }

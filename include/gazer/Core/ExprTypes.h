@@ -2,6 +2,7 @@
 #define _GAZER_CORE_EXPRTYPES_H
 
 #include "gazer/Core/Expr.h"
+#include "gazer/Core/Variable.h"
 
 #include <llvm/ADT/APInt.h>
 #include <llvm/ADT/iterator_range.h>
@@ -358,6 +359,64 @@ public:
     }
     static bool classof(const Expr& expr) {
         return expr.getKind() == Expr::Select;
+    }
+};
+
+class ArrayReadExpr final : public NonNullaryExpr
+{
+protected:
+    ArrayReadExpr(std::shared_ptr<VarRefExpr> array, ExprPtr index)
+        : NonNullaryExpr(Expr::ArrayRead, array->getType(), {array, index})
+    {}
+public:
+    virtual Expr* withOps(std::vector<ExprPtr> ops) const override;
+
+    std::shared_ptr<VarRefExpr> getArrayRef() const {
+        return std::static_pointer_cast<VarRefExpr>(getOperand(0));
+    }
+
+    ExprPtr getIndex() const { return getOperand(1); }
+
+    static std::shared_ptr<ArrayReadExpr> Create(std::shared_ptr<VarRefExpr> array, ExprPtr index);
+
+    /**
+     * Type inquiry support.
+     */
+    static bool classof(const Expr* expr) {
+        return expr->getKind() == Expr::ArrayRead;
+    }
+    static bool classof(const Expr& expr) {
+        return expr.getKind() == Expr::ArrayRead;
+    }
+};
+
+class ArrayWriteExpr final : public NonNullaryExpr
+{
+protected:
+    ArrayWriteExpr(std::shared_ptr<VarRefExpr> array, ExprPtr index, ExprPtr value)
+        : NonNullaryExpr(Expr::ArrayRead, array->getType(), {array, index, value})
+    {}
+public:
+    virtual Expr* withOps(std::vector<ExprPtr> ops) const override;
+
+    std::shared_ptr<VarRefExpr> getArrayRef() const {
+        return std::static_pointer_cast<VarRefExpr>(getOperand(0));
+    }
+    ExprPtr getIndex() const { return getOperand(1); }
+    ExprPtr getElementValue() const { return getOperand(2); }
+
+    static std::shared_ptr<ArrayWriteExpr> Create(
+        std::shared_ptr<VarRefExpr> array, ExprPtr index, ExprPtr value
+    );
+
+    /**
+     * Type inquiry support.
+     */
+    static bool classof(const Expr* expr) {
+        return expr->getKind() == Expr::ArrayWrite;
+    }
+    static bool classof(const Expr& expr) {
+        return expr.getKind() == Expr::ArrayWrite;
     }
 };
 

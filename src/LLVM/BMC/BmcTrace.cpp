@@ -24,20 +24,29 @@ class TextBmcTraceWriter : public BmcTraceWriter
 {
     size_t mFuncEntries = 0;
 public:
-    using BmcTraceWriter::BmcTraceWriter;
+    TextBmcTraceWriter(llvm::raw_ostream& os, bool printBV = true)
+        : BmcTraceWriter(os), mPrintBV(printBV)
+    {}
 
 public:
     void writeEvent(BmcTrace::AssignmentEvent& event) override {
+        std::shared_ptr<LiteralExpr> expr = event.getExpr();
+
         mOS << "  ";
         mOS << event.getVariableName() << " := ";
         event.getExpr()->print(mOS);
+        if (expr->getType().isIntType() && mPrintBV) {
+            auto apVal = llvm::dyn_cast<IntLiteralExpr>(expr.get())->getValue();
+            std::bitset<64> bits(apVal.getLimitedValue());
+            mOS << "\t(0b" << bits.to_string() << ")";
+        }
         auto location = event.getLocation();
         if (location.getLine() != 0) {
-            mOS << "\t("
+            mOS << "\t at "
                 << location.getLine()
                 << ":"
                 << location.getColumn()
-                << ") ";
+                << "";
         }
         mOS << "\n";
     };
@@ -46,6 +55,8 @@ public:
         mOS << "#" << (mFuncEntries++)
             << " in function " << event.getFunctionName() << ":\n";
     }
+private:
+    bool mPrintBV;
 };
 
 }

@@ -66,7 +66,11 @@ public:
         UGtEq,
 
         // Ternary
-        Select
+        Select,
+
+        // Array operations
+        ArrayRead,
+        ArrayWrite,
     };
 
     static constexpr int FirstUnary = Not;
@@ -81,7 +85,7 @@ public:
     static constexpr int LastCompare = UGtEq;
 
     static constexpr int FirstExprKind = Undef;
-    static constexpr int LastExprKind = Select;
+    static constexpr int LastExprKind = ArrayWrite;
 
 protected:
     Expr(ExprKind kind, const Type& type)

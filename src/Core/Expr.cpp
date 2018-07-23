@@ -39,7 +39,9 @@ std::string Expr::getKindName(ExprKind kind)
         "ULtEq",
         "UGt",
         "UGtEq",
-        "Select"
+        "Select",
+        "ArrayRead",
+        "ArrayWrite",
     };
 
     static_assert(
@@ -80,4 +82,52 @@ std::shared_ptr<SelectExpr> SelectExpr::Create(ExprPtr condition, ExprPtr then, 
     assert(then->getType() == elze->getType() && "Select expression operand types must match.");
     assert(condition->getType().isBoolType() && "Select expression condition type must be boolean.");
     return std::shared_ptr<SelectExpr>(new SelectExpr(then->getType(), condition, then, elze));
+}
+
+std::shared_ptr<ArrayReadExpr> ArrayReadExpr::Create(
+    std::shared_ptr<VarRefExpr> array, ExprPtr index
+) {
+    assert(array->getType().isArrayType() && "ArrayRead only works on arrays.");
+    const ArrayType* arrTy = llvm::cast<ArrayType>(&array->getType());
+    assert(arrTy->getIndexType()->equals(&index->getType()) &&
+        "Array index type and index types must match.");
+
+    return std::shared_ptr<ArrayReadExpr>(new ArrayReadExpr(array, index));
+}
+
+Expr* ArrayReadExpr::withOps(std::vector<ExprPtr> ops) const
+{
+    assert(ops[0]->getKind() == Expr::VarRef && "Array references must be variables");
+    assert(ops[0]->getType() == getType() && "withOps() cannot change type");
+    assert(ops[1]->getType() == getIndex()->getType()
+        && "Array index type and index types must match.");
+
+    return new ArrayReadExpr(std::static_pointer_cast<VarRefExpr>(ops[0]), ops[1]);
+}
+
+std::shared_ptr<ArrayWriteExpr> ArrayWriteExpr::Create(
+    std::shared_ptr<VarRefExpr> array, ExprPtr index, ExprPtr value
+) {
+    assert(array->getType().isArrayType() && "ArrayRead only works on arrays.");
+    const ArrayType* arrTy = llvm::cast<ArrayType>(&array->getType());
+    assert(arrTy->getIndexType()->equals(&index->getType()) &&
+        "Array index type and index types must match.");
+
+    return std::shared_ptr<ArrayWriteExpr>(new ArrayWriteExpr(array, index, value));
+}
+
+Expr* ArrayWriteExpr::withOps(std::vector<ExprPtr> ops) const
+{    
+    assert(ops[0]->getKind() == Expr::VarRef && "Array references must be variables");
+    assert(ops[0]->getType() == getType() && "withOps() cannot change type");
+    assert(ops[1]->getType() == getIndex()->getType()
+        && "Array index type and index types must match.");
+    assert(ops[2]->getType() == getElementValue()->getType()
+        && "Array element type and element types must match.");
+
+    return new ArrayWriteExpr(
+        std::static_pointer_cast<VarRefExpr>(ops[0]),
+        ops[1],
+        ops[2]
+    );
 }
