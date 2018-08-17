@@ -20,7 +20,8 @@ public:
         llvm::Function& function,
         SymbolTable& symbols,
         ExprBuilder* builder,
-        llvm::DenseMap<const Variable*, llvm::Value*>* variableToValueMap = nullptr
+        ValueToVariableMapT& variables,
+        llvm::DenseMap<Variable*, llvm::Value*>* variableToValueMap = nullptr
     );
 
     ExprPtr transform(llvm::Instruction& inst, size_t succIdx, llvm::BasicBlock* pred = nullptr);
@@ -36,6 +37,11 @@ public:
     ExprPtr visitICmpInst(llvm::ICmpInst& icmp);
     ExprPtr visitCastInst(llvm::CastInst& cast);
     ExprPtr visitCallInst(llvm::CallInst& call);
+
+    ExprPtr visitAllocaInst(llvm::AllocaInst& alloc);
+    ExprPtr visitStoreInst(llvm::StoreInst& store);
+    ExprPtr visitLoadInst(llvm::LoadInst& load);
+    ExprPtr visitGetElementPtrInst(llvm::GetElementPtrInst& gep);
     
     ExprPtr handlePHINode(llvm::PHINode& phi, llvm::BasicBlock* pred);
     ExprPtr handleBr(llvm::BranchInst& br, size_t succIdx);
@@ -49,11 +55,15 @@ private:
     ExprPtr asInt(ExprPtr operand, unsigned bits);
     ExprPtr castResult(ExprPtr expr, const Type& type);
 
+    ExprPtr integerCast(llvm::CastInst& cast, ExprPtr operand, unsigned width);
+
 private:
     llvm::Function& mFunction;
     SymbolTable& mSymbols;
-    ValueToVariableMapT mVariables;
+    ValueToVariableMapT& mVariables;
     ExprBuilder* mExprBuilder;
+    //Variable& mStack;
+    //Variable& mHeap;
 };
 
 }

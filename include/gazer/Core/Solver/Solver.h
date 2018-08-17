@@ -4,7 +4,7 @@
 #include "gazer/Core/Expr.h"
 #include "gazer/Core/Valuation.h"
 
-#include <iostream>
+#include <stdexcept>
 
 namespace gazer
 {
@@ -36,7 +36,9 @@ public:
         Solver& mSolver;
     };
 public:
-    Solver() = default;
+    Solver(SymbolTable& symbols)
+        : mSymbols(symbols)
+    {}
 
     Solver(const Solver&) = delete;
     Solver& operator=(const Solver&) = delete;
@@ -65,8 +67,29 @@ public:
 protected:
     virtual void addConstraint(ExprPtr expr) = 0;
 
+    SymbolTable& mSymbols;
 private:
     unsigned mStatCount = 0;
+};
+
+class SolverFactory
+{
+public:
+    /**
+     * Creates a new solver instance with a given symbol table.
+     */
+    virtual std::unique_ptr<Solver> createSolver(SymbolTable& symbols) = 0;
+};
+
+/**
+ * Exception class for solver-related errors.
+ */
+class SolverError : public std::runtime_error
+{
+public:
+    SolverError(std::string message)
+        : runtime_error(message)
+    {}
 };
 
 }

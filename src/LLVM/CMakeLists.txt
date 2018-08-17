@@ -1,5 +1,4 @@
 set(SOURCE_FILES
-    Ir2Expr.cpp
     Analysis/CfaBuilderPass.cpp
     Analysis/BmcPass.cpp
     Analysis/ProgramDependence.cpp
@@ -11,7 +10,10 @@ set(SOURCE_FILES
     Transform/CombineErrorCalls.cpp
     Instrumentation/PromoteUndefs.cpp
     Instrumentation/MarkFunctionEntries.cpp
+    Instrumentation/InsertLastAddress.cpp
     BMC/BmcTrace.cpp
+    BMC/Ir2Expr.cpp
+    BMC/BMC.cpp
 )
 
 llvm_map_components_to_libnames(LLVM_LIBS support core irreader transformutils scalaropts ipo)

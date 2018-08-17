@@ -52,6 +52,7 @@ private:
     const Variable& mVariable;
 };
 
+
 }
 
 #endif

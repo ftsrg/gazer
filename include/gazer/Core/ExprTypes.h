@@ -108,42 +108,82 @@ public:
 using ZExtExpr = ExtCastExpr<Expr::ZExt>;
 using SExtExpr = ExtCastExpr<Expr::SExt>;
 
-class TruncExpr : public UnaryExpr
+class ExtractExpr final : public UnaryExpr
 {
 private:
-    TruncExpr(ExprPtr operand, const IntType& type)
-        : UnaryExpr(Expr::Trunc, type, {operand})
+    ExtractExpr(ExprPtr operand, unsigned offset, unsigned width)
+        : UnaryExpr(Expr::Extract, *IntType::get(width), {operand}),
+            mOffset(offset), mWidth(width)
     {}
 
 protected:
     virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
         auto& intTy = *llvm::dyn_cast<IntType>(&getType());
-        return new TruncExpr(ops[0], intTy);
+        return new ExtractExpr(ops[0], mOffset, mWidth);
     }
 
 public:
-    unsigned getTruncatedWidth() const {
+    unsigned getExtractedWidth() const {
         return llvm::dyn_cast<IntType>(&getType())->getWidth();
     }
 
-    static std::shared_ptr<TruncExpr> Create(ExprPtr operand, const Type& type) {
-        assert(operand->getType().isIntType() && "Can only do bitwise cast on integers");
-        assert(type.isIntType() && "Can only do bitwise cast on integers");
-        
-        auto lhsTy = llvm::dyn_cast<IntType>(&operand->getType());
-        auto rhsTy = llvm::dyn_cast<IntType>(&type);
-        if (lhsTy->getWidth() <= rhsTy->getWidth()) {
-            throw TypeCastError("Extend casts must increase bit width");
-        }
+    unsigned getOffset() const { return mOffset; }
+    unsigned getWidth() const { return mWidth; }
 
-        return std::shared_ptr<TruncExpr>(new TruncExpr(operand, *rhsTy));
+    static std::shared_ptr<ExtractExpr> Create(ExprPtr operand, unsigned offset, unsigned width) {
+        auto opTy = llvm::dyn_cast<IntType>(&operand->getType());
+        assert(opTy != nullptr && "Can only do bitwise cast on integers");
+        assert(width > 0 && "Can only extract at least one bit");
+        assert(opTy->getWidth() > width + offset && "Extracted bitvector must be smaller than the original");
+
+        auto& resTy = *IntType::get(width);
+
+        return std::shared_ptr<ExtractExpr>(new ExtractExpr(operand, offset, width));
     }
+
     static bool classof(const Expr* expr) {
-        return expr->getKind() == Expr::Trunc;
+        return expr->getKind() == Expr::Extract;
     }
 
     static bool classof(const Expr& expr) {
-        return expr.getKind() == Expr::Trunc;
+        return expr.getKind() == Expr::Extract;
+    }
+private:
+    unsigned mOffset;
+    unsigned mWidth;
+};
+
+/**
+ * Casts a pointer to a pointer of another type (e.g. Int8* to Int32*).
+ */
+class PtrCastExpr final : public UnaryExpr
+{
+    PtrCastExpr(ExprPtr operand, const PointerType& type)
+        : UnaryExpr(Expr::PtrCast, type, {operand})
+    {}
+
+protected:
+    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
+        auto& ty = *llvm::dyn_cast<PointerType>(&getType());
+        return new PtrCastExpr(ops[0], ty);
+    }
+
+public:
+    static std::shared_ptr<PtrCastExpr> Create(ExprPtr operand, const PointerType& type) {
+        assert(operand->getType().isPointerType() && "Can only do pointer cast on pointers");
+        
+        auto lhsTy = llvm::dyn_cast<PointerType>(&operand->getType());
+        auto rhsTy = llvm::dyn_cast<PointerType>(&type);
+
+        return std::shared_ptr<PtrCastExpr>(new PtrCastExpr(operand, *rhsTy));
+    }
+
+    static bool classof(const Expr* expr) {
+        return expr->getKind() == Expr::PtrCast;
+    }
+
+    static bool classof(const Expr& expr) {
+        return expr.getKind() == Expr::PtrCast;
     }
 };
 

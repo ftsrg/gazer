@@ -88,6 +88,11 @@ int main(int argc, char* argv[])
         pm->add(llvm::createGlobalDCEPass());
     }
 
+    pm->add(gazer::createInsertLastAddressPass());
+
+    pm->add(llvm::createPromoteMemoryToRegisterPass());
+    pm->add(llvm::createInstructionNamerPass());
+
     if (Optimize) {
         pm->add(llvm::createLoopRotatePass());
         pm->add(llvm::createIndVarSimplifyPass());
@@ -99,9 +104,6 @@ int main(int argc, char* argv[])
         pm->add(llvm::createCFGSimplificationPass());
         pm->add(llvm::createStructurizeCFGPass());
     }
-
-    pm->add(llvm::createPromoteMemoryToRegisterPass());
-    pm->add(llvm::createInstructionNamerPass());
 
     if (RunBmc) {
         pm->add(llvm::createCFGSimplificationPass());
@@ -116,6 +118,8 @@ int main(int argc, char* argv[])
         //pm->add(new llvm::ScalarEvolutionWrapperPass());
         //pm->add(new llvm::AssumptionCacheTracker());
         pm->add(new gazer::BoundedUnwindPass(bound));
+        pm->add(llvm::createInstructionNamerPass());
+
         bool NeedsPDG = BackwardSlice || PrintPDG;
 
         if (NeedsPDG) {
@@ -137,14 +141,16 @@ int main(int argc, char* argv[])
         //pm->add(llvm::createCFGSimplificationPass());
         pm->add(createCombineErrorCallsPass());
         pm->add(createTopologicalSortPass());
+
+        if (ShowUnrolledCFG) {
+            pm->add(llvm::createCFGPrinterLegacyPassPass());
+        }
+
         //pm->add(llvm::createVerifierPass());
         //pm->add(new gazer::CfaBuilderPass(LargeBlockCFA));
         //if (PrintCFA) {
         //    pm->add(createCfaPrinterPass());
         //}
-        if (ShowUnrolledCFG) {
-            pm->add(llvm::createCFGPrinterLegacyPassPass());
-        }
         pm->add(new gazer::BmcPass(bound));
     }
 

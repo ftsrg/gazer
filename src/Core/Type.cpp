@@ -3,6 +3,7 @@
 
 #include <fmt/format.h>
 #include <llvm/ADT/StringMap.h>
+#include <llvm/ADT/DenseMap.h>
 
 #include <algorithm>
 
@@ -54,17 +55,21 @@ std::string Type::getName() const
         case BoolTypeID:
             return "Bool";
         case IntTypeID: {
-            auto intType = llvm::dyn_cast<IntType>(this);
+            auto intType = llvm::cast<IntType>(this);
             return "Int" + std::to_string(intType->getWidth());
         }
+        case PointerTypeID: {
+            auto ptrTy = llvm::cast<PointerType>(this);
+            return ptrTy->getName() + "*";
+        }
         case ArrayTypeID: {
-            auto arrayType = llvm::dyn_cast<ArrayType>(this);
+            auto arrayType = llvm::cast<ArrayType>(this);
             return getArrayTypeStr(
                 arrayType->getIndexType(), arrayType->getElementType()
             );
         }
         case FunctionTypeID: {
-            auto funcType = llvm::dyn_cast<FunctionType>(this);
+            auto funcType = llvm::cast<FunctionType>(this);
             return getFunctionTypeStr(
                 funcType->getReturnType(), funcType->args()
             );
@@ -105,6 +110,11 @@ bool Type::equals(const Type* other) const
                 return lt->equals(rt);
             }
         );
+    } else if (getTypeID() == PointerTypeID) {
+        auto left = llvm::dyn_cast<PointerType>(this);
+        auto right = llvm::dyn_cast<PointerType>(other);
+
+        return left->getElementType()->equals(right->getElementType());
     }
 
     return true;
@@ -112,6 +122,8 @@ bool Type::equals(const Type* other) const
 
 ArrayType* ArrayType::get(Type* indexType, Type* elementType)
 {
+    assert(indexType != nullptr);
+    assert(elementType != nullptr);
     // TODO: This is surely not the best way to do this
     static llvm::StringMap<std::unique_ptr<ArrayType>> Instances;
     
@@ -124,6 +136,30 @@ ArrayType* ArrayType::get(Type* indexType, Type* elementType)
     }
 
     return result->second.get();
+}
+
+PointerType* PointerType::get(Type* elementType)
+{
+    assert(elementType != nullptr);
+    assert(elementType->isIntType() && "Can only create pointers on types with a size");
+    static llvm::DenseMap<Type*, std::unique_ptr<PointerType>> Instances;
+
+    auto result = Instances.find(elementType);
+    if (result == Instances.end()) {
+        auto pair = Instances.try_emplace(elementType, new PointerType(elementType));
+        return pair.first->second.get();
+    }
+
+    return result->second.get();
+}
+
+unsigned PointerType::getStepSize() const
+{
+    if (mElementType->isIntType()) {
+        return llvm::cast<IntType>(mElementType)->getWidth() / 8;
+    }
+
+    llvm_unreachable("getStepSize() called on a type without size");
 }
 
 FunctionType* FunctionType::get(Type* returnType, std::vector<Type*> args)

@@ -27,6 +27,7 @@ public:
         //RealTypeID,
 
         // Composite types
+        PointerTypeID,
         ArrayTypeID,
         //StructTypeID,
         FunctionTypeID
@@ -34,7 +35,7 @@ public:
 
     static constexpr int FirstPrimitive = BoolTypeID;
     static constexpr int LastPrimitive = IntTypeID;
-    static constexpr int FirstComposite = ArrayTypeID;
+    static constexpr int FirstComposite = PointerTypeID;
     static constexpr int LastComposite = FunctionTypeID;
 protected:
     Type(TypeID id)
@@ -59,6 +60,7 @@ public:
     //bool isRealType() const { return getTypeID() == RealTypeID; }
 
     bool isArrayType() const { return getTypeID() == ArrayTypeID; }
+    bool isPointerType() const { return getTypeID() == PointerTypeID; }
 
     bool equals(const Type* other) const;
 
@@ -162,6 +164,29 @@ public:
 private:
     Type* mIndexType;
     Type* mElementType;
+};
+
+/**
+ * Represents a pointer over 8 bit long bitvectors.
+ */
+class PointerType final : public Type
+{
+    PointerType(Type* elementType)
+        : Type(PointerTypeID), mElementType(elementType)
+    {}
+public:
+    Type* getElementType() const { return mElementType; }
+    unsigned getStepSize() const;
+
+    static PointerType* get(Type* elementType);
+
+    static bool classof(const Type* type) {
+        return type->getTypeID() == PointerTypeID;
+    }
+
+private:
+    Type* mElementType;
+
 };
 
 class FunctionType final : public Type

@@ -37,7 +37,13 @@ public:
         return SExtExpr::Create(op, type);
     }
     ExprPtr Trunc(const ExprPtr& op, const IntType& type) override {
-        return TruncExpr::Create(op, type);
+        return ExtractExpr::Create(op, 0, type.getWidth());
+    }
+    ExprPtr Extract(const ExprPtr& op, unsigned offset, unsigned width) override {
+        return ExtractExpr::Create(op, offset, width);
+    }
+    ExprPtr PtrCast(const ExprPtr& op, const PointerType& type) override {
+        return PtrCastExpr::Create(op, type);
     }
 
     ExprPtr Add(const ExprPtr& left, const ExprPtr& right) override {

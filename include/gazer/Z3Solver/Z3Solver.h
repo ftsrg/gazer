@@ -13,7 +13,7 @@ class Z3Solver : public Solver
 {
 public:
     Z3Solver(SymbolTable& symbols)
-        : mContext(), mSolver(mContext), mSymbols(symbols)
+        : Solver(symbols), mContext(), mSolver(mContext)
     {}
 
     virtual SolverStatus run() override;
@@ -26,7 +26,6 @@ protected:
     z3::context mContext;
     z3::solver mSolver;
     unsigned mTmpCount = 0;
-    SymbolTable& mSymbols;
 };
 
 class CachingZ3Solver final : public Z3Solver
@@ -40,6 +39,19 @@ protected:
 
 private:
     CacheMapT mCache;
+};
+
+class Z3SolverFactory : public SolverFactory
+{
+public:
+    Z3SolverFactory(bool cache = true)
+        : mCache(cache)
+    {}
+
+    virtual std::unique_ptr<Solver> createSolver(SymbolTable& symbols) override;
+
+private:
+    bool mCache;
 };
 
 }

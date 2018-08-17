@@ -38,6 +38,8 @@ public:
     virtual ExprPtr ZExt(const ExprPtr& op, const IntType& type) = 0;
     virtual ExprPtr SExt(const ExprPtr& op, const IntType& type) = 0;
     virtual ExprPtr Trunc(const ExprPtr& op, const IntType& type) = 0;
+    virtual ExprPtr Extract(const ExprPtr& op, unsigned offset, unsigned width) = 0;
+    virtual ExprPtr PtrCast(const ExprPtr& op, const PointerType& type) = 0;
 
     //--- Binary ---//
     virtual ExprPtr Add(const ExprPtr& left, const ExprPtr& right) = 0;

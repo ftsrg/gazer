@@ -23,6 +23,31 @@ public:
     {}
 
 protected:
+    z3::sort typeToSort(const Type* type)
+    {
+        switch (type->getTypeID()) {
+            case Type::BoolTypeID:
+                return mContext.bool_sort();
+            case Type::IntTypeID: {
+                auto intTy = llvm::cast<IntType>(type);
+                return mContext.bv_sort(intTy->getWidth());
+            }
+            case Type::ArrayTypeID: {
+                auto arrTy = llvm::cast<ArrayType>(type);
+                return mContext.array_sort(
+                    typeToSort(arrTy->getIndexType()),
+                    typeToSort(arrTy->getElementType())
+                );
+            }
+            case Type::PointerTypeID: {
+                // Pointers are represented with integers
+                return mContext.int_sort();
+            }
+        }
+
+        assert(false && "Unsupported gazer type for Z3Solver");
+    }
+
     virtual z3::expr visitExpr(const ExprPtr& expr) override {
         throw std::logic_error("Unhandled expression type in Z3ExprTransformer.");
     }
@@ -30,17 +55,7 @@ protected:
     virtual z3::expr visitUndef(const std::shared_ptr<UndefExpr>& expr) override {
         std::string name = "__gazer_undef:" + std::to_string(mTmpCount++);
 
-        if (expr->getType().isBoolType()) {
-            return mContext.bool_const(name.c_str());
-        } else if (expr->getType().isIntType()) {
-            auto intType = llvm::dyn_cast<IntType>(&expr->getType());
-            return mContext.bv_const(
-                name.c_str(),
-                intType->getWidth()
-            );
-        }
-
-        assert(false && "Unsupported operand type.");
+        return mContext.constant(name.c_str(), typeToSort(&expr->getType()));
     }
 
     virtual z3::expr visitLiteral(const std::shared_ptr<LiteralExpr>& expr) override {
@@ -60,17 +75,9 @@ protected:
     }
 
     virtual z3::expr visitVarRef(const std::shared_ptr<VarRefExpr>& expr) override {
-        if (expr->getType().isBoolType()) {
-            return mContext.bool_const(expr->getVariable().getName().c_str());
-        } else if (expr->getType().isIntType()) {
-            auto intType = llvm::dyn_cast<IntType>(&expr->getType());
-            return mContext.bv_const(
-                expr->getVariable().getName().c_str(),
-                intType->getWidth()
-            );
-        }
+        auto name = expr->getVariable().getName();
 
-        assert(false && "Unsupported operand type.");
+        return mContext.constant(name.c_str(), typeToSort(&expr->getType()));
     }
 
     // Unary
@@ -84,8 +91,12 @@ protected:
     virtual z3::expr visitSExt(const std::shared_ptr<SExtExpr>& expr) override {
         return z3::sext(visit(expr->getOperand()), expr->getWidthDiff());
     }
-    virtual z3::expr visitTrunc(const std::shared_ptr<TruncExpr>& expr) override {
-        return visit(expr->getOperand()).extract(expr->getTruncatedWidth() - 1, 0);
+    virtual z3::expr visitExtract(const std::shared_ptr<ExtractExpr>& expr) override {
+        // TODO: This is little endian
+        unsigned hi = expr->getOffset() + expr->getWidth() - 1;
+        unsigned lo = expr->getOffset();
+
+        return visit(expr->getOperand()).extract(hi, lo);
     }
 
     // Binary
@@ -190,6 +201,22 @@ protected:
         );
     }
 
+    // Arrays
+    virtual z3::expr visitArrayRead(const std::shared_ptr<ArrayReadExpr>& expr) override {
+        return z3::select(
+            visit(expr->getArrayRef()),
+            visit(expr->getIndex())
+        );
+    }
+
+    virtual z3::expr visitArrayWrite(const std::shared_ptr<ArrayWriteExpr>& expr) override {
+        return z3::store(
+            visit(expr->getArrayRef()),
+            visit(expr->getIndex()),
+            visit(expr->getElementValue())
+        );
+    }
+
 protected:
     z3::context& mContext;
     unsigned& mTmpCount;
@@ -225,7 +252,7 @@ private:
     CachingZ3Solver::CacheMapT& mCache;
 };
 
-}
+} // end anonymous namespace
 
 Solver::SolverStatus Z3Solver::run()
 {
@@ -296,4 +323,13 @@ Valuation Z3Solver::getModel()
     }
 
     return builder.build();
+}
+
+std::unique_ptr<Solver> Z3SolverFactory::createSolver(SymbolTable& symbols)
+{
+    if (mCache) {
+        return std::unique_ptr<Solver>(new CachingZ3Solver(symbols));
+    }
+
+    return std::unique_ptr<Solver>(new Z3Solver(symbols));
 }

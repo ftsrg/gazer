@@ -32,7 +32,8 @@ public:
         // Cast
         ZExt,
         SExt,
-        Trunc,
+        Extract,
+        PtrCast,
 
         // Binary arithmetic
         Add,
@@ -76,7 +77,7 @@ public:
     static constexpr int FirstUnary = Not;
     static constexpr int LastUnary = SExt;
     static constexpr int FirstUnaryCast = ZExt;
-    static constexpr int LastUnaryCast = Trunc;
+    static constexpr int LastUnaryCast = PtrCast;
     static constexpr int FirstBinaryArithmetic = Add;
     static constexpr int LastBinaryArithmetic = BXor;
     static constexpr int FirstLogic = And;

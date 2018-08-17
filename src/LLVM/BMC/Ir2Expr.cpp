@@ -18,18 +18,28 @@ using llvm::ConstantInt;
 using llvm::isa;
 using llvm::dyn_cast;
 
-gazer::Type& TypeFromLLVMType(const llvm::Value* value)
+gazer::Type& TypeFromLLVMType(const llvm::Type* type)
 {
-    if (value->getType()->isIntegerTy()) {
-        auto width = value->getType()->getIntegerBitWidth();
+    if (type->isIntegerTy()) {
+        auto width = type->getIntegerBitWidth();
         if (width == 1) {
             return *BoolType::get();
         }
 
         return *IntType::get(width);
+    } else if (type->isPointerTy()) {
+        auto ptrTy  = llvm::cast<llvm::PointerType>(type);
+        auto& elemTy = TypeFromLLVMType(ptrTy->getElementType());
+
+        return *PointerType::get(&elemTy);
     }
 
     assert(false && "Unsupported LLVM type.");
+}
+
+gazer::Type& TypeFromLLVMType(const llvm::Value* value)
+{
+    return TypeFromLLVMType(value->getType());
 }
 
 static bool isLogicInstruction(unsigned opcode) {
@@ -44,10 +54,14 @@ InstToExpr::InstToExpr(
     Function& function,
     SymbolTable& symbols,
     ExprBuilder* builder,
-    llvm::DenseMap<const Variable*, llvm::Value*>* variableToValueMap
+    ValueToVariableMapT& variables,
+    llvm::DenseMap<Variable*, llvm::Value*>* variableToValueMap
 )
-    : mFunction(function), mSymbols(symbols), mExprBuilder(builder)
+    : mFunction(function), mSymbols(symbols), 
+    mExprBuilder(builder), mVariables(variables)
+   // mStack(stack), mHeap(heap)
 {
+
     // Add arguments as local variables
     for (auto& arg : mFunction.args()) {
         Variable& variable = mSymbols.create(
@@ -93,17 +107,22 @@ ExprPtr InstToExpr::transform(llvm::Instruction& inst, size_t succIdx, BasicBloc
 
 ExprPtr InstToExpr::transform(llvm::Instruction& inst)
 {
+    #define HANDLE_INST(OPCODE, NAME)                                   \
+        else if (inst.getOpcode() == OPCODE) {                          \
+            return visit##NAME(*llvm::cast<llvm::NAME>(&inst));       \
+        }                                                               \
+
     if (inst.isBinaryOp()) {
         return visitBinaryOperator(*dyn_cast<llvm::BinaryOperator>(&inst));
-    } else if (inst.getOpcode() == Instruction::ICmp) {
-        return visitICmpInst(*dyn_cast<llvm::ICmpInst>(&inst));    
     } else if (inst.isCast()) {
         return visitCastInst(*dyn_cast<llvm::CastInst>(&inst));
-    } else if (inst.getOpcode() == Instruction::Call) {
-        return visitCallInst(*dyn_cast<llvm::CallInst>(&inst));
-    } else if (inst.getOpcode() == Instruction::Select) {
-        return visitSelectInst(*dyn_cast<llvm::SelectInst>(&inst));
     }
+    HANDLE_INST(Instruction::ICmp, ICmpInst)
+    HANDLE_INST(Instruction::Call, CallInst)
+    HANDLE_INST(Instruction::Select, SelectInst)
+    HANDLE_INST(Instruction::GetElementPtr, GetElementPtrInst)
+
+    #undef HANDLE_INST
 
     assert(false && "Unsupported instruction kind");
 }
@@ -151,7 +170,7 @@ ExprPtr InstToExpr::visitBinaryOperator(llvm::BinaryOperator &binop)
             }
         }
 
-        return EqExpr::Create(variable->getRefExpr(), expr);
+        return mExprBuilder->Eq(variable->getRefExpr(), expr);
     } else {
         const IntType* type = llvm::dyn_cast<IntType>(&variable->getType());
         assert(type && "Arithmetic results must be integer types");
@@ -178,7 +197,7 @@ ExprPtr InstToExpr::visitBinaryOperator(llvm::BinaryOperator &binop)
 
         #undef HANDLE_INSTCASE
 
-        return EqExpr::Create(variable->getRefExpr(), expr);
+        return mExprBuilder->Eq(variable->getRefExpr(), expr);
     }
 
     llvm_unreachable("Invalid binary operation kind");
@@ -193,8 +212,7 @@ ExprPtr InstToExpr::visitSelectInst(llvm::SelectInst& select)
     auto then = castResult(operand(select.getTrueValue()), type);
     auto elze = castResult(operand(select.getFalseValue()), type);
 
-    return EqExpr::Create(selectVar->getRefExpr(), mExprBuilder->Select(cond, then, elze));
-
+    return mExprBuilder->Eq(selectVar->getRefExpr(), mExprBuilder->Select(cond, then, elze));
 }
 
 ExprPtr InstToExpr::visitICmpInst(llvm::ICmpInst& icmp)
@@ -230,27 +248,16 @@ ExprPtr InstToExpr::visitICmpInst(llvm::ICmpInst& icmp)
 
     #undef HANDLE_PREDICATE
 
-    return EqExpr::Create(icmpVar->getRefExpr(), expr);
+    return mExprBuilder->Eq(icmpVar->getRefExpr(), expr);
 }
 
-ExprPtr InstToExpr::visitCastInst(llvm::CastInst& cast)
+ExprPtr InstToExpr::integerCast(llvm::CastInst& cast, ExprPtr operand, unsigned width)
 {
     auto variable = getVariable(&cast);
     auto intTy = llvm::dyn_cast<gazer::IntType>(&variable->getType());
-
-    auto castOp = operand(cast.getOperand(0));
     
-    unsigned width = 0;
-    if (castOp->getType().isBoolType()) {
-        width = 1;        
-    } else if (castOp->getType().isIntType()) {
-        width = dyn_cast<IntType>(&castOp->getType())->getWidth();
-    } else {
-        assert(false && "Unsupported cast type.");
-    }
-
-    auto intOp = asInt(castOp, width);
-
+    ExprPtr intOp = asInt(operand, width);
+    ExprPtr castOp = nullptr;
     if (cast.getOpcode() == Instruction::ZExt) {
         castOp = mExprBuilder->ZExt(intOp, *intTy);
     } else if (cast.getOpcode() == Instruction::SExt) {
@@ -258,10 +265,37 @@ ExprPtr InstToExpr::visitCastInst(llvm::CastInst& cast)
     } else if (cast.getOpcode() == Instruction::Trunc) {
         castOp = mExprBuilder->Trunc(intOp, *intTy);
     } else {
-        // Other cast types are ignored at the moment.
+        llvm_unreachable("Unhandled integer cast operation");
     }
 
-    return EqExpr::Create(variable->getRefExpr(), castOp);
+    return mExprBuilder->Eq(variable->getRefExpr(), castOp);
+}
+
+ExprPtr InstToExpr::visitCastInst(llvm::CastInst& cast)
+{
+    auto castOp = operand(cast.getOperand(0));
+
+    if (castOp->getType().isBoolType()) {
+        return integerCast(cast, castOp, 1);
+    } else if (castOp->getType().isIntType()) {
+        return integerCast(
+            cast, castOp, dyn_cast<IntType>(&castOp->getType())->getWidth()
+        );
+    }
+
+    if (cast.getOpcode() == Instruction::BitCast) {
+        auto castTy = cast.getType();
+        // Bitcast is no-op, just changes the type.
+        // For pointer operands, this means a simple pointer cast.
+        if (castOp->getType().isPointerType() && castTy->isPointerTy()) {
+            return mExprBuilder->PtrCast(
+                castOp,
+                *llvm::dyn_cast<PointerType>(&TypeFromLLVMType(castTy))
+            );
+        }
+    }
+
+    assert(false && "Unsupported cast operation");
 }
 
 ExprPtr InstToExpr::visitCallInst(llvm::CallInst& call)
@@ -270,12 +304,15 @@ ExprPtr InstToExpr::visitCallInst(llvm::CallInst& call)
     assert(callee != nullptr && "Indirect calls are not supported.");
 
     if (callee->isDeclaration()) {
-        // If this function has no definition,
-        // we just replace the call with a Havoc statement
-        if (call.getName() != "") {
+        if (callee->getName() == "gazer.malloc") {
+            auto siz = call.getArgOperand(0);
+            auto start = call.getArgOperand(1);
+        } else if (call.getName() != "") {
+            // This is not a known function,
+            // we just replace the call with an undef value
             auto variable = getVariable(&call);
             
-            return EqExpr::Create(variable->getRefExpr(), UndefExpr::Get(variable->getType()));
+            return mExprBuilder->Eq(variable->getRefExpr(), UndefExpr::Get(variable->getType()));
         }
     } else {
         assert(false && "Procedure calls are not supported (with the exception of assert).");
@@ -291,7 +328,7 @@ ExprPtr InstToExpr::handlePHINode(llvm::PHINode& phi, BasicBlock* pred)
     auto variable = getVariable(&phi);
     auto expr = operand(phi.getIncomingValueForBlock(pred));
 
-    return EqExpr::Create(variable->getRefExpr(), expr);
+    return mExprBuilder->Eq(variable->getRefExpr(), expr);
 }
 
 ExprPtr InstToExpr::handleBr(llvm::BranchInst& br, size_t succIdx)
@@ -309,7 +346,7 @@ ExprPtr InstToExpr::handleBr(llvm::BranchInst& br, size_t succIdx)
         // This is the 'true' path
         return cond;
     } else {
-        return NotExpr::Create(cond);
+        return mExprBuilder->Not(cond);
     }
 }
 
@@ -355,6 +392,54 @@ ExprPtr InstToExpr::handleSwitch(llvm::SwitchInst& swi, size_t succIdx)
     ExprPtr value = operand(caseIt->getCaseValue());
 
     return mExprBuilder->Eq(condition, value);
+}
+
+//----- Memory operations -----//
+ExprPtr InstToExpr::visitStoreInst(llvm::StoreInst& store)
+{
+    // TODO: For now, we assume only heap operations
+    auto value = operand(store.getOperand(0));
+}
+
+ExprPtr InstToExpr::visitLoadInst(llvm::LoadInst& load)
+{
+    auto result = getVariable(&load);
+    auto index  = operand(load.getOperand(0));
+
+    if (load.getType()->isIntegerTy()) {
+        auto intTy = llvm::cast<llvm::IntegerType>(load.getType());
+        if (intTy->getBitWidth() > 8) {
+            // A load to an Int32 will be represented as:
+            //  x[0..7] = M[addr], x[8..15] = M[addr + 1], etc.
+            
+            // TODO: Is this correct for all cases?
+            ExprVector exprs;
+            /*
+            for (unsigned i = 0, j = 0; i < intTy->getBitWidth(); i += 8, ++j) {
+                exprs.push_back(mExprBuilder->Eq(
+                    mExprBuilder->Extract(result->getRefExpr(), i, 8),
+                    ArrayReadExpr::Create(
+                        mHeap.getRefExpr(),
+                        mExprBuilder->Add(index, mExprBuilder->IntLit(j, 32))
+                    )
+                ));
+            } */
+            
+            return mExprBuilder->And(exprs);
+        }
+    }
+
+    assert(false && "Only integer arrays are supported");
+}
+
+ExprPtr InstToExpr::visitGetElementPtrInst(llvm::GetElementPtrInst& gep)
+{
+    ExprPtr expr = operand(gep.getOperand(0));
+    for (size_t i = 1; i < gep.getNumOperands(); ++i) {
+        expr = mExprBuilder->Add(expr, operand(gep.getOperand(i)));
+    }
+
+    return expr;
 }
 
 //----- Utils and casting -----//

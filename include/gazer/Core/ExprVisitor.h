@@ -28,7 +28,7 @@ public:
             HANDLE_EXPRCASE(Not)
             HANDLE_EXPRCASE(ZExt)
             HANDLE_EXPRCASE(SExt)
-            HANDLE_EXPRCASE(Trunc)
+            HANDLE_EXPRCASE(Extract)
             HANDLE_EXPRCASE(Add)
             HANDLE_EXPRCASE(Sub)
             HANDLE_EXPRCASE(Mul)
@@ -53,6 +53,8 @@ public:
             HANDLE_EXPRCASE(UGt)
             HANDLE_EXPRCASE(UGtEq)
             HANDLE_EXPRCASE(Select)
+            HANDLE_EXPRCASE(ArrayRead)
+            HANDLE_EXPRCASE(ArrayWrite)
         }
 
         llvm_unreachable("Unknown expression kind");
@@ -98,7 +100,7 @@ protected:
     virtual ReturnT visitSExt(const std::shared_ptr<SExtExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitTrunc(const std::shared_ptr<TruncExpr>& expr) {
+    virtual ReturnT visitExtract(const std::shared_ptr<ExtractExpr>& expr) {
         return this->visitNonNullary(expr);
     }
 
@@ -181,6 +183,15 @@ protected:
 
     // Ternary
     virtual ReturnT visitSelect(const std::shared_ptr<SelectExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+
+    // Arrays
+    virtual ReturnT visitArrayRead(const std::shared_ptr<ArrayReadExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+
+    virtual ReturnT visitArrayWrite(const std::shared_ptr<ArrayWriteExpr>& expr) {
         return this->visitNonNullary(expr);
     }
 };

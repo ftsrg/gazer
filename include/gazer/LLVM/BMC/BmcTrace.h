@@ -89,6 +89,15 @@ public:
         std::string mFunctionName;
         LocationInfo mLocation;
     };
+
+    class FunctionCallEvent : public Event
+    {
+    public:
+
+    private:
+        std::string mFunctionName;
+        LocationInfo mLocation;
+    };
 public:
     BmcTrace(
         std::vector<std::unique_ptr<BmcTrace::Event>>& events,
