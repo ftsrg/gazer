@@ -17,6 +17,11 @@ void BmcTrace::FunctionEntryEvent::write(BmcTraceWriter& writer)
     writer.writeEvent(*this);
 }
 
+void BmcTrace::FunctionCallEvent::write(BmcTraceWriter& writer)
+{
+    writer.writeEvent(*this);
+}
+
 namespace
 {
 
@@ -55,6 +60,25 @@ public:
         mOS << "#" << (mFuncEntries++)
             << " in function " << event.getFunctionName() << ":\n";
     }
+
+    void writeEvent(BmcTrace::FunctionCallEvent& event) override {
+        mOS << "  ";
+        mOS << "call ";
+        event.getFunction()->printAsOperand(mOS);
+        mOS << " -> ";
+        event.getReturnValue()->print(mOS);
+        mOS << "\t";
+
+        auto location = event.getLocation();
+        if (location.getLine() != 0) {
+            mOS << "\t at "
+                << location.getLine()
+                << ":"
+                << location.getColumn()
+                << "";
+        }
+        mOS << "\n";
+    }
 private:
     bool mPrintBV;
 };
@@ -67,7 +91,7 @@ namespace gazer { namespace bmc {
     }
 }}
 
-BmcTrace BmcTrace::Create(
+std::unique_ptr<BmcTrace> BmcTrace::Create(
     TopologicalSort& topo,
     llvm::DenseMap<llvm::BasicBlock*, size_t>& blocks,
     llvm::DenseMap<llvm::BasicBlock*, llvm::Value*>& preds,
@@ -211,9 +235,33 @@ BmcTrace BmcTrace::Create(
                 assigns.push_back(std::make_unique<BmcTrace::FunctionEntryEvent>(
                     diSP->getName()
                 ));
+            } else if (callee->isDeclaration() && !call->getType()->isVoidTy()) {
+                // This a function call to a nondetermistic function.
+                auto varIt = valueMap.find(call);
+                assert(varIt != valueMap.end() && "Call results should be present in the value map");
+
+                auto exprIt = model.find(varIt->second);
+                assert(exprIt != model.end() && "Nondet call results should be present in the model");
+
+                std::shared_ptr<LiteralExpr> expr = exprIt->second;
+
+                BmcTrace::LocationInfo location = {0, 0};
+                if (call->getDebugLoc()) {
+                    location = {
+                        call->getDebugLoc()->getLine(),
+                        call->getDebugLoc()->getColumn()
+                    };
+                }
+
+                assigns.push_back(std::make_unique<BmcTrace::FunctionCallEvent>(
+                    callee,
+                    expr,
+                    std::vector<std::shared_ptr<LiteralExpr>>(),
+                    location
+                ));
             }
         }
     }
 
-    return BmcTrace(assigns, traceBlocks);
+    return std::make_unique<BmcTrace>(assigns, traceBlocks);
 }

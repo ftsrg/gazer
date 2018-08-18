@@ -118,7 +118,6 @@ private:
 
 protected:
     virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
-        auto& intTy = *llvm::dyn_cast<IntType>(&getType());
         return new ExtractExpr(ops[0], mOffset, mWidth);
     }
 
@@ -135,8 +134,6 @@ public:
         assert(opTy != nullptr && "Can only do bitwise cast on integers");
         assert(width > 0 && "Can only extract at least one bit");
         assert(opTy->getWidth() > width + offset && "Extracted bitvector must be smaller than the original");
-
-        auto& resTy = *IntType::get(width);
 
         return std::shared_ptr<ExtractExpr>(new ExtractExpr(operand, offset, width));
     }
@@ -172,7 +169,6 @@ public:
     static std::shared_ptr<PtrCastExpr> Create(ExprPtr operand, const PointerType& type) {
         assert(operand->getType().isPointerType() && "Can only do pointer cast on pointers");
         
-        auto lhsTy = llvm::dyn_cast<PointerType>(&operand->getType());
         auto rhsTy = llvm::dyn_cast<PointerType>(&type);
 
         return std::shared_ptr<PtrCastExpr>(new PtrCastExpr(operand, *rhsTy));

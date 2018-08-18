@@ -272,10 +272,10 @@ BmcResult BoundedModelCheckerImpl::run()
                 auto writer = bmc::CreateTextTraceWriter(mOS);
                 mOS << "Error trace:\n";
                 mOS << "-----------\n";
-                writer->write(trace);
+                writer->write(*trace);
 
                 mOS << "Assertion failure found.\n";
-                return BmcResult::CreateUnsafe();
+                return BmcResult::CreateUnsafe(std::move(trace));
             } else if (status == Solver::UNSAT) {
                 mOS << "   Formula is UNSAT\n";
             } else {

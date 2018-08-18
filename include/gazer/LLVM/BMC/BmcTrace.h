@@ -47,8 +47,28 @@ public:
     class Event
     {
     public:
+        enum EventKind
+        {
+            Assign,
+            FunctionEntry,
+            FunctionCall
+        };
+
+    protected:
+        Event(EventKind kind, LocationInfo location = {0, 0})
+            : mKind(kind), mLocation(location)
+        {}
+   
+    public:
         virtual void write(BmcTraceWriter& writer) = 0;
         virtual ~Event() {}
+
+        EventKind getKind() const { return mKind; }
+        LocationInfo getLocation() const { return mLocation; }
+
+    private:
+        EventKind mKind;
+        LocationInfo mLocation;
     };
 
     class AssignmentEvent : public Event
@@ -57,19 +77,22 @@ public:
         AssignmentEvent(
             std::string variable,
             std::shared_ptr<LiteralExpr> expr,
-            LocationInfo location
-        ) : mVariableName(variable), mExpr(expr), mLocation(location)
+            LocationInfo location = {0, 0}
+        ) : Event(Assign, location), mVariableName(variable), mExpr(expr)
         {}
 
         void write(BmcTraceWriter& writer) override;
 
         std::string getVariableName() const { return mVariableName; }
         std::shared_ptr<LiteralExpr> getExpr() const { return mExpr; }
-        LocationInfo getLocation() const { return mLocation; }
+
+        static bool classof(const Event* event) {
+            return event->getKind() == Event::Assign;
+        }
+
     private:
         std::string mVariableName;
         std::shared_ptr<LiteralExpr> mExpr;
-        LocationInfo mLocation;
     };
 
     class FunctionEntryEvent : public Event
@@ -78,13 +101,18 @@ public:
         FunctionEntryEvent(
             std::string functionName,
             LocationInfo location = {0, 0}
-        ) : mFunctionName(functionName), mLocation(location)
+        ) : Event(FunctionEntry, location), mFunctionName(functionName)
         {}
 
         void write(BmcTraceWriter& writer) override;
 
         std::string getFunctionName() const { return mFunctionName; }
         LocationInfo getLocation() const { return mLocation; }
+
+        static bool classof(const Event* event) {
+            return event->getKind() == Event::FunctionEntry;
+        }
+
     private:
         std::string mFunctionName;
         LocationInfo mLocation;
@@ -92,11 +120,37 @@ public:
 
     class FunctionCallEvent : public Event
     {
+        using ArgsVectorT = std::vector<std::shared_ptr<LiteralExpr>>;
     public:
+        FunctionCallEvent(
+            llvm::Function* function,
+            std::shared_ptr<LiteralExpr> returnValue,
+            std::vector<std::shared_ptr<LiteralExpr>> args = {},
+            LocationInfo location = {0, 0}
+        ) : Event(FunctionCall, location), mFunction(function), 
+        mReturnValue(returnValue), mArgs(args)
+        {}
+
+        void write(BmcTraceWriter& writer) override;
+
+        llvm::Function* getFunction() const { return mFunction; }
+        std::shared_ptr<LiteralExpr> getReturnValue() const { return mReturnValue; }
+        
+        using arg_iterator = ArgsVectorT::iterator;
+        arg_iterator arg_begin() { return mArgs.begin(); }
+        arg_iterator arg_end() { return mArgs.end(); }
+        llvm::iterator_range<arg_iterator> args() {
+            return llvm::make_range(arg_begin(), arg_end());
+        }
+
+        static bool classof(const Event* event) {
+            return event->getKind() == Event::FunctionCall;
+        }
 
     private:
-        std::string mFunctionName;
-        LocationInfo mLocation;
+        llvm::Function* mFunction;
+        std::shared_ptr<LiteralExpr> mReturnValue;
+        ArgsVectorT mArgs;
     };
 public:
     BmcTrace(
@@ -105,7 +159,7 @@ public:
     ) : mEvents(std::move(events)), mBlocks(blockTrace)
     {}
 
-    static BmcTrace Create(
+    static std::unique_ptr<BmcTrace> Create(
         TopologicalSort& topo,
         llvm::DenseMap<llvm::BasicBlock*, size_t>& blocks,
         llvm::DenseMap<llvm::BasicBlock*, llvm::Value*>& preds,
@@ -115,13 +169,13 @@ public:
     );
 
 public:
-    using event_iterator = std::vector<std::unique_ptr<BmcTrace::Event>>::iterator;
+    using iterator = std::vector<std::unique_ptr<BmcTrace::Event>>::iterator;
     using block_iterator = std::vector<llvm::BasicBlock*>::iterator;
 
-    event_iterator event_begin() { return mEvents.begin(); }
-    event_iterator event_end() { return mEvents.end(); }
-    llvm::iterator_range<event_iterator> events() {
-        return llvm::make_range(event_begin(), event_end());
+    iterator begin() { return mEvents.begin(); }
+    iterator end() { return mEvents.end(); }
+    llvm::iterator_range<iterator> events() {
+        return llvm::make_range(begin(), end());
     }
 
     block_iterator block_begin() { return mBlocks.begin(); }
@@ -145,13 +199,14 @@ public:
 public:
     virtual void write(BmcTrace& trace)
     {
-        for (auto& event : trace.events()) {
+        for (auto& event : trace) {
             event->write(*this);
         }
     }
 
     virtual void writeEvent(BmcTrace::AssignmentEvent& event) = 0;
     virtual void writeEvent(BmcTrace::FunctionEntryEvent& event) = 0;
+    virtual void writeEvent(BmcTrace::FunctionCallEvent& event) = 0;
 
     virtual ~BmcTraceWriter() {}
 protected:

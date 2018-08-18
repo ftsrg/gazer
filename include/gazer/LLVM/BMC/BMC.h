@@ -28,7 +28,9 @@ public:
 
 public:
     static BmcResult CreateSafe() { return BmcResult(Safe); }
-    static BmcResult CreateUnsafe() { return BmcResult(Unsafe); }
+    static BmcResult CreateUnsafe(std::unique_ptr<BmcTrace> trace = nullptr) {
+        return BmcResult(Unsafe, std::move(trace));
+    }
 
 private:
     BmcResult(Status status, std::unique_ptr<BmcTrace> trace = nullptr)
