@@ -27,6 +27,14 @@ gazer::Type& TypeFromLLVMType(const llvm::Type* type)
         }
 
         return *IntType::get(width);
+    } else if (type->isHalfTy()) {
+        return *FloatType::get(FloatType::Half);
+    } else if (type->isFloatTy()) {
+        return *FloatType::get(FloatType::Single);
+    } else if (type->isDoubleTy()) {
+        return *FloatType::get(FloatType::Double);
+    } else if (type->isFP128Ty()) {
+        return *FloatType::get(FloatType::Quad);
     } else if (type->isPointerTy()) {
         auto ptrTy  = llvm::cast<llvm::PointerType>(type);
         auto& elemTy = TypeFromLLVMType(ptrTy->getElementType());
@@ -46,6 +54,11 @@ static bool isLogicInstruction(unsigned opcode) {
     return opcode == Instruction::And || opcode == Instruction::Or || opcode == Instruction::Xor;
 }
 
+static bool isFloatInstruction(unsigned opcode) {
+    return opcode == Instruction::FAdd || opcode == Instruction::FSub
+    || opcode == Instruction::FMul || opcode == Instruction::FDiv;
+}
+
 static bool isNonConstValue(const llvm::Value* value) {
     return isa<Instruction>(value) || isa<Argument>(value) || isa<GlobalVariable>(value);
 }
@@ -61,7 +74,6 @@ InstToExpr::InstToExpr(
     mExprBuilder(builder), mVariables(variables)
    // mStack(stack), mHeap(heap)
 {
-
     // Add arguments as local variables
     for (auto& arg : mFunction.args()) {
         Variable& variable = mSymbols.create(
@@ -119,6 +131,7 @@ ExprPtr InstToExpr::transform(llvm::Instruction& inst)
     }
     HANDLE_INST(Instruction::ICmp, ICmpInst)
     HANDLE_INST(Instruction::Call, CallInst)
+    HANDLE_INST(Instruction::FCmp, FCmpInst)
     HANDLE_INST(Instruction::Select, SelectInst)
     HANDLE_INST(Instruction::GetElementPtr, GetElementPtrInst)
 
@@ -171,6 +184,26 @@ ExprPtr InstToExpr::visitBinaryOperator(llvm::BinaryOperator &binop)
         }
 
         return mExprBuilder->Eq(variable->getRefExpr(), expr);
+    } else if (isFloatInstruction(opcode)) {
+        ExprPtr expr;
+        switch (binop.getOpcode()) {
+            case Instruction::FAdd:
+                expr = FAddExpr::Create(lhs, rhs, llvm::APFloat::rmNearestTiesToEven);
+                break;
+            case Instruction::FSub:
+                expr = FSubExpr::Create(lhs, rhs, llvm::APFloat::rmNearestTiesToEven);
+                break;
+            case Instruction::FMul:
+                expr = FMulExpr::Create(lhs, rhs, llvm::APFloat::rmNearestTiesToEven);
+                break;
+            case Instruction::FDiv:
+                expr = FDivExpr::Create(lhs, rhs, llvm::APFloat::rmNearestTiesToEven);
+                break;
+            default:
+                assert(false && "Invalid floating-point operation");
+        }
+
+        return FEqExpr::Create(variable->getRefExpr(), expr);
     } else {
         const IntType* type = llvm::dyn_cast<IntType>(&variable->getType());
         assert(type && "Arithmetic results must be integer types");
@@ -249,6 +282,84 @@ ExprPtr InstToExpr::visitICmpInst(llvm::ICmpInst& icmp)
     #undef HANDLE_PREDICATE
 
     return mExprBuilder->Eq(icmpVar->getRefExpr(), expr);
+}
+
+ExprPtr InstToExpr::visitFCmpInst(llvm::FCmpInst& fcmp)
+{
+    using llvm::CmpInst;
+    
+    auto fcmpVar = getVariable(&fcmp);
+    auto left = operand(fcmp.getOperand(0));
+    auto right = operand(fcmp.getOperand(1));
+
+    auto pred = fcmp.getPredicate();
+
+    ExprPtr cmpExpr = nullptr;
+    switch (pred) {
+        case CmpInst::FCMP_OEQ:
+        case CmpInst::FCMP_UEQ:
+            cmpExpr = mExprBuilder->FEq(left, right);
+            break;  
+        case CmpInst::FCMP_OGT:
+        case CmpInst::FCMP_UGT:
+            cmpExpr = mExprBuilder->FGt(left, right);
+            break;  
+        case CmpInst::FCMP_OGE:
+        case CmpInst::FCMP_UGE:
+            cmpExpr = mExprBuilder->FGtEq(left, right);
+            break;  
+        case CmpInst::FCMP_OLT:
+        case CmpInst::FCMP_ULT:
+            cmpExpr = mExprBuilder->FLt(left, right);
+            break;  
+        case CmpInst::FCMP_OLE:
+        case CmpInst::FCMP_ULE:
+            cmpExpr = mExprBuilder->FLtEq(left, right);
+            break;  
+        case CmpInst::FCMP_ONE:
+        case CmpInst::FCMP_UNE:
+            cmpExpr = mExprBuilder->Not(mExprBuilder->FEq(left, right));
+            break;
+        default:
+            break;
+    }
+
+    ExprPtr expr = nullptr;
+    if (CmpInst::isOrdered(pred)) {
+        // An ordered instruction can only be true if it has no NaN operands.
+        expr = mExprBuilder->And({
+            mExprBuilder->Not(mExprBuilder->FIsNan(left)),
+            mExprBuilder->Not(mExprBuilder->FIsNan(right)),
+            cmpExpr
+        });
+    } else if (CmpInst::isUnordered(pred)) {
+        // An unordered instruction may be true if either operand is NaN
+        expr = mExprBuilder->Or({
+            mExprBuilder->FIsNan(left),
+            mExprBuilder->FIsNan(right),
+            cmpExpr
+        });
+    } else {
+        if (pred == CmpInst::FCMP_FALSE) {
+            expr = mExprBuilder->False();
+        } else if (pred == CmpInst::FCMP_TRUE) {
+            expr = mExprBuilder->True();
+        } else if (pred == CmpInst::FCMP_ORD) {
+            expr = mExprBuilder->And(
+                mExprBuilder->Not(mExprBuilder->FIsNan(left)),
+                mExprBuilder->Not(mExprBuilder->FIsNan(right))
+            );
+        } else if (pred == CmpInst::FCMP_UNO) {
+            expr = mExprBuilder->Or(
+                mExprBuilder->FIsNan(left),
+                mExprBuilder->FIsNan(right)
+            );
+        } else {
+            llvm_unreachable("Invalid FCmp predicate");
+        }
+    }
+
+    return mExprBuilder->Eq(fcmpVar->getRefExpr(), expr);
 }
 
 ExprPtr InstToExpr::integerCast(llvm::CastInst& cast, ExprPtr operand, unsigned width)
@@ -455,6 +566,11 @@ ExprPtr InstToExpr::operand(const Value* value)
         return mExprBuilder->IntLit(
             ci->getValue().getLimitedValue(),
             ci->getType()->getIntegerBitWidth()
+        );
+    } else if (const llvm::ConstantFP* cfp = dyn_cast<llvm::ConstantFP>(value)) {
+        return FloatLiteralExpr::get(
+            *llvm::dyn_cast<FloatType>(&TypeFromLLVMType(cfp->getType())),
+            cfp->getValueAPF()
         );
     } else if (isNonConstValue(value)) {
         return getVariable(value)->getRefExpr();

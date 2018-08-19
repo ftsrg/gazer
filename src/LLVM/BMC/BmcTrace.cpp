@@ -40,9 +40,17 @@ public:
         mOS << "  ";
         mOS << event.getVariableName() << " := ";
         event.getExpr()->print(mOS);
-        if (expr->getType().isIntType() && mPrintBV) {
-            auto apVal = llvm::dyn_cast<IntLiteralExpr>(expr.get())->getValue();
-            std::bitset<64> bits(apVal.getLimitedValue());
+        if (mPrintBV) {
+            std::bitset<64> bits;
+
+            if (expr->getType().isIntType()) {
+                auto apVal = llvm::dyn_cast<IntLiteralExpr>(expr.get())->getValue();
+                bits = apVal.getLimitedValue();
+            } else if (expr->getType().isFloatType()) {
+                auto fltVal = llvm::dyn_cast<FloatLiteralExpr>(expr.get())->getValue();
+                bits = fltVal.bitcastToAPInt().getLimitedValue();
+            }
+
             mOS << "\t(0b" << bits.to_string() << ")";
         }
         auto location = event.getLocation();

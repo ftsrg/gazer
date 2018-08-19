@@ -2,18 +2,13 @@
 #include "gazer/Support/Error.h"
 
 #include <fmt/format.h>
+#include <llvm/ADT/APFloat.h>
 #include <llvm/ADT/StringMap.h>
 #include <llvm/ADT/DenseMap.h>
 
 #include <algorithm>
 
 using namespace gazer;
-
-IntType IntType::Int1Ty(1);
-IntType IntType::Int8Ty(8);
-IntType IntType::Int16Ty(16);
-IntType IntType::Int32Ty(32);
-IntType IntType::Int64Ty(64);
 
 static std::string getArrayTypeStr(Type* indexType, Type* elemType)
 {
@@ -58,6 +53,10 @@ std::string Type::getName() const
             auto intType = llvm::cast<IntType>(this);
             return "Int" + std::to_string(intType->getWidth());
         }
+        case FloatTypeID: {
+            auto fltTy = llvm::cast<FloatType>(this);
+            return "Float" + std::to_string(fltTy->getWidth());
+        }
         case PointerTypeID: {
             auto ptrTy = llvm::cast<PointerType>(this);
             return ptrTy->getName() + "*";
@@ -90,6 +89,11 @@ bool Type::equals(const Type* other) const
         auto right = llvm::dyn_cast<IntType>(other);
 
         return left->getWidth() == right->getWidth();
+    } else if (getTypeID() == FloatTypeID) {
+        auto left = llvm::dyn_cast<FloatType>(this);
+        auto right = llvm::dyn_cast<FloatType>(other);
+
+        return left->getPrecision() == right->getPrecision();
     } else if (getTypeID() == ArrayTypeID) {
         auto left = llvm::dyn_cast<ArrayType>(this);
         auto right = llvm::dyn_cast<ArrayType>(other);
@@ -118,6 +122,53 @@ bool Type::equals(const Type* other) const
     }
 
     return true;
+}
+
+IntType IntType::Int1Ty(1);
+IntType IntType::Int8Ty(8);
+IntType IntType::Int16Ty(16);
+IntType IntType::Int32Ty(32);
+IntType IntType::Int64Ty(64);
+
+IntType* IntType::get(unsigned width) {
+    switch (width) {
+        case 1: return &Int1Ty;
+        case 8: return &Int8Ty;
+        case 16: return &Int16Ty;
+        case 32: return &Int32Ty;
+        case 64: return &Int64Ty;
+    }
+
+    assert(false && "Unsupported integer type");
+}
+
+FloatType FloatType::HalfTy(Half);
+FloatType FloatType::SingleTy(Single);
+FloatType FloatType::DoubleTy(Double);
+FloatType FloatType::QuadTy(Quad);
+
+FloatType* FloatType::get(FloatType::FloatPrecision precision)
+{
+    switch (precision) {
+        case Half: return &HalfTy;
+        case Single: return &SingleTy;
+        case Double: return &DoubleTy;
+        case Quad: return &QuadTy;
+    }
+
+    llvm_unreachable("Invalid floating-point type");
+}
+
+const llvm::fltSemantics& FloatType::getLLVMSemantics() const
+{
+    switch (getPrecision()) {
+        case Half: return llvm::APFloat::IEEEhalf();
+        case Single: return llvm::APFloat::IEEEsingle();
+        case Double: return llvm::APFloat::IEEEdouble();
+        case Quad: return llvm::APFloat::IEEEquad();
+    }
+
+    llvm_unreachable("Invalid floating-point type");
 }
 
 ArrayType* ArrayType::get(Type* indexType, Type* elementType)

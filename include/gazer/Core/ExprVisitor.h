@@ -52,6 +52,17 @@ public:
             HANDLE_EXPRCASE(ULtEq)
             HANDLE_EXPRCASE(UGt)
             HANDLE_EXPRCASE(UGtEq)
+            HANDLE_EXPRCASE(FIsNan)
+            HANDLE_EXPRCASE(FIsInf)
+            HANDLE_EXPRCASE(FAdd)
+            HANDLE_EXPRCASE(FSub)
+            HANDLE_EXPRCASE(FMul)
+            HANDLE_EXPRCASE(FDiv)
+            HANDLE_EXPRCASE(FEq)
+            HANDLE_EXPRCASE(FGt)
+            HANDLE_EXPRCASE(FGtEq)
+            HANDLE_EXPRCASE(FLt)
+            HANDLE_EXPRCASE(FLtEq)
             HANDLE_EXPRCASE(Select)
             HANDLE_EXPRCASE(ArrayRead)
             HANDLE_EXPRCASE(ArrayWrite)
@@ -178,6 +189,45 @@ protected:
         return this->visitNonNullary(expr);
     }
     virtual ReturnT visitUGtEq(const std::shared_ptr<UGtEqExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+
+    // Floating-point queries
+    virtual ReturnT visitFIsNan(const std::shared_ptr<FIsNanExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitFIsInf(const std::shared_ptr<FIsInfExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+
+    // Floating-point arithmetic
+    virtual ReturnT visitFAdd(const std::shared_ptr<FAddExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitFSub(const std::shared_ptr<FSubExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitFMul(const std::shared_ptr<FMulExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitFDiv(const std::shared_ptr<FDivExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+
+    // Floating-point compare
+    virtual ReturnT visitFEq(const std::shared_ptr<FEqExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitFGt(const std::shared_ptr<FGtExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitFGtEq(const std::shared_ptr<FGtEqExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitFLt(const std::shared_ptr<FLtExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitFLtEq(const std::shared_ptr<FLtEqExpr>& expr) {
         return this->visitNonNullary(expr);
     }
 

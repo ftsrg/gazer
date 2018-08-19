@@ -54,6 +54,11 @@ private:
     bool mCache;
 };
 
+/**
+ * Utility function which transforms an arbitrary Z3 bitvector into LLVM's APInt.
+ */
+llvm::APInt z3_bv_to_apint(z3::context& context, z3::model& model, z3::expr expr);
+
 }
 
 #endif

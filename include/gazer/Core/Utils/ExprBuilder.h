@@ -89,6 +89,21 @@ public:
     virtual ExprPtr UGt(const ExprPtr& left, const ExprPtr& right) = 0;
     virtual ExprPtr UGtEq(const ExprPtr& left, const ExprPtr& right) = 0;
 
+    //--- Floating point ---//
+    virtual ExprPtr FIsNan(const ExprPtr& op) = 0;
+    virtual ExprPtr FIsInf(const ExprPtr& op) = 0;
+    
+    virtual ExprPtr FAdd(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) = 0;
+    virtual ExprPtr FSub(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) = 0;
+    virtual ExprPtr FMul(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) = 0;
+    virtual ExprPtr FDiv(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) = 0;
+    
+    virtual ExprPtr FEq(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr FGt(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr FGtEq(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr FLt(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr FLtEq(const ExprPtr& left, const ExprPtr& right) = 0;
+
     //--- Ternary ---//
     virtual ExprPtr Select(const ExprPtr& condition, const ExprPtr& then, const ExprPtr& elze) = 0;
 };

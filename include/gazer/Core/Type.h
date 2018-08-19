@@ -10,6 +10,10 @@
 #include <stdexcept>
 #include <iosfwd>
 
+namespace llvm {
+    struct fltSemantics;
+}
+
 namespace gazer
 {
 
@@ -24,7 +28,7 @@ public:
         // Primitive types
         BoolTypeID = 0,
         IntTypeID,
-        //RealTypeID,
+        FloatTypeID,
 
         // Composite types
         PointerTypeID,
@@ -34,7 +38,7 @@ public:
     };
 
     static constexpr int FirstPrimitive = BoolTypeID;
-    static constexpr int LastPrimitive = IntTypeID;
+    static constexpr int LastPrimitive = FloatTypeID;
     static constexpr int FirstComposite = PointerTypeID;
     static constexpr int LastComposite = FunctionTypeID;
 protected:
@@ -57,7 +61,7 @@ public:
 
     bool isBoolType() const { return getTypeID() == BoolTypeID; }
     bool isIntType() const { return getTypeID() == IntTypeID; }
-    //bool isRealType() const { return getTypeID() == RealTypeID; }
+    bool isFloatType() const { return getTypeID() == FloatTypeID; }
 
     bool isArrayType() const { return getTypeID() == ArrayTypeID; }
     bool isPointerType() const { return getTypeID() == PointerTypeID; }
@@ -121,17 +125,7 @@ protected:
 public:
     unsigned getWidth() const { return mWidth; }
 
-    static IntType* get(unsigned width) {
-        switch (width) {
-            case 1: return &Int1Ty;
-            case 8: return &Int8Ty;
-            case 16: return &Int16Ty;
-            case 32: return &Int32Ty;
-            case 64: return &Int64Ty;
-        }
-
-        assert(false && "Unsupported integer type");
-    }
+    static IntType* get(unsigned width);
 
     static bool classof(const Type* type) {
         return type->getTypeID() == IntTypeID;
@@ -143,6 +137,44 @@ public:
 private:
     unsigned mWidth;
     static IntType Int1Ty, Int8Ty, Int16Ty, Int32Ty, Int64Ty;
+};
+
+/**
+ * Represents an IEEE-754 floating point type.
+ */
+class FloatType final : public Type
+{
+public:
+    enum FloatPrecision
+    {
+        Half = 16,
+        Single = 32,
+        Double = 64,
+        Quad = 128
+    };
+
+protected:
+    FloatType(FloatPrecision precision)
+        : Type(FloatTypeID), mPrecision(precision)
+    {}
+
+public:
+    FloatPrecision getPrecision() const { return mPrecision; }
+    const llvm::fltSemantics& getLLVMSemantics() const;
+    unsigned getWidth() const { return mPrecision; }
+
+    static FloatType* get(FloatPrecision precision);
+
+    static bool classof(const Type* type) {
+        return type->getTypeID() == FloatTypeID;
+    }
+    static bool classof(const Type& type) {
+        return type.getTypeID() == FloatTypeID;
+    }
+
+private:
+    FloatPrecision mPrecision;
+    static FloatType HalfTy, SingleTy, DoubleTy, QuadTy;
 };
 
 class ArrayType final : public Type

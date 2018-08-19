@@ -53,6 +53,11 @@ std::shared_ptr<IntLiteralExpr> IntLiteralExpr::get(IntType& type, llvm::APInt v
     return std::shared_ptr<IntLiteralExpr>(new IntLiteralExpr(type, value));
 }
 
+std::shared_ptr<FloatLiteralExpr> FloatLiteralExpr::get(FloatType& type, const llvm::APFloat& value)
+{
+    return std::shared_ptr<FloatLiteralExpr>(new FloatLiteralExpr(type, value));
+}
+
 void UndefExpr::print(llvm::raw_ostream& os) const {
     os << "undef";
 }
@@ -63,4 +68,10 @@ void BoolLiteralExpr::print(llvm::raw_ostream& os) const {
 
 void IntLiteralExpr::print(llvm::raw_ostream& os) const {
     os << mValue;
+}
+
+void FloatLiteralExpr::print(llvm::raw_ostream& os) const {
+    llvm::SmallVector<char, 16> buffer;
+    mValue.toString(buffer);
+    os << buffer;
 }

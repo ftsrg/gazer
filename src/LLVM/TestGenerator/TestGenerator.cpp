@@ -20,6 +20,9 @@ static llvm::Constant* exprToLLVMValue(std::shared_ptr<LiteralExpr>& expr, LLVMC
         } else {
             return llvm::ConstantInt::getFalse(context);
         }
+    } else if (expr->getType().isFloatType()) {
+        auto fltLit = llvm::cast<FloatLiteralExpr>(expr.get());
+        return llvm::ConstantFP::get(context, fltLit->getValue());    
     } else {
         assert(false && "Unsupported expression kind");
     }

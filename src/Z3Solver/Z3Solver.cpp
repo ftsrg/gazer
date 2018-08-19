@@ -3,10 +3,11 @@
 #include "gazer/Core/LiteralExpr.h"
 
 #include "gazer/Core/ExprVisitor.h"
-
-#include <unordered_map>
+#include "gazer/Support/Float.h"
 
 #include <llvm/Support/raw_os_ostream.h>
+
+#include <unordered_map>
 
 using namespace gazer;
 
@@ -31,6 +32,20 @@ protected:
             case Type::IntTypeID: {
                 auto intTy = llvm::cast<IntType>(type);
                 return mContext.bv_sort(intTy->getWidth());
+            }
+            case Type::FloatTypeID: {
+                auto fltTy = llvm::cast<FloatType>(type);
+                switch (fltTy->getPrecision()) {
+                    case FloatType::Half:
+                        return z3::sort(mContext, Z3_mk_fpa_sort_half(mContext));
+                    case FloatType::Single:
+                        return z3::sort(mContext, Z3_mk_fpa_sort_single(mContext));
+                    case FloatType::Double:
+                        return z3::sort(mContext, Z3_mk_fpa_sort_double(mContext));
+                    case FloatType::Quad:
+                        return z3::sort(mContext, Z3_mk_fpa_sort_quadruple(mContext));
+                }
+                llvm_unreachable("Invalid floating-point precision");
             }
             case Type::ArrayTypeID: {
                 auto arrTy = llvm::cast<ArrayType>(type);
@@ -69,6 +84,23 @@ protected:
         } else if (expr->getType().isBoolType()) {
             auto value = llvm::dyn_cast<BoolLiteralExpr>(&*expr)->getValue();
             return mContext.bool_val(value);
+        } else if (expr->getType().isFloatType()) {
+            auto fltTy = llvm::dyn_cast<FloatType>(&expr->getType());
+            auto value = llvm::dyn_cast<FloatLiteralExpr>(&*expr)->getValue();
+            
+            if (fltTy->getPrecision() == FloatType::Single) {
+                return z3::expr(mContext,
+                    Z3_mk_fpa_numeral_float(
+                        mContext, value.convertToFloat(), typeToSort(fltTy)
+                    )
+                );
+            } else if (fltTy->getPrecision() == FloatType::Double) {
+                return z3::expr(mContext,
+                    Z3_mk_fpa_numeral_double(
+                        mContext, value.convertToDouble(), typeToSort(fltTy)
+                    )
+                );
+            }
         }
 
         assert(false && "Unsupported operand type.");
@@ -192,6 +224,74 @@ protected:
         return z3::uge(visit(expr->getLeft()), visit(expr->getRight()));
     }
 
+    // Floating-point queries
+    virtual z3::expr visitFIsNan(const std::shared_ptr<FIsNanExpr>& expr) override {
+        return z3::expr(mContext, Z3_mk_fpa_is_nan(mContext, visit(expr->getOperand())));
+    }
+    virtual z3::expr visitFIsInf(const std::shared_ptr<FIsInfExpr>& expr) override {
+        return z3::expr(mContext, Z3_mk_fpa_is_infinite(mContext, visit(expr->getOperand())));
+    }
+
+    // Floating-point arithmetic
+    virtual z3::expr visitFAdd(const std::shared_ptr<FAddExpr>& expr) override {
+        return z3::expr(mContext, Z3_mk_fpa_add(
+            mContext,
+            transformRoundingMode(expr->getRoundingMode()),
+            visit(expr->getLeft()),
+            visit(expr->getRight())
+        ));
+    }
+    virtual z3::expr visitFSub(const std::shared_ptr<FSubExpr>& expr) override {
+        return z3::expr(mContext, Z3_mk_fpa_sub(
+            mContext,
+            transformRoundingMode(expr->getRoundingMode()),
+            visit(expr->getLeft()),
+            visit(expr->getRight())
+        ));
+    }
+    virtual z3::expr visitFMul(const std::shared_ptr<FMulExpr>& expr) override {
+        return z3::expr(mContext, Z3_mk_fpa_mul(
+            mContext,
+            transformRoundingMode(expr->getRoundingMode()),
+            visit(expr->getLeft()),
+            visit(expr->getRight())
+        ));
+    }
+    virtual z3::expr visitFDiv(const std::shared_ptr<FDivExpr>& expr) override {
+        return z3::expr(mContext, Z3_mk_fpa_div(
+            mContext,
+            transformRoundingMode(expr->getRoundingMode()),
+            visit(expr->getLeft()),
+            visit(expr->getRight())
+        ));
+    }
+
+    virtual z3::expr visitFEq(const std::shared_ptr<FEqExpr>& expr) override {
+        return z3::expr(mContext, Z3_mk_fpa_eq(
+            mContext, visit(expr->getLeft()), visit(expr->getRight())
+        ));
+    }
+    virtual z3::expr visitFGt(const std::shared_ptr<FGtExpr>& expr) override {
+        return z3::expr(mContext, Z3_mk_fpa_gt(
+            mContext, visit(expr->getLeft()), visit(expr->getRight())
+        ));
+    }
+    virtual z3::expr visitFGtEq(const std::shared_ptr<FGtEqExpr>& expr) override {
+        return z3::expr(mContext, Z3_mk_fpa_geq(
+            mContext, visit(expr->getLeft()), visit(expr->getRight())
+        ));
+    }
+    virtual z3::expr visitFLt(const std::shared_ptr<FLtExpr>& expr) override {
+        return z3::expr(mContext, Z3_mk_fpa_lt(
+            mContext, visit(expr->getLeft()), visit(expr->getRight())
+        ));
+    }
+    virtual z3::expr visitFLtEq(const std::shared_ptr<FLtEqExpr>& expr) override {
+        return z3::expr(mContext, Z3_mk_fpa_leq(
+            mContext, visit(expr->getLeft()), visit(expr->getRight())
+        ));
+    }
+
     // Ternary
     virtual z3::expr visitSelect(const std::shared_ptr<SelectExpr>& expr) override {
         return z3::ite(
@@ -215,6 +315,25 @@ protected:
             visit(expr->getIndex()),
             visit(expr->getElementValue())
         );
+    }
+
+protected:
+    z3::expr transformRoundingMode(llvm::APFloat::roundingMode rm)
+    {
+        switch (rm) {
+            case llvm::APFloat::roundingMode::rmNearestTiesToEven:
+                return z3::expr(mContext, Z3_mk_fpa_round_nearest_ties_to_even(mContext));
+            case llvm::APFloat::roundingMode::rmNearestTiesToAway:
+                return z3::expr(mContext, Z3_mk_fpa_round_nearest_ties_to_away(mContext));
+            case llvm::APFloat::roundingMode::rmTowardPositive:
+                return z3::expr(mContext, Z3_mk_fpa_round_toward_positive(mContext));
+            case llvm::APFloat::roundingMode::rmTowardNegative:
+                return z3::expr(mContext, Z3_mk_fpa_round_toward_negative(mContext));
+            case llvm::APFloat::roundingMode::rmTowardZero:
+                return z3::expr(mContext, Z3_mk_fpa_round_toward_zero(mContext));
+        }
+
+        llvm_unreachable("Invalid rounding mode");
     }
 
 protected:
@@ -281,6 +400,50 @@ void CachingZ3Solver::addConstraint(ExprPtr expr)
     mSolver.add(z3Expr);
 }
 
+//---- Support for model extraction ----//
+
+static FloatType::FloatPrecision precFromSort(z3::context& context, z3::sort sort)
+{
+    assert(sort.sort_kind() == Z3_sort_kind::Z3_FLOATING_POINT_SORT);
+    unsigned ebits = Z3_fpa_get_ebits(context, sort);
+    unsigned sbits = Z3_fpa_get_sbits(context, sort);
+
+    if (ebits == 8 && sbits == 24) {
+        return FloatType::Single;
+    } else if (ebits == 11 && sbits == 53) {
+        return FloatType::Double;
+    } else if (ebits == 5 && sbits == 11) {
+        return FloatType::Half;
+    } else if (ebits == 15 && sbits == 113) {
+        return FloatType::Quad;
+    }
+
+    llvm_unreachable("Invalid floating point type");
+}
+
+llvm::APInt z3_bv_to_apint(z3::context& context, z3::model& model, z3::expr bv)
+{
+    assert(bv.is_bv() && "Bitvector conversion requires a bitvector");
+    unsigned int width = Z3_get_bv_sort_size(context, bv.get_sort());
+
+    if (width <= 64) {
+        unsigned long long value;
+        Z3_get_numeral_uint64(context, bv, &value);
+
+        return llvm::APInt(width, value);
+    } else {
+        llvm::SmallVector<uint64_t, 2> bits;
+        for (size_t i = 0; i < width; i += 64) {
+            unsigned long long value;
+            Z3_get_numeral_uint64(context, model.eval(bv.extract(i, 64)), &value);
+
+            bits.push_back(value);
+        }
+
+        return llvm::APInt(width, bits);
+    }
+}
+
 Valuation Z3Solver::getModel()
 {
     // TODO: Check whether the formula is SAT
@@ -310,11 +473,27 @@ Valuation Z3Solver::getModel()
             unsigned long long value;
             Z3_get_numeral_uint64(mContext, z3Expr, &value);
 
-            auto iVal = llvm::APInt(width, value);
+            llvm::APInt iVal(width, value);
             expr = IntLiteralExpr::get(
                 *IntType::get(width),
                 iVal
             );
+        } else if (z3Expr.get_sort().sort_kind() == Z3_sort_kind::Z3_FLOATING_POINT_SORT) {
+            z3::sort sort = z3Expr.get_sort();
+            FloatType::FloatPrecision precision = precFromSort(mContext, sort);
+
+            auto toIEEE = z3::expr(mContext, Z3_mk_fpa_to_ieee_bv(mContext, z3Expr));
+            auto ieeeVal = model.eval(toIEEE);
+
+            unsigned long long bits;
+            Z3_get_numeral_uint64(mContext,  ieeeVal, &bits);
+
+            auto& fltTy = *FloatType::get(precision);
+            llvm::APInt bv(fltTy.getWidth(), bits);
+
+            llvm::APFloat apflt(fltTy.getLLVMSemantics(), bv);
+
+            expr = FloatLiteralExpr::get(fltTy, apflt);
         } else {
             assert(false && "Unhandled Z3 expression type.");
         }

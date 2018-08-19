@@ -224,6 +224,42 @@ public:
         return UGtEqExpr::Create(left, right);
     }
 
+    ExprPtr FIsNan(const ExprPtr& op) override {
+        return FIsNanExpr::Create(op);
+    }
+    ExprPtr FIsInf(const ExprPtr& op) override {
+        return FIsInfExpr::Create(op);
+    }
+    
+    ExprPtr FAdd(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) override {
+        return FAddExpr::Create(left, right, rm);
+    }
+    ExprPtr FSub(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) override {
+        return FSubExpr::Create(left, right, rm);
+    }
+    ExprPtr FMul(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) override {
+        return FMulExpr::Create(left, right, rm);
+    }
+    ExprPtr FDiv(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) override {
+        return FDivExpr::Create(left, right, rm);
+    }
+    
+    ExprPtr FEq(const ExprPtr& left, const ExprPtr& right) override {
+        return FEqExpr::Create(left, right);
+    }
+    ExprPtr FGt(const ExprPtr& left, const ExprPtr& right) override {
+        return FGtExpr::Create(left, right);
+    }
+    ExprPtr FGtEq(const ExprPtr& left, const ExprPtr& right) override {
+        return FGtEqExpr::Create(left, right);
+    }
+    ExprPtr FLt(const ExprPtr& left, const ExprPtr& right) override {
+        return FLtExpr::Create(left, right);
+    }
+    ExprPtr FLtEq(const ExprPtr& left, const ExprPtr& right) override {
+        return FLtEqExpr::Create(left, right);
+    }
+
     ExprPtr Select(const ExprPtr& condition, const ExprPtr& then, const ExprPtr& elze) override {
         if (condition->getKind() == Expr::Literal) {
             auto lit = llvm::dyn_cast<BoolLiteralExpr>(condition.get());

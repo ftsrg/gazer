@@ -5,6 +5,7 @@
 #include "gazer/Core/Variable.h"
 
 #include <llvm/ADT/APInt.h>
+#include <llvm/ADT/APFloat.h>
 #include <llvm/ADT/iterator_range.h>
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/Support/Casting.h>
@@ -366,6 +367,119 @@ public:
         return expr.getKind() == Expr::Xor;
     }
 };
+
+template<Expr::ExprKind Kind>
+class FpQueryExpr final : public UnaryExpr
+{
+    static_assert(Kind == Expr::FIsNan || Kind == Expr::FIsInf,
+        "A floating point query expression must be FIsNan or FIsInf");
+protected:
+    FpQueryExpr(ExprPtr operand)
+        : UnaryExpr(Kind, *BoolType::get(), operand)
+    {}
+
+    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
+        return new FpQueryExpr<Kind>(ops[0]);   
+    }
+public:
+    static std::shared_ptr<FpQueryExpr<Kind>> Create(ExprPtr op)
+    {
+        assert(op->getType().isFloatType() && "FpQuery requrires a float operand");
+        return std::unique_ptr<FpQueryExpr<Kind>>(new FpQueryExpr<Kind>(op));
+    }
+};
+
+using FIsNanExpr = FpQueryExpr<Expr::FIsNan>;
+using FIsInfExpr = FpQueryExpr<Expr::FIsInf>;
+
+template<Expr::ExprKind Kind>
+class FpArithmeticExpr final : public BinaryExpr
+{
+    static_assert(Expr::FirstFpArithmetic <= Kind && Kind <= Expr::LastFpArithmetic,
+        "An arithmetic expression must have an floating-point arithmetic expression kind.");
+protected:
+    FpArithmeticExpr(const FloatType& type, ExprPtr left, ExprPtr right, llvm::APFloat::roundingMode rm)
+        : BinaryExpr(Kind, type, left, right), mRoundingMode(rm)
+    {}
+
+    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
+        return new FpArithmeticExpr<Kind>(
+            llvm::cast<FloatType>(getType()), ops[0], ops[1], getRoundingMode()
+        );
+    }
+
+public:
+    static std::shared_ptr<FpArithmeticExpr<Kind>> Create(ExprPtr left, ExprPtr right, llvm::APFloat::roundingMode rm)
+    {
+        assert(left->getType().isFloatType() && "Can only define floating-point operations on float types.");
+        assert(left->getType() == right->getType() && "Arithmetic expression operand types must match.");
+
+        return std::shared_ptr<FpArithmeticExpr<Kind>>(
+            new FpArithmeticExpr<Kind>(llvm::cast<FloatType>(left->getType()), left, right, rm)
+        );
+    }
+
+    llvm::APFloat::roundingMode getRoundingMode() const {
+        return mRoundingMode;
+    }
+
+    /**
+     * Type inquiry support.
+     */
+    static bool classof(const Expr* expr) {
+        return expr->getKind() == Kind;
+    }
+    static bool classof(const Expr& expr) {
+        return expr.getKind() == Kind;
+    }
+private:
+    llvm::APFloat::roundingMode mRoundingMode;
+};
+
+using FAddExpr = FpArithmeticExpr<Expr::FAdd>;
+using FSubExpr = FpArithmeticExpr<Expr::FSub>;
+using FMulExpr = FpArithmeticExpr<Expr::FMul>;
+using FDivExpr = FpArithmeticExpr<Expr::FDiv>;
+
+template<Expr::ExprKind Kind>
+class FpCompareExpr final : public BinaryExpr
+{
+    static_assert(Expr::FirstFpCompare <= Kind && Kind <= Expr::LastFpCompare,
+        "A compare expression must have a compare expression kind.");
+protected:
+    FpCompareExpr(ExprPtr left, ExprPtr right)
+        : BinaryExpr(Kind, *BoolType::get(), left, right)
+    {
+        assert(left->getType().isFloatType());
+        assert(left->getType() == right->getType()
+            && "Compare expression operand types must match.");
+    }
+
+    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
+        return new FpCompareExpr<Kind>(ops[0], ops[1]);
+    }
+
+public:
+    static std::shared_ptr<FpCompareExpr<Kind>> Create(ExprPtr left, ExprPtr right) {
+        return std::shared_ptr<FpCompareExpr<Kind>>(new FpCompareExpr(left, right));
+    }
+    
+    /**
+     * Type inquiry support.
+     */
+    static bool classof(const Expr* expr) {
+        return expr->getKind() == Kind;
+    }
+    static bool classof(const Expr& expr) {
+        return expr.getKind() == Kind;
+    }
+};
+
+using FEqExpr = FpCompareExpr<Expr::FEq>;
+using FGtExpr = FpCompareExpr<Expr::FGt>;
+using FGtEqExpr = FpCompareExpr<Expr::FGtEq>;
+using FLtExpr = FpCompareExpr<Expr::FLt>;
+using FLtEqExpr = FpCompareExpr<Expr::FLtEq>;
 
 class SelectExpr final : public NonNullaryExpr
 {

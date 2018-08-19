@@ -65,6 +65,23 @@ public:
         ULtEq,
         UGt,
         UGtEq,
+        
+        // Floating point unary
+        FIsNan,
+        FIsInf,
+
+        // Floating point binary
+        FAdd,
+        FSub,
+        FMul,
+        FDiv,
+
+        // Floating point compare
+        FEq,
+        FGt,
+        FGtEq,
+        FLt,
+        FLtEq,
 
         // Ternary
         Select,
@@ -80,10 +97,14 @@ public:
     static constexpr int LastUnaryCast = PtrCast;
     static constexpr int FirstBinaryArithmetic = Add;
     static constexpr int LastBinaryArithmetic = BXor;
+    static constexpr int FirstFpArithmetic = FAdd;
+    static constexpr int LastFpArithmetic = FDiv;
     static constexpr int FirstLogic = And;
     static constexpr int LastLogic = Xor;
     static constexpr int FirstCompare = Eq;
     static constexpr int LastCompare = UGtEq;
+    static constexpr int FirstFpCompare = FEq;
+    static constexpr int LastFpCompare = FLtEq;
 
     static constexpr int FirstExprKind = Undef;
     static constexpr int LastExprKind = ArrayWrite;

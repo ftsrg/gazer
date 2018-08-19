@@ -4,6 +4,7 @@
 #include "gazer/Core/Expr.h"
 
 #include <llvm/ADT/APInt.h>
+#include <llvm/ADT/APFloat.h>
 
 namespace gazer
 {
@@ -79,6 +80,35 @@ public:
 private:
     //uint64_t mValue;
     llvm::APInt mValue;
+};
+
+class FloatLiteralExpr final : public LiteralExpr
+{
+private:
+    FloatLiteralExpr(FloatType& type, const llvm::APFloat& value)
+        : LiteralExpr(type), mValue(value)
+    {}
+public:
+    virtual void print(llvm::raw_ostream& os) const override;
+
+    static std::shared_ptr<FloatLiteralExpr> get(FloatType& type, const llvm::APFloat& value);
+
+    llvm::APFloat getValue() const { return mValue; }
+
+    const FloatType& getType() const {
+        return static_cast<const FloatType&>(mType);
+    }
+
+    static bool classof(const Expr* expr) {
+        return expr->getKind() == Literal && expr->getType().isFloatType();
+    }
+
+    static bool classof(const Expr& expr) {
+        return expr.getKind() == Literal && expr.getType().isFloatType();
+    }
+
+private:
+    llvm::APFloat mValue;
 };
 
 }

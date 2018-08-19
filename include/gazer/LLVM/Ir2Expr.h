@@ -35,6 +35,7 @@ public:
     ExprPtr visitBinaryOperator(llvm::BinaryOperator &binop);
     ExprPtr visitSelectInst(llvm::SelectInst& select);
     ExprPtr visitICmpInst(llvm::ICmpInst& icmp);
+    ExprPtr visitFCmpInst(llvm::FCmpInst& fcmp);
     ExprPtr visitCastInst(llvm::CastInst& cast);
     ExprPtr visitCallInst(llvm::CallInst& call);
 

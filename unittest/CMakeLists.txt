@@ -6,3 +6,4 @@ include_directories(${GTEST_INCLUDE_DIRS})
 enable_testing()
 
 add_subdirectory(Core)
+add_subdirectory(SolverZ3)
