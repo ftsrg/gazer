@@ -225,9 +225,19 @@ public:
     }
 
     ExprPtr FIsNan(const ExprPtr& op) override {
+        if (op->getKind() == Expr::Literal) {
+            auto fltLit = llvm::dyn_cast<FloatLiteralExpr>(op.get());
+            return BoolLiteralExpr::Get(fltLit->getValue().isNaN());
+        }
+
         return FIsNanExpr::Create(op);
     }
     ExprPtr FIsInf(const ExprPtr& op) override {
+        if (op->getKind() == Expr::Literal) {
+            auto fltLit = llvm::dyn_cast<FloatLiteralExpr>(op.get());
+            return BoolLiteralExpr::Get(fltLit->getValue().isInfinity());
+        }
+
         return FIsInfExpr::Create(op);
     }
     
@@ -241,6 +251,18 @@ public:
         return FMulExpr::Create(left, right, rm);
     }
     ExprPtr FDiv(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) override {
+        if (left->getKind() == Expr::Literal && right->getKind() == Expr::Literal) {
+            auto fltLeft  = llvm::dyn_cast<FloatLiteralExpr>(left.get());
+            auto fltRight = llvm::dyn_cast<FloatLiteralExpr>(right.get());
+
+            llvm::APFloat result(fltLeft->getValue());
+            result.divide(fltRight->getValue(), rm);
+
+            return FloatLiteralExpr::get(
+                *llvm::dyn_cast<FloatType>(&left->getType()), result
+            );
+        }
+
         return FDivExpr::Create(left, right, rm);
     }
     

@@ -158,6 +158,10 @@ std::unique_ptr<BmcTrace> BmcTrace::Create(
                     llvm::Value* value = dvi->getValue();
                     llvm::DILocalVariable* diVar = dvi->getVariable();
 
+                    if (auto cfp = dyn_cast<ConstantFP>(value)) {
+                        cfp->getType()->getFltSemantics();
+                    }
+
                     auto result = valueMap.find(value);
                     
                     if (result == valueMap.end()) {

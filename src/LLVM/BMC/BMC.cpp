@@ -1,4 +1,5 @@
 #include "gazer/LLVM/BMC/BMC.h"
+#include "gazer/Core/Utils/ExprUtils.h"
 #include "gazer/Support/Stopwatch.h"
 
 #include <llvm/IR/CFG.h>
@@ -248,7 +249,7 @@ BmcResult BoundedModelCheckerImpl::run()
         try {
             //entry.second->print(mOS);
             //FormatPrintExpr(entry.second, mOS);
-            //mOS << "\n";
+            mOS << "\n";
             solver->add(entry.second);
 
             mOS << "   Running solver.\n";

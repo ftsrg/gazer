@@ -188,22 +188,22 @@ ExprPtr InstToExpr::visitBinaryOperator(llvm::BinaryOperator &binop)
         ExprPtr expr;
         switch (binop.getOpcode()) {
             case Instruction::FAdd:
-                expr = FAddExpr::Create(lhs, rhs, llvm::APFloat::rmNearestTiesToEven);
+                expr = mExprBuilder->FAdd(lhs, rhs, llvm::APFloat::rmNearestTiesToEven);
                 break;
             case Instruction::FSub:
-                expr = FSubExpr::Create(lhs, rhs, llvm::APFloat::rmNearestTiesToEven);
+                expr = mExprBuilder->FSub(lhs, rhs, llvm::APFloat::rmNearestTiesToEven);
                 break;
             case Instruction::FMul:
-                expr = FMulExpr::Create(lhs, rhs, llvm::APFloat::rmNearestTiesToEven);
+                expr = mExprBuilder->FMul(lhs, rhs, llvm::APFloat::rmNearestTiesToEven);
                 break;
             case Instruction::FDiv:
-                expr = FDivExpr::Create(lhs, rhs, llvm::APFloat::rmNearestTiesToEven);
+                expr = mExprBuilder->FDiv(lhs, rhs, llvm::APFloat::rmNearestTiesToEven);
                 break;
             default:
                 assert(false && "Invalid floating-point operation");
         }
 
-        return FEqExpr::Create(variable->getRefExpr(), expr);
+        return mExprBuilder->FEq(variable->getRefExpr(), expr);
     } else {
         const IntType* type = llvm::dyn_cast<IntType>(&variable->getType());
         assert(type && "Arithmetic results must be integer types");

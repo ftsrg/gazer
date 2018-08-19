@@ -53,7 +53,7 @@ std::shared_ptr<IntLiteralExpr> IntLiteralExpr::get(IntType& type, llvm::APInt v
     return std::shared_ptr<IntLiteralExpr>(new IntLiteralExpr(type, value));
 }
 
-std::shared_ptr<FloatLiteralExpr> FloatLiteralExpr::get(FloatType& type, const llvm::APFloat& value)
+std::shared_ptr<FloatLiteralExpr> FloatLiteralExpr::get(const FloatType& type, const llvm::APFloat& value)
 {
     return std::shared_ptr<FloatLiteralExpr>(new FloatLiteralExpr(type, value));
 }

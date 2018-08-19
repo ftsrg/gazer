@@ -52,7 +52,7 @@ private:
 class IntLiteralExpr final : public LiteralExpr
 {
 private:
-    IntLiteralExpr(IntType& type, llvm::APInt value)
+    IntLiteralExpr(const IntType& type, llvm::APInt value)
         : LiteralExpr(type), mValue(value)
     {
         assert(type.getWidth() == value.getBitWidth() && "Type and literal bit width must match.");
@@ -85,13 +85,13 @@ private:
 class FloatLiteralExpr final : public LiteralExpr
 {
 private:
-    FloatLiteralExpr(FloatType& type, const llvm::APFloat& value)
+    FloatLiteralExpr(const FloatType& type, const llvm::APFloat& value)
         : LiteralExpr(type), mValue(value)
     {}
 public:
     virtual void print(llvm::raw_ostream& os) const override;
 
-    static std::shared_ptr<FloatLiteralExpr> get(FloatType& type, const llvm::APFloat& value);
+    static std::shared_ptr<FloatLiteralExpr> get(const FloatType& type, const llvm::APFloat& value);
 
     llvm::APFloat getValue() const { return mValue; }
 
