@@ -1,5 +1,4 @@
 #include "gazer/Core/Type.h"
-#include "gazer/Support/Error.h"
 
 #include <fmt/format.h>
 #include <llvm/ADT/APFloat.h>
@@ -74,8 +73,6 @@ std::string Type::getName() const
             );
         }
     }
-
-    std::cerr << getTypeID() << "\n";
 
     llvm_unreachable("Invalid TypeID");
 }

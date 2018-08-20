@@ -11,9 +11,20 @@
 #include <llvm/IR/Function.h>
 #include <llvm/Bitcode/BitcodeWriter.h>
 #include <llvm/Support/FileSystem.h>
+#include <llvm/Support/CommandLine.h>
 
 using namespace gazer;
 using namespace llvm;
+
+namespace
+{
+
+cl::opt<bool> NoFoldingExpr(
+    "no-folding-expr",
+    cl::desc("Do not fold and simplify expressions. Use only for debugging.")
+);
+
+}
 
 char BmcPass::ID = 0;
 
@@ -30,7 +41,12 @@ bool BmcPass::runOnFunction(llvm::Function& function)
 
     Stopwatch<> sw;
     Z3SolverFactory solverFactory;
-    auto builder = CreateFoldingExprBuilder();
+    std::unique_ptr<ExprBuilder> builder;
+    if (NoFoldingExpr) {
+        builder = CreateExprBuilder();
+    } else {
+        builder = CreateFoldingExprBuilder();
+    }
 
     sw.start();
     

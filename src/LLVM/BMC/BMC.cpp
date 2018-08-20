@@ -5,28 +5,14 @@
 #include <llvm/IR/CFG.h>
 #include <llvm/IR/InstIterator.h>
 
-#include "BoundedModelCheckerImpl.h"
-
 using namespace gazer;
 using namespace llvm;
 
-BoundedModelChecker::BoundedModelChecker(
-    llvm::Function& function,
-    TopologicalSort& topo,
-    ExprBuilder* builder,
-    SolverFactory& solverFactory,
-    llvm::raw_ostream& os
-)
-    : pImpl(new BoundedModelCheckerImpl(
-        function, topo, builder, solverFactory, os
-    ))
-{}
-
-BoundedModelChecker::~BoundedModelChecker() = default;
-
-BmcResult BoundedModelChecker::run()
+namespace
 {
-    return pImpl->run();
+cl::opt<bool> DumpFormula(
+    "dump-bmc-formula", cl::desc("Dump the encoded program formula to stderr."));
+
 }
 
 static bool isErrorFunctionName(llvm::StringRef name)
@@ -51,7 +37,7 @@ static bool isErrorBlock(const BasicBlock* bb)
     return false;
 }
 
-BoundedModelCheckerImpl::BoundedModelCheckerImpl(
+BoundedModelChecker::BoundedModelChecker(
     llvm::Function& function,
     TopologicalSort& topo,
     ExprBuilder* exprBuilder,
@@ -63,7 +49,7 @@ BoundedModelCheckerImpl::BoundedModelCheckerImpl(
     mIr2Expr(function, mSymbols, mExprBuilder, mVariables, &mVariableToValueMap)
 {}
 
-auto BoundedModelCheckerImpl::encode() -> ProgramEncodeMapT
+auto BoundedModelChecker::encode() -> ProgramEncodeMapT
 {    
     size_t numBB = mFunction.getBasicBlockList().size();
 
@@ -132,7 +118,7 @@ auto BoundedModelCheckerImpl::encode() -> ProgramEncodeMapT
     return result;
 }
 
-ExprPtr BoundedModelCheckerImpl::encodeEdge(BasicBlock* from, BasicBlock* to)
+ExprPtr BoundedModelChecker::encodeEdge(BasicBlock* from, BasicBlock* to)
 {
     ExprVector exprs;
     auto terminator = from->getTerminator();
@@ -164,7 +150,12 @@ ExprPtr BoundedModelCheckerImpl::encodeEdge(BasicBlock* from, BasicBlock* to)
             fromExprs.push_back(mIr2Expr.transform(*it));
         }
 
-        auto fromExpr = mIr2Expr.getBuilder()->And(fromExprs.begin(), fromExprs.end());
+        ExprPtr fromExpr;
+        if (fromExprs.size() >= 1) {
+            fromExpr = mIr2Expr.getBuilder()->And(fromExprs.begin(), fromExprs.end());
+        } else {
+            fromExpr = mIr2Expr.getBuilder()->True();
+        }            
         mFormulaCache[from] = fromExpr;
         exprs.push_back(fromExpr);
     } else {
@@ -183,7 +174,7 @@ ExprPtr BoundedModelCheckerImpl::encodeEdge(BasicBlock* from, BasicBlock* to)
     return mIr2Expr.getBuilder()->And(exprs.begin(), exprs.end());
 }
 
-BmcResult BoundedModelCheckerImpl::run()
+BmcResult BoundedModelChecker::run()
 {
     llvm::DenseMap<const Variable*, llvm::Value*> variableToValueMap;
 
@@ -248,8 +239,10 @@ BmcResult BoundedModelCheckerImpl::run()
 
         try {
             //entry.second->print(mOS);
-            //FormatPrintExpr(entry.second, mOS);
-            mOS << "\n";
+            if (DumpFormula) {
+                FormatPrintExpr(entry.second, mOS);
+                mOS << "\n";
+            }
             solver->add(entry.second);
 
             mOS << "   Running solver.\n";

@@ -4,9 +4,7 @@ set(SOURCE_FILES
     Type.cpp
     Variable.cpp
     SymbolTable.cpp
-    Automaton.cpp
     Valuation.cpp
-    Utils/VariableRewriter.cpp
     Utils/ExprBuilder.cpp
     Utils/FoldingExprBuilder.cpp
     Utils/ExprPrinter.cpp

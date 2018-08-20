@@ -10,8 +10,6 @@
 namespace gazer
 {
 
-class BoundedModelCheckerImpl;
-
 class BmcResult final
 {
 public:
@@ -19,6 +17,9 @@ public:
     {
         Safe, Unsafe, Unknown, Timeout, Error
     };
+
+    BmcResult(const BmcResult&) = delete;
+    BmcResult& operator=(const BmcResult&) = delete;
 
     Status getStatus() const { return mStatus; }
     BmcTrace& getTrace() {
@@ -41,6 +42,9 @@ private:
     std::unique_ptr<BmcTrace> mTrace;
 };
 
+/**
+ * Implements a simple bounded model checker algorithm.
+ */
 class BoundedModelChecker final
 {
 public:
@@ -55,13 +59,44 @@ public:
         llvm::raw_ostream& os = llvm::nulls()
     );
 
-    ~BoundedModelChecker();
+    BoundedModelChecker(const BoundedModelChecker&) = delete;
+    BoundedModelChecker& operator=(const BoundedModelChecker&) = delete;
+    
+    using ProgramEncodeMapT = llvm::SmallDenseMap<llvm::BasicBlock*, ExprPtr, 1>;
+    
+    /**
+     * Encodes the program into an SMT formula.
+     */
+    ProgramEncodeMapT encode();
 
-public:
+    /**
+     * Solves an already encoded program formula.
+     */
     BmcResult run();
 
 private:
-    std::unique_ptr<BoundedModelCheckerImpl> pImpl;
+    ExprPtr encodeEdge(llvm::BasicBlock* from, llvm::BasicBlock* to);
+
+private:
+    // Basic stuff
+    llvm::Function& mFunction;
+    TopologicalSort& mTopo;
+    SolverFactory& mSolverFactory;
+    llvm::raw_ostream& mOS;
+    // Symbols and mappings
+    SymbolTable mSymbols;
+    ExprBuilder* mExprBuilder;
+
+    using VariableToValueMapT = llvm::DenseMap<Variable*, llvm::Value*>;
+    VariableToValueMapT mVariableToValueMap;
+
+    InstToExpr::ValueToVariableMapT mVariables;
+
+    using FormulaCacheT = llvm::DenseMap<llvm::BasicBlock*, ExprPtr>;
+    FormulaCacheT mFormulaCache;
+
+    // Utils
+    InstToExpr mIr2Expr;
 };
 
 }

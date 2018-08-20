@@ -1,7 +1,6 @@
 SET(TEST_SOURCES
     TypeTest.cpp
     SymbolTableTest.cpp
-    AutomatonTest.cpp
     core_tests.cpp
 )
 

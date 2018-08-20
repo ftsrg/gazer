@@ -1,5 +1,4 @@
 #include "gazer/LLVM/Transform/BoundedUnwindPass.h"
-#include "gazer/LLVM/Analysis/CfaBuilderPass.h"
 #include "gazer/LLVM/Analysis/BmcPass.h"
 #include "gazer/LLVM/Analysis/ProgramDependence.h"
 #include "gazer/LLVM/Transform/Passes.h"
@@ -151,7 +150,7 @@ int main(int argc, char* argv[])
         //if (PrintCFA) {
         //    pm->add(createCfaPrinterPass());
         //}
-        pm->add(new gazer::BmcPass(bound));
+        pm->add(new gazer::BmcPass());
     }
 
     //pm->add(llvm::createCFGPrinterLegacyPassPass());

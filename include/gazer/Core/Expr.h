@@ -15,6 +15,10 @@ namespace gazer
 
 /**
  * Base class for all gazer expressions.
+ * 
+ * Expression subclass constructors are private. The intended way of 
+ * instantiation is by using the static ::Create() functions
+ * of the subclasses or using an ExprBuilder.
  */
 class Expr
 {
@@ -69,6 +73,9 @@ public:
         // Floating point unary
         FIsNan,
         FIsInf,
+
+        // Floating point cast
+        //FpExt,
 
         // Floating point binary
         FAdd,
@@ -149,7 +156,12 @@ using ExprVector = std::vector<ExprPtr>;
 std::ostream& operator<<(std::ostream& os, const Expr& expr);
 
 /**
- * Base class for all literals.
+ * Expression class of literal expressions.
+ * 
+ * Note that while Expr::Literal is used to indicate
+ * that an expression is literal, this class is abstract.
+ * To acquire the value stored in literals, use the literal
+ * subclasses (IntLiteralExpr, ...).
  */
 class LiteralExpr : public Expr
 {
@@ -186,6 +198,7 @@ protected:
 public: 
     virtual void print(llvm::raw_ostream& os) const override;
 
+/*
     template<class Iter>
     Expr* with(Iter begin, Iter end) {
         // Check if all operands are the same
@@ -215,7 +228,7 @@ public:
 
         // Operand types must match to the operands of this class
         return this->withOps({begin, end});
-    }
+    } */
 
     //---- Operand handling ----//
     using op_iterator = typename std::vector<ExprPtr>::iterator;
@@ -241,13 +254,9 @@ public:
     static bool classof(const Expr* expr) {
         return expr->getKind() >= FirstUnary;
     }
-
     static bool classof(const Expr& expr) {
         return expr.getKind() >= FirstUnary;
     }
-
-private:
-    static ExprPtr CreateSubClass(ExprKind kind, std::vector<ExprPtr> ops);
 
 private:
     std::vector<ExprPtr> mOperands;

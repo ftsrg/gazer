@@ -16,10 +16,9 @@
 namespace gazer
 {
 
-//============
-// Unary expressions
-//============
-
+/**
+ * Base class for all unary expression kinds.
+ */
 class UnaryExpr : public NonNullaryExpr
 {
 public:
@@ -58,6 +57,8 @@ public:
         return expr.getKind() == Expr::Not;
     }
 };
+
+//===== Casts =====//
 
 template<Expr::ExprKind Kind>
 class ExtCastExpr final : public UnaryExpr
@@ -322,7 +323,6 @@ public:
     static std::shared_ptr<MultiaryLogicExpr<Kind>> Create(InputIterator begin, InputIterator end) {
         return std::shared_ptr<MultiaryLogicExpr<Kind>>(new MultiaryLogicExpr(begin, end));
     }
-
     
     /**
      * Type inquiry support.

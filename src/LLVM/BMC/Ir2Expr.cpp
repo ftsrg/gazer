@@ -2,7 +2,6 @@
 
 #include "gazer/Core/Type.h"
 #include "gazer/Core/Utils/ExprBuilder.h"
-#include "gazer/Core/Utils/CfaSimplify.h"
 
 #include <llvm/IR/InstIterator.h>
 
@@ -423,14 +422,15 @@ ExprPtr InstToExpr::visitCallInst(llvm::CallInst& call)
             // we just replace the call with an undef value
             auto variable = getVariable(&call);
             
-            return mExprBuilder->Eq(variable->getRefExpr(), UndefExpr::Get(variable->getType()));
+            return mExprBuilder->True();
+            //return mExprBuilder->Eq(variable->getRefExpr(), UndefExpr::Get(variable->getType()));
         }
     } else {
         assert(false && "Procedure calls are not supported (with the exception of assert).");
     }
 
     // XXX: This a temporary hack for no-op instructions
-    return BoolLiteralExpr::getTrue();
+    return mExprBuilder->True();
 }
 
 //----- Branches and PHI nodes -----//
