@@ -252,7 +252,7 @@ BmcResult BoundedModelChecker::run()
                 mOS << "   Formula is SAT\n";
                 Valuation model = solver->getModel();
                 //model.print(mOS);
-                
+
                 // Display a counterexample trace
                 auto trace = BmcTrace::Create(
                     mTopo,
@@ -262,13 +262,6 @@ BmcResult BoundedModelChecker::run()
                     model,
                     mIr2Expr.getVariableMap()
                 );
-
-                auto writer = bmc::CreateTextTraceWriter(mOS);
-                mOS << "Error trace:\n";
-                mOS << "-----------\n";
-                writer->write(*trace);
-
-                mOS << "Assertion failure found.\n";
                 return BmcResult::CreateUnsafe(std::move(trace));
             } else if (status == Solver::UNSAT) {
                 mOS << "   Formula is UNSAT\n";

@@ -6,6 +6,10 @@
 #include <llvm/ADT/APInt.h>
 #include <llvm/ADT/APFloat.h>
 
+namespace llvm {
+    class ConstantData;
+}
+
 namespace gazer
 {
 
@@ -92,6 +96,7 @@ public:
     virtual void print(llvm::raw_ostream& os) const override;
 
     static std::shared_ptr<FloatLiteralExpr> get(const FloatType& type, const llvm::APFloat& value);
+    static std::shared_ptr<FloatLiteralExpr> get(FloatType::FloatPrecision prec, const llvm::APFloat& value);
 
     llvm::APFloat getValue() const { return mValue; }
 
@@ -110,6 +115,18 @@ public:
 private:
     llvm::APFloat mValue;
 };
+
+/**
+ * Transforms an LLVM constant into a LiteralExpr.
+ * 
+ * @param value The value to transform.
+ * @param i1AsBool Treat constants of i1 type as booleans.
+ */
+std::shared_ptr<LiteralExpr> LiteralFromLLVMConst(
+    llvm::ConstantData* value,
+    bool i1AsBool = true
+);
+
 
 }
 

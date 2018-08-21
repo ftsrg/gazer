@@ -24,6 +24,18 @@ cl::opt<bool> NoFoldingExpr(
     cl::desc("Do not fold and simplify expressions. Use only for debugging.")
 );
 
+cl::opt<bool> PrintTrace(
+    "trace",
+    cl::desc("Print counterexample traces to stdout.")
+);
+
+cl::opt<std::string> TestHarnessFile(
+    "test-harness",
+    cl::desc("Write test harness to output file"),
+    cl::value_desc("filename"),
+    cl::init("")
+);
+
 }
 
 char BmcPass::ID = 0;
@@ -50,25 +62,41 @@ bool BmcPass::runOnFunction(llvm::Function& function)
 
     sw.start();
     
-    BoundedModelChecker bmc(function, topo, builder.get(), solverFactory, llvm::errs());
+    BoundedModelChecker bmc(function, topo, builder.get(), solverFactory, llvm::outs());
     auto result = bmc.run();
-
     sw.stop();
-    llvm::errs() << "Elapsed time: ";
-    sw.format(llvm::errs(), "s");
-    llvm::errs() << "\n";
+    llvm::outs() << "Elapsed time: ";
+    sw.format(llvm::outs(), "s");
+    llvm::outs() << "\n";
 
-    if (result.getStatus() == BmcResult::Unsafe) {
-        TestGenerator testGen;
-        auto test = testGen.generateModuleFromTrace(
-            result.getTrace(), 
-            function.getContext(),
-            function.getParent()->getDataLayout()
-        );
+    if (result.isUnsafe()) {
+        llvm::outs() << "Assertion failure found.\n";
+        if (PrintTrace) {
+            auto writer = bmc::CreateTextTraceWriter(llvm::outs());
+            llvm::outs() << "Error trace:\n";
+            llvm::outs() << "-----------\n";
+            writer->write(result.getTrace());
+        }
 
-        std::error_code ec;
-        llvm::raw_fd_ostream testOS("harness.bc", ec, sys::fs::OpenFlags::F_None);
-        llvm::WriteBitcodeToFile(*test, testOS);
+        if (TestHarnessFile != "") {
+            llvm::outs() << "Generating test harness.\n";
+            TestGenerator testGen;
+            auto test = testGen.generateModuleFromTrace(
+                result.getTrace(), 
+                function.getContext(),
+                function.getParent()->getDataLayout()
+            );
+
+            StringRef filename(TestHarnessFile);
+            std::error_code ec;
+            llvm::raw_fd_ostream testOS(filename, ec, sys::fs::OpenFlags::F_None);
+
+            if (filename.endswith("ll")) {
+                testOS << *test;
+            } else {
+                llvm::WriteBitcodeToFile(*test, testOS);
+            }
+        }
     }
 
     // We modified the CFG with the predecessors identifications

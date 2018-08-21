@@ -1,6 +1,7 @@
 #include "gazer/Core/LiteralExpr.h"
 
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/IR/Constants.h>
 
 #include <map>
 
@@ -58,6 +59,13 @@ std::shared_ptr<FloatLiteralExpr> FloatLiteralExpr::get(const FloatType& type, c
     return std::shared_ptr<FloatLiteralExpr>(new FloatLiteralExpr(type, value));
 }
 
+std::shared_ptr<FloatLiteralExpr> FloatLiteralExpr::get(FloatType::FloatPrecision precision, const llvm::APFloat& value)
+{
+    return std::shared_ptr<FloatLiteralExpr>(new FloatLiteralExpr(
+        *FloatType::get(precision), value
+    ));
+}
+
 void UndefExpr::print(llvm::raw_ostream& os) const {
     os << "undef";
 }
@@ -75,3 +83,35 @@ void FloatLiteralExpr::print(llvm::raw_ostream& os) const {
     mValue.toString(buffer);
     os << buffer;
 }
+
+std::shared_ptr<LiteralExpr> gazer::LiteralFromLLVMConst(llvm::ConstantData* value, bool i1IsBool)
+{
+    if (auto ci = llvm::dyn_cast<llvm::ConstantInt>(value)) {
+        unsigned width = ci->getType()->getIntegerBitWidth();
+        if (width == 1 && i1IsBool) {
+            return BoolLiteralExpr::Get(ci->isZero() ? false : true);
+        }
+
+        return IntLiteralExpr::get(*IntType::get(width), ci->getValue());
+    } else if (auto cfp = llvm::dyn_cast<llvm::ConstantFP>(value)) {
+        auto fltTy = cfp->getType();
+        FloatType::FloatPrecision precision;
+        if (fltTy->isHalfTy()) {
+            precision = FloatType::Half;
+        } else if (fltTy->isFloatTy()) {
+            precision = FloatType::Single;
+        } else if (fltTy->isDoubleTy()) {
+            precision = FloatType::Double;
+        } else if (fltTy->isFP128Ty()) {
+            precision = FloatType::Quad;
+        } else {
+            assert(false && "Unsupported floating-point type.");
+        }
+
+        return FloatLiteralExpr::get(precision, cfp->getValueAPF());
+    }
+
+    // TODO: We do not support undefs here.
+    assert(false && "Unsupported LLVM constant value.");
+}
+

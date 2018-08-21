@@ -27,6 +27,9 @@ public:
         return *mTrace;
     }
 
+    bool isSafe() const { return mStatus == Safe; }
+    bool isUnsafe() const { return mStatus == Unsafe; }
+
 public:
     static BmcResult CreateSafe() { return BmcResult(Safe); }
     static BmcResult CreateUnsafe(std::unique_ptr<BmcTrace> trace = nullptr) {

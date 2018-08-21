@@ -158,32 +158,7 @@ std::unique_ptr<BmcTrace> BmcTrace::Create(
                     llvm::Value* value = dvi->getValue();
                     llvm::DILocalVariable* diVar = dvi->getVariable();
 
-                    if (auto cfp = dyn_cast<ConstantFP>(value)) {
-                        cfp->getType()->getFltSemantics();
-                    }
-
-                    auto result = valueMap.find(value);
-                    
-                    if (result == valueMap.end()) {
-                        // This is an unknown value for a given variable
-                        //assigns.push_back({
-                        //    nullptr, nullptr, value, {0, 0}, diVar->getName()
-                        //});
-                        continue;
-                    }
-                    //assert(result != valueMap.end()
-                    //    && "Named values should be present in the value map");
-
-                    Variable* variable = result->second;
-                    auto exprResult = model.find(variable);
-
-                    if (exprResult == model.end()) {
-                        continue;
-                    }
-                    
-                    std::shared_ptr<LiteralExpr> expr = exprResult->second;
                     BmcTrace::LocationInfo location = { 0, 0 };
-
                     if (auto valInst = llvm::dyn_cast<llvm::Instruction>(value)) {
                         llvm::DebugLoc debugLoc = nullptr;
                         if (valInst->getDebugLoc()) {
@@ -197,11 +172,36 @@ std::unique_ptr<BmcTrace> BmcTrace::Create(
                         }
                     }
 
-                    assigns.push_back(std::make_unique<BmcTrace::AssignmentEvent>(
-                        diVar->getName(),
-                        exprResult->second,
-                        location
-                    ));
+                    auto result = valueMap.find(value);
+                    
+                    if (result == valueMap.end()) {
+                        if (llvm::isa<UndefValue>(value)) {
+                            continue;
+                        } else if (auto cd = dyn_cast<ConstantData>(value)) {
+                            auto lit = LiteralFromLLVMConst(cd);
+
+                            assigns.push_back(std::make_unique<BmcTrace::AssignmentEvent>(
+                                diVar->getName(),
+                                lit,
+                                location
+                            ));
+                        }
+                    } else {
+                        Variable* variable = result->second;
+                        auto exprResult = model.find(variable);
+
+                        if (exprResult == model.end()) {
+                            continue;
+                        }
+                        
+                        std::shared_ptr<LiteralExpr> expr = exprResult->second;
+
+                        assigns.push_back(std::make_unique<BmcTrace::AssignmentEvent>(
+                            diVar->getName(),
+                            exprResult->second,
+                            location
+                        ));
+                    }
                 }
             } else if (callee->getName() == "gazer.inlined_global.write") {
                 auto mdValue = cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata();
