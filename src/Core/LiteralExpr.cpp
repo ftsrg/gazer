@@ -1,7 +1,9 @@
 #include "gazer/Core/LiteralExpr.h"
+#include "gazer/Support/DenseMapKeyInfo.h"
 
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/IR/Constants.h>
+#include <llvm/ADT/DenseMap.h>
 
 #include <map>
 
@@ -39,31 +41,51 @@ std::shared_ptr<BoolLiteralExpr> BoolLiteralExpr::getFalse()
 
 std::shared_ptr<IntLiteralExpr> IntLiteralExpr::get(IntType& type, llvm::APInt value)
 {
-    //static std::map<int, std::shared_ptr<IntLiteralExpr>> exprs;
-    
-    //auto result = exprs.find(value);
-    //if (result == exprs.end()) {
-    //    auto ptr = std::shared_ptr<IntLiteralExpr>(new IntLiteralExpr(value));
-    //    exprs[value] = ptr;
+    static llvm::DenseMap<llvm::APInt, std::shared_ptr<IntLiteralExpr>, DenseMapAPIntKeyInfo> Exprs;
+    static std::shared_ptr<IntLiteralExpr> Int1True = 
+        std::shared_ptr<IntLiteralExpr>(new IntLiteralExpr(
+            *IntType::get(1), llvm::APInt(1, 1)
+        ));
+    static std::shared_ptr<IntLiteralExpr> Int1False = 
+        std::shared_ptr<IntLiteralExpr>(new IntLiteralExpr(
+            *IntType::get(1), llvm::APInt(1, 0)
+        ));
 
-    //    return ptr;
-    //}
+    // Currently our DenseMapAPIntKeyInfo does not allow 1-bit wide APInts as keys.
+    // This workaround makes sure that we can also construct those as well.
+    if (LLVM_UNLIKELY(value.getBitWidth() == 1)) {
+        return value.getBoolValue() ? Int1True : Int1False;
+    }
 
-    //return result->second;
+    auto result = Exprs.find(value);
+    if (result == Exprs.end()) {
+        auto ptr = std::shared_ptr<IntLiteralExpr>(new IntLiteralExpr(type, value));
+        Exprs[value] = ptr;
 
-    return std::shared_ptr<IntLiteralExpr>(new IntLiteralExpr(type, value));
+        return ptr;
+    }
+
+    return result->second;
 }
 
 std::shared_ptr<FloatLiteralExpr> FloatLiteralExpr::get(const FloatType& type, const llvm::APFloat& value)
 {
-    return std::shared_ptr<FloatLiteralExpr>(new FloatLiteralExpr(type, value));
+    static llvm::DenseMap<llvm::APFloat, std::shared_ptr<FloatLiteralExpr>, DenseMapAPFloatKeyInfo> Exprs;
+    
+    auto result = Exprs.find(value);
+    if (result == Exprs.end()) {
+        auto ptr = std::shared_ptr<FloatLiteralExpr>(new FloatLiteralExpr(type, value));
+        Exprs[value] = ptr;
+
+        return ptr;
+    }
+
+    return result->second;
 }
 
 std::shared_ptr<FloatLiteralExpr> FloatLiteralExpr::get(FloatType::FloatPrecision precision, const llvm::APFloat& value)
 {
-    return std::shared_ptr<FloatLiteralExpr>(new FloatLiteralExpr(
-        *FloatType::get(precision), value
-    ));
+    return FloatLiteralExpr::get(*FloatType::get(precision), value);
 }
 
 void UndefExpr::print(llvm::raw_ostream& os) const {
@@ -78,7 +100,8 @@ void IntLiteralExpr::print(llvm::raw_ostream& os) const {
     os << mValue;
 }
 
-void FloatLiteralExpr::print(llvm::raw_ostream& os) const {
+void FloatLiteralExpr::print(llvm::raw_ostream& os) const
+{
     llvm::SmallVector<char, 16> buffer;
     mValue.toString(buffer);
     os << buffer;
