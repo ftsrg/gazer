@@ -21,7 +21,7 @@ public:
         SymbolTable& symbols,
         ExprBuilder* builder,
         ValueToVariableMapT& variables,
-        llvm::DenseMap<Variable*, llvm::Value*>* variableToValueMap = nullptr
+        llvm::DenseMap<llvm::Value*, ExprPtr>& eliminatedValues
     );
 
     ExprPtr transform(llvm::Instruction& inst, size_t succIdx, llvm::BasicBlock* pred = nullptr);
@@ -63,6 +63,7 @@ private:
     SymbolTable& mSymbols;
     ValueToVariableMapT& mVariables;
     ExprBuilder* mExprBuilder;
+    llvm::DenseMap<llvm::Value*, ExprPtr>& mEliminatedValues;
     //Variable& mStack;
     //Variable& mHeap;
 };

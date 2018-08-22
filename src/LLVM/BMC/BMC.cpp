@@ -11,7 +11,11 @@ using namespace llvm;
 namespace
 {
 cl::opt<bool> DumpFormula(
-    "dump-bmc-formula", cl::desc("Dump the encoded program formula to stderr."));
+    "print-formula", cl::desc("Dump the encoded program formula to stderr."));
+
+cl::opt<bool> NoElimVars(
+    "no-elim-vars", cl::desc("Do not eliminate temporary variables")
+);
 
 }
 
@@ -37,6 +41,34 @@ static bool isErrorBlock(const BasicBlock* bb)
     return false;
 }
 
+static ExprPtr tryToEliminate(const llvm::Instruction& inst, ExprPtr expr)
+{
+    if (inst.getNumUses() != 1) {
+        return nullptr;
+    }
+
+    // FCmp instructions will have multiple uses as an expression
+    // for a single value, due to their NaN checks.
+    if (isa<FCmpInst>(*inst.user_begin())) {
+        return nullptr;
+    }
+
+    auto nonNullary = dyn_cast<NonNullaryExpr>(expr.get());
+    if (nonNullary == nullptr || nonNullary->getNumOperands() != 2) {
+        return nullptr;
+    }
+
+    if (nonNullary->getKind() != Expr::Eq && nonNullary->getKind() != Expr::FEq) {
+        return nullptr;
+    }
+
+    if (nonNullary->getOperand(0)->getKind() != Expr::VarRef) {
+        return nullptr;
+    }
+
+    return nonNullary->getOperand(1);
+}
+
 BoundedModelChecker::BoundedModelChecker(
     llvm::Function& function,
     TopologicalSort& topo,
@@ -46,7 +78,7 @@ BoundedModelChecker::BoundedModelChecker(
 ) :
     mFunction(function), mTopo(topo), mSolverFactory(solverFactory), mOS(os),
     mExprBuilder(exprBuilder),
-    mIr2Expr(function, mSymbols, mExprBuilder, mVariables, &mVariableToValueMap)
+    mIr2Expr(function, mSymbols, mExprBuilder, mVariables, mEliminatedVars)
 {}
 
 auto BoundedModelChecker::encode() -> ProgramEncodeMapT
@@ -67,7 +99,7 @@ auto BoundedModelChecker::encode() -> ProgramEncodeMapT
     }
 
     // We are using a dynamic programming-based approach.
-    // As the CFG is a DAG after unrolling, we can create a mTopoligcal sort
+    // As the CFG is a DAG after unrolling, we can create a topoligcal sort
     // of its blocks. Then we create an array with the size of numBB, and
     // perform DP as the following:
     //  (0) dp[0] := True (as the entry node is always reachable)
@@ -143,11 +175,20 @@ ExprPtr BoundedModelChecker::encodeEdge(BasicBlock* from, BasicBlock* to)
         // We are starting from the non-phi nodes at the 'from' part of the block
         for (auto it = from->getFirstInsertionPt(); it != from->end(); ++it) {
             if (it->isTerminator()) {
-                // TODO: Quick hack to avoid handling terminators
+                // Avoid handling terminators
                 continue;
             }
 
-            fromExprs.push_back(mIr2Expr.transform(*it));
+            auto expr = mIr2Expr.transform(*it);
+
+            if (!NoElimVars) {                
+                if (auto elimExpr = tryToEliminate(*it, expr)) {
+                    mEliminatedVars[&*it] = elimExpr;
+                    continue;
+                }
+            }
+            
+            fromExprs.push_back(expr);
         }
 
         ExprPtr fromExpr;
@@ -228,6 +269,7 @@ BmcResult BoundedModelChecker::run()
     }
 
     ProgramEncodeMapT result = this->encode();
+
     for (auto& entry : result) {
         mOS << "Checking for error block '";
         entry.first->printAsOperand(mOS);

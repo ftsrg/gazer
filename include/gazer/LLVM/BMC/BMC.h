@@ -99,6 +99,9 @@ private:
     FormulaCacheT mFormulaCache;
 
     // Utils
+    llvm::DenseMap<llvm::Value*, ExprPtr> mEliminatedVars;
+
+    // This should be the last one to be initialized.
     InstToExpr mIr2Expr;
 };
 

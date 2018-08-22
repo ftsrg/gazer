@@ -67,10 +67,11 @@ InstToExpr::InstToExpr(
     SymbolTable& symbols,
     ExprBuilder* builder,
     ValueToVariableMapT& variables,
-    llvm::DenseMap<Variable*, llvm::Value*>* variableToValueMap
+    llvm::DenseMap<llvm::Value*, ExprPtr>& eliminatedValues
 )
     : mFunction(function), mSymbols(symbols), 
-    mExprBuilder(builder), mVariables(variables)
+    mExprBuilder(builder), mVariables(variables),
+    mEliminatedValues(eliminatedValues)
    // mStack(stack), mHeap(heap)
 {
     // Add arguments as local variables
@@ -80,9 +81,6 @@ InstToExpr::InstToExpr(
             TypeFromLLVMType(&arg)
         );
         mVariables[&arg] = &variable;
-        if (variableToValueMap != nullptr) {
-            (*variableToValueMap)[&variable] = &arg;
-        }
     }
 
     // Add local values as variables
@@ -93,9 +91,6 @@ InstToExpr::InstToExpr(
                 TypeFromLLVMType(&instr)
             );
             mVariables[&instr] = &variable;
-            if (variableToValueMap != nullptr) {
-                (*variableToValueMap)[&variable] = &instr;
-            }
         }
     }
 }
@@ -557,8 +552,8 @@ ExprPtr InstToExpr::visitGetElementPtrInst(llvm::GetElementPtrInst& gep)
 
 ExprPtr InstToExpr::operand(const Value* value)
 {
-    // Check for boolean literals
     if (const ConstantInt* ci = dyn_cast<ConstantInt>(value)) {
+        // Check for boolean literals
         if (ci->getType()->isIntegerTy(1)) {
             return ci->isZero() ? mExprBuilder->False() : mExprBuilder->True();
         }
@@ -573,6 +568,11 @@ ExprPtr InstToExpr::operand(const Value* value)
             cfp->getValueAPF()
         );
     } else if (isNonConstValue(value)) {
+        auto result = mEliminatedValues.find(value);
+        if (result != mEliminatedValues.end()) {
+            return result->second;
+        }
+
         return getVariable(value)->getRefExpr();
     } else if (isa<llvm::UndefValue>(value)) {
         return mExprBuilder->Undef(TypeFromLLVMType(value));
@@ -584,7 +584,7 @@ ExprPtr InstToExpr::operand(const Value* value)
 Variable* InstToExpr::getVariable(const Value* value)
 {
     auto result = mVariables.find(value);
-    assert(result != mVariables.end() && "Variables should present in the variable map.");
+    assert(result != mVariables.end() && "Variables should be present in the variable map.");
 
     return result->second;
 }

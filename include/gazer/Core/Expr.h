@@ -99,17 +99,19 @@ public:
     };
 
     static constexpr int FirstUnary = Not;
-    static constexpr int LastUnary = SExt;
+    static constexpr int LastUnary = PtrCast;
     static constexpr int FirstUnaryCast = ZExt;
     static constexpr int LastUnaryCast = PtrCast;
     static constexpr int FirstBinaryArithmetic = Add;
     static constexpr int LastBinaryArithmetic = BXor;
-    static constexpr int FirstFpArithmetic = FAdd;
-    static constexpr int LastFpArithmetic = FDiv;
     static constexpr int FirstLogic = And;
     static constexpr int LastLogic = Xor;
     static constexpr int FirstCompare = Eq;
     static constexpr int LastCompare = UGtEq;
+    static constexpr int FirstFpUnary = FIsNan;
+    static constexpr int LastFpUnary = FIsInf;
+    static constexpr int FirstFpArithmetic = FAdd;
+    static constexpr int LastFpArithmetic = FDiv;
     static constexpr int FirstFpCompare = FEq;
     static constexpr int LastFpCompare = FLtEq;
 
@@ -126,7 +128,10 @@ public:
     const Type& getType() const { return mType; }
 
     bool isNullary() const { return mKind <= FirstUnary; }
-    bool isUnary() const { return FirstUnary <= mKind && mKind <= LastUnary; }
+    bool isUnary() const {
+        return (FirstUnary <= mKind && mKind <= LastUnary)
+            || (FirstFpUnary <= mKind && mKind <= LastFpUnary);
+    }
 
     bool isArithmetic() const {
         return FirstBinaryArithmetic <= mKind && mKind <= LastBinaryArithmetic;
@@ -136,6 +141,14 @@ public:
     }
     bool isCompare() const {
         return FirstCompare <= mKind && mKind <= LastCompare;
+    }
+
+    bool isFpArithmetic() const {
+        return FirstFpArithmetic <= mKind && mKind <= LastFpArithmetic;
+    }
+
+    bool isFpCompare() const {
+        return FirstFpCompare <= mKind && mKind <= LastFpCompare;
     }
 
     virtual void print(llvm::raw_ostream& os) const = 0;
