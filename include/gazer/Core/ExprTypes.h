@@ -214,7 +214,8 @@ protected:
 public:
     static std::shared_ptr<ArithmeticExpr<Kind>> Create(ExprPtr left, ExprPtr right)
     {
-        assert(left->getType().isIntType() && "Can only define arithmetic operations on integers.");
+        assert((left->getType().isIntType() || left->getType().isMathIntType())
+            && "Can only define arithmetic operations on integers.");
         assert(left->getType() == right->getType() && "Arithmetic expression operand types must match.");
 
         return std::shared_ptr<ArithmeticExpr<Kind>>(new ArithmeticExpr<Kind>(left->getType(), left, right));

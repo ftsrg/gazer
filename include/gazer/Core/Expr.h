@@ -124,6 +124,9 @@ protected:
     {}
 
 public:
+    Expr(const Expr&) = delete;
+    Expr& operator=(const Expr&) = delete;
+
     ExprKind getKind() const { return mKind; }
     const Type& getType() const { return mType; }
 

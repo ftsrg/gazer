@@ -51,6 +51,7 @@ public:
         {
             Assign,
             FunctionEntry,
+            ArgumentValue,
             FunctionCall
         };
 
@@ -116,6 +117,22 @@ public:
     private:
         std::string mFunctionName;
         LocationInfo mLocation;
+    };
+
+    class ArgumentValueEvent : public Event
+    {
+    public:
+        ArgumentValueEvent(std::string argname, std::shared_ptr<LiteralExpr> value)
+            : Event(ArgumentValue), mArgumentName(argname), mValue(value)
+        {}
+
+        void write(BmcTraceWriter& writer) override;
+
+        std::shared_ptr<LiteralExpr> getValue() const { return mValue; }
+
+    private:
+        std::string mArgumentName;
+        std::shared_ptr<LiteralExpr> mValue;
     };
 
     class FunctionCallEvent : public Event
@@ -206,6 +223,7 @@ public:
 
     virtual void writeEvent(BmcTrace::AssignmentEvent& event) = 0;
     virtual void writeEvent(BmcTrace::FunctionEntryEvent& event) = 0;
+    virtual void writeEvent(BmcTrace::ArgumentValueEvent& event) = 0;
     virtual void writeEvent(BmcTrace::FunctionCallEvent& event) = 0;
 
     virtual ~BmcTraceWriter() {}

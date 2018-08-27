@@ -8,16 +8,20 @@
 using namespace gazer;
 using namespace llvm;
 
-namespace
-{
-cl::opt<bool> DumpFormula(
-    "print-formula", cl::desc("Dump the encoded program formula to stderr."));
+cl::opt<bool> NoElimVars("no-elim-vars",
+    cl::desc("Do not eliminate temporary variables"));
 
-cl::opt<bool> NoElimVars(
-    "no-elim-vars", cl::desc("Do not eliminate temporary variables")
-);
+cl::opt<bool> AssumeNoNaN("assume-no-nan",
+    cl::desc("Assume that floating-point operations never return NaN"));
 
-}
+cl::opt<bool> UseMathInt("use-math-int",
+    cl::desc("Use mathematical integers instead of bitvectors."));
+
+cl::opt<bool> DumpFormula("dump-formula",
+    cl::desc("Dump the encoded program formula to stderr."));
+
+cl::opt<bool> DumpSolverFormula("dump-solver-formula",
+    cl::desc("Dump the formula in the solver's format"));
 
 static bool isErrorFunctionName(llvm::StringRef name)
 {
@@ -49,7 +53,8 @@ static ExprPtr tryToEliminate(const llvm::Instruction& inst, ExprPtr expr)
 
     // FCmp instructions will have multiple uses as an expression
     // for a single value, due to their NaN checks.
-    if (isa<FCmpInst>(*inst.user_begin())) {
+    // With -assume-no-nan this is no longer the case.
+    if (!AssumeNoNaN && isa<FCmpInst>(*inst.user_begin())) {
         return nullptr;
     }
 
@@ -122,7 +127,7 @@ auto BoundedModelChecker::encode() -> ProgramEncodeMapT
 
             size_t predIdx = blocks[pred];
             assert(predIdx < i
-                && "Predecessors must be before block in a mTopological sort");
+                && "Predecessors must be before block in a topological sort");
 
             ExprPtr predFormula = dp[predIdx];
             if (predFormula != BoolLiteralExpr::getFalse()) {
@@ -143,8 +148,27 @@ auto BoundedModelChecker::encode() -> ProgramEncodeMapT
     for (auto& entry : errorBlocks) {
         size_t idx = entry.first;
         BasicBlock* block  = entry.second;
+        ExprPtr expr = dp[idx];
 
-        result[block] = dp[idx];
+        if (AssumeNoNaN) {
+            // We must also assume that no float type is NaN
+            ExprVector notNanExprs;
+
+            for (auto& var : mSymbols) {
+                if (var.second->getType().isFloatType()) {
+                    notNanExprs.push_back(mExprBuilder->Not(
+                        mExprBuilder->FIsNan(var.second->getRefExpr())
+                    ));
+                }
+            }
+
+            expr = mExprBuilder->And(
+                expr,
+                mExprBuilder->And(notNanExprs.begin(), notNanExprs.end())
+            );
+        }
+
+        result[block] = expr;
     }
 
     return result;
@@ -286,6 +310,10 @@ BmcResult BoundedModelChecker::run()
                 mOS << "\n";
             }
             solver->add(entry.second);
+
+            if (DumpSolverFormula) {
+                solver->dump(mOS);
+            }
 
             mOS << "   Running solver.\n";
             auto status = solver->run();

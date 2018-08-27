@@ -96,6 +96,10 @@ void BoolLiteralExpr::print(llvm::raw_ostream& os) const {
     os << (mValue ? "True" : "False");
 }
 
+void MathIntLiteralExpr::print(llvm::raw_ostream& os) const {
+    os << mValue;
+}
+
 void IntLiteralExpr::print(llvm::raw_ostream& os) const {
     os << mValue;
 }

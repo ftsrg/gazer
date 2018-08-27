@@ -37,7 +37,6 @@ cl::opt<std::string> TestHarnessFile(
 );
 
 }
-
 char BmcPass::ID = 0;
 
 void BmcPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
@@ -51,7 +50,6 @@ bool BmcPass::runOnFunction(llvm::Function& function)
     TopologicalSort& topo = getAnalysis<TopologicalSortPass>()
         .getTopologicalSort();    
 
-    Stopwatch<> sw;
     Z3SolverFactory solverFactory;
     std::unique_ptr<ExprBuilder> builder;
     if (NoFoldingExpr) {
@@ -60,6 +58,7 @@ bool BmcPass::runOnFunction(llvm::Function& function)
         builder = CreateFoldingExprBuilder();
     }
 
+    Stopwatch<> sw;
     sw.start();
     
     BoundedModelChecker bmc(function, topo, builder.get(), solverFactory, llvm::outs());

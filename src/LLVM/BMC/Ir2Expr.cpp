@@ -4,6 +4,7 @@
 #include "gazer/Core/Utils/ExprBuilder.h"
 
 #include <llvm/IR/InstIterator.h>
+#include <llvm/Support/CommandLine.h>
 
 using namespace gazer;
 
@@ -17,12 +18,19 @@ using llvm::ConstantInt;
 using llvm::isa;
 using llvm::dyn_cast;
 
+extern llvm::cl::opt<bool> AssumeNoNaN;
+extern llvm::cl::opt<bool> UseMathInt;
+
 gazer::Type& TypeFromLLVMType(const llvm::Type* type)
 {
     if (type->isIntegerTy()) {
         auto width = type->getIntegerBitWidth();
         if (width == 1) {
             return *BoolType::get();
+        }
+
+        if (UseMathInt && width <= 64) {
+            return *MathIntType::get();
         }
 
         return *IntType::get(width);
@@ -318,8 +326,31 @@ ExprPtr InstToExpr::visitFCmpInst(llvm::FCmpInst& fcmp)
             break;
     }
 
+
     ExprPtr expr = nullptr;
-    if (CmpInst::isOrdered(pred)) {
+    if (pred == CmpInst::FCMP_FALSE) {
+        expr = mExprBuilder->False();
+    } else if (pred == CmpInst::FCMP_TRUE) {
+        expr = mExprBuilder->True();
+    } else if (AssumeNoNaN) {
+        if (pred == CmpInst::FCMP_ORD) {
+            expr = mExprBuilder->True();
+        } else if (pred == CmpInst::FCMP_UNO) {
+            expr = mExprBuilder->False();
+        } else {
+            expr = cmpExpr;
+        }
+    } else if (pred == CmpInst::FCMP_ORD) {
+        expr = mExprBuilder->And(
+            mExprBuilder->Not(mExprBuilder->FIsNan(left)),
+            mExprBuilder->Not(mExprBuilder->FIsNan(right))
+        );
+    } else if (pred == CmpInst::FCMP_UNO) {
+        expr = mExprBuilder->Or(
+            mExprBuilder->FIsNan(left),
+            mExprBuilder->FIsNan(right)
+        );
+    } else if (CmpInst::isOrdered(pred)) {
         // An ordered instruction can only be true if it has no NaN operands.
         expr = mExprBuilder->And({
             mExprBuilder->Not(mExprBuilder->FIsNan(left)),
@@ -334,23 +365,7 @@ ExprPtr InstToExpr::visitFCmpInst(llvm::FCmpInst& fcmp)
             cmpExpr
         });
     } else {
-        if (pred == CmpInst::FCMP_FALSE) {
-            expr = mExprBuilder->False();
-        } else if (pred == CmpInst::FCMP_TRUE) {
-            expr = mExprBuilder->True();
-        } else if (pred == CmpInst::FCMP_ORD) {
-            expr = mExprBuilder->And(
-                mExprBuilder->Not(mExprBuilder->FIsNan(left)),
-                mExprBuilder->Not(mExprBuilder->FIsNan(right))
-            );
-        } else if (pred == CmpInst::FCMP_UNO) {
-            expr = mExprBuilder->Or(
-                mExprBuilder->FIsNan(left),
-                mExprBuilder->FIsNan(right)
-            );
-        } else {
-            llvm_unreachable("Invalid FCmp predicate");
-        }
+        llvm_unreachable("Invalid FCmp predicate");
     }
 
     return mExprBuilder->Eq(fcmpVar->getRefExpr(), expr);

@@ -29,6 +29,8 @@ protected:
         switch (type->getTypeID()) {
             case Type::BoolTypeID:
                 return mContext.bool_sort();
+            case Type::MathIntTypeID:
+                return mContext.int_sort();
             case Type::IntTypeID: {
                 auto intTy = llvm::cast<IntType>(type);
                 return mContext.bv_sort(intTy->getWidth());
@@ -84,6 +86,9 @@ protected:
         } else if (expr->getType().isBoolType()) {
             auto value = llvm::dyn_cast<BoolLiteralExpr>(&*expr)->getValue();
             return mContext.bool_val(value);
+        } else if (expr->getType().isMathIntType()) {
+            auto value = llvm::dyn_cast<MathIntLiteralExpr>(&*expr)->getValue();
+            return mContext.int_val(value);    
         } else if (expr->getType().isFloatType()) {
             auto fltTy = llvm::dyn_cast<FloatType>(&expr->getType());
             auto value = llvm::dyn_cast<FloatLiteralExpr>(&*expr)->getValue();
@@ -124,7 +129,6 @@ protected:
         return z3::sext(visit(expr->getOperand()), expr->getWidthDiff());
     }
     virtual z3::expr visitExtract(const std::shared_ptr<ExtractExpr>& expr) override {
-        // TODO: This is little endian
         unsigned hi = expr->getOffset() + expr->getWidth() - 1;
         unsigned lo = expr->getOffset();
 
@@ -393,6 +397,11 @@ void Z3Solver::addConstraint(ExprPtr expr)
     mSolver.add(z3Expr);
 }
 
+void Z3Solver::dump(llvm::raw_ostream& os)
+{
+    os << Z3_solver_to_string(mContext, mSolver);    
+}
+
 void CachingZ3Solver::addConstraint(ExprPtr expr)
 {
     CachingZ3ExprTransformer transformer(mContext, mTmpCount, mCache);
@@ -481,19 +490,30 @@ Valuation Z3Solver::getModel()
         } else if (z3Expr.get_sort().sort_kind() == Z3_sort_kind::Z3_FLOATING_POINT_SORT) {
             z3::sort sort = z3Expr.get_sort();
             FloatType::FloatPrecision precision = precFromSort(mContext, sort);
-
-            auto toIEEE = z3::expr(mContext, Z3_mk_fpa_to_ieee_bv(mContext, z3Expr));
-            auto ieeeVal = model.eval(toIEEE);
-
-            unsigned long long bits;
-            Z3_get_numeral_uint64(mContext,  ieeeVal, &bits);
-
             auto& fltTy = *FloatType::get(precision);
-            llvm::APInt bv(fltTy.getWidth(), bits);
 
-            llvm::APFloat apflt(fltTy.getLLVMSemantics(), bv);
+            bool isNaN = z3::eq(
+                model.eval(z3::expr(mContext, Z3_mk_fpa_is_nan(mContext, z3Expr))),
+                mContext.bool_val(true)
+            );
 
-            expr = FloatLiteralExpr::get(fltTy, apflt);
+            if (isNaN) {
+                expr = FloatLiteralExpr::get(fltTy, llvm::APFloat::getNaN(
+                    fltTy.getLLVMSemantics()
+                ));
+            } else {
+                auto toIEEE = z3::expr(mContext, Z3_mk_fpa_to_ieee_bv(mContext, z3Expr));
+                auto ieeeVal = model.eval(toIEEE);
+
+                unsigned long long bits;
+                Z3_get_numeral_uint64(mContext,  ieeeVal, &bits);
+
+                llvm::APInt bv(fltTy.getWidth(), bits);
+                llvm::APFloat apflt(fltTy.getLLVMSemantics(), bv);
+
+                expr = FloatLiteralExpr::get(fltTy, apflt);
+            }
+
         } else {
             assert(false && "Unhandled Z3 expression type.");
         }

@@ -24,18 +24,26 @@ public:
 
     bool runOnModule(Module& module) override
     {
+        LLVMContext& context = module.getContext();
+       
         auto mark = module.getOrInsertFunction(
             "gazer.function.entry",
-            llvm::Type::getVoidTy(module.getContext()),
-            llvm::Type::getMetadataTy(module.getContext())
+            llvm::Type::getVoidTy(context),
+            llvm::Type::getMetadataTy(context),
+            llvm::Type::getInt8Ty(context)
         );
         auto argMark = module.getOrInsertFunction(
             "gazer.function.arg",
-            llvm::Type::getVoidTy(module.getContext()),
-            llvm::Type::getMetadataTy(module.getContext())
+            llvm::Type::getVoidTy(context),
+            llvm::Type::getMetadataTy(context),
+            llvm::Type::getInt8Ty(context)
+        );
+        auto argEnd = module.getOrInsertFunction(
+            "gazer.function.arg_end",
+            llvm::Type::getVoidTy(context)
         );
 
-        IRBuilder<> builder(module.getContext());
+        IRBuilder<> builder(context);
         for (Function& function : module) {
             if (function.isDeclaration()) {
                 continue;
@@ -47,18 +55,18 @@ public:
             if (dsp) {
                 builder.SetInsertPoint(&entry, entry.getFirstInsertionPt());
                 builder.CreateCall(mark, {
-                    MetadataAsValue::get(module.getContext(), dsp)
+                    MetadataAsValue::get(context, dsp),
+                    builder.getInt8(function.arg_size())
                 });
 
+                size_t argCnt = 0;
                 for (llvm::Argument& argument : function.args()) {
-                    llvm::errs() << "Found argument\n";
                     builder.CreateCall(argMark, {
-                        MetadataAsValue::get(
-                            module.getContext(),
-                            ValueAsMetadata::get(&argument)
-                        )
+                        MetadataAsValue::get(context, ValueAsMetadata::get(&argument)),
+                        builder.getInt8(argCnt++)
                     });
                 }
+                builder.CreateCall(argEnd);
             } else {
                 llvm::errs()
                     << "Cannot insert function entry marks: "

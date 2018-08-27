@@ -56,9 +56,9 @@ public:
         addConstraint(expr);
     }
 
-    void dump(std::ostream& os);
     unsigned getNumConstraints() const { return mStatCount; }
 
+    virtual void dump(llvm::raw_ostream& os) = 0;
     virtual SolverStatus run() = 0;
     virtual Valuation getModel() = 0;
 

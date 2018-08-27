@@ -144,7 +144,18 @@ public:
         return OrExpr::Create(newOps.begin(), newOps.end());
     }
 
-    ExprPtr Xor(const ExprPtr& left, const ExprPtr& right) override {
+    ExprPtr Xor(const ExprPtr& left, const ExprPtr& right) override
+    {
+        if (left == BoolLiteralExpr::getTrue()) {
+            return this->Not(right);
+        } else if (right == BoolLiteralExpr::getFalse()) {
+            return this->Not(left);
+        } else if (left == BoolLiteralExpr::getFalse()) {
+            return right;
+        } else if (right == BoolLiteralExpr::getFalse()) {
+            return left;
+        }
+
         return XorExpr::Create(left, right);
     }
 

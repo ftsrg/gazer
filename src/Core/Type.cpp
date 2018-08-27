@@ -52,6 +52,8 @@ std::string Type::getName() const
             auto intType = llvm::cast<IntType>(this);
             return "Int" + std::to_string(intType->getWidth());
         }
+        case MathIntTypeID:
+            return "MathInt";
         case FloatTypeID: {
             auto fltTy = llvm::cast<FloatType>(this);
             return "Float" + std::to_string(fltTy->getWidth());

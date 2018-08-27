@@ -53,6 +53,28 @@ private:
     bool mValue;
 };
 
+class MathIntLiteralExpr final : public LiteralExpr
+{
+private:
+    MathIntLiteralExpr(const MathIntType& type, long long int value)
+        : LiteralExpr(type), mValue(value)
+    {}
+
+public:
+    virtual void print(llvm::raw_ostream& os) const override;
+    long long int getValue() const { return mValue; }
+
+    static bool classof(const Expr* expr) {
+        return expr->getKind() == Literal && expr->getType().isMathIntType();
+    }
+
+    static bool classof(const Expr& expr) {
+        return expr.getKind() == Literal && expr.getType().isMathIntType();
+    }
+private:
+    long long int mValue;
+};
+
 class IntLiteralExpr final : public LiteralExpr
 {
 private:

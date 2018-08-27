@@ -27,6 +27,7 @@ public:
     {
         // Primitive types
         BoolTypeID = 0,
+        MathIntTypeID,
         IntTypeID,
         FloatTypeID,
 
@@ -60,6 +61,7 @@ public:
     }
 
     bool isBoolType() const { return getTypeID() == BoolTypeID; }
+    bool isMathIntType() const { return getTypeID() == MathIntTypeID; }
     bool isIntType() const { return getTypeID() == IntTypeID; }
     bool isFloatType() const { return getTypeID() == FloatTypeID; }
 
@@ -113,6 +115,24 @@ public:
 
     static bool classof(const Type* type) {
         return type->getTypeID() == BoolTypeID;
+    }
+};
+
+class MathIntType final : public Type
+{
+protected:
+    MathIntType()
+        : Type(MathIntTypeID)
+    {}
+
+public:
+    static MathIntType* get() {
+        static MathIntType instance;
+        return &instance;
+    }
+
+    static bool classof(const Type* type) {
+        return type->getTypeID() == MathIntTypeID;
     }
 };
 

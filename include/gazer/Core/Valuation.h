@@ -9,6 +9,9 @@
 namespace gazer
 {
 
+/**
+ * Represents a simple mapping between variables and literal expressions.
+ */
 class Valuation
 {
     using ValuationMapT = llvm::DenseMap<Variable*, std::shared_ptr<LiteralExpr>>;
@@ -30,14 +33,20 @@ public:
     };
 
     static Builder CreateBuilder() { return Builder(); }
+
 private:
     Valuation(ValuationMapT map)
         : mMap(map)
     {}
-
+public:
+    Valuation(const Valuation&) = default;
+    Valuation& operator=(const Valuation&) = default;
 public:
     std::shared_ptr<LiteralExpr> eval(const ExprPtr& expr);
     std::shared_ptr<LiteralExpr> operator[](const Variable& variable);
+    std::shared_ptr<LiteralExpr> operator[](const Variable* variable) {
+        return operator[](*variable);
+    }
     
     using iterator = ValuationMapT::iterator;
     using const_iterator = ValuationMapT::const_iterator;
@@ -55,6 +64,7 @@ public:
 private:
     ValuationMapT mMap;
 };
+
 }
 
 #endif

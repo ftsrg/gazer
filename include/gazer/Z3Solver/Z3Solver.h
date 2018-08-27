@@ -16,6 +16,7 @@ public:
         : Solver(symbols), mContext(), mSolver(mContext)
     {}
 
+    virtual void dump(llvm::raw_ostream& os) override;
     virtual SolverStatus run() override;
     virtual Valuation getModel() override;
 

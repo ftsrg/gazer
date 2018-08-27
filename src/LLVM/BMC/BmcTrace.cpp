@@ -7,18 +7,19 @@
 using namespace gazer;
 using namespace llvm;
 
-void BmcTrace::AssignmentEvent::write(BmcTraceWriter& writer)
-{
+void BmcTrace::AssignmentEvent::write(BmcTraceWriter& writer) {
     writer.writeEvent(*this);
 }
 
-void BmcTrace::FunctionEntryEvent::write(BmcTraceWriter& writer)
-{
+void BmcTrace::FunctionEntryEvent::write(BmcTraceWriter& writer) {
     writer.writeEvent(*this);
 }
 
-void BmcTrace::FunctionCallEvent::write(BmcTraceWriter& writer)
-{
+void BmcTrace::ArgumentValueEvent::write(BmcTraceWriter& writer) {
+    writer.writeEvent(*this);
+}
+
+void BmcTrace::FunctionCallEvent::write(BmcTraceWriter& writer) {
     writer.writeEvent(*this);
 }
 
@@ -67,6 +68,12 @@ public:
     void writeEvent(BmcTrace::FunctionEntryEvent& event) override {
         mOS << "#" << (mFuncEntries++)
             << " in function " << event.getFunctionName() << ":\n";
+    }
+
+    void writeEvent(BmcTrace::ArgumentValueEvent& event) override {
+        //mOS << "  " << "argument "
+        //event.getValue()->print(mOS);
+        //mOS << "\n";
     }
 
     void writeEvent(BmcTrace::FunctionCallEvent& event) override {
@@ -247,6 +254,16 @@ std::unique_ptr<BmcTrace> BmcTrace::Create(
                 assigns.push_back(std::make_unique<BmcTrace::FunctionEntryEvent>(
                     diSP->getName()
                 ));
+            } else if (callee->getName() == "gazer.function.arg") {
+                //auto md = cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata();
+                //auto value = cast<ValueAsMetadata>(md)->getValue();
+
+                //auto variable = valueMap.find(value)->second;
+                //auto expr = model.find(variable)->second;
+
+                //assigns.push_back(std::make_unique<BmcTrace::ArgumentValueEvent>(
+                //    "", expr
+                //));
             } else if (callee->isDeclaration() && !call->getType()->isVoidTy()) {
                 // This a function call to a nondetermistic function.
                 auto varIt = valueMap.find(call);
