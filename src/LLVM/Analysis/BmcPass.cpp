@@ -2,6 +2,7 @@
 #include "gazer/LLVM/Analysis/TopologicalSort.h"
 #include "gazer/LLVM/BMC/BmcTrace.h"
 #include "gazer/Z3Solver/Z3Solver.h"
+#include "gazer/LLVM/Instrumentation/Check.h"
 
 #include "gazer/LLVM/BMC/BMC.h"
 #include "gazer/LLVM/TestGenerator/TestGenerator.h"
@@ -69,7 +70,12 @@ bool BmcPass::runOnFunction(llvm::Function& function)
     llvm::outs() << "\n";
 
     if (result.isUnsafe()) {
-        llvm::outs() << "Assertion failure found.\n";
+        unsigned ec = *(result.getErrorType());
+        std::string msg = CheckRegistry::GetInstance().messageForCode(ec);
+
+        llvm::outs() << "Verification FAILED: " << msg;
+        llvm::outs() << ".\n";
+
         if (PrintTrace) {
             auto writer = bmc::CreateTextTraceWriter(llvm::outs());
             llvm::outs() << "Error trace:\n";

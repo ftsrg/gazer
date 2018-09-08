@@ -43,8 +43,8 @@ public:
     Valuation& operator=(const Valuation&) = default;
 public:
     std::shared_ptr<LiteralExpr> eval(const ExprPtr& expr);
-    std::shared_ptr<LiteralExpr> operator[](const Variable& variable);
-    std::shared_ptr<LiteralExpr> operator[](const Variable* variable) {
+    std::shared_ptr<LiteralExpr> operator[](const Variable& variable) const;
+    std::shared_ptr<LiteralExpr> operator[](const Variable* variable) const {
         return operator[](*variable);
     }
     

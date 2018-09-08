@@ -96,10 +96,53 @@ llvm::Pass* gazer::createBoundedUnwindPass(unsigned bound) {
 }
 
 
-static void UnwindLoop(int bound, Loop* loop, DominatorTree& dt)
+static void UnwindLoop(unsigned bound, Loop* loop, DominatorTree& dt)
 {
     BasicBlock* preheader = loop->getLoopPreheader();
+    BasicBlock* header = loop->getHeader();
     BasicBlock* latch = loop->getLoopLatch();
+
+    for (int cnt = 0; cnt != bound; ++cnt) {
+        llvm::SmallDenseMap<BasicBlock*, BasicBlock*, 4> newBlocks;
+        llvm::SmallDenseMap<BasicBlock*, ValueToValueMapTy*, 4> valueMaps;
+
+        for (auto bb : loop->blocks()) {
+            ValueToValueMapTy* vmap = new ValueToValueMapTy();
+            BasicBlock* clonedBB = CloneBasicBlock(bb, *vmap, "." + Twine(cnt));
+            header->getParent()->getBasicBlockList().push_back(clonedBB);
+
+            newBlocks[bb] = clonedBB;
+            valueMaps[bb] = vmap;
+        }
+
+        for (auto pair : newBlocks) {
+            BasicBlock* orig = pair.first;
+            BasicBlock* clone = pair.second;
+            
+            // Fix the terminators and SSA nodes for successors
+            llvm::TerminatorInst* terminator = clone->getTerminator();
+            for (size_t i = 0; i < terminator->getNumSuccessors(); ++i) {
+                BasicBlock* succ = terminator->getSuccessor(i);
+
+                auto result = newBlocks.find(succ);
+                if (result == newBlocks.end()) { // This one is outside the loop
+                    continue;
+                }
+
+                BasicBlock* newSucc = result->second;
+                terminator->setSuccessor(i, newSucc);
+
+                for (auto it = newSucc->begin(); isa<PHINode>(it); ++it) {
+                    auto phi = cast<PHINode>(it);
+                    // The PHI node still points to the original block
+                    int idx = phi->getBasicBlockIndex(orig);
+                    assert(idx != -1 &&
+                        "The original block should be present in PHINode");
+                    phi->setIncomingBlock(idx, clone);
+                }
+            }
+        }
+    }
 }
 
 char BoundedUnwindPass::ID = 0;
@@ -129,6 +172,8 @@ bool BoundedUnwindPass::runOnFunction(Function& function)
         //loop->print(errs(), 0, false);
         //UnwindLoop(loop, mBound, &loopInfo);
 
+        // TODO: This algorithm fails if the loop is not terminated
+        // by a conditional branch.
         auto result = UnrollLoop(
             loop, mBound, mBound,
             true, true, true, true, false,

@@ -4,6 +4,7 @@
 #include "gazer/LLVM/Transform/Passes.h"
 #include "gazer/LLVM/Analysis/ProgramDependence.h"
 #include "gazer/LLVM/Analysis/TopologicalSort.h"
+#include "gazer/LLVM/Instrumentation/Check.h"
 
 #include "gazer/LLVM/InstrumentationPasses.h"
 
@@ -103,6 +104,12 @@ int main(int argc, char* argv[])
         pm->add(llvm::createCFGSimplificationPass());
         pm->add(llvm::createStructurizeCFGPass());
     }
+
+    // Perform error instrumentation
+    auto& checks = CheckRegistry::GetInstance();
+    checks.add(checks::CreateAssertionFailCheck());
+    checks.add(checks::CreateDivisionByZeroCheck());
+    checks.registerPasses(*pm);
 
     if (RunBmc) {
         pm->add(llvm::createCFGSimplificationPass());

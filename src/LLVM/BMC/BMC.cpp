@@ -25,8 +25,7 @@ cl::opt<bool> DumpSolverFormula("dump-solver-formula",
 
 static bool isErrorFunctionName(llvm::StringRef name)
 {
-    return name == "__VERIFIER_error" || name == "__assert_fail"
-        || name == "__gazer_error";
+    return name == "gazer.error_code";
 }
 
 static bool isErrorBlock(const BasicBlock* bb)
@@ -295,8 +294,11 @@ BmcResult BoundedModelChecker::run()
     ProgramEncodeMapT result = this->encode();
 
     for (auto& entry : result) {
+        llvm::BasicBlock* errorBlock = entry.first;
+        ExprPtr formula = entry.second;
+
         mOS << "Checking for error block '";
-        entry.first->printAsOperand(mOS);
+        errorBlock->printAsOperand(mOS);
         mOS << "'\n";
 
         std::unique_ptr<Solver> solver = mSolverFactory.createSolver(mSymbols);
@@ -304,12 +306,12 @@ BmcResult BoundedModelChecker::run()
         mOS << "   Transforming formula.\n";
 
         try {
-            //entry.second->print(mOS);
+            //formula->print(mOS);
             if (DumpFormula) {
-                FormatPrintExpr(entry.second, mOS);
+                FormatPrintExpr(formula, mOS);
                 mOS << "\n";
             }
-            solver->add(entry.second);
+            solver->add(formula);
 
             if (DumpSolverFormula) {
                 solver->dump(mOS);
@@ -328,11 +330,44 @@ BmcResult BoundedModelChecker::run()
                     mTopo,
                     blocks,
                     preds,
-                    entry.first,
+                    errorBlock,
                     model,
                     mIr2Expr.getVariableMap()
                 );
-                return BmcResult::CreateUnsafe(std::move(trace));
+
+                // Find the error code
+                bool foundEC = false;
+                unsigned ec;
+                for (llvm::Instruction& inst : *errorBlock) {
+                    if (auto call = dyn_cast<CallInst>(&inst)) {
+                        auto callee = call->getCalledFunction();
+                        assert(callee
+                            && "Indirect calls are not allowed in error blocks.");
+                        if (callee->getName() == "gazer.error_code") {
+                            foundEC = true;
+                            auto codeVal = call->getArgOperand(0);
+                            if (auto ci = dyn_cast<ConstantInt>(codeVal)) {
+                                ec = ci->getLimitedValue();
+                            } else {
+                                // It should be in a variable, retrieve it from the model
+                                auto ecVar = mIr2Expr.getVariableMap().find(codeVal);
+                                assert(ecVar != mIr2Expr.getVariableMap().end());
+                                
+                                auto ecExpr = model[ecVar->second];
+
+                                ec = (cast<IntLiteralExpr>(ecExpr.get()))
+                                    ->getValue()
+                                    .getLimitedValue();
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                assert(foundEC
+                    && "Error code intrinsic should be available");
+
+                return BmcResult::CreateUnsafe(ec, std::move(trace));
             } else if (status == Solver::UNSAT) {
                 mOS << "   Formula is UNSAT\n";
             } else {

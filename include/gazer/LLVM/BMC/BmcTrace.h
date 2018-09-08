@@ -202,6 +202,7 @@ public:
     }
 
 private:
+    unsigned mErrorCode;
     std::vector<std::unique_ptr<BmcTrace::Event>> mEvents;
     std::vector<llvm::BasicBlock*> mBlocks;
 };

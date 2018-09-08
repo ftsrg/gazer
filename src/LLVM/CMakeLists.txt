@@ -9,6 +9,7 @@ set(SOURCE_FILES
     Transform/CombineErrorCalls.cpp
     Instrumentation/MarkFunctionEntries.cpp
     Instrumentation/InsertLastAddress.cpp
+    Instrumentation/Check.cpp
     BMC/BmcTrace.cpp
     BMC/Ir2Expr.cpp
     BMC/BMC.cpp
