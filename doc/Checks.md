@@ -32,7 +32,7 @@ pm->run(module);
 
 ### Writing custom checks
 
-By implementation, checks are just LLVM passes with special additions for traceability support. To write your own check, create a new subclass deriving from `Check`:
+By implementation, checks are just [LLVM passes](http://llvm.org/docs/WritingAnLLVMPass.html#introduction-what-is-a-pass) with special additions for traceability support. To write your own check, create a new subclass deriving from `Check`:
 
 ```cpp
 class DivisionByZeroCheck : public gazer::Check
@@ -45,11 +45,13 @@ public:
     {}
 
     virtual bool mark(llvm::Function&) override;
-    virtual std::string getErrorName() const override;
+    virtual llvm::StringRef getCheckName() const override;
+    virtual llvm::StringRef getErrorDescription() const override;
 };
 ```
 
-The virtual function `mark()` is used to insert the error calls, while `getErrorName()` should return a short, user-friendly error message if the check is violated (such as "Assertion failure", "Division by zero", etc.).
+The virtual function `mark` is used to insert the error calls into a function, while `getErrorDescription` should return a short, user-friendly error message if the check is violated (such as "Assertion failure", "Division by zero", etc.).
+The function `getCheckName` is used to identify checks through the command line.
 
 Error calls are represented with Gazer's `gazer.error_code` function.
 It requires a single operand, which is an error code unique for the given check.
@@ -60,13 +62,16 @@ llvm::LLVMContext& context = function.getContext();
 llvm::Value* ec = CheckRegistry::GetInstance().getErrorCodeValue(context, ID);
 ```
 
-With the error call, you can implement your check and place your error calls.
+With the error code, you can implement your check and place the preconditions and error calls.
 
 ```cpp
 char DivisionByZeroCheck::ID;
 
-std::string DivisionByZeroCheck::getErrorName() const {
-    return "Division by zero";
+llvm::StringRef DivisionByZeroCheck::getCheckName() const {
+    return "div-by-zero";
+}
+llvm::StringRef DivisionByZeroCheck::getErrorDescription() const {
+    return "Divison by zero";
 }
 
 bool DivisionByZeroCheck::mark(llvm::Function& function)

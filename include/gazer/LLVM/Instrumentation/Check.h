@@ -32,11 +32,18 @@ public:
     virtual bool runOnModule(llvm::Module& module) final;
 
     /**
+     * Returns this check's name. Names should be descriptive,
+     * but must not contain whitespaces,
+     * e.g.: "assert-fail", "div-by-zero", "int-overflow"
+     */
+    virtual llvm::StringRef getCheckName() const = 0;
+
+    /**
      * Returns a user-friendly error description on why this particular
      * check failed. Such descriptions should be short and simple, e.g.
      * "Assertion failure", "Division by zero", or "Integer overflow".
      */
-    virtual std::string getErrorName() const = 0;
+    virtual llvm::StringRef getErrorDescription() const = 0;
 
     /**
      * Marks the given function's instructions with required
@@ -54,37 +61,28 @@ protected:
 
 private:
     unsigned mErrorCode = 0;
-    //llvm::DenseMap<llvm::Instruction*, llvm::Value*> mPreConditions;
-    //llvm::DenseMap<llvm::Instruction*, llvm::Value*> mPostConditions;
 };
 
 class CheckRegistry
 {
-public:
-    void add(Check* check);
-    void registerPasses(llvm::legacy::PassManager& pm);
+    CheckRegistry() = default;
 
+    CheckRegistry(const CheckRegistry&) = delete;
+    CheckRegistry& operator=(const CheckRegistry&) = delete;
+public:
     static llvm::Constant* GetErrorFunction(llvm::Module& module);
     static llvm::Constant* GetErrorFunction(llvm::Module* module) {
         return GetErrorFunction(*module);
     }
 
     static llvm::FunctionType* GetErrorFunctionType(llvm::LLVMContext& context);
+    static CheckRegistry& GetInstance() { return Instance; }
 
-    static CheckRegistry& GetInstance() {
-        return Instance;
-    }
+public:
+    void add(Check* check);
+    void registerPasses(llvm::legacy::PassManager& pm);
 
-    unsigned getErrorCode(char& id)
-    {
-        const void* idPtr = static_cast<const void*>(&id);
-        auto result = mErrorCodes.find(idPtr);
-        
-        assert(result != mErrorCodes.end()
-            && "Attempting to get code for an unregistered check type");
-
-        return result->second;
-    }
+    unsigned getErrorCode(char& id);
 
     llvm::Value* getErrorCodeValue(llvm::LLVMContext& context, char& id)
     {
@@ -113,20 +111,12 @@ private:
     std::vector<Check*> mChecks;
     llvm::DenseMap<const void*, unsigned> mErrorCodes;
     llvm::DenseMap<unsigned, Check*> mCheckMap;
+    llvm::StringMap<Check*> mCheckNames;
 
     // Start with 1, zero stands for unknown errors.
     unsigned mErrorCodeCnt = 1;
 
     static CheckRegistry Instance;
 };
-
-namespace checks
-{
-
-Check* CreateAssertionFailCheck();
-Check* CreateDivisionByZeroCheck();
-Check* CreateIntegerOverflowCheck();
-
-} // end namespace checks
 
 } // end namespace gazer

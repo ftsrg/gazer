@@ -10,6 +10,7 @@ set(SOURCE_FILES
     Instrumentation/MarkFunctionEntries.cpp
     Instrumentation/InsertLastAddress.cpp
     Instrumentation/Check.cpp
+    Instrumentation/DefaultChecks.cpp
     BMC/BmcTrace.cpp
     BMC/Ir2Expr.cpp
     BMC/BMC.cpp

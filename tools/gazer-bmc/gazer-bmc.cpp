@@ -4,7 +4,7 @@
 #include "gazer/LLVM/Transform/Passes.h"
 #include "gazer/LLVM/Analysis/ProgramDependence.h"
 #include "gazer/LLVM/Analysis/TopologicalSort.h"
-#include "gazer/LLVM/Instrumentation/Check.h"
+#include "gazer/LLVM/Instrumentation/DefaultChecks.h"
 
 #include "gazer/LLVM/InstrumentationPasses.h"
 
