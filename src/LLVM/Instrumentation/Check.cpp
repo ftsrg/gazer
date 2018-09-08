@@ -188,25 +188,26 @@ public:
             return false;
         }
 
-        BasicBlock* errorBB = this->createErrorBlock(
-            function,
-            CheckRegistry::GetInstance().getErrorCodeValue(context, ID),
-            "error.divzero"
-        );
-
+        unsigned divCnt = 0;
         IRBuilder<> builder(context);
         for (llvm::Instruction* inst : divs) {
+            BasicBlock* errorBB = this->createErrorBlock(
+                function,
+                CheckRegistry::GetInstance().getErrorCodeValue(context, ID),
+                "error.divzero" + std::to_string(divCnt++)
+            );
+
             BasicBlock* bb = inst->getParent();
             llvm::Value* rhs = inst->getOperand(1);
 
-            builder.SetInsertPoint(bb);
+            builder.SetInsertPoint(inst);
             auto icmp = builder.CreateICmpNE(
                 rhs, builder.getInt(llvm::APInt(
                     rhs->getType()->getIntegerBitWidth(), 0
                 ))
             );
 
-            BasicBlock* newBB = inst->getParent()->splitBasicBlock(inst);
+            BasicBlock* newBB = bb->splitBasicBlock(inst);
             builder.ClearInsertionPoint();
             llvm::ReplaceInstWithInst(
                 bb->getTerminator(),
