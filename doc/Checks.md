@@ -62,7 +62,7 @@ llvm::LLVMContext& context = function.getContext();
 llvm::Value* ec = CheckRegistry::GetInstance().getErrorCodeValue(context, ID);
 ```
 
-With the error code, you can implement your check and place the preconditions and error calls.
+With the error code, you can implement your check and place the pre- or postconditions and error calls.
 
 ```cpp
 char DivisionByZeroCheck::ID;
@@ -84,9 +84,7 @@ bool DivisionByZeroCheck::mark(llvm::Function& function)
         return false;
     }
 
-    // Retrieve the error code.
     llvm::LLVMContext& context = function.getContext();
-    llvm::Value* ec = CheckRegistry::GetInstance().getErrorCodeValue(context, ID);
 
     // Create a builder for inserting the preconditions.
     llvm::IRBuilder<> builder(context);
@@ -113,7 +111,7 @@ bool DivisionByZeroCheck::mark(llvm::Function& function)
             ))
         );
 
-        // Split the basic block to insert the precondition check.
+        // Split the basic block to insert a jump based on the precondition check.
         // If the check is successful, control will jump to the division instruction.
         // If not, it jumps to the error call.
         llvm::BasicBlock* newBB = bb->splitBasicBlock(inst);
