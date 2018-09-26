@@ -120,9 +120,10 @@ int main(int argc, char* argv[])
         pm->add(llvm::createLoopSimplifyPass());
         
         pm->add(new llvm::DominatorTreeWrapperPass());
-        //pm->add(new llvm::LoopInfoWrapperPass());
-        //pm->add(new llvm::ScalarEvolutionWrapperPass());
-        //pm->add(new llvm::AssumptionCacheTracker());
+        pm->add(new llvm::LoopInfoWrapperPass());
+        pm->add(new llvm::ScalarEvolutionWrapperPass());
+        pm->add(new llvm::AssumptionCacheTracker());
+        
         pm->add(new gazer::BoundedUnwindPass(bound));
         pm->add(llvm::createInstructionNamerPass());
 

@@ -40,7 +40,7 @@ public:
                     auto call = llvm::dyn_cast<llvm::CallInst>(&*it);
                     llvm::Function* callee = call->getCalledFunction();
 
-                    // Replace error calls with an uncondiitonal jump
+                    // Replace error calls with an unconditional jump
                     // to an error block
                     if (isErrorFunctionName(callee->getName())) {
                         BasicBlock* errorBB = this->createErrorBlock(

@@ -10,6 +10,7 @@
 #include <llvm/Transforms/Utils/LoopUtils.h>
 #include <llvm/Analysis/LoopPass.h>
 #include <llvm/Analysis/LoopIterator.h>
+#include <llvm/Transforms/Utils/ValueMapper.h>
 
 #include <vector>
 
@@ -80,7 +81,6 @@ struct RemoveInfiniteLoopsPass final : public FunctionPass
 
         return changed;
     }
-
 };
 
 }
@@ -95,54 +95,178 @@ llvm::Pass* gazer::createBoundedUnwindPass(unsigned bound) {
     return new BoundedUnwindPass(bound);
 }
 
-
-static void UnwindLoop(unsigned bound, Loop* loop, DominatorTree& dt)
+static bool UnwindLoop(unsigned bound, Loop* loop, LoopInfo* loopInfo, BasicBlock* unreachable)
 {
+    // Get some basic info about the loop
     BasicBlock* preheader = loop->getLoopPreheader();
     BasicBlock* header = loop->getHeader();
     BasicBlock* latch = loop->getLoopLatch();
 
-    for (int cnt = 0; cnt != bound; ++cnt) {
+    if (!preheader) {
+        llvm::errs() << "Won't unrool loop: preheader-insertion failed.\n";
+        return false;
+    }
+
+    if (!latch) {
+        llvm::errs() << "Won't unroll loop: loop exit-block-insertion failed.\n";
+        return false;
+    }
+
+    BasicBlock* lastLatch = latch;
+
+    llvm::SmallDenseMap<BasicBlock*, Value*, 4> newLatches;
+
+    std::vector<BasicBlock*> latches;
+    std::vector<BasicBlock*> headers;
+
+    latches.push_back(latch);
+    headers.push_back(header);
+
+    // LastVmap holds the values we should use for updating the PHI nodes.
+    ValueToValueMapTy lastVmap;
+    std::vector<PHINode*> headerPhis;
+    for (PHINode& phi : header->phis()) {
+        headerPhis.push_back(&phi);
+    }
+
+    LoopBlocksDFS dfs(loop);
+    dfs.perform(loopInfo);
+
+    auto blockBegin = dfs.beginRPO();
+    auto blockEnd = dfs.endRPO();
+
+    for (int cnt = 1; cnt <= bound; ++cnt) {
+        llvm::errs() << "Unrolling cnt " << cnt << "\n";
         llvm::SmallDenseMap<BasicBlock*, BasicBlock*, 4> newBlocks;
         llvm::SmallDenseMap<BasicBlock*, ValueToValueMapTy*, 4> valueMaps;
 
-        for (auto bb : loop->blocks()) {
-            ValueToValueMapTy* vmap = new ValueToValueMapTy();
-            BasicBlock* clonedBB = CloneBasicBlock(bb, *vmap, "." + Twine(cnt));
+        for (auto bb = blockBegin; bb != blockEnd; ++bb) {
+            ValueToValueMapTy vmap;
+            BasicBlock* clonedBB = CloneBasicBlock(*bb, vmap, "." + Twine(cnt));
             header->getParent()->getBasicBlockList().push_back(clonedBB);
 
-            newBlocks[bb] = clonedBB;
-            valueMaps[bb] = vmap;
-        }
+            if (*bb == header) {
+                headers.push_back(clonedBB);
+            }
+            if (*bb == latch) {
+                latches.push_back(clonedBB);
+            }
 
-        for (auto pair : newBlocks) {
-            BasicBlock* orig = pair.first;
-            BasicBlock* clone = pair.second;
-            
-            // Fix the terminators and SSA nodes for successors
-            llvm::TerminatorInst* terminator = clone->getTerminator();
-            for (size_t i = 0; i < terminator->getNumSuccessors(); ++i) {
-                BasicBlock* succ = terminator->getSuccessor(i);
+            newBlocks[*bb] = clonedBB;
+            //vmap[*bb] = clonedBB;
 
-                auto result = newBlocks.find(succ);
-                if (result == newBlocks.end()) { // This one is outside the loop
+            if (*bb == header) {
+                for (PHINode* phi : headerPhis) {
+                    PHINode* newPhi = cast<PHINode>(vmap[phi]);
+                    Value* incoming = newPhi->getIncomingValueForBlock(latch);
+                    if (auto inst = dyn_cast<Instruction>(incoming)) {
+                        if (cnt > 1 && loop->contains(inst)) {
+                            incoming = lastVmap[inst];
+                        }
+                    }
+                    vmap[phi] = incoming;
+                    clonedBB->getInstList().erase(newPhi);
+                }
+            }
+
+            // Update the last values map
+            lastVmap[*bb] = clonedBB;
+            for (auto vi = vmap.begin(), ve = vmap.end(); vi != ve; ++vi) {
+                lastVmap[vi->first] = vi->second;
+            }
+
+            // Fix the PHI nodes for the exit blocks
+            for (BasicBlock* succ : llvm::successors(*bb)) {
+                if (loop->contains(succ)) {
                     continue;
                 }
 
-                BasicBlock* newSucc = result->second;
-                terminator->setSuccessor(i, newSucc);
+                for (PHINode& phi : succ->phis()) {
+                    Value* incoming = phi.getIncomingValueForBlock(*bb);
+                    auto result = lastVmap.find(incoming);
+                    if (result != lastVmap.end()) {
+                        incoming = result->second;
+                    }
 
-                for (auto it = newSucc->begin(); isa<PHINode>(it); ++it) {
-                    auto phi = cast<PHINode>(it);
-                    // The PHI node still points to the original block
-                    int idx = phi->getBasicBlockIndex(orig);
-                    assert(idx != -1 &&
-                        "The original block should be present in PHINode");
-                    phi->setIncomingBlock(idx, clone);
+                    phi.addIncoming(incoming, clonedBB);
                 }
             }
         }
+
+        for (auto pair : newBlocks) {
+            BasicBlock* clone = pair.second;
+            for (auto& inst : *clone) {
+                llvm::RemapInstruction(&inst, lastVmap, RF_IgnoreMissingLocals);
+            }
+        }
     }
+
+    // Clone one last loop header to mark the unrolling end
+    //ValueToValueMapTy lastHeaderMap;
+    //BasicBlock* lastHeader = CloneBasicBlock(header, lastHeaderMap, "last");
+    //header->getParent()->getBasicBlockList().push_back(lastHeader);
+    //headers.push_back(lastHeader);
+
+    // for (BasicBlock* succ : successors(header)) {
+    //     if (loop->contains(succ)) {
+    //         lastHeaderMap[succ] = unreachable;
+    //     }
+    // }
+
+    // for (auto& inst : *lastHeader) {
+    //     llvm::remapInstruction(&inst, lastHeaderMap);
+    // }
+
+    // Fix the preheader PHI nodes
+    for (PHINode* phi : headerPhis) {
+        phi->replaceAllUsesWith(phi->getIncomingValueForBlock(preheader));
+        phi->eraseFromParent();
+    }
+
+    // Rewire latch terminators into the headers
+    for (unsigned i = 0, e = latches.size(); i < e; ++i) {
+        BranchInst* terminator = dyn_cast<BranchInst>(latches[i]->getTerminator());
+
+        unsigned j = i + 1;
+        BasicBlock* dst;
+
+        if (i == e - 1) {
+            // If this latch is the last one, the destination
+            // is the unreachable block
+            dst = unreachable;
+        } else {
+            dst = headers[j];
+        }
+
+        if (terminator->isConditional()) {
+            unsigned k = 0;
+            while (k < terminator->getNumSuccessors()) {
+                if (terminator->getSuccessor(k) == headers[i]) {
+                    break;
+                }
+                ++k;
+            }
+
+            assert(k != terminator->getNumSuccessors()
+                && "Latches should have a branch to the header");
+
+            terminator->setSuccessor(k, dst);
+        } else {
+            BranchInst::Create(dst, terminator);
+            terminator->eraseFromParent();
+        }
+
+        // Fix the PHI nodes in the headers after rewiring
+        for (PHINode& phi : headers[i]->phis()) {
+            int idx = phi.getBasicBlockIndex(latches[i]);
+            assert(idx != -1
+                && "The header PHI should have an incoming value for a latch");
+            
+            phi.removeIncomingValue(idx);
+        }
+    }
+
+    return true;
 }
 
 char BoundedUnwindPass::ID = 0;
@@ -166,6 +290,9 @@ bool BoundedUnwindPass::runOnFunction(Function& function)
     errs() << "Unrolling loops for bound " << mBound << ".\n";
     LoopInfo& loopInfo = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
     llvm::SmallVector<Loop*, 4> loops(loopInfo.begin(), loopInfo.end());
+
+    IRBuilder<> builder(function.getContext());
+
     for (auto it = loops.begin(); it != loops.end(); ++it) {
         Loop* loop = *it;
         //errs() << "Loop unroll in ";
@@ -174,6 +301,7 @@ bool BoundedUnwindPass::runOnFunction(Function& function)
 
         // TODO: This algorithm fails if the loop is not terminated
         // by a conditional branch.
+        /*
         auto result = UnrollLoop(
             loop, mBound, mBound,
             true, true, true, true, false,
@@ -195,6 +323,24 @@ bool BoundedUnwindPass::runOnFunction(Function& function)
                 errs() << "FullyUnrolled";
                 break;
         }
+        */
+        
+        BasicBlock* unreachable = BasicBlock::Create(
+            function.getContext(),
+            loop->getName() + ".not_unrolled",
+            &function
+        );
+
+        builder.SetInsertPoint(unreachable);
+        builder.CreateUnreachable();        
+
+        llvm::errs() << "Unwind loop: " << *loop << "\n";   
+        UnwindLoop(
+            mBound,
+            loop,
+            &loopInfo,
+            unreachable
+        );
         errs() << "\n";
     }
 
