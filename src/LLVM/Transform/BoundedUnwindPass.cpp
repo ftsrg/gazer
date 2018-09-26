@@ -13,6 +13,7 @@
 #include <llvm/Transforms/Utils/ValueMapper.h>
 
 #include <vector>
+#include <queue>
 
 #define DEBUG_TYPE "bounded-unwind"
 
@@ -20,83 +21,24 @@ using namespace gazer;
 using namespace llvm;
 
 namespace llvm {
-    void initializeRemoveInfiniteLoopsPassPass(PassRegistry& registry);
     void initializeBoundedUnwindPassPass(PassRegistry& registry);
-}
-
-namespace
-{
-
-struct RemoveInfiniteLoopsPass final : public FunctionPass
-{
-    static char ID;
-
-    RemoveInfiniteLoopsPass()
-        : FunctionPass(ID)
-    {
-        initializeRemoveInfiniteLoopsPassPass(*llvm::PassRegistry::getPassRegistry());
-    }
-
-    virtual void getAnalysisUsage(AnalysisUsage& au) const
-    {
-        au.addRequired<LoopInfoWrapperPass>();
-    }
-
-    virtual bool runOnFunction(Function& function)
-    {
-        bool changed = false;
-
-        LoopInfo& li = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-        LLVMContext& context = function.getContext();
-
-        for (Loop* loop : li) {
-            BasicBlock* latch  = loop->getLoopLatch();
-            BranchInst* br = dyn_cast<BranchInst>(latch->getTerminator());
-
-            if (br->isUnconditional()) {
-                //LLVM_DEBUG(dbgs()
-                //    << "Adding conditional branch to latch for loop "
-                //    << *loop << "\n");
-
-                errs() << "Adding conditional branch to latch for loop " << *loop << "\n";
-                // We need to turn this unconditional branch into a conditional one
-                auto unreachable = 
-                    BasicBlock::Create(function.getContext(), Twine(loop->getName(), "unreachable"), &function);
-                BasicBlock* target = br->getSuccessor(0);
-                br->removeFromParent();
-
-                BranchInst* newBr = BranchInst::Create(
-                    target, unreachable,
-                    ConstantInt::getTrue(Type::getInt1Ty(context)),
-                    latch
-                );
-                br->replaceAllUsesWith(newBr);
-
-                br->dropAllReferences();
-                br->deleteValue();
-
-                changed = true;
-            }
-        }
-
-        return changed;
-    }
-};
-
-}
-
-char RemoveInfiniteLoopsPass::ID = 0;
-
-llvm::Pass* gazer::createRemoveInfiniteLoopsPass() {
-    return new RemoveInfiniteLoopsPass();
 }
 
 llvm::Pass* gazer::createBoundedUnwindPass(unsigned bound) {
     return new BoundedUnwindPass(bound);
 }
 
-static bool UnwindLoop(unsigned bound, Loop* loop, LoopInfo* loopInfo, BasicBlock* unreachable)
+using LoopQueueT = llvm::SmallVector<Loop*, 4>;
+
+static bool UnwindLoop(
+    unsigned bound,
+    Loop* loop,
+    BasicBlock* unreachable,
+    LoopInfo* loopInfo,
+    LoopQueueT& loopsToUnroll)
 {
+    //llvm::errs() << "Unwind loop: " << *loop << "\n";
+
     // Get some basic info about the loop
     BasicBlock* preheader = loop->getLoopPreheader();
     BasicBlock* header = loop->getHeader();
@@ -136,14 +78,26 @@ static bool UnwindLoop(unsigned bound, Loop* loop, LoopInfo* loopInfo, BasicBloc
     auto blockEnd = dfs.endRPO();
 
     for (int cnt = 1; cnt <= bound; ++cnt) {
-        llvm::errs() << "Unrolling cnt " << cnt << "\n";
+        //llvm::errs() << "Unrolling cnt " << cnt << "\n";
         llvm::SmallDenseMap<BasicBlock*, BasicBlock*, 4> newBlocks;
         llvm::SmallDenseMap<BasicBlock*, ValueToValueMapTy*, 4> valueMaps;
+
+        llvm::NewLoopsMap newLoops;
+        newLoops[loop] = loop;
 
         for (auto bb = blockBegin; bb != blockEnd; ++bb) {
             ValueToValueMapTy vmap;
             BasicBlock* clonedBB = CloneBasicBlock(*bb, vmap, "." + Twine(cnt));
             header->getParent()->getBasicBlockList().push_back(clonedBB);
+
+            assert((*bb != header || loopInfo->getLoopFor(*bb) == loop)
+                && "Header should not be in a sub-loop");
+
+            // If we created a new loop, add it to the unroll queue
+            const Loop* oldLoop = addClonedBlockToLoopInfo(*bb, clonedBB, loopInfo, newLoops);
+            if (oldLoop) {
+                loopsToUnroll.push_back(newLoops[oldLoop]);
+            }
 
             if (*bb == header) {
                 headers.push_back(clonedBB);
@@ -200,22 +154,6 @@ static bool UnwindLoop(unsigned bound, Loop* loop, LoopInfo* loopInfo, BasicBloc
             }
         }
     }
-
-    // Clone one last loop header to mark the unrolling end
-    //ValueToValueMapTy lastHeaderMap;
-    //BasicBlock* lastHeader = CloneBasicBlock(header, lastHeaderMap, "last");
-    //header->getParent()->getBasicBlockList().push_back(lastHeader);
-    //headers.push_back(lastHeader);
-
-    // for (BasicBlock* succ : successors(header)) {
-    //     if (loop->contains(succ)) {
-    //         lastHeaderMap[succ] = unreachable;
-    //     }
-    // }
-
-    // for (auto& inst : *lastHeader) {
-    //     llvm::remapInstruction(&inst, lastHeaderMap);
-    // }
 
     // Fix the preheader PHI nodes
     for (PHINode* phi : headerPhis) {
@@ -289,41 +227,20 @@ bool BoundedUnwindPass::runOnFunction(Function& function)
 {
     errs() << "Unrolling loops for bound " << mBound << ".\n";
     LoopInfo& loopInfo = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-    llvm::SmallVector<Loop*, 4> loops(loopInfo.begin(), loopInfo.end());
+    llvm::SmallVector<Loop*, 4> loopsToUnroll(loopInfo.rbegin(), loopInfo.rend());
+    
 
     IRBuilder<> builder(function.getContext());
 
-    for (auto it = loops.begin(); it != loops.end(); ++it) {
-        Loop* loop = *it;
-        //errs() << "Loop unroll in ";
-        //loop->print(errs(), 0, false);
-        //UnwindLoop(loop, mBound, &loopInfo);
+    //function.viewCFG();
 
-        // TODO: This algorithm fails if the loop is not terminated
-        // by a conditional branch.
-        /*
-        auto result = UnrollLoop(
-            loop, mBound, mBound,
-            true, true, true, true, false,
-            1, 0, false,
-            &loopInfo,
-            &getAnalysis<ScalarEvolutionWrapperPass>().getSE(),
-            &getAnalysis<DominatorTreeWrapperPass>().getDomTree(),
-            &getAnalysis<AssumptionCacheTracker>().getAssumptionCache(function),
-            nullptr, false
-        );
-        switch (result) {
-            case LoopUnrollResult::Unmodified:
-                errs() << "Unmodified";
-                break;
-            case LoopUnrollResult::PartiallyUnrolled:
-                errs() << "PartiallyUnrolled";
-                break;
-            case LoopUnrollResult::FullyUnrolled:
-                errs() << "FullyUnrolled";
-                break;
+    while (!loopsToUnroll.empty()) {
+        Loop* loop = loopsToUnroll.pop_back_val();
+
+        //auto& subLoops = loop->getSubLoopsVector();
+        for (Loop* subLoop : loop->getSubLoopsVector()) {
+            loopsToUnroll.push_back(subLoop);
         }
-        */
         
         BasicBlock* unreachable = BasicBlock::Create(
             function.getContext(),
@@ -334,26 +251,22 @@ bool BoundedUnwindPass::runOnFunction(Function& function)
         builder.SetInsertPoint(unreachable);
         builder.CreateUnreachable();        
 
-        llvm::errs() << "Unwind loop: " << *loop << "\n";   
         UnwindLoop(
             mBound,
             loop,
+            unreachable,
             &loopInfo,
-            unreachable
+            loopsToUnroll
         );
+
         errs() << "\n";
     }
 
     return true;
 }
 
-INITIALIZE_PASS_BEGIN(RemoveInfiniteLoopsPass, "remove-inf-loops", "Remove infinite loops", false, false)
-INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
-INITIALIZE_PASS_END(RemoveInfiniteLoopsPass, "remove-inf-loops", "Remove infinite loops", false, false)
-
 INITIALIZE_PASS_BEGIN(BoundedUnwindPass, "unwind", "Bounded unwind", false, false)
 INITIALIZE_PASS_DEPENDENCY(LoopSimplify)
-INITIALIZE_PASS_DEPENDENCY(RemoveInfiniteLoopsPass)
 INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(ScalarEvolutionWrapperPass)
