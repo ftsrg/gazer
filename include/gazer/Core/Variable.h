@@ -52,7 +52,6 @@ private:
     const Variable& mVariable;
 };
 
-
-}
+} // end namespace gazer
 
 #endif

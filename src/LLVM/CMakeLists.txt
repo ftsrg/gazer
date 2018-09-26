@@ -15,6 +15,7 @@ set(SOURCE_FILES
     BMC/Ir2Expr.cpp
     BMC/BMC.cpp
     TestGenerator/TestGenerator.cpp
+    Utils/LLVMType.cpp
 )
 
 llvm_map_components_to_libnames(LLVM_LIBS support core irreader transformutils scalaropts ipo)

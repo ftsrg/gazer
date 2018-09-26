@@ -1,4 +1,5 @@
 #include "gazer/LLVM/TestGenerator/TestGenerator.h"
+#include "gazer/LLVM/Utils/LLVMType.h"
 
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/IR/IRBuilder.h>
@@ -8,8 +9,12 @@
 using namespace gazer;
 using namespace llvm;
 
-static llvm::Constant* exprToLLVMValue(std::shared_ptr<LiteralExpr>& expr, LLVMContext& context)
+static llvm::Constant* exprToLLVMValue(std::shared_ptr<AtomicExpr>& expr, LLVMContext& context)
 {
+    if (expr->getKind() == Expr::Undef) {
+        return llvm::UndefValue::get(llvmTypeFromType(context, expr->getType()));
+    }
+
     if (expr->getType().isIntType()) {
         auto intLit = llvm::cast<IntLiteralExpr>(expr.get());
         return llvm::ConstantInt::get(context, intLit->getValue());
@@ -31,7 +36,7 @@ static llvm::Constant* exprToLLVMValue(std::shared_ptr<LiteralExpr>& expr, LLVMC
 std::unique_ptr<Module> TestGenerator::generateModuleFromTrace(
     BmcTrace& trace, LLVMContext& context, const DataLayout& dl
 ) {
-    std::unordered_map<llvm::Function*, std::vector<std::shared_ptr<LiteralExpr>>> calls;
+    std::unordered_map<llvm::Function*, std::vector<std::shared_ptr<AtomicExpr>>> calls;
     for (auto& event : trace) {
         if (event->getKind() == BmcTrace::Event::FunctionCall) {
             auto callEvent = llvm::cast<BmcTrace::FunctionCallEvent>(event.get());
@@ -48,7 +53,7 @@ std::unique_ptr<Module> TestGenerator::generateModuleFromTrace(
 
     for (auto& pair : calls) {
         llvm::Function* function = pair.first;
-        std::vector<std::shared_ptr<LiteralExpr>>& vec = pair.second;
+        std::vector<std::shared_ptr<AtomicExpr>>& vec = pair.second;
 
         llvm::SmallVector<llvm::Constant*, 10> values;
         std::transform(vec.begin(), vec.end(), std::back_inserter(values),

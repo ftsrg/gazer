@@ -36,7 +36,7 @@ public:
 
 public:
     void writeEvent(BmcTrace::AssignmentEvent& event) override {
-        std::shared_ptr<LiteralExpr> expr = event.getExpr();
+        std::shared_ptr<AtomicExpr> expr = event.getExpr();
 
         mOS << "  ";
         mOS << event.getVariableName() << " := ";
@@ -81,7 +81,11 @@ public:
         mOS << "call ";
         event.getFunction()->printAsOperand(mOS);
         mOS << " -> ";
-        event.getReturnValue()->print(mOS);
+        if (event.getReturnValue()->getKind() == Expr::Undef) {
+            mOS << "???";
+        } else {
+            event.getReturnValue()->print(mOS);
+        }
         mOS << "\t";
 
         auto location = event.getLocation();
@@ -269,10 +273,17 @@ std::unique_ptr<BmcTrace> BmcTrace::Create(
                 auto varIt = valueMap.find(call);
                 assert(varIt != valueMap.end() && "Call results should be present in the value map");
 
-                auto exprIt = model.find(varIt->second);
-                assert(exprIt != model.end() && "Nondet call results should be present in the model");
+                std::shared_ptr<AtomicExpr> expr;
 
-                std::shared_ptr<LiteralExpr> expr = exprIt->second;
+                auto exprIt = model.find(varIt->second);
+                if (exprIt != model.end()) {
+                    expr = exprIt->second;
+                } else {
+                    // For variables which are assigned but never read,
+                    // it is possible to be not present in the model.
+                    // For these variables, we are going insert an UndefExpr.
+                    expr = UndefExpr::Get(varIt->second->getType());
+                }
 
                 BmcTrace::LocationInfo location = {0, 0};
                 if (call->getDebugLoc()) {
@@ -285,7 +296,7 @@ std::unique_ptr<BmcTrace> BmcTrace::Create(
                 assigns.push_back(std::make_unique<BmcTrace::FunctionCallEvent>(
                     callee,
                     expr,
-                    std::vector<std::shared_ptr<LiteralExpr>>(),
+                    std::vector<std::shared_ptr<AtomicExpr>>(),
                     location
                 ));
             }

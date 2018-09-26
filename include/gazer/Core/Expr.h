@@ -98,6 +98,9 @@ public:
         ArrayWrite,
     };
 
+    static constexpr int FirstAtomic = Undef;
+    static constexpr int LastAtomic = Literal;
+
     static constexpr int FirstUnary = Not;
     static constexpr int LastUnary = PtrCast;
     static constexpr int FirstUnaryCast = ZExt;
@@ -172,6 +175,23 @@ using ExprVector = std::vector<ExprPtr>;
 std::ostream& operator<<(std::ostream& os, const Expr& expr);
 
 /**
+ * Expression base class for atomic expression values.
+ * 
+ * Currently literals and undef values are considered as atomic.
+ */
+class AtomicExpr : public Expr
+{
+protected:
+    AtomicExpr(Expr::ExprKind kind, const Type& type)
+        : Expr(kind, type)
+    {}
+public:
+    static bool classof(const Expr* expr) {
+        return expr->getKind() >= FirstAtomic && expr->getKind() <= LastAtomic;
+    }
+};
+
+/**
  * Expression class of literal expressions.
  * 
  * Note that while Expr::Literal is used to indicate
@@ -179,11 +199,11 @@ std::ostream& operator<<(std::ostream& os, const Expr& expr);
  * To acquire the value stored in literals, use the literal
  * subclasses (IntLiteralExpr, ...).
  */
-class LiteralExpr : public Expr
+class LiteralExpr : public AtomicExpr
 {
 protected:
     LiteralExpr(const Type& type)
-        : Expr(Literal, type)
+        : AtomicExpr(Literal, type)
     {}
 public:
     static bool classof(const Expr* expr) {

@@ -13,11 +13,11 @@ namespace llvm {
 namespace gazer
 {
 
-class UndefExpr final : public Expr
+class UndefExpr final : public AtomicExpr
 {
 private:
     UndefExpr(const Type& type)
-        : Expr(Expr::Undef, type)
+        : AtomicExpr(Expr::Undef, type)
     {}
 public:
     virtual void print(llvm::raw_ostream& os) const override;

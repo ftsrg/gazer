@@ -23,6 +23,10 @@ cl::opt<bool> DumpFormula("dump-formula",
 cl::opt<bool> DumpSolverFormula("dump-solver-formula",
     cl::desc("Dump the formula in the solver's format"));
 
+cl::opt<bool> DumpModel("dump-model",
+    cl::desc("Dump the solver SAT model"));
+
+
 static bool isErrorFunctionName(llvm::StringRef name)
 {
     return name == "gazer.error_code";
@@ -323,7 +327,10 @@ BmcResult BoundedModelChecker::run()
             if (status == Solver::SAT) {
                 mOS << "   Formula is SAT\n";
                 Valuation model = solver->getModel();
-                //model.print(mOS);
+
+                if (DumpModel) {
+                    model.print(mOS);
+                }
 
                 // Display a counterexample trace
                 auto trace = BmcTrace::Create(

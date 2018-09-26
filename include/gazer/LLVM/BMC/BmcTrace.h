@@ -77,7 +77,7 @@ public:
     public:
         AssignmentEvent(
             std::string variable,
-            std::shared_ptr<LiteralExpr> expr,
+            std::shared_ptr<AtomicExpr> expr,
             LocationInfo location = {0, 0}
         ) : Event(Assign, location), mVariableName(variable), mExpr(expr)
         {}
@@ -85,7 +85,7 @@ public:
         void write(BmcTraceWriter& writer) override;
 
         std::string getVariableName() const { return mVariableName; }
-        std::shared_ptr<LiteralExpr> getExpr() const { return mExpr; }
+        std::shared_ptr<AtomicExpr> getExpr() const { return mExpr; }
 
         static bool classof(const Event* event) {
             return event->getKind() == Event::Assign;
@@ -93,7 +93,7 @@ public:
 
     private:
         std::string mVariableName;
-        std::shared_ptr<LiteralExpr> mExpr;
+        std::shared_ptr<AtomicExpr> mExpr;
     };
 
     class FunctionEntryEvent : public Event
@@ -122,27 +122,27 @@ public:
     class ArgumentValueEvent : public Event
     {
     public:
-        ArgumentValueEvent(std::string argname, std::shared_ptr<LiteralExpr> value)
+        ArgumentValueEvent(std::string argname, std::shared_ptr<AtomicExpr> value)
             : Event(ArgumentValue), mArgumentName(argname), mValue(value)
         {}
 
         void write(BmcTraceWriter& writer) override;
 
-        std::shared_ptr<LiteralExpr> getValue() const { return mValue; }
+        std::shared_ptr<AtomicExpr> getValue() const { return mValue; }
 
     private:
         std::string mArgumentName;
-        std::shared_ptr<LiteralExpr> mValue;
+        std::shared_ptr<AtomicExpr> mValue;
     };
 
     class FunctionCallEvent : public Event
     {
-        using ArgsVectorT = std::vector<std::shared_ptr<LiteralExpr>>;
+        using ArgsVectorT = std::vector<std::shared_ptr<AtomicExpr>>;
     public:
         FunctionCallEvent(
             llvm::Function* function,
-            std::shared_ptr<LiteralExpr> returnValue,
-            std::vector<std::shared_ptr<LiteralExpr>> args = {},
+            std::shared_ptr<AtomicExpr> returnValue,
+            std::vector<std::shared_ptr<AtomicExpr>> args = {},
             LocationInfo location = {0, 0}
         ) : Event(FunctionCall, location), mFunction(function), 
         mReturnValue(returnValue), mArgs(args)
@@ -151,7 +151,7 @@ public:
         void write(BmcTraceWriter& writer) override;
 
         llvm::Function* getFunction() const { return mFunction; }
-        std::shared_ptr<LiteralExpr> getReturnValue() const { return mReturnValue; }
+        std::shared_ptr<AtomicExpr> getReturnValue() const { return mReturnValue; }
         
         using arg_iterator = ArgsVectorT::iterator;
         arg_iterator arg_begin() { return mArgs.begin(); }
@@ -166,7 +166,7 @@ public:
 
     private:
         llvm::Function* mFunction;
-        std::shared_ptr<LiteralExpr> mReturnValue;
+        std::shared_ptr<AtomicExpr> mReturnValue;
         ArgsVectorT mArgs;
     };
 public:
