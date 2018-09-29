@@ -32,7 +32,10 @@ public:
             HANDLE_EXPRCASE(Add)
             HANDLE_EXPRCASE(Sub)
             HANDLE_EXPRCASE(Mul)
-            HANDLE_EXPRCASE(Div)
+            HANDLE_EXPRCASE(SDiv)
+            HANDLE_EXPRCASE(UDiv)
+            HANDLE_EXPRCASE(SRem)
+            HANDLE_EXPRCASE(URem)
             HANDLE_EXPRCASE(Shl)
             HANDLE_EXPRCASE(LShr)
             HANDLE_EXPRCASE(AShr)
@@ -125,9 +128,20 @@ protected:
     virtual ReturnT visitMul(const std::shared_ptr<MulExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitDiv(const std::shared_ptr<DivExpr>& expr) {
+
+    virtual ReturnT visitSDiv(const std::shared_ptr<SDivExpr>& expr) {
         return this->visitNonNullary(expr);
     }
+    virtual ReturnT visitUDiv(const std::shared_ptr<UDivExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitSRem(const std::shared_ptr<SRemExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitURem(const std::shared_ptr<URemExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+
     virtual ReturnT visitShl(const std::shared_ptr<ShlExpr>& expr) {
         return this->visitNonNullary(expr);
     }

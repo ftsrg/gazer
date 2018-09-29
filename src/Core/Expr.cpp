@@ -8,7 +8,7 @@ using namespace gazer;
 
 std::string Expr::getKindName(ExprKind kind)
 {
-    const char* const Names[] = {
+    static const char* const Names[] = {
         "Undef",
         "Literal",
         "VarRef",
@@ -20,7 +20,10 @@ std::string Expr::getKindName(ExprKind kind)
         "Add",
         "Sub",
         "Mul",
-        "Div",
+        "SDiv",
+        "UDiv",
+        "SRem",
+        "URem",
         "Shl",
         "LShr",
         "AShr",

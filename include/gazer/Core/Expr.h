@@ -43,7 +43,10 @@ public:
         Add,
         Sub,
         Mul,
-        Div,
+        SDiv,
+        UDiv,
+        SRem,
+        URem,
 
         // Bit operations
         Shl,
@@ -75,7 +78,12 @@ public:
         FIsInf,
 
         // Floating point cast
-        //FpExt,
+        // FpExt,
+        // FpTrunc,
+        // SignedToFp,
+        // UnsignedToFp,
+        // FpToSigned,
+        // FpToUnsigned,
 
         // Floating point binary
         FAdd,

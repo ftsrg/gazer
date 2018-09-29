@@ -235,7 +235,10 @@ public:
 using AddExpr = ArithmeticExpr<Expr::Add>;
 using SubExpr = ArithmeticExpr<Expr::Sub>;
 using MulExpr = ArithmeticExpr<Expr::Mul>;
-using DivExpr = ArithmeticExpr<Expr::Div>;
+using SDivExpr = ArithmeticExpr<Expr::SDiv>;
+using UDivExpr = ArithmeticExpr<Expr::UDiv>;
+using SRemExpr = ArithmeticExpr<Expr::SRem>;
+using URemExpr = ArithmeticExpr<Expr::URem>;
 using ShlExpr = ArithmeticExpr<Expr::Shl>;
 using LShrExpr = ArithmeticExpr<Expr::LShr>;
 using AShrExpr = ArithmeticExpr<Expr::AShr>;

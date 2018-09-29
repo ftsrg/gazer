@@ -129,7 +129,10 @@ IntType IntType::Int16Ty(16);
 IntType IntType::Int32Ty(32);
 IntType IntType::Int64Ty(64);
 
-IntType* IntType::get(unsigned width) {
+IntType* IntType::get(unsigned width)
+{
+    static llvm::DenseMap<unsigned, std::unique_ptr<IntType>> Instances;
+
     switch (width) {
         case 1: return &Int1Ty;
         case 8: return &Int8Ty;
@@ -138,7 +141,13 @@ IntType* IntType::get(unsigned width) {
         case 64: return &Int64Ty;
     }
 
-    assert(false && "Unsupported integer type");
+    auto result = Instances.find(width);
+    if (result == Instances.end()) {
+        auto pair = Instances.try_emplace(width, new IntType(width));
+        return pair.first->second.get();
+    }
+
+    return result->second.get();
 }
 
 FloatType FloatType::HalfTy(Half);

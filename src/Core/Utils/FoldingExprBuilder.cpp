@@ -55,9 +55,20 @@ public:
     ExprPtr Mul(const ExprPtr& left, const ExprPtr& right) override {
         return MulExpr::Create(left, right);
     }
-    ExprPtr Div(const ExprPtr& left, const ExprPtr& right) override {
-        return DivExpr::Create(left, right);
+
+    ExprPtr SDiv(const ExprPtr& left, const ExprPtr& right) override {
+        return SDivExpr::Create(left, right);
     }
+    ExprPtr UDiv(const ExprPtr& left, const ExprPtr& right) override {
+        return UDivExpr::Create(left, right);
+    }
+    ExprPtr SRem(const ExprPtr& left, const ExprPtr& right) override {
+        return SRemExpr::Create(left, right);
+    }
+    ExprPtr URem(const ExprPtr& left, const ExprPtr& right) override {
+        return URemExpr::Create(left, right);
+    }
+
     ExprPtr Shl(const ExprPtr& left, const ExprPtr& right) override {
         return ShlExpr::Create(left, right);
     }

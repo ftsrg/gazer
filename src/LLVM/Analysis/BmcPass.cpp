@@ -104,6 +104,6 @@ bool BmcPass::runOnFunction(llvm::Function& function)
         }
     }
 
-    // We modified the CFG with the predecessors identifications
+    // We modified the program with the predecessors identifications
     return true;
 }

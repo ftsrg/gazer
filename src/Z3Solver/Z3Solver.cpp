@@ -65,29 +65,29 @@ protected:
         assert(false && "Unsupported gazer type for Z3Solver");
     }
 
-    virtual z3::expr visitExpr(const ExprPtr& expr) override {
+    z3::expr visitExpr(const ExprPtr& expr) override {
         throw std::logic_error("Unhandled expression type in Z3ExprTransformer.");
     }
 
-    virtual z3::expr visitUndef(const std::shared_ptr<UndefExpr>& expr) override {
+    z3::expr visitUndef(const std::shared_ptr<UndefExpr>& expr) override {
         std::string name = "__gazer_undef:" + std::to_string(mTmpCount++);
 
         return mContext.constant(name.c_str(), typeToSort(&expr->getType()));
     }
 
-    virtual z3::expr visitLiteral(const std::shared_ptr<LiteralExpr>& expr) override {
+    z3::expr visitLiteral(const std::shared_ptr<LiteralExpr>& expr) override {
         if (expr->getType().isIntType()) {
             auto lit = llvm::dyn_cast<IntLiteralExpr>(&*expr);
             auto value = lit->getValue();
             return mContext.bv_val(
-                static_cast<__uint64>(value.getLimitedValue()),
+                value.getLimitedValue(),
                 lit->getType().getWidth()
             );
         } else if (expr->getType().isBoolType()) {
             auto value = llvm::dyn_cast<BoolLiteralExpr>(&*expr)->getValue();
             return mContext.bool_val(value);
         } else if (expr->getType().isMathIntType()) {
-            auto value = llvm::dyn_cast<MathIntLiteralExpr>(&*expr)->getValue();
+            int64_t value = llvm::dyn_cast<MathIntLiteralExpr>(&*expr)->getValue();
             return mContext.int_val(value);    
         } else if (expr->getType().isFloatType()) {
             auto fltTy = llvm::dyn_cast<FloatType>(&expr->getType());
@@ -111,24 +111,24 @@ protected:
         assert(false && "Unsupported operand type.");
     }
 
-    virtual z3::expr visitVarRef(const std::shared_ptr<VarRefExpr>& expr) override {
+    z3::expr visitVarRef(const std::shared_ptr<VarRefExpr>& expr) override {
         auto name = expr->getVariable().getName();
 
         return mContext.constant(name.c_str(), typeToSort(&expr->getType()));
     }
 
     // Unary
-    virtual z3::expr visitNot(const std::shared_ptr<NotExpr>& expr) override {
+    z3::expr visitNot(const std::shared_ptr<NotExpr>& expr) override {
         return !(visit(expr->getOperand()));
     }
 
-    virtual z3::expr visitZExt(const std::shared_ptr<ZExtExpr>& expr) override {
+    z3::expr visitZExt(const std::shared_ptr<ZExtExpr>& expr) override {
         return z3::zext(visit(expr->getOperand()), expr->getWidthDiff());
     }
-    virtual z3::expr visitSExt(const std::shared_ptr<SExtExpr>& expr) override {
+    z3::expr visitSExt(const std::shared_ptr<SExtExpr>& expr) override {
         return z3::sext(visit(expr->getOperand()), expr->getWidthDiff());
     }
-    virtual z3::expr visitExtract(const std::shared_ptr<ExtractExpr>& expr) override {
+    z3::expr visitExtract(const std::shared_ptr<ExtractExpr>& expr) override {
         unsigned hi = expr->getOffset() + expr->getWidth() - 1;
         unsigned lo = expr->getOffset();
 
@@ -136,40 +136,50 @@ protected:
     }
 
     // Binary
-    virtual z3::expr visitAdd(const std::shared_ptr<AddExpr>& expr) override {
+    z3::expr visitAdd(const std::shared_ptr<AddExpr>& expr) override {
         return visit(expr->getLeft()) + visit(expr->getRight());
     }
-    virtual z3::expr visitSub(const std::shared_ptr<SubExpr>& expr) override {
+    z3::expr visitSub(const std::shared_ptr<SubExpr>& expr) override {
         return visit(expr->getLeft()) - visit(expr->getRight());
     }
-    virtual z3::expr visitMul(const std::shared_ptr<MulExpr>& expr) override {
+    z3::expr visitMul(const std::shared_ptr<MulExpr>& expr) override {
         return visit(expr->getLeft()) * visit(expr->getRight());
     }
-    virtual z3::expr visitDiv(const std::shared_ptr<DivExpr>& expr) override {
+
+    z3::expr visitSDiv(const std::shared_ptr<SDivExpr>& expr) override {
         return visit(expr->getLeft()) / visit(expr->getRight());
     }
+    z3::expr visitUDiv(const std::shared_ptr<UDivExpr>& expr) override {
+        return z3::udiv(visit(expr->getLeft()), visit(expr->getRight()));
+    }
+    z3::expr visitSRem(const std::shared_ptr<SRemExpr>& expr) override {
+        return z3::srem(visit(expr->getLeft()), visit(expr->getRight()));
+    }
+    z3::expr visitURem(const std::shared_ptr<URemExpr>& expr) override {
+        return z3::urem(visit(expr->getLeft()), visit(expr->getRight()));
+    }
 
-    virtual z3::expr visitShl(const std::shared_ptr<ShlExpr>& expr) override {
+    z3::expr visitShl(const std::shared_ptr<ShlExpr>& expr) override {
         return z3::shl(visit(expr->getLeft()), visit(expr->getRight()));
     }
-    virtual z3::expr visitLShr(const std::shared_ptr<LShrExpr>& expr) override {
+    z3::expr visitLShr(const std::shared_ptr<LShrExpr>& expr) override {
         return z3::lshr(visit(expr->getLeft()), visit(expr->getRight()));
     }
-    virtual z3::expr visitAShr(const std::shared_ptr<AShrExpr>& expr) override {
+    z3::expr visitAShr(const std::shared_ptr<AShrExpr>& expr) override {
         return z3::ashr(visit(expr->getLeft()), visit(expr->getRight()));
     }
-    virtual z3::expr visitBAnd(const std::shared_ptr<BAndExpr>& expr) override {
+    z3::expr visitBAnd(const std::shared_ptr<BAndExpr>& expr) override {
         return visit(expr->getLeft()) & visit(expr->getRight());
     }
-    virtual z3::expr visitBOr(const std::shared_ptr<BOrExpr>& expr) override {
+    z3::expr visitBOr(const std::shared_ptr<BOrExpr>& expr) override {
         return visit(expr->getLeft()) | visit(expr->getRight());
     }
-    virtual z3::expr visitBXor(const std::shared_ptr<BXorExpr>& expr) override {
+    z3::expr visitBXor(const std::shared_ptr<BXorExpr>& expr) override {
         return visit(expr->getLeft()) ^ visit(expr->getRight());
     }
 
     // Logic
-    virtual z3::expr visitAnd(const std::shared_ptr<AndExpr>& expr) override {
+    z3::expr visitAnd(const std::shared_ptr<AndExpr>& expr) override {
         z3::expr_vector ops(mContext);
 
         for (ExprPtr& op : expr->operands()) {
@@ -178,7 +188,7 @@ protected:
 
         return z3::mk_and(ops);
     }
-    virtual z3::expr visitOr(const std::shared_ptr<OrExpr>& expr) override {
+    z3::expr visitOr(const std::shared_ptr<OrExpr>& expr) override {
         z3::expr_vector ops(mContext);
 
         for (ExprPtr& op : expr->operands()) {
@@ -187,7 +197,7 @@ protected:
 
         return z3::mk_or(ops);
     }
-    virtual z3::expr visitXor(const std::shared_ptr<XorExpr>& expr) override {
+    z3::expr visitXor(const std::shared_ptr<XorExpr>& expr) override {
         if (expr->getType().isBoolType()) {
             return visit(expr->getLeft()) != visit(expr->getRight());
         }
@@ -195,49 +205,49 @@ protected:
     }
 
     // Compare
-    virtual z3::expr visitEq(const std::shared_ptr<EqExpr>& expr) override {
+    z3::expr visitEq(const std::shared_ptr<EqExpr>& expr) override {
         return visit(expr->getLeft()) == visit(expr->getRight());
     }
-    virtual z3::expr visitNotEq(const std::shared_ptr<NotEqExpr>& expr) override {
+    z3::expr visitNotEq(const std::shared_ptr<NotEqExpr>& expr) override {
         return visit(expr->getLeft()) != visit(expr->getRight());
     }
 
-    virtual z3::expr visitSLt(const std::shared_ptr<SLtExpr>& expr) override {
+    z3::expr visitSLt(const std::shared_ptr<SLtExpr>& expr) override {
         return visit(expr->getLeft()) < visit(expr->getRight());
     }
-    virtual z3::expr visitSLtEq(const std::shared_ptr<SLtEqExpr>& expr) override {
+    z3::expr visitSLtEq(const std::shared_ptr<SLtEqExpr>& expr) override {
         return visit(expr->getLeft()) <= visit(expr->getRight());
     }
-    virtual z3::expr visitSGt(const std::shared_ptr<SGtExpr>& expr) override {
+    z3::expr visitSGt(const std::shared_ptr<SGtExpr>& expr) override {
         return visit(expr->getLeft()) > visit(expr->getRight());
     }
-    virtual z3::expr visitSGtEq(const std::shared_ptr<SGtEqExpr>& expr) override {
+    z3::expr visitSGtEq(const std::shared_ptr<SGtEqExpr>& expr) override {
         return visit(expr->getLeft()) >= visit(expr->getRight());
     }
 
-    virtual z3::expr visitULt(const std::shared_ptr<ULtExpr>& expr) override {
+    z3::expr visitULt(const std::shared_ptr<ULtExpr>& expr) override {
         return z3::ult(visit(expr->getLeft()), visit(expr->getRight()));
     }
-    virtual z3::expr visitULtEq(const std::shared_ptr<ULtEqExpr>& expr) override {
+    z3::expr visitULtEq(const std::shared_ptr<ULtEqExpr>& expr) override {
         return z3::ule(visit(expr->getLeft()), visit(expr->getRight()));
     }
-    virtual z3::expr visitUGt(const std::shared_ptr<UGtExpr>& expr) override {
+    z3::expr visitUGt(const std::shared_ptr<UGtExpr>& expr) override {
         return z3::ugt(visit(expr->getLeft()), visit(expr->getRight()));
     }
-    virtual z3::expr visitUGtEq(const std::shared_ptr<UGtEqExpr>& expr) override {
+    z3::expr visitUGtEq(const std::shared_ptr<UGtEqExpr>& expr) override {
         return z3::uge(visit(expr->getLeft()), visit(expr->getRight()));
     }
 
     // Floating-point queries
-    virtual z3::expr visitFIsNan(const std::shared_ptr<FIsNanExpr>& expr) override {
+    z3::expr visitFIsNan(const std::shared_ptr<FIsNanExpr>& expr) override {
         return z3::expr(mContext, Z3_mk_fpa_is_nan(mContext, visit(expr->getOperand())));
     }
-    virtual z3::expr visitFIsInf(const std::shared_ptr<FIsInfExpr>& expr) override {
+    z3::expr visitFIsInf(const std::shared_ptr<FIsInfExpr>& expr) override {
         return z3::expr(mContext, Z3_mk_fpa_is_infinite(mContext, visit(expr->getOperand())));
     }
 
     // Floating-point arithmetic
-    virtual z3::expr visitFAdd(const std::shared_ptr<FAddExpr>& expr) override {
+    z3::expr visitFAdd(const std::shared_ptr<FAddExpr>& expr) override {
         return z3::expr(mContext, Z3_mk_fpa_add(
             mContext,
             transformRoundingMode(expr->getRoundingMode()),
@@ -245,7 +255,7 @@ protected:
             visit(expr->getRight())
         ));
     }
-    virtual z3::expr visitFSub(const std::shared_ptr<FSubExpr>& expr) override {
+    z3::expr visitFSub(const std::shared_ptr<FSubExpr>& expr) override {
         return z3::expr(mContext, Z3_mk_fpa_sub(
             mContext,
             transformRoundingMode(expr->getRoundingMode()),
@@ -253,7 +263,7 @@ protected:
             visit(expr->getRight())
         ));
     }
-    virtual z3::expr visitFMul(const std::shared_ptr<FMulExpr>& expr) override {
+    z3::expr visitFMul(const std::shared_ptr<FMulExpr>& expr) override {
         return z3::expr(mContext, Z3_mk_fpa_mul(
             mContext,
             transformRoundingMode(expr->getRoundingMode()),
@@ -261,7 +271,7 @@ protected:
             visit(expr->getRight())
         ));
     }
-    virtual z3::expr visitFDiv(const std::shared_ptr<FDivExpr>& expr) override {
+    z3::expr visitFDiv(const std::shared_ptr<FDivExpr>& expr) override {
         return z3::expr(mContext, Z3_mk_fpa_div(
             mContext,
             transformRoundingMode(expr->getRoundingMode()),
@@ -270,34 +280,34 @@ protected:
         ));
     }
 
-    virtual z3::expr visitFEq(const std::shared_ptr<FEqExpr>& expr) override {
+    z3::expr visitFEq(const std::shared_ptr<FEqExpr>& expr) override {
         return z3::expr(mContext, Z3_mk_fpa_eq(
             mContext, visit(expr->getLeft()), visit(expr->getRight())
         ));
     }
-    virtual z3::expr visitFGt(const std::shared_ptr<FGtExpr>& expr) override {
+    z3::expr visitFGt(const std::shared_ptr<FGtExpr>& expr) override {
         return z3::expr(mContext, Z3_mk_fpa_gt(
             mContext, visit(expr->getLeft()), visit(expr->getRight())
         ));
     }
-    virtual z3::expr visitFGtEq(const std::shared_ptr<FGtEqExpr>& expr) override {
+    z3::expr visitFGtEq(const std::shared_ptr<FGtEqExpr>& expr) override {
         return z3::expr(mContext, Z3_mk_fpa_geq(
             mContext, visit(expr->getLeft()), visit(expr->getRight())
         ));
     }
-    virtual z3::expr visitFLt(const std::shared_ptr<FLtExpr>& expr) override {
+    z3::expr visitFLt(const std::shared_ptr<FLtExpr>& expr) override {
         return z3::expr(mContext, Z3_mk_fpa_lt(
             mContext, visit(expr->getLeft()), visit(expr->getRight())
         ));
     }
-    virtual z3::expr visitFLtEq(const std::shared_ptr<FLtEqExpr>& expr) override {
+    z3::expr visitFLtEq(const std::shared_ptr<FLtEqExpr>& expr) override {
         return z3::expr(mContext, Z3_mk_fpa_leq(
             mContext, visit(expr->getLeft()), visit(expr->getRight())
         ));
     }
 
     // Ternary
-    virtual z3::expr visitSelect(const std::shared_ptr<SelectExpr>& expr) override {
+    z3::expr visitSelect(const std::shared_ptr<SelectExpr>& expr) override {
         return z3::ite(
             visit(expr->getCondition()),
             visit(expr->getThen()),
@@ -306,14 +316,14 @@ protected:
     }
 
     // Arrays
-    virtual z3::expr visitArrayRead(const std::shared_ptr<ArrayReadExpr>& expr) override {
+    z3::expr visitArrayRead(const std::shared_ptr<ArrayReadExpr>& expr) override {
         return z3::select(
             visit(expr->getArrayRef()),
             visit(expr->getIndex())
         );
     }
 
-    virtual z3::expr visitArrayWrite(const std::shared_ptr<ArrayWriteExpr>& expr) override {
+    z3::expr visitArrayWrite(const std::shared_ptr<ArrayWriteExpr>& expr) override {
         return z3::store(
             visit(expr->getArrayRef()),
             visit(expr->getIndex()),
@@ -436,14 +446,14 @@ llvm::APInt z3_bv_to_apint(z3::context& context, z3::model& model, z3::expr bv)
     unsigned int width = Z3_get_bv_sort_size(context, bv.get_sort());
 
     if (width <= 64) {
-        unsigned long long value;
+        uint64_t value;
         Z3_get_numeral_uint64(context, bv, &value);
 
         return llvm::APInt(width, value);
     } else {
         llvm::SmallVector<uint64_t, 2> bits;
         for (size_t i = 0; i < width; i += 64) {
-            unsigned long long value;
+            uint64_t value;
             Z3_get_numeral_uint64(context, model.eval(bv.extract(i, 64)), &value);
 
             bits.push_back(value);
@@ -479,7 +489,7 @@ Valuation Z3Solver::getModel()
             expr = BoolLiteralExpr::Get(value);            
         } else if (z3Expr.is_bv()) {
             unsigned int width = Z3_get_bv_sort_size(mContext, z3Expr.get_sort());
-            unsigned long long value;
+            uint64_t value;
             Z3_get_numeral_uint64(mContext, z3Expr, &value);
 
             llvm::APInt iVal(width, value);
@@ -505,7 +515,7 @@ Valuation Z3Solver::getModel()
                 auto toIEEE = z3::expr(mContext, Z3_mk_fpa_to_ieee_bv(mContext, z3Expr));
                 auto ieeeVal = model.eval(toIEEE);
 
-                unsigned long long bits;
+                uint64_t bits;
                 Z3_get_numeral_uint64(mContext,  ieeeVal, &bits);
 
                 llvm::APInt bv(fltTy.getWidth(), bits);

@@ -223,10 +223,15 @@ ExprPtr InstToExpr::visitBinaryOperator(llvm::BinaryOperator &binop)
             HANDLE_INSTCASE(Instruction::Add, Add)
             HANDLE_INSTCASE(Instruction::Sub, Sub)
             HANDLE_INSTCASE(Instruction::Mul, Mul)
+            HANDLE_INSTCASE(Instruction::SDiv, SDiv)
+            HANDLE_INSTCASE(Instruction::UDiv, UDiv)
+            HANDLE_INSTCASE(Instruction::SRem, SRem)
+            HANDLE_INSTCASE(Instruction::URem, URem)
             HANDLE_INSTCASE(Instruction::Shl, Shl)
             HANDLE_INSTCASE(Instruction::LShr, LShr)
             HANDLE_INSTCASE(Instruction::AShr, AShr)
             default:
+                llvm::errs() << binop << "\n";
                 assert(false && "Unsupported arithmetic instruction opcode");
         }
 

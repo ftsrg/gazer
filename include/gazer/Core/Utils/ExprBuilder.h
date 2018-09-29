@@ -45,7 +45,11 @@ public:
     virtual ExprPtr Add(const ExprPtr& left, const ExprPtr& right) = 0;
     virtual ExprPtr Sub(const ExprPtr& left, const ExprPtr& right) = 0;
     virtual ExprPtr Mul(const ExprPtr& left, const ExprPtr& right) = 0;
-    virtual ExprPtr Div(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr SDiv(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr UDiv(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr SRem(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr URem(const ExprPtr& left, const ExprPtr& right) = 0;
+
     virtual ExprPtr Shl(const ExprPtr& left, const ExprPtr& right) = 0;
     virtual ExprPtr LShr(const ExprPtr& left, const ExprPtr& right) = 0;    
     virtual ExprPtr AShr(const ExprPtr& left, const ExprPtr& right) = 0;    
