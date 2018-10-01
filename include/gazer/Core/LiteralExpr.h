@@ -40,7 +40,10 @@ public:
     }
 
     virtual void print(llvm::raw_ostream& os) const override;
+
     bool getValue() const { return mValue; }
+    bool isTrue() const { return mValue == true; }
+    bool isFalse() const { return mValue == false; }
 
     static bool classof(const Expr* expr) {
         return expr->getKind() == Literal && expr->getType().isBoolType();

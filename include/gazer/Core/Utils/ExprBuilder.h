@@ -5,8 +5,7 @@
 #include "gazer/Core/ExprTypes.h"
 #include "gazer/Core/LiteralExpr.h"
 
-namespace llvm
-{
+namespace llvm {
     class APInt;
 }
 
