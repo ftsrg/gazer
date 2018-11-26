@@ -282,7 +282,7 @@ BmcResult BoundedModelChecker::run()
             bb.getInstList().push_front(phi);
             preds[&bb] = phi;
             // Also insert this into the symbol table
-            auto& variable = mSymbols.create(name, gazer::IntType::get(32));
+            auto& variable = mSymbols.create(name, gazer::BvType::get(32));
             mVariables[phi] = &variable;
         } else {
             // Do not create a PHI node with only one argument
@@ -362,7 +362,7 @@ BmcResult BoundedModelChecker::run()
                                 
                                 auto ecExpr = model[ecVar->second];
 
-                                ec = (cast<IntLiteralExpr>(ecExpr.get()))
+                                ec = (cast<BvLiteralExpr>(ecExpr.get()))
                                     ->getValue()
                                     .getLimitedValue();
                             }

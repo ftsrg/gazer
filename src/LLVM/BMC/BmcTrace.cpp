@@ -45,7 +45,7 @@ public:
             std::bitset<64> bits;
 
             if (expr->getType().isIntType()) {
-                auto apVal = llvm::dyn_cast<IntLiteralExpr>(expr.get())->getValue();
+                auto apVal = llvm::dyn_cast<BvLiteralExpr>(expr.get())->getValue();
                 bits = apVal.getLimitedValue();
             } else if (expr->getType().isFloatType()) {
                 auto fltVal = llvm::dyn_cast<FloatLiteralExpr>(expr.get())->getValue();
@@ -141,7 +141,7 @@ std::unique_ptr<BmcTrace> BmcTrace::Create(
                 assert(exprRes != model.end()
                     && "Pred values should be present in the model");
                 
-                auto lit = llvm::dyn_cast<IntLiteralExpr>(exprRes->second.get());
+                auto lit = llvm::dyn_cast<BvLiteralExpr>(exprRes->second.get());
                 predId = lit->getValue().getLimitedValue();
 
             }
@@ -224,8 +224,8 @@ std::unique_ptr<BmcTrace> BmcTrace::Create(
 
                 std::shared_ptr<LiteralExpr> expr = nullptr;
                 if (auto ci = dyn_cast<ConstantInt>(value)) {
-                    expr = IntLiteralExpr::get(
-                        *IntType::get(ci->getBitWidth()),
+                    expr = BvLiteralExpr::get(
+                        *BvType::get(ci->getBitWidth()),
                         ci->getValue()
                     );
                 } else {

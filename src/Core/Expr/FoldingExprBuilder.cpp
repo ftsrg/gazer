@@ -27,27 +27,24 @@ public:
         return NotExpr::Create(op);
     }
 
-    ExprPtr ZExt(const ExprPtr& op, const IntType& type) override {
+    ExprPtr ZExt(const ExprPtr& op, const BvType& type) override {
         return ZExtExpr::Create(op, type);
     }
-    ExprPtr SExt(const ExprPtr& op, const IntType& type) override {
+    ExprPtr SExt(const ExprPtr& op, const BvType& type) override {
         return SExtExpr::Create(op, type);
     }
-    ExprPtr Trunc(const ExprPtr& op, const IntType& type) override {
+    ExprPtr Trunc(const ExprPtr& op, const BvType& type) override {
         return ExtractExpr::Create(op, 0, type.getWidth());
     }
     ExprPtr Extract(const ExprPtr& op, unsigned offset, unsigned width) override {
         return ExtractExpr::Create(op, offset, width);
     }
-    ExprPtr PtrCast(const ExprPtr& op, const PointerType& type) override {
-        return PtrCastExpr::Create(op, type);
-    }
 
     ExprPtr Add(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
-                return this->IntLit(lhsLit->getValue() + rhsLit->getValue());
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
+                return this->BvLit(lhsLit->getValue() + rhsLit->getValue());
             }
         }
 
@@ -56,9 +53,9 @@ public:
 
     ExprPtr Sub(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
-                return this->IntLit(lhsLit->getValue() - rhsLit->getValue());
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
+                return this->BvLit(lhsLit->getValue() - rhsLit->getValue());
             }
         }
 
@@ -67,9 +64,9 @@ public:
 
     ExprPtr Mul(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
-                return this->IntLit(lhsLit->getValue() * rhsLit->getValue());
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
+                return this->BvLit(lhsLit->getValue() * rhsLit->getValue());
             }
         }
 
@@ -78,9 +75,9 @@ public:
 
     ExprPtr SDiv(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
-                return this->IntLit(lhsLit->getValue().sdiv(rhsLit->getValue()));
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
+                return this->BvLit(lhsLit->getValue().sdiv(rhsLit->getValue()));
             }
         }
 
@@ -89,9 +86,9 @@ public:
 
     ExprPtr UDiv(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
-                return this->IntLit(lhsLit->getValue().udiv(rhsLit->getValue()));
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
+                return this->BvLit(lhsLit->getValue().udiv(rhsLit->getValue()));
             }
         }
 
@@ -100,9 +97,9 @@ public:
 
     ExprPtr SRem(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
-                return this->IntLit(lhsLit->getValue().srem(rhsLit->getValue()));
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
+                return this->BvLit(lhsLit->getValue().srem(rhsLit->getValue()));
             }
         }
 
@@ -111,9 +108,9 @@ public:
 
     ExprPtr URem(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
-                return this->IntLit(lhsLit->getValue().urem(rhsLit->getValue()));
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
+                return this->BvLit(lhsLit->getValue().urem(rhsLit->getValue()));
             }
         }
 
@@ -122,9 +119,9 @@ public:
 
     ExprPtr Shl(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
-                return this->IntLit(lhsLit->getValue().shl(rhsLit->getValue()));
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
+                return this->BvLit(lhsLit->getValue().shl(rhsLit->getValue()));
             }
         }
 
@@ -133,9 +130,9 @@ public:
 
     ExprPtr LShr(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
-                return this->IntLit(lhsLit->getValue().lshr(rhsLit->getValue()));
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
+                return this->BvLit(lhsLit->getValue().lshr(rhsLit->getValue()));
             }
         }
         return LShrExpr::Create(left, right);
@@ -143,9 +140,9 @@ public:
 
     ExprPtr AShr(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
-                return this->IntLit(lhsLit->getValue().ashr(rhsLit->getValue()));
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
+                return this->BvLit(lhsLit->getValue().ashr(rhsLit->getValue()));
             }
         }
         return AShrExpr::Create(left, right);
@@ -153,9 +150,9 @@ public:
 
     ExprPtr BAnd(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
-                return this->IntLit(lhsLit->getValue() & rhsLit->getValue());
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
+                return this->BvLit(lhsLit->getValue() & rhsLit->getValue());
             }
         }
         return BAndExpr::Create(left, right);
@@ -163,9 +160,9 @@ public:
 
     ExprPtr BOr(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
-                return this->IntLit(lhsLit->getValue() | rhsLit->getValue());
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
+                return this->BvLit(lhsLit->getValue() | rhsLit->getValue());
             }
         }
         return BOrExpr::Create(left, right);
@@ -173,9 +170,9 @@ public:
 
     ExprPtr BXor(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
-                return this->IntLit(lhsLit->getValue() ^ rhsLit->getValue());
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
+                return this->BvLit(lhsLit->getValue() ^ rhsLit->getValue());
             }
         }
 
@@ -351,8 +348,8 @@ public:
             } else if (auto rb = dyn_cast<BoolLiteralExpr>(right.get())) {
                 return rb->isTrue() ? left : this->Not(left);
             } */
-        } else if (auto lhsLit = dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
+        } else if (auto lhsLit = dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
                 return BoolLiteralExpr::Get(lhsLit->getValue() == rhsLit->getValue()); 
             }
         } else if (left->getKind() == Expr::VarRef && right->getKind() == Expr::VarRef) {
@@ -383,8 +380,8 @@ public:
             } else if (auto rb = dyn_cast<BoolLiteralExpr>(right.get())) {
                 return rb->isFalse() ? left : this->Not(left);
             }*/
-        } else if (auto lhsLit = dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
+        } else if (auto lhsLit = dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
                 return BoolLiteralExpr::Get(lhsLit->getValue() != rhsLit->getValue()); 
             }
         } else if (left->getKind() == Expr::VarRef && right->getKind() == Expr::VarRef) {
@@ -401,8 +398,8 @@ public:
 
     ExprPtr SLt(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
                 return BoolLiteralExpr::Get(lhsLit->getValue().slt(rhsLit->getValue()));
             }
         }
@@ -412,8 +409,8 @@ public:
 
     ExprPtr SLtEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
                 return BoolLiteralExpr::Get(lhsLit->getValue().sle(rhsLit->getValue()));
             }
         }
@@ -424,8 +421,8 @@ public:
 
     ExprPtr SGt(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
                 return BoolLiteralExpr::Get(lhsLit->getValue().sgt(rhsLit->getValue()));
             }
         }
@@ -435,8 +432,8 @@ public:
 
     ExprPtr SGtEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
                 return BoolLiteralExpr::Get(lhsLit->getValue().sge(rhsLit->getValue()));
             }
         }
@@ -447,8 +444,8 @@ public:
 
     ExprPtr ULt(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
                 return BoolLiteralExpr::Get(lhsLit->getValue().ult(rhsLit->getValue()));
             }
         }
@@ -458,8 +455,8 @@ public:
 
     ExprPtr ULtEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
                 return BoolLiteralExpr::Get(lhsLit->getValue().ule(rhsLit->getValue()));
             }
         }
@@ -469,8 +466,8 @@ public:
 
     ExprPtr UGt(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
                 return BoolLiteralExpr::Get(lhsLit->getValue().ugt(rhsLit->getValue()));
             }
         }
@@ -480,8 +477,8 @@ public:
 
     ExprPtr UGtEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<IntLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<IntLiteralExpr>(right.get())) {
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
                 return BoolLiteralExpr::Get(lhsLit->getValue().uge(rhsLit->getValue()));
             }
         }

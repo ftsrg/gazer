@@ -19,20 +19,17 @@ public:
     ExprPtr Not(const ExprPtr& op) override {
         return NotExpr::Create(op);
     }
-    ExprPtr ZExt(const ExprPtr& op, const IntType& type) override {
+    ExprPtr ZExt(const ExprPtr& op, const BvType& type) override {
         return ZExtExpr::Create(op, type);
     }
-    ExprPtr SExt(const ExprPtr& op, const IntType& type) override {
+    ExprPtr SExt(const ExprPtr& op, const BvType& type) override {
         return SExtExpr::Create(op, type);
     }
-    ExprPtr Trunc(const ExprPtr& op, const IntType& type) override {
+    ExprPtr Trunc(const ExprPtr& op, const BvType& type) override {
         return ExtractExpr::Create(op, 0, type.getWidth());
     }
     ExprPtr Extract(const ExprPtr& op, unsigned offset, unsigned width) override {
         return ExtractExpr::Create(op, offset, width);
-    }
-    ExprPtr PtrCast(const ExprPtr& op, const PointerType& type) override {
-        return PtrCastExpr::Create(op, type);
     }
 
     ExprPtr Add(const ExprPtr& left, const ExprPtr& right) override {

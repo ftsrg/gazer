@@ -48,19 +48,15 @@ std::string Type::getName() const
     switch (getTypeID()) {
         case BoolTypeID:
             return "Bool";
-        case IntTypeID: {
-            auto intType = llvm::cast<IntType>(this);
-            return "Int" + std::to_string(intType->getWidth());
+        case BvTypeID: {
+            auto intType = llvm::cast<BvType>(this);
+            return "Bv" + std::to_string(intType->getWidth());
         }
         case MathIntTypeID:
-            return "MathInt";
+            return "Int";
         case FloatTypeID: {
             auto fltTy = llvm::cast<FloatType>(this);
             return "Float" + std::to_string(fltTy->getWidth());
-        }
-        case PointerTypeID: {
-            auto ptrTy = llvm::cast<PointerType>(this);
-            return ptrTy->getName() + "*";
         }
         case ArrayTypeID: {
             auto arrayType = llvm::cast<ArrayType>(this);
@@ -83,9 +79,9 @@ bool Type::equals(const Type* other) const
 {
     if (getTypeID() != other->getTypeID()) {
         return false;
-    } else if (getTypeID() == IntTypeID) {
-        auto left = llvm::dyn_cast<IntType>(this);
-        auto right = llvm::dyn_cast<IntType>(other);
+    } else if (getTypeID() == BvTypeID) {
+        auto left = llvm::dyn_cast<BvType>(this);
+        auto right = llvm::dyn_cast<BvType>(other);
 
         return left->getWidth() == right->getWidth();
     } else if (getTypeID() == FloatTypeID) {
@@ -113,25 +109,20 @@ bool Type::equals(const Type* other) const
                 return lt->equals(rt);
             }
         );
-    } else if (getTypeID() == PointerTypeID) {
-        auto left = llvm::dyn_cast<PointerType>(this);
-        auto right = llvm::dyn_cast<PointerType>(other);
-
-        return left->getElementType()->equals(right->getElementType());
     }
 
     return true;
 }
 
-IntType IntType::Int1Ty(1);
-IntType IntType::Int8Ty(8);
-IntType IntType::Int16Ty(16);
-IntType IntType::Int32Ty(32);
-IntType IntType::Int64Ty(64);
+BvType BvType::Int1Ty(1);
+BvType BvType::Int8Ty(8);
+BvType BvType::Int16Ty(16);
+BvType BvType::Int32Ty(32);
+BvType BvType::Int64Ty(64);
 
-IntType* IntType::get(unsigned width)
+BvType* BvType::get(unsigned width)
 {
-    static llvm::DenseMap<unsigned, std::unique_ptr<IntType>> Instances;
+    static llvm::DenseMap<unsigned, std::unique_ptr<BvType>> Instances;
 
     switch (width) {
         case 1: return &Int1Ty;
@@ -143,7 +134,7 @@ IntType* IntType::get(unsigned width)
 
     auto result = Instances.find(width);
     if (result == Instances.end()) {
-        auto pair = Instances.try_emplace(width, new IntType(width));
+        auto pair = Instances.try_emplace(width, new BvType(width));
         return pair.first->second.get();
     }
 
@@ -195,30 +186,6 @@ ArrayType* ArrayType::get(Type* indexType, Type* elementType)
     }
 
     return result->second.get();
-}
-
-PointerType* PointerType::get(Type* elementType)
-{
-    assert(elementType != nullptr);
-    assert(elementType->isIntType() && "Can only create pointers on types with a size");
-    static llvm::DenseMap<Type*, std::unique_ptr<PointerType>> Instances;
-
-    auto result = Instances.find(elementType);
-    if (result == Instances.end()) {
-        auto pair = Instances.try_emplace(elementType, new PointerType(elementType));
-        return pair.first->second.get();
-    }
-
-    return result->second.get();
-}
-
-unsigned PointerType::getStepSize() const
-{
-    if (mElementType->isIntType()) {
-        return llvm::cast<IntType>(mElementType)->getWidth() / 8;
-    }
-
-    llvm_unreachable("getStepSize() called on a type without size");
 }
 
 FunctionType* FunctionType::get(Type* returnType, std::vector<Type*> args)

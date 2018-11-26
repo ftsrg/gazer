@@ -102,6 +102,8 @@ bool BmcPass::runOnFunction(llvm::Function& function)
                 llvm::WriteBitcodeToFile(*test, testOS);
             }
         }
+    } else if (result.isSafe()) {
+        llvm::outs() << "Verification SUCCESSFUL.\n";
     }
 
     // We modified the program with the predecessors identifications

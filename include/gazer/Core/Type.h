@@ -28,11 +28,11 @@ public:
         // Primitive types
         BoolTypeID = 0,
         MathIntTypeID,
-        IntTypeID,
+        BvTypeID,
         FloatTypeID,
 
         // Composite types
-        PointerTypeID,
+        //PointerTypeID,
         ArrayTypeID,
         //StructTypeID,
         FunctionTypeID
@@ -40,7 +40,8 @@ public:
 
     static constexpr int FirstPrimitive = BoolTypeID;
     static constexpr int LastPrimitive = FloatTypeID;
-    static constexpr int FirstComposite = PointerTypeID;
+    //static constexpr int FirstComposite = PointerTypeID;
+    static constexpr int FirstComposite = ArrayTypeID;
     static constexpr int LastComposite = FunctionTypeID;
 protected:
     Type(TypeID id)
@@ -62,11 +63,11 @@ public:
 
     bool isBoolType() const { return getTypeID() == BoolTypeID; }
     bool isMathIntType() const { return getTypeID() == MathIntTypeID; }
-    bool isIntType() const { return getTypeID() == IntTypeID; }
+    bool isIntType() const { return getTypeID() == BvTypeID; }
     bool isFloatType() const { return getTypeID() == FloatTypeID; }
 
     bool isArrayType() const { return getTypeID() == ArrayTypeID; }
-    bool isPointerType() const { return getTypeID() == PointerTypeID; }
+    //bool isPointerType() const { return getTypeID() == PointerTypeID; }
 
     bool equals(const Type* other) const;
 
@@ -136,27 +137,27 @@ public:
     }
 };
 
-class IntType final : public Type
+class BvType final : public Type
 {
 protected:
-    IntType(unsigned width)
-        : Type(IntTypeID), mWidth(width)
+    BvType(unsigned width)
+        : Type(BvTypeID), mWidth(width)
     {}
 public:
     unsigned getWidth() const { return mWidth; }
 
-    static IntType* get(unsigned width);
+    static BvType* get(unsigned width);
 
     static bool classof(const Type* type) {
-        return type->getTypeID() == IntTypeID;
+        return type->getTypeID() == BvTypeID;
     }
 
     static bool classof(const Type& type) {
-        return type.getTypeID() == IntTypeID;
+        return type.getTypeID() == BvTypeID;
     }
 private:
     unsigned mWidth;
-    static IntType Int1Ty, Int8Ty, Int16Ty, Int32Ty, Int64Ty;
+    static BvType Int1Ty, Int8Ty, Int16Ty, Int32Ty, Int64Ty;
 };
 
 /**
@@ -216,29 +217,6 @@ public:
 private:
     Type* mIndexType;
     Type* mElementType;
-};
-
-/**
- * Represents a pointer over 8 bit long bitvectors.
- */
-class PointerType final : public Type
-{
-    PointerType(Type* elementType)
-        : Type(PointerTypeID), mElementType(elementType)
-    {}
-public:
-    Type* getElementType() const { return mElementType; }
-    unsigned getStepSize() const;
-
-    static PointerType* get(Type* elementType);
-
-    static bool classof(const Type* type) {
-        return type->getTypeID() == PointerTypeID;
-    }
-
-private:
-    Type* mElementType;
-
 };
 
 class FunctionType final : public Type

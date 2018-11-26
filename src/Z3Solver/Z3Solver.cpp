@@ -31,8 +31,8 @@ protected:
                 return mContext.bool_sort();
             case Type::MathIntTypeID:
                 return mContext.int_sort();
-            case Type::IntTypeID: {
-                auto intTy = llvm::cast<IntType>(type);
+            case Type::BvTypeID: {
+                auto intTy = llvm::cast<BvType>(type);
                 return mContext.bv_sort(intTy->getWidth());
             }
             case Type::FloatTypeID: {
@@ -56,10 +56,6 @@ protected:
                     typeToSort(arrTy->getElementType())
                 );
             }
-            case Type::PointerTypeID: {
-                // Pointers are represented with integers
-                return mContext.int_sort();
-            }
         }
 
         assert(false && "Unsupported gazer type for Z3Solver");
@@ -77,7 +73,7 @@ protected:
 
     z3::expr visitLiteral(const std::shared_ptr<LiteralExpr>& expr) override {
         if (expr->getType().isIntType()) {
-            auto lit = llvm::dyn_cast<IntLiteralExpr>(&*expr);
+            auto lit = llvm::dyn_cast<BvLiteralExpr>(&*expr);
             auto value = lit->getValue();
             return mContext.bv_val(
                 value.getLimitedValue(),
@@ -493,8 +489,8 @@ Valuation Z3Solver::getModel()
             Z3_get_numeral_uint64(mContext, z3Expr, &value);
 
             llvm::APInt iVal(width, value);
-            expr = IntLiteralExpr::get(
-                *IntType::get(width),
+            expr = BvLiteralExpr::get(
+                *BvType::get(width),
                 iVal
             );
         } else if (z3Expr.get_sort().sort_kind() == Z3_sort_kind::Z3_FLOATING_POINT_SORT) {

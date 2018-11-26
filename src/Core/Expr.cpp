@@ -16,7 +16,6 @@ std::string Expr::getKindName(ExprKind kind)
         "ZExt",
         "SExt",
         "Trunc",
-        "PtrCast",
         "Add",
         "Sub",
         "Mul",

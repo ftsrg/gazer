@@ -32,7 +32,7 @@ gazer::Type& TypeFromLLVMType(const llvm::Type* type)
             return *MathIntType::get();
         }
 
-        return *IntType::get(width);
+        return *BvType::get(width);
     } else if (type->isHalfTy()) {
         return *FloatType::get(FloatType::Half);
     } else if (type->isFloatTy()) {
@@ -41,11 +41,6 @@ gazer::Type& TypeFromLLVMType(const llvm::Type* type)
         return *FloatType::get(FloatType::Double);
     } else if (type->isFP128Ty()) {
         return *FloatType::get(FloatType::Quad);
-    } else if (type->isPointerTy()) {
-        auto ptrTy  = llvm::cast<llvm::PointerType>(type);
-        auto& elemTy = TypeFromLLVMType(ptrTy->getElementType());
-
-        return *PointerType::get(&elemTy);
     }
 
     assert(false && "Unsupported LLVM type.");
@@ -206,7 +201,7 @@ ExprPtr InstToExpr::visitBinaryOperator(llvm::BinaryOperator &binop)
 
         return mExprBuilder->FEq(variable->getRefExpr(), expr);
     } else {
-        const IntType* type = llvm::dyn_cast<IntType>(&variable->getType());
+        const BvType* type = llvm::dyn_cast<BvType>(&variable->getType());
         assert(type && "Arithmetic results must be integer types");
 
         auto intLHS = asInt(lhs, type->getWidth());
@@ -378,7 +373,7 @@ ExprPtr InstToExpr::visitFCmpInst(llvm::FCmpInst& fcmp)
 ExprPtr InstToExpr::integerCast(llvm::CastInst& cast, ExprPtr operand, unsigned width)
 {
     auto variable = getVariable(&cast);
-    auto intTy = llvm::dyn_cast<gazer::IntType>(&variable->getType());
+    auto intTy = llvm::dyn_cast<gazer::BvType>(&variable->getType());
     
     ExprPtr intOp = asInt(operand, width);
     ExprPtr castOp = nullptr;
@@ -403,7 +398,7 @@ ExprPtr InstToExpr::visitCastInst(llvm::CastInst& cast)
         return integerCast(cast, castOp, 1);
     } else if (castOp->getType().isIntType()) {
         return integerCast(
-            cast, castOp, dyn_cast<IntType>(&castOp->getType())->getWidth()
+            cast, castOp, dyn_cast<BvType>(&castOp->getType())->getWidth()
         );
     }
 
@@ -411,12 +406,7 @@ ExprPtr InstToExpr::visitCastInst(llvm::CastInst& cast)
         auto castTy = cast.getType();
         // Bitcast is no-op, just changes the type.
         // For pointer operands, this means a simple pointer cast.
-        if (castOp->getType().isPointerType() && castTy->isPointerTy()) {
-            return mExprBuilder->PtrCast(
-                castOp,
-                *llvm::dyn_cast<PointerType>(&TypeFromLLVMType(castTy))
-            );
-        }
+        // TODO
     }
 
     assert(false && "Unsupported cast operation");
@@ -545,7 +535,7 @@ ExprPtr InstToExpr::visitLoadInst(llvm::LoadInst& load)
                     mExprBuilder->Extract(result->getRefExpr(), i, 8),
                     ArrayReadExpr::Create(
                         mHeap.getRefExpr(),
-                        mExprBuilder->Add(index, mExprBuilder->IntLit(j, 32))
+                        mExprBuilder->Add(index, mExprBuilder->BvLit(j, 32))
                     )
                 ));
             } */
@@ -577,7 +567,7 @@ ExprPtr InstToExpr::operand(const Value* value)
             return ci->isZero() ? mExprBuilder->False() : mExprBuilder->True();
         }
 
-        return mExprBuilder->IntLit(
+        return mExprBuilder->BvLit(
             ci->getValue().getLimitedValue(),
             ci->getType()->getIntegerBitWidth()
         );
@@ -613,11 +603,11 @@ ExprPtr InstToExpr::asBool(ExprPtr operand)
     if (operand->getType().isBoolType()) {
         return operand;
     } else if (operand->getType().isIntType()) {
-        const IntType* intType = dyn_cast<IntType>(&operand->getType());
-        unsigned bits = intType->getWidth();
+        const BvType* bvTy = dyn_cast<BvType>(&operand->getType());
+        unsigned bits = bvTy->getWidth();
 
         return mExprBuilder->Select(
-            mExprBuilder->Eq(operand, mExprBuilder->IntLit(0, bits)),
+            mExprBuilder->Eq(operand, mExprBuilder->BvLit(0, bits)),
             mExprBuilder->False(),
             mExprBuilder->True()
         );
@@ -631,8 +621,8 @@ ExprPtr InstToExpr::asInt(ExprPtr operand, unsigned bits)
     if (operand->getType().isBoolType()) {
         return mExprBuilder->Select(
             operand,
-            mExprBuilder->IntLit(1, bits),
-            mExprBuilder->IntLit(0, bits)
+            mExprBuilder->BvLit(1, bits),
+            mExprBuilder->BvLit(0, bits)
         );
     } else if (operand->getType().isIntType()) {
         return operand;
@@ -646,7 +636,7 @@ ExprPtr InstToExpr::castResult(ExprPtr expr, const Type& type)
     if (type.isBoolType()) {
         return asBool(expr);
     } else if (type.isIntType()) {
-        return asInt(expr, dyn_cast<IntType>(&type)->getWidth());
+        return asInt(expr, dyn_cast<BvType>(&type)->getWidth());
     } else {
         throw TypeCastError("Invalid cast result type.");
     }

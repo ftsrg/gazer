@@ -78,10 +78,10 @@ private:
     long long int mValue;
 };
 
-class IntLiteralExpr final : public LiteralExpr
+class BvLiteralExpr final : public LiteralExpr
 {
 private:
-    IntLiteralExpr(const IntType& type, llvm::APInt value)
+    BvLiteralExpr(const BvType& type, llvm::APInt value)
         : LiteralExpr(type), mValue(value)
     {
         assert(type.getWidth() == value.getBitWidth() && "Type and literal bit width must match.");
@@ -90,12 +90,12 @@ public:
     virtual void print(llvm::raw_ostream& os) const override;
 
 public:
-    static std::shared_ptr<IntLiteralExpr> get(IntType& type, llvm::APInt value);
+    static std::shared_ptr<BvLiteralExpr> get(BvType& type, llvm::APInt value);
 
     llvm::APInt getValue() const { return mValue; }
 
-    const IntType& getType() const {
-        return static_cast<const IntType&>(mType);
+    const BvType& getType() const {
+        return static_cast<const BvType&>(mType);
     }
 
     static bool classof(const Expr* expr) {

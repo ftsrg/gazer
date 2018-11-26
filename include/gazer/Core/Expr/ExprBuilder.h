@@ -21,11 +21,11 @@ public:
     virtual ~ExprBuilder() {}
 
     //--- Literals ---//
-    ExprPtr IntLit(uint64_t value, unsigned bits) {
-        return IntLiteralExpr::get(*IntType::get(bits), llvm::APInt(bits, value));
+    ExprPtr BvLit(uint64_t value, unsigned bits) {
+        return BvLiteralExpr::get(*BvType::get(bits), llvm::APInt(bits, value));
     }
-    ExprPtr IntLit(llvm::APInt value) {
-        return IntLiteralExpr::get(*IntType::get(value.getBitWidth()), value);
+    ExprPtr BvLit(llvm::APInt value) {
+        return BvLiteralExpr::get(*BvType::get(value.getBitWidth()), value);
     }
 
     ExprPtr True()  { return BoolLiteralExpr::getTrue(); }
@@ -34,11 +34,10 @@ public:
 
     //--- Unary ---//
     virtual ExprPtr Not(const ExprPtr& op) = 0;
-    virtual ExprPtr ZExt(const ExprPtr& op, const IntType& type) = 0;
-    virtual ExprPtr SExt(const ExprPtr& op, const IntType& type) = 0;
-    virtual ExprPtr Trunc(const ExprPtr& op, const IntType& type) = 0;
+    virtual ExprPtr ZExt(const ExprPtr& op, const BvType& type) = 0;
+    virtual ExprPtr SExt(const ExprPtr& op, const BvType& type) = 0;
+    virtual ExprPtr Trunc(const ExprPtr& op, const BvType& type) = 0;
     virtual ExprPtr Extract(const ExprPtr& op, unsigned offset, unsigned width) = 0;
-    virtual ExprPtr PtrCast(const ExprPtr& op, const PointerType& type) = 0;
 
     //--- Binary ---//
     virtual ExprPtr Add(const ExprPtr& left, const ExprPtr& right) = 0;

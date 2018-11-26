@@ -37,7 +37,6 @@ public:
         ZExt,
         SExt,
         Extract,
-        PtrCast,
 
         // Binary arithmetic
         Add,
@@ -110,9 +109,9 @@ public:
     static constexpr int LastAtomic = Literal;
 
     static constexpr int FirstUnary = Not;
-    static constexpr int LastUnary = PtrCast;
+    static constexpr int LastUnary = Extract;
     static constexpr int FirstUnaryCast = ZExt;
-    static constexpr int LastUnaryCast = PtrCast;
+    static constexpr int LastUnaryCast = Extract;
     static constexpr int FirstBinaryArithmetic = Add;
     static constexpr int LastBinaryArithmetic = BXor;
     static constexpr int FirstLogic = And;
@@ -205,7 +204,7 @@ public:
  * Note that while Expr::Literal is used to indicate
  * that an expression is literal, this class is abstract.
  * To acquire the value stored in literals, use the literal
- * subclasses (IntLiteralExpr, ...).
+ * subclasses (BvLiteralExpr, ...).
  */
 class LiteralExpr : public AtomicExpr
 {

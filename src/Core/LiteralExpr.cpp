@@ -39,16 +39,16 @@ std::shared_ptr<BoolLiteralExpr> BoolLiteralExpr::getFalse()
     return expr;
 }
 
-std::shared_ptr<IntLiteralExpr> IntLiteralExpr::get(IntType& type, llvm::APInt value)
+std::shared_ptr<BvLiteralExpr> BvLiteralExpr::get(BvType& type, llvm::APInt value)
 {
-    static llvm::DenseMap<llvm::APInt, std::shared_ptr<IntLiteralExpr>, DenseMapAPIntKeyInfo> Exprs;
-    static std::shared_ptr<IntLiteralExpr> Int1True = 
-        std::shared_ptr<IntLiteralExpr>(new IntLiteralExpr(
-            *IntType::get(1), llvm::APInt(1, 1)
+    static llvm::DenseMap<llvm::APInt, std::shared_ptr<BvLiteralExpr>, DenseMapAPIntKeyInfo> Exprs;
+    static std::shared_ptr<BvLiteralExpr> Int1True = 
+        std::shared_ptr<BvLiteralExpr>(new BvLiteralExpr(
+            *BvType::get(1), llvm::APInt(1, 1)
         ));
-    static std::shared_ptr<IntLiteralExpr> Int1False = 
-        std::shared_ptr<IntLiteralExpr>(new IntLiteralExpr(
-            *IntType::get(1), llvm::APInt(1, 0)
+    static std::shared_ptr<BvLiteralExpr> Int1False = 
+        std::shared_ptr<BvLiteralExpr>(new BvLiteralExpr(
+            *BvType::get(1), llvm::APInt(1, 0)
         ));
 
     // Currently our DenseMapAPIntKeyInfo does not allow 1-bit wide APInts as keys.
@@ -59,7 +59,7 @@ std::shared_ptr<IntLiteralExpr> IntLiteralExpr::get(IntType& type, llvm::APInt v
 
     auto result = Exprs.find(value);
     if (result == Exprs.end()) {
-        auto ptr = std::shared_ptr<IntLiteralExpr>(new IntLiteralExpr(type, value));
+        auto ptr = std::shared_ptr<BvLiteralExpr>(new BvLiteralExpr(type, value));
         Exprs[value] = ptr;
 
         return ptr;
@@ -100,7 +100,7 @@ void MathIntLiteralExpr::print(llvm::raw_ostream& os) const {
     os << mValue;
 }
 
-void IntLiteralExpr::print(llvm::raw_ostream& os) const {
+void BvLiteralExpr::print(llvm::raw_ostream& os) const {
     os << mValue;
 }
 
@@ -119,7 +119,7 @@ std::shared_ptr<LiteralExpr> gazer::LiteralFromLLVMConst(llvm::ConstantData* val
             return BoolLiteralExpr::Get(ci->isZero() ? false : true);
         }
 
-        return IntLiteralExpr::get(*IntType::get(width), ci->getValue());
+        return BvLiteralExpr::get(*BvType::get(width), ci->getValue());
     } else if (auto cfp = llvm::dyn_cast<llvm::ConstantFP>(value)) {
         auto fltTy = cfp->getType();
         FloatType::FloatPrecision precision;

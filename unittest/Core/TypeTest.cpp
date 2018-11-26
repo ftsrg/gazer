@@ -9,7 +9,7 @@ TEST(Type, PrintType)
     BoolType* boolTy = BoolType::get();
     EXPECT_EQ(boolTy->getName(), "Bool");
     
-    IntType* intTy = IntType::get(32);
+    BvType* intTy = BvType::get(32);
     EXPECT_EQ(intTy->getName(), "Int");
 
     ArrayType* arrTy = ArrayType::get(intTy, intTy);
@@ -25,7 +25,7 @@ TEST(Type, PrintType)
 TEST(Type, TypeEquals)
 {
     BoolType* boolTy = BoolType::get();
-    IntType* intTy = IntType::get(32);
+    BvType* intTy = BvType::get(32);
     
     EXPECT_TRUE(boolTy->equals(boolTy));
     EXPECT_TRUE(intTy->equals(intTy));
