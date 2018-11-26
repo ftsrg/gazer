@@ -4,8 +4,6 @@
 #include "gazer/Core/Expr.h"
 #include "gazer/Core/Valuation.h"
 
-#include <stdexcept>
-
 namespace gazer
 {
 

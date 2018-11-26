@@ -7,12 +7,47 @@
 
 #include <llvm/Support/raw_os_ostream.h>
 
+#include <z3++.h>
 #include <unordered_map>
 
 using namespace gazer;
 
 namespace
 {
+
+class Z3Solver : public Solver
+{
+public:
+    Z3Solver(SymbolTable& symbols)
+        : Solver(symbols), mContext(), mSolver(mContext)
+    {}
+
+    virtual void dump(llvm::raw_ostream& os) override;
+    virtual SolverStatus run() override;
+    virtual Valuation getModel() override;
+
+protected:
+    virtual void addConstraint(ExprPtr expr) override;
+
+protected:
+    z3::context mContext;
+    z3::solver mSolver;
+    unsigned mTmpCount = 0;
+};
+
+class CachingZ3Solver final : public Z3Solver
+{
+public:
+    using CacheMapT = std::unordered_map<const Expr*, Z3_ast>;
+    using Z3Solver::Z3Solver;
+
+protected:
+    virtual void addConstraint(ExprPtr expr) override;
+
+private:
+    CacheMapT mCache;
+};
+
 
 // Z3 
 
@@ -436,7 +471,7 @@ static FloatType::FloatPrecision precFromSort(z3::context& context, z3::sort sor
     llvm_unreachable("Invalid floating point type");
 }
 
-llvm::APInt z3_bv_to_apint(z3::context& context, z3::model& model, z3::expr bv)
+llvm::APInt z3_bv_to_apint(z3::context& context, z3::model& model, const z3::expr& bv)
 {
     assert(bv.is_bv() && "Bitvector conversion requires a bitvector");
     unsigned int width = Z3_get_bv_sort_size(context, bv.get_sort());
