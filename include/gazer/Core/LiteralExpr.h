@@ -28,7 +28,7 @@ class BoolLiteralExpr final : public LiteralExpr
 {
 private:
     BoolLiteralExpr(bool value)
-        : LiteralExpr(*BoolType::get()), mValue(value)
+        : LiteralExpr(BoolType::get()), mValue(value)
     {}
 
 public:

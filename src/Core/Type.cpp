@@ -9,12 +9,13 @@
 
 using namespace gazer;
 
-static std::string getArrayTypeStr(Type* indexType, Type* elemType)
+static std::string getArrayTypeStr(Type& indexType, Type& elemType)
 {
     return fmt::format("[{0} -> {1}]",
-        indexType->getName(), elemType->getName());
+        indexType.getName(), elemType.getName());
 }
 
+/*
 static std::string getFunctionTypeStr(Type* returnType, llvm::iterator_range<FunctionType::arg_iterator> args) {
     auto argPrint = [](Type* type) { return type->getName(); };
     auto range = llvm::make_range(
@@ -26,6 +27,7 @@ static std::string getFunctionTypeStr(Type* returnType, llvm::iterator_range<Fun
         fmt::join(range, ", "), returnType->getName()
     );
 }
+*/
 
 TypeCastError::TypeCastError(const Type& from, const Type& to, std::string message)
     : TypeCastError(&from, &to, message)
@@ -63,13 +65,13 @@ std::string Type::getName() const
             return getArrayTypeStr(
                 arrayType->getIndexType(), arrayType->getElementType()
             );
-        }
+        }/*
         case FunctionTypeID: {
             auto funcType = llvm::cast<FunctionType>(this);
             return getFunctionTypeStr(
                 funcType->getReturnType(), funcType->args()
             );
-        }
+        } */
     }
 
     llvm_unreachable("Invalid TypeID");
@@ -95,7 +97,7 @@ bool Type::equals(const Type* other) const
 
         return left->getIndexType() == right->getIndexType()
             && left->getElementType() == right->getElementType();
-    } else if (getTypeID() == FunctionTypeID) {
+    } /* else if (getTypeID() == FunctionTypeID) {
         auto left = llvm::dyn_cast<FunctionType>(this);
         auto right = llvm::dyn_cast<FunctionType>(other);
 
@@ -109,7 +111,7 @@ bool Type::equals(const Type* other) const
                 return lt->equals(rt);
             }
         );
-    }
+    } */
 
     return true;
 }
@@ -120,25 +122,25 @@ BvType BvType::Int16Ty(16);
 BvType BvType::Int32Ty(32);
 BvType BvType::Int64Ty(64);
 
-BvType* BvType::get(unsigned width)
+BvType& BvType::get(unsigned width)
 {
     static llvm::DenseMap<unsigned, std::unique_ptr<BvType>> Instances;
 
     switch (width) {
-        case 1: return &Int1Ty;
-        case 8: return &Int8Ty;
-        case 16: return &Int16Ty;
-        case 32: return &Int32Ty;
-        case 64: return &Int64Ty;
+        case 1: return Int1Ty;
+        case 8: return Int8Ty;
+        case 16: return Int16Ty;
+        case 32: return Int32Ty;
+        case 64: return Int64Ty;
     }
 
     auto result = Instances.find(width);
     if (result == Instances.end()) {
         auto pair = Instances.try_emplace(width, new BvType(width));
-        return pair.first->second.get();
+        return *pair.first->second.get();
     }
 
-    return result->second.get();
+    return *result->second.get();
 }
 
 FloatType FloatType::HalfTy(Half);
@@ -146,13 +148,13 @@ FloatType FloatType::SingleTy(Single);
 FloatType FloatType::DoubleTy(Double);
 FloatType FloatType::QuadTy(Quad);
 
-FloatType* FloatType::get(FloatType::FloatPrecision precision)
+FloatType& FloatType::get(FloatType::FloatPrecision precision)
 {
     switch (precision) {
-        case Half: return &HalfTy;
-        case Single: return &SingleTy;
-        case Double: return &DoubleTy;
-        case Quad: return &QuadTy;
+        case Half: return HalfTy;
+        case Single: return SingleTy;
+        case Double: return DoubleTy;
+        case Quad: return QuadTy;
     }
 
     llvm_unreachable("Invalid floating-point type");
@@ -170,10 +172,8 @@ const llvm::fltSemantics& FloatType::getLLVMSemantics() const
     llvm_unreachable("Invalid floating-point type");
 }
 
-ArrayType* ArrayType::get(Type* indexType, Type* elementType)
+ArrayType& ArrayType::get(Type& indexType, Type& elementType)
 {
-    assert(indexType != nullptr);
-    assert(elementType != nullptr);
     // TODO: This is surely not the best way to do this
     static llvm::StringMap<std::unique_ptr<ArrayType>> Instances;
     
@@ -181,14 +181,14 @@ ArrayType* ArrayType::get(Type* indexType, Type* elementType)
     auto result = Instances.find(key);
 
     if (result == Instances.end()) {
-        auto pair = Instances.try_emplace(key, new ArrayType(indexType, elementType));
-        return pair.first->second.get();
+        auto pair = Instances.try_emplace(key, new ArrayType(&indexType, &elementType));
+        return *pair.first->second.get();
     }
 
-    return result->second.get();
+    return *result->second.get();
 }
-
-FunctionType* FunctionType::get(Type* returnType, std::vector<Type*> args)
+/*
+FunctionType& FunctionType::get(Type* returnType, std::vector<Type*> args)
 {
     static llvm::StringMap<std::unique_ptr<FunctionType>> Instances;
 
@@ -198,8 +198,9 @@ FunctionType* FunctionType::get(Type* returnType, std::vector<Type*> args)
     auto result = Instances.find(key);
     if (result == Instances.end()) {
         auto pair = Instances.try_emplace(key, new FunctionType(returnType, args));
-        return pair.first->second.get();
+        return *pair.first->second.get();
     }
 
-    return result->second.get();
+    return *result->second.get();
 }
+*/

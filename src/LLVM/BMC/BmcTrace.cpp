@@ -225,7 +225,7 @@ std::unique_ptr<BmcTrace> BmcTrace::Create(
                 std::shared_ptr<LiteralExpr> expr = nullptr;
                 if (auto ci = dyn_cast<ConstantInt>(value)) {
                     expr = BvLiteralExpr::get(
-                        *BvType::get(ci->getBitWidth()),
+                        BvType::get(ci->getBitWidth()),
                         ci->getValue()
                     );
                 } else {

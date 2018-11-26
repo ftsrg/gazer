@@ -35,14 +35,14 @@ public:
         //PointerTypeID,
         ArrayTypeID,
         //StructTypeID,
-        FunctionTypeID
+        //FunctionTypeID
     };
 
     static constexpr int FirstPrimitive = BoolTypeID;
     static constexpr int LastPrimitive = FloatTypeID;
     //static constexpr int FirstComposite = PointerTypeID;
     static constexpr int FirstComposite = ArrayTypeID;
-    static constexpr int LastComposite = FunctionTypeID;
+    static constexpr int LastComposite = ArrayTypeID;
 protected:
     Type(TypeID id)
         : mTypeID(id)
@@ -109,9 +109,9 @@ protected:
         : Type(BoolTypeID)
     {}
 public:
-    static BoolType* get() {
+    static BoolType& get() {
         static BoolType instance;
-        return &instance;
+        return instance;
     }
 
     static bool classof(const Type* type) {
@@ -127,9 +127,9 @@ protected:
     {}
 
 public:
-    static MathIntType* get() {
+    static MathIntType& get() {
         static MathIntType instance;
-        return &instance;
+        return instance;
     }
 
     static bool classof(const Type* type) {
@@ -146,7 +146,7 @@ protected:
 public:
     unsigned getWidth() const { return mWidth; }
 
-    static BvType* get(unsigned width);
+    static BvType& get(unsigned width);
 
     static bool classof(const Type* type) {
         return type->getTypeID() == BvTypeID;
@@ -184,7 +184,7 @@ public:
     const llvm::fltSemantics& getLLVMSemantics() const;
     unsigned getWidth() const { return mPrecision; }
 
-    static FloatType* get(FloatPrecision precision);
+    static FloatType& get(FloatPrecision precision);
 
     static bool classof(const Type* type) {
         return type->getTypeID() == FloatTypeID;
@@ -202,13 +202,16 @@ class ArrayType final : public Type
 {
     ArrayType(Type* indexType, Type* elementType)
         : Type(ArrayTypeID), mIndexType(indexType), mElementType(elementType)
-    {}
+    {
+        assert(indexType != nullptr);
+        assert(elementType != nullptr);
+    }
 
 public:
-    Type* getIndexType() const { return mIndexType; }
-    Type* getElementType() const { return mElementType; }
+    Type& getIndexType() const { return *mIndexType; }
+    Type& getElementType() const { return *mElementType; }
 
-    static ArrayType* get(Type* indexType, Type* elementType);
+    static ArrayType& get(Type& indexType, Type& elementType);
 
     static bool classof(const Type* type) {
         return type->getTypeID() == ArrayTypeID;
@@ -219,6 +222,7 @@ private:
     Type* mElementType;
 };
 
+/*
 class FunctionType final : public Type
 {
     FunctionType(Type* returnType, std::vector<Type*> args = {})
@@ -247,9 +251,9 @@ public:
         return type->getTypeID() == FunctionTypeID;
     }
 
-    static FunctionType* get(Type* returnType, std::vector<Type*> args);
+    static FunctionType& get(Type* returnType, std::vector<Type*> args);
 
-    static FunctionType* get(Type* returnType) {
+    static FunctionType& get(Type* returnType) {
         return FunctionType::get(returnType, {});
     }
 
@@ -257,7 +261,7 @@ private:
     Type* mReturnType;
     std::vector<Type*> mArgTypes;
 };
-
+*/
 }
 
 #endif

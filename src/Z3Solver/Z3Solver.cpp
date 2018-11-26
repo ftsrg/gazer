@@ -52,8 +52,8 @@ protected:
             case Type::ArrayTypeID: {
                 auto arrTy = llvm::cast<ArrayType>(type);
                 return mContext.array_sort(
-                    typeToSort(arrTy->getIndexType()),
-                    typeToSort(arrTy->getElementType())
+                    typeToSort(&arrTy->getIndexType()),
+                    typeToSort(&arrTy->getElementType())
                 );
             }
         }
@@ -490,13 +490,13 @@ Valuation Z3Solver::getModel()
 
             llvm::APInt iVal(width, value);
             expr = BvLiteralExpr::get(
-                *BvType::get(width),
+                BvType::get(width),
                 iVal
             );
         } else if (z3Expr.get_sort().sort_kind() == Z3_sort_kind::Z3_FLOATING_POINT_SORT) {
             z3::sort sort = z3Expr.get_sort();
             FloatType::FloatPrecision precision = precFromSort(mContext, sort);
-            auto& fltTy = *FloatType::get(precision);
+            auto& fltTy = FloatType::get(precision);
 
             bool isNaN = z3::eq(
                 model.eval(z3::expr(mContext, Z3_mk_fpa_is_nan(mContext, z3Expr))),

@@ -34,7 +34,7 @@ class NotExpr final : public UnaryExpr
 {
 protected:
     NotExpr(ExprPtr operand)
-        : UnaryExpr(Expr::Not, *BoolType::get(), operand)
+        : UnaryExpr(Expr::Not, BoolType::get(), operand)
     {}
 
 protected:
@@ -114,7 +114,7 @@ class ExtractExpr final : public UnaryExpr
 {
 private:
     ExtractExpr(ExprPtr operand, unsigned offset, unsigned width)
-        : UnaryExpr(Expr::Extract, *BvType::get(width), {operand}),
+        : UnaryExpr(Expr::Extract, BvType::get(width), {operand}),
             mOffset(offset), mWidth(width)
     {}
 
@@ -220,7 +220,7 @@ class CompareExpr final : public BinaryExpr
         "A compare expression must have a compare expression kind.");
 protected:
     CompareExpr(ExprPtr left, ExprPtr right)
-        : BinaryExpr(Kind, *BoolType::get(), left, right)
+        : BinaryExpr(Kind, BoolType::get(), left, right)
     {
         assert(left->getType() == right->getType()
             && "Compare expression operand types must match.");
@@ -266,7 +266,7 @@ protected:
     
     template<class InputIterator>
     MultiaryLogicExpr(InputIterator begin, InputIterator end)
-        : NonNullaryExpr(Kind, *BoolType::get(), begin, end)
+        : NonNullaryExpr(Kind, BoolType::get(), begin, end)
     {
         for (auto it = begin; it != end; ++it) {
             if (!((*it)->getType().isBoolType())) {
@@ -276,7 +276,7 @@ protected:
     }
 
     MultiaryLogicExpr(ExprPtr left, ExprPtr right)
-        : NonNullaryExpr(Kind, *BoolType::get(), {left, right})
+        : NonNullaryExpr(Kind, BoolType::get(), {left, right})
     {
         assert(left->getType().isBoolType() && "Logic expression operands can only be booleans.");
         assert((left->getType() == right->getType()) && "Logic expression operand types must match.");
@@ -313,7 +313,7 @@ class XorExpr final : public BinaryExpr
 {
 protected:
     XorExpr(ExprPtr left, ExprPtr right)
-        : BinaryExpr(Expr::Xor, *BoolType::get(), left, right)
+        : BinaryExpr(Expr::Xor, BoolType::get(), left, right)
     {}
 
 protected:
@@ -346,7 +346,7 @@ class FpQueryExpr final : public UnaryExpr
         "A floating point query expression must be FIsNan or FIsInf");
 protected:
     FpQueryExpr(ExprPtr operand)
-        : UnaryExpr(Kind, *BoolType::get(), operand)
+        : UnaryExpr(Kind, BoolType::get(), operand)
     {}
 
     virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
@@ -419,7 +419,7 @@ class FpCompareExpr final : public BinaryExpr
         "A compare expression must have a compare expression kind.");
 protected:
     FpCompareExpr(ExprPtr left, ExprPtr right)
-        : BinaryExpr(Kind, *BoolType::get(), left, right)
+        : BinaryExpr(Kind, BoolType::get(), left, right)
     {
         assert(left->getType().isFloatType());
         assert(left->getType() == right->getType()

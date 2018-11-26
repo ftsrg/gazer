@@ -25,22 +25,22 @@ gazer::Type& TypeFromLLVMType(const llvm::Type* type)
     if (type->isIntegerTy()) {
         auto width = type->getIntegerBitWidth();
         if (width == 1) {
-            return *BoolType::get();
+            return BoolType::get();
         }
 
         if (UseMathInt && width <= 64) {
-            return *MathIntType::get();
+            return MathIntType::get();
         }
 
-        return *BvType::get(width);
+        return BvType::get(width);
     } else if (type->isHalfTy()) {
-        return *FloatType::get(FloatType::Half);
+        return FloatType::get(FloatType::Half);
     } else if (type->isFloatTy()) {
-        return *FloatType::get(FloatType::Single);
+        return FloatType::get(FloatType::Single);
     } else if (type->isDoubleTy()) {
-        return *FloatType::get(FloatType::Double);
+        return FloatType::get(FloatType::Double);
     } else if (type->isFP128Ty()) {
-        return *FloatType::get(FloatType::Quad);
+        return FloatType::get(FloatType::Quad);
     }
 
     assert(false && "Unsupported LLVM type.");

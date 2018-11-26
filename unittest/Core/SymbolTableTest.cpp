@@ -14,8 +14,8 @@ TEST(SymbolTable, CanCreateVariables)
     ASSERT_EQ(x.getName(), "x");
     ASSERT_EQ(y.getName(), "y");
 
-    ASSERT_EQ(x.getType(), *BvType::get(32));
-    ASSERT_EQ(y.getType(), *BoolType::get());
+    ASSERT_EQ(x.getType(), BvType::get(32));
+    ASSERT_EQ(y.getType(), BoolType::get());
 }
 
 TEST(SymbolTable, ThrowsExceptionOnDuplicates)

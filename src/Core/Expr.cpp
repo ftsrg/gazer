@@ -103,7 +103,7 @@ std::shared_ptr<ArrayReadExpr> ArrayReadExpr::Create(
 ) {
     assert(array->getType().isArrayType() && "ArrayRead only works on arrays.");
     const ArrayType* arrTy = llvm::cast<ArrayType>(&array->getType());
-    assert(arrTy->getIndexType()->equals(&index->getType()) &&
+    assert(arrTy->getIndexType() == index->getType() &&
         "Array index type and index types must match.");
 
     return std::shared_ptr<ArrayReadExpr>(new ArrayReadExpr(array, index));
@@ -124,7 +124,7 @@ std::shared_ptr<ArrayWriteExpr> ArrayWriteExpr::Create(
 ) {
     assert(array->getType().isArrayType() && "ArrayRead only works on arrays.");
     const ArrayType* arrTy = llvm::cast<ArrayType>(&array->getType());
-    assert(arrTy->getIndexType()->equals(&index->getType()) &&
+    assert(arrTy->getIndexType() == index->getType() &&
         "Array index type and index types must match.");
 
     return std::shared_ptr<ArrayWriteExpr>(new ArrayWriteExpr(array, index, value));

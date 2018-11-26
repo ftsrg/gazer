@@ -44,11 +44,11 @@ std::shared_ptr<BvLiteralExpr> BvLiteralExpr::get(BvType& type, llvm::APInt valu
     static llvm::DenseMap<llvm::APInt, std::shared_ptr<BvLiteralExpr>, DenseMapAPIntKeyInfo> Exprs;
     static std::shared_ptr<BvLiteralExpr> Int1True = 
         std::shared_ptr<BvLiteralExpr>(new BvLiteralExpr(
-            *BvType::get(1), llvm::APInt(1, 1)
+            BvType::get(1), llvm::APInt(1, 1)
         ));
     static std::shared_ptr<BvLiteralExpr> Int1False = 
         std::shared_ptr<BvLiteralExpr>(new BvLiteralExpr(
-            *BvType::get(1), llvm::APInt(1, 0)
+            BvType::get(1), llvm::APInt(1, 0)
         ));
 
     // Currently our DenseMapAPIntKeyInfo does not allow 1-bit wide APInts as keys.
@@ -85,7 +85,7 @@ std::shared_ptr<FloatLiteralExpr> FloatLiteralExpr::get(const FloatType& type, c
 
 std::shared_ptr<FloatLiteralExpr> FloatLiteralExpr::get(FloatType::FloatPrecision precision, const llvm::APFloat& value)
 {
-    return FloatLiteralExpr::get(*FloatType::get(precision), value);
+    return FloatLiteralExpr::get(FloatType::get(precision), value);
 }
 
 void UndefExpr::print(llvm::raw_ostream& os) const {
@@ -119,7 +119,7 @@ std::shared_ptr<LiteralExpr> gazer::LiteralFromLLVMConst(llvm::ConstantData* val
             return BoolLiteralExpr::Get(ci->isZero() ? false : true);
         }
 
-        return BvLiteralExpr::get(*BvType::get(width), ci->getValue());
+        return BvLiteralExpr::get(BvType::get(width), ci->getValue());
     } else if (auto cfp = llvm::dyn_cast<llvm::ConstantFP>(value)) {
         auto fltTy = cfp->getType();
         FloatType::FloatPrecision precision;
