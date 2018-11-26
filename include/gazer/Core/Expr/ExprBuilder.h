@@ -1,5 +1,5 @@
-#ifndef _GAZER_CORE_UTILS_EXPRBUILDER_H
-#define _GAZER_CORE_UTILS_EXPRBUILDER_H
+#ifndef _GAZER_CORE_EXPR_EXPRBUILDER_H
+#define _GAZER_CORE_EXPR_EXPRBUILDER_H
 
 #include "gazer/Core/Expr.h"
 #include "gazer/Core/ExprTypes.h"

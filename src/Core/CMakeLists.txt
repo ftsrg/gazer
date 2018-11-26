@@ -5,9 +5,9 @@ set(SOURCE_FILES
     Variable.cpp
     SymbolTable.cpp
     Valuation.cpp
-    Utils/ExprBuilder.cpp
-    Utils/FoldingExprBuilder.cpp
-    Utils/ExprPrinter.cpp
+    Expr/ExprBuilder.cpp
+    Expr/FoldingExprBuilder.cpp
+    Expr/ExprPrinter.cpp
 )
 
 add_library(GazerCore ${SOURCE_FILES})

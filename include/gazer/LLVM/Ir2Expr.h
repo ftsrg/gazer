@@ -3,7 +3,7 @@
 
 #include "gazer/Core/Expr.h"
 #include "gazer/Core/SymbolTable.h"
-#include "gazer/Core/Utils/ExprBuilder.h"
+#include "gazer/Core/Expr/ExprBuilder.h"
 
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/InstVisitor.h>
