@@ -8,6 +8,7 @@
 #include "gazer/LLVM/TestGenerator/TestGenerator.h"
 
 #include "gazer/Support/Stopwatch.h"
+#include "gazer/Trace/TraceWriter.h"
 
 #include <llvm/IR/Function.h>
 #include <llvm/Bitcode/BitcodeWriter.h>
@@ -69,23 +70,26 @@ bool BmcPass::runOnFunction(llvm::Function& function)
     sw.format(llvm::outs(), "s");
     llvm::outs() << "\n";
 
-    if (result.isUnsafe()) {
-        unsigned ec = *(result.getErrorType());
+    if (result->isFail()) {
+        auto fail = llvm::cast<FailResult>(result.get());
+
+        unsigned ec = fail->getErrorID();
         std::string msg = CheckRegistry::GetInstance().messageForCode(ec);
 
         llvm::outs() << "Verification FAILED: " << msg;
         llvm::outs() << ".\n";
 
         if (PrintTrace) {
-            auto writer = bmc::CreateTextTraceWriter(llvm::outs());
+            auto writer = trace::CreateTextWriter(llvm::outs(), true);
             llvm::outs() << "Error trace:\n";
             llvm::outs() << "-----------\n";
-            writer->write(result.getTrace());
+            writer->write(fail->getTrace());
         }
 
         if (TestHarnessFile != "") {
             llvm::outs() << "Generating test harness.\n";
             TestGenerator testGen;
+            /*
             auto test = testGen.generateModuleFromTrace(
                 result.getTrace(), 
                 function.getContext(),
@@ -100,9 +104,9 @@ bool BmcPass::runOnFunction(llvm::Function& function)
                 testOS << *test;
             } else {
                 llvm::WriteBitcodeToFile(*test, testOS);
-            }
+            } */
         }
-    } else if (result.isSafe()) {
+    } else if (result->isSuccess()) {
         llvm::outs() << "Verification SUCCESSFUL.\n";
     }
 

@@ -12,6 +12,7 @@
 
 #include <vector>
 #include <string>
+#include <gazer/Trace/Trace.h>
 
 namespace llvm {
     class raw_ostream;
@@ -19,6 +20,33 @@ namespace llvm {
 
 namespace gazer
 {
+
+class LLVMBmcTraceBuilder : public TraceBuilder
+{
+public:
+    LLVMBmcTraceBuilder(
+        const TopologicalSort& topo,
+        const llvm::DenseMap<llvm::BasicBlock *, size_t>& blocks,
+        const llvm::DenseMap<llvm::BasicBlock *, llvm::Value *>& preds,
+        const InstToExpr::ValueToVariableMapT& valueMap,
+        llvm::BasicBlock* errorBlock
+    ) : mTopo(topo), mBlocks(blocks), mPreds(preds),
+    mValueMap(valueMap), mErrorBlock(errorBlock)
+    {}
+
+    LLVMBmcTraceBuilder(const LLVMBmcTraceBuilder&) = delete;
+    LLVMBmcTraceBuilder& operator=(const LLVMBmcTraceBuilder&) = delete;
+
+protected:
+    std::vector<std::unique_ptr<TraceEvent>> buildEvents(Valuation& model) override;
+
+private:
+    const TopologicalSort& mTopo;
+    const llvm::DenseMap<llvm::BasicBlock*, size_t> mBlocks;
+    const llvm::DenseMap<llvm::BasicBlock*, llvm::Value*>& mPreds;
+    const InstToExpr::ValueToVariableMapT& mValueMap;
+    llvm::BasicBlock* mErrorBlock;
+};
 
 class BmcTraceWriter;
 

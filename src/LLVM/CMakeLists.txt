@@ -22,4 +22,4 @@ llvm_map_components_to_libnames(LLVM_LIBS support core irreader transformutils s
 message(STATUS "Using LLVM libraries: ${LLVM_LIBS}")
 
 add_library(GazerLLVM ${SOURCE_FILES})
-target_link_libraries(GazerLLVM ${LLVM_LIBS} GazerCore GazerZ3Solver)
+target_link_libraries(GazerLLVM ${LLVM_LIBS} GazerCore GazerTrace GazerZ3Solver)

@@ -2,14 +2,25 @@
 
 namespace gazer
 {
+    namespace checks
+    {
+        /**
+         * Check for assertion violations within the program.
+         */
+        Check* CreateAssertionFailCheck();
 
-namespace checks
-{
+        /**
+         * This check fails if a division instruction is reachable
+         * while the second operand's value is 0.
+         */
+        Check* CreateDivisionByZeroCheck();
 
-Check* CreateAssertionFailCheck();
-Check* CreateDivisionByZeroCheck();
-Check* CreateIntegerOverflowCheck();
-
-} // end namespace checks
+        /**
+         * This check fails if a signed integer operation results
+         * in an over- or underflow.
+         */
+        Check* CreateIntegerOverflowCheck();
+    
+    } // end namespace checks
 
 } // end namespace gazer

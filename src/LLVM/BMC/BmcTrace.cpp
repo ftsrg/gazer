@@ -3,138 +3,30 @@
 #include <llvm/IR/DebugInfoMetadata.h>
 
 #include <llvm/Support/raw_ostream.h>
+#include <gazer/LLVM/BMC/BmcTrace.h>
 
 using namespace gazer;
 using namespace llvm;
 
-void BmcTrace::AssignmentEvent::write(BmcTraceWriter& writer) {
-    writer.writeEvent(*this);
-}
-
-void BmcTrace::FunctionEntryEvent::write(BmcTraceWriter& writer) {
-    writer.writeEvent(*this);
-}
-
-void BmcTrace::ArgumentValueEvent::write(BmcTraceWriter& writer) {
-    writer.writeEvent(*this);
-}
-
-void BmcTrace::FunctionCallEvent::write(BmcTraceWriter& writer) {
-    writer.writeEvent(*this);
-}
-
-namespace
+std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuation &model)
 {
-
-class TextBmcTraceWriter : public BmcTraceWriter
-{
-    size_t mFuncEntries = 0;
-public:
-    TextBmcTraceWriter(llvm::raw_ostream& os, bool printBV = true)
-        : BmcTraceWriter(os), mPrintBV(printBV)
-    {}
-
-public:
-    void writeEvent(BmcTrace::AssignmentEvent& event) override {
-        std::shared_ptr<AtomicExpr> expr = event.getExpr();
-
-        mOS << "  ";
-        mOS << event.getVariableName() << " := ";
-        event.getExpr()->print(mOS);
-        if (mPrintBV) {
-            std::bitset<64> bits;
-
-            if (expr->getType().isIntType()) {
-                auto apVal = llvm::dyn_cast<BvLiteralExpr>(expr.get())->getValue();
-                bits = apVal.getLimitedValue();
-            } else if (expr->getType().isFloatType()) {
-                auto fltVal = llvm::dyn_cast<FloatLiteralExpr>(expr.get())->getValue();
-                bits = fltVal.bitcastToAPInt().getLimitedValue();
-            }
-
-            mOS << "\t(0b" << bits.to_string() << ")";
-        }
-        auto location = event.getLocation();
-        if (location.getLine() != 0) {
-            mOS << "\t at "
-                << location.getLine()
-                << ":"
-                << location.getColumn()
-                << "";
-        }
-        mOS << "\n";
-    };
-
-    void writeEvent(BmcTrace::FunctionEntryEvent& event) override {
-        mOS << "#" << (mFuncEntries++)
-            << " in function " << event.getFunctionName() << ":\n";
-    }
-
-    void writeEvent(BmcTrace::ArgumentValueEvent& event) override {
-        //mOS << "  " << "argument "
-        //event.getValue()->print(mOS);
-        //mOS << "\n";
-    }
-
-    void writeEvent(BmcTrace::FunctionCallEvent& event) override {
-        mOS << "  ";
-        mOS << "call ";
-        event.getFunction()->printAsOperand(mOS);
-        mOS << " -> ";
-        if (event.getReturnValue()->getKind() == Expr::Undef) {
-            mOS << "???";
-        } else {
-            event.getReturnValue()->print(mOS);
-        }
-        mOS << "\t";
-
-        auto location = event.getLocation();
-        if (location.getLine() != 0) {
-            mOS << "\t at "
-                << location.getLine()
-                << ":"
-                << location.getColumn()
-                << "";
-        }
-        mOS << "\n";
-    }
-private:
-    bool mPrintBV;
-};
-
-}
-
-namespace gazer { namespace bmc {
-    std::unique_ptr<BmcTraceWriter> CreateTextTraceWriter(llvm::raw_ostream& os) {
-        return std::make_unique<TextBmcTraceWriter>(os);
-    }
-}}
-
-std::unique_ptr<BmcTrace> BmcTrace::Create(
-    TopologicalSort& topo,
-    llvm::DenseMap<llvm::BasicBlock*, size_t>& blocks,
-    llvm::DenseMap<llvm::BasicBlock*, llvm::Value*>& preds,
-    llvm::BasicBlock* errorBlock,
-    Valuation& model,
-    const InstToExpr::ValueToVariableMapT& valueMap)
-{
-    std::vector<std::unique_ptr<BmcTrace::Event>> assigns;
+    std::vector<std::unique_ptr<TraceEvent>> assigns;
     std::vector<BasicBlock*> traceBlocks;
 
     bool hasParent = true;
-    BasicBlock* current = errorBlock;
+    BasicBlock* current = mErrorBlock;
 
     while (hasParent) {
         traceBlocks.push_back(current);
 
-        auto predRes = preds.find(current);
-        if (predRes != preds.end()) {
+        auto predRes = mPreds.find(current);
+        if (predRes != mPreds.end()) {
             size_t predId;
             if (auto ci = llvm::dyn_cast<llvm::ConstantInt>(predRes->second)) {
                 predId = ci->getLimitedValue();
             } else {
-                auto varRes = valueMap.find(predRes->second);
-                assert(varRes != valueMap.end()
+                auto varRes = mValueMap.find(predRes->second);
+                assert(varRes != mValueMap.end()
                     && "Pred variables should be in the variable map");
                 
                 auto exprRes = model.find(varRes->second);
@@ -148,7 +40,7 @@ std::unique_ptr<BmcTrace> BmcTrace::Create(
 
             //current->printAsOperand(llvm::errs());
             //llvm::errs() << " PRED " << predId << "\n";
-            current = topo[predId];
+            current = mTopo[predId];
         } else {
             hasParent = false;
         }
@@ -169,7 +61,7 @@ std::unique_ptr<BmcTrace> BmcTrace::Create(
                     llvm::Value* value = dvi->getValue();
                     llvm::DILocalVariable* diVar = dvi->getVariable();
 
-                    BmcTrace::LocationInfo location = { 0, 0 };
+                    LocationInfo location = { 0, 0 };
                     if (auto valInst = llvm::dyn_cast<llvm::Instruction>(value)) {
                         llvm::DebugLoc debugLoc = nullptr;
                         if (valInst->getDebugLoc()) {
@@ -183,15 +75,15 @@ std::unique_ptr<BmcTrace> BmcTrace::Create(
                         }
                     }
 
-                    auto result = valueMap.find(value);
+                    auto result = mValueMap.find(value);
                     
-                    if (result == valueMap.end()) {
+                    if (result == mValueMap.end()) {
                         if (llvm::isa<UndefValue>(value)) {
                             continue;
                         } else if (auto cd = dyn_cast<ConstantData>(value)) {
                             auto lit = LiteralFromLLVMConst(cd);
 
-                            assigns.push_back(std::make_unique<BmcTrace::AssignmentEvent>(
+                            assigns.push_back(std::make_unique<AssignTraceEvent>(
                                 diVar->getName(),
                                 lit,
                                 location
@@ -207,7 +99,7 @@ std::unique_ptr<BmcTrace> BmcTrace::Create(
                         
                         std::shared_ptr<LiteralExpr> expr = exprResult->second;
 
-                        assigns.push_back(std::make_unique<BmcTrace::AssignmentEvent>(
+                        assigns.emplace_back(new AssignTraceEvent(
                             diVar->getName(),
                             exprResult->second,
                             location
@@ -229,8 +121,8 @@ std::unique_ptr<BmcTrace> BmcTrace::Create(
                         ci->getValue()
                     );
                 } else {
-                    auto result = valueMap.find(value);
-                    if (result != valueMap.end()) {
+                    auto result = mValueMap.find(value);
+                    if (result != mValueMap.end()) {
                         Variable* variable = result->second;
                         auto exprResult = model.find(variable);
 
@@ -240,12 +132,12 @@ std::unique_ptr<BmcTrace> BmcTrace::Create(
                     }
                 }
 
-                BmcTrace::LocationInfo location = { 0, 0 };
+                LocationInfo location = { 0, 0 };
                 if (auto debugLoc = call->getDebugLoc()) {
                     location = { debugLoc->getLine(), debugLoc->getColumn() };
                 }
 
-                assigns.push_back(std::make_unique<BmcTrace::AssignmentEvent>(
+                assigns.push_back(std::make_unique<AssignTraceEvent>(
                     mdGlobal->getName(),
                     expr,
                     location
@@ -255,14 +147,14 @@ std::unique_ptr<BmcTrace> BmcTrace::Create(
                     cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata()
                 );
 
-                assigns.push_back(std::make_unique<BmcTrace::FunctionEntryEvent>(
+                assigns.push_back(std::make_unique<FunctionEntryEvent>(
                     diSP->getName()
                 ));
             } else if (callee->getName() == "gazer.function.arg") {
                 //auto md = cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata();
                 //auto value = cast<ValueAsMetadata>(md)->getValue();
 
-                //auto variable = valueMap.find(value)->second;
+                //auto variable = mValueMap.find(value)->second;
                 //auto expr = model.find(variable)->second;
 
                 //assigns.push_back(std::make_unique<BmcTrace::ArgumentValueEvent>(
@@ -270,8 +162,8 @@ std::unique_ptr<BmcTrace> BmcTrace::Create(
                 //));
             } else if (callee->isDeclaration() && !call->getType()->isVoidTy()) {
                 // This a function call to a nondetermistic function.
-                auto varIt = valueMap.find(call);
-                assert(varIt != valueMap.end() && "Call results should be present in the value map");
+                auto varIt = mValueMap.find(call);
+                assert(varIt != mValueMap.end() && "Call results should be present in the value map");
 
                 std::shared_ptr<AtomicExpr> expr;
 
@@ -285,7 +177,7 @@ std::unique_ptr<BmcTrace> BmcTrace::Create(
                     expr = UndefExpr::Get(varIt->second->getType());
                 }
 
-                BmcTrace::LocationInfo location = {0, 0};
+                LocationInfo location = {0, 0};
                 if (call->getDebugLoc()) {
                     location = {
                         call->getDebugLoc()->getLine(),
@@ -293,8 +185,8 @@ std::unique_ptr<BmcTrace> BmcTrace::Create(
                     };
                 }
 
-                assigns.push_back(std::make_unique<BmcTrace::FunctionCallEvent>(
-                    callee,
+                assigns.push_back(std::make_unique<FunctionCallEvent>(
+                    callee->getName(),
                     expr,
                     std::vector<std::shared_ptr<AtomicExpr>>(),
                     location
@@ -303,5 +195,5 @@ std::unique_ptr<BmcTrace> BmcTrace::Create(
         }
     }
 
-    return std::make_unique<BmcTrace>(assigns, traceBlocks);
+    return assigns;
 }

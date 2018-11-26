@@ -242,7 +242,7 @@ ExprPtr BoundedModelChecker::encodeEdge(BasicBlock* from, BasicBlock* to)
     return mIr2Expr.getBuilder()->And(exprs.begin(), exprs.end());
 }
 
-BmcResult BoundedModelChecker::run()
+std::unique_ptr<SafetyResult> BoundedModelChecker::run()
 {
     llvm::DenseMap<const Variable*, llvm::Value*> variableToValueMap;
 
@@ -333,6 +333,14 @@ BmcResult BoundedModelChecker::run()
                 }
 
                 // Display a counterexample trace
+                LLVMBmcTraceBuilder builder(
+                    mTopo, blocks, preds, mIr2Expr.getVariableMap(),
+                    errorBlock
+                );
+
+                auto trace = builder.build(model);
+
+/*
                 auto trace = BmcTrace::Create(
                     mTopo,
                     blocks,
@@ -340,7 +348,7 @@ BmcResult BoundedModelChecker::run()
                     errorBlock,
                     model,
                     mIr2Expr.getVariableMap()
-                );
+                ); */
 
                 // Find the error code
                 bool foundEC = false;
@@ -374,7 +382,7 @@ BmcResult BoundedModelChecker::run()
                 assert(foundEC
                     && "Error code intrinsic should be available");
 
-                return BmcResult::CreateUnsafe(ec, std::move(trace));
+                return SafetyResult::CreateFail(ec, std::move(trace));
             } else if (status == Solver::UNSAT) {
                 mOS << "   Formula is UNSAT\n";
             } else {
@@ -385,5 +393,5 @@ BmcResult BoundedModelChecker::run()
         }
     }
 
-    return BmcResult::CreateSafe();
+    return SafetyResult::CreateSuccess();
 }

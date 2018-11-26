@@ -6,6 +6,8 @@
 #include "gazer/LLVM/BMC/BmcTrace.h"
 #include "gazer/LLVM/Instrumentation/Intrinsics.h"
 
+#include "gazer/Trace/SafetyResult.h"
+
 #include <llvm/IR/Function.h>
 
 namespace gazer
@@ -89,7 +91,7 @@ public:
     /**
      * Solves an already encoded program formula.
      */
-    BmcResult run();
+    std::unique_ptr<SafetyResult> run();
 
 private:
     ExprPtr encodeEdge(llvm::BasicBlock* from, llvm::BasicBlock* to);
