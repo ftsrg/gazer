@@ -1,5 +1,6 @@
 #include "gazer/LLVM/TestGenerator/TestGenerator.h"
 #include "gazer/LLVM/Utils/LLVMType.h"
+#include "gazer/Core/LiteralExpr.h"
 
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/IR/IRBuilder.h>
@@ -34,14 +35,17 @@ static llvm::Constant* exprToLLVMValue(std::shared_ptr<AtomicExpr>& expr, LLVMCo
 }
 
 std::unique_ptr<Module> TestGenerator::generateModuleFromTrace(
-    BmcTrace& trace, LLVMContext& context, const DataLayout& dl
+    Trace& trace, LLVMContext& context, const llvm::Module& module
 ) {
+    const DataLayout& dl = module.getDataLayout();
+
     std::unordered_map<llvm::Function*, std::vector<std::shared_ptr<AtomicExpr>>> calls;
     for (auto& event : trace) {
-        if (event->getKind() == BmcTrace::Event::FunctionCall) {
-            auto callEvent = llvm::cast<BmcTrace::FunctionCallEvent>(event.get());
+        if (event->getKind() == TraceEvent::Event_FunctionCall) {
+            auto callEvent = llvm::cast<FunctionCallEvent>(event.get());
 
-            llvm::Function* callee = callEvent->getFunction();
+            llvm::Function* callee = module.getFunction(callEvent->getFunctionName());
+            assert(callee != nullptr && "The function declaration should be present in the module");
             auto expr = callEvent->getReturnValue();
 
             calls[callee].push_back(expr);

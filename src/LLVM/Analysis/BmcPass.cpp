@@ -89,11 +89,10 @@ bool BmcPass::runOnFunction(llvm::Function& function)
         if (TestHarnessFile != "") {
             llvm::outs() << "Generating test harness.\n";
             TestGenerator testGen;
-            /*
             auto test = testGen.generateModuleFromTrace(
-                result.getTrace(), 
+                fail->getTrace(), 
                 function.getContext(),
-                function.getParent()->getDataLayout()
+                *function.getParent()
             );
 
             StringRef filename(TestHarnessFile);
@@ -104,7 +103,7 @@ bool BmcPass::runOnFunction(llvm::Function& function)
                 testOS << *test;
             } else {
                 llvm::WriteBitcodeToFile(*test, testOS);
-            } */
+            } 
         }
     } else if (result->isSuccess()) {
         llvm::outs() << "Verification SUCCESSFUL.\n";
