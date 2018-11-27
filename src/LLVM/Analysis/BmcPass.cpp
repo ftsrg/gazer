@@ -75,8 +75,16 @@ bool BmcPass::runOnFunction(llvm::Function& function)
 
         unsigned ec = fail->getErrorID();
         std::string msg = CheckRegistry::GetInstance().messageForCode(ec);
+        auto location = fail->getLocation();
 
         llvm::outs() << "Verification FAILED: " << msg;
+        if (location) {
+            auto fname = location->getFileName();
+            llvm::outs()
+                << " in " << (fname != "" ? fname : "<unknown file>")
+                << " at line " << location->getLine()
+                << " column " << location->getColumn();
+        }
         llvm::outs() << ".\n";
 
         if (PrintTrace) {

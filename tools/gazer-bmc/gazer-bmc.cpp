@@ -146,7 +146,7 @@ int main(int argc, char* argv[])
 
         //pm->add(gazer::createPromoteUndefsPass());
         //pm->add(llvm::createCFGSimplificationPass());
-        pm->add(createCombineErrorCallsPass());
+        //pm->add(createCombineErrorCallsPass());
         pm->add(createTopologicalSortPass());
 
         if (ShowUnrolledCFG) {

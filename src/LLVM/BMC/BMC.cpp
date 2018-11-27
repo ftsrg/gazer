@@ -352,6 +352,7 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::run()
 
                 // Find the error code
                 bool foundEC = false;
+                CallInst* errorCall = nullptr;
                 unsigned ec;
                 for (llvm::Instruction& inst : *errorBlock) {
                     if (auto call = dyn_cast<CallInst>(&inst)) {
@@ -360,6 +361,7 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::run()
                             && "Indirect calls are not allowed in error blocks.");
                         if (callee->getName() == "gazer.error_code") {
                             foundEC = true;
+                            errorCall = call;
                             auto codeVal = call->getArgOperand(0);
                             if (auto ci = dyn_cast<ConstantInt>(codeVal)) {
                                 ec = ci->getLimitedValue();
@@ -382,7 +384,29 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::run()
                 assert(foundEC
                     && "Error code intrinsic should be available");
 
-                return SafetyResult::CreateFail(ec, std::move(trace));
+
+                // Try to extract the location information for this error call
+                std::optional<LocationInfo> location;
+                llvm::MDNode* md = errorCall->getMetadata(Metadata::DILocationKind);
+
+                llvm::errs() << *errorCall << "\n";
+                if (md != nullptr) {
+                    auto dbgLoc = llvm::cast<DILocation>(md);
+                    std::string filename;
+                    if (dbgLoc->getScope() != nullptr) {
+                        filename = dbgLoc->getScope()->getFilename();
+                    }
+                    location = LocationInfo(dbgLoc->getLine(), dbgLoc->getColumn(), filename);
+                } else {
+                    location = std::nullopt;
+                }
+
+                if (location) {
+                    return SafetyResult::CreateFail(ec, *location, std::move(trace));
+                } else {
+                    return SafetyResult::CreateFail(ec, std::move(trace));
+                }
+
             } else if (status == Solver::UNSAT) {
                 mOS << "   Formula is UNSAT\n";
             } else {

@@ -46,7 +46,8 @@ public:
                         BasicBlock* errorBB = this->createErrorBlock(
                             function,
                             CheckRegistry::GetInstance().getErrorCodeValue(context, ID),
-                            "error.assert_fail"
+                            "error.assert_fail",
+                            call
                         );
                         
                         llvm::ReplaceInstWithInst(
@@ -108,7 +109,8 @@ public:
             BasicBlock* errorBB = this->createErrorBlock(
                 function,
                 CheckRegistry::GetInstance().getErrorCodeValue(context, ID),
-                "error.divzero" + std::to_string(divCnt++)
+                "error.divzero" + std::to_string(divCnt++),
+                inst
             );
 
             BasicBlock* bb = inst->getParent();

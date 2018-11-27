@@ -25,18 +25,27 @@ bool Check::runOnModule(llvm::Module& module)
 }
 
 llvm::BasicBlock* Check::createErrorBlock(
-    Function& function, llvm::Value* errorCode, const Twine& name)
-{
+    Function& function, llvm::Value* errorCode,
+    const Twine& name, llvm::Instruction* location
+) {
     IRBuilder<> builder(function.getContext());
     BasicBlock* errorBB = BasicBlock::Create(
         function.getContext(), name, &function
     );
     builder.SetInsertPoint(errorBB);
-    builder.CreateCall(
+    auto call = builder.CreateCall(
         CheckRegistry::GetErrorFunction(function.getParent()),
         { errorCode }
     );
     builder.CreateUnreachable();
+
+        llvm::errs() << *call << "\n";
+    if (location != nullptr && location->getDebugLoc()) {
+        call->setMetadata(
+            llvm::Metadata::DILocationKind, location->getDebugLoc().getAsMDNode()
+        );
+        llvm::errs() << *call << "\n";
+    }
 
     return errorBB;
 }

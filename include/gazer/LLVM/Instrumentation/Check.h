@@ -56,8 +56,9 @@ protected:
     /**
      * Creates an error block with a gazer.error() call and a terminating unreachable instruction.
      */
-    llvm::BasicBlock* createErrorBlock
-        (llvm::Function& function, llvm::Value* errorCode, const llvm::Twine& name = "");
+    llvm::BasicBlock* createErrorBlock(
+        llvm::Function& function, llvm::Value* errorCode,
+        const llvm::Twine& name = "", llvm::Instruction* location = nullptr);
 
 private:
     unsigned mErrorCode = 0;
