@@ -26,3 +26,16 @@ std::shared_ptr<LiteralExpr> Valuation::operator[](const Variable& variable) con
 
     return result->second;
 }
+
+std::shared_ptr<LiteralExpr> Valuation::eval(const ExprPtr& expr)
+{
+    if (auto varRef = llvm::dyn_cast<VarRefExpr>(expr.get())) {
+        auto lit = this->operator[](varRef->getVariable());
+        return lit;
+    } else if (expr->getKind() == Expr::Literal) {
+        return std::static_pointer_cast<LiteralExpr>(expr);
+    } else {
+        // TODO: Expand this part
+        return nullptr;
+    }
+}

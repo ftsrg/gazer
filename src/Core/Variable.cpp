@@ -12,4 +12,11 @@ Variable::Variable(std::string name, const Type& type)
 
 void VarRefExpr::print(llvm::raw_ostream& os) const {
     os << mVariable.getType().getName() << " " << mVariable.getName();
+
+}
+
+llvm::raw_ostream& gazer::operator<<(llvm::raw_ostream& os, const Variable& variable)
+{
+    os << variable.getType() << " " << variable.getName();
+    return os;
 }

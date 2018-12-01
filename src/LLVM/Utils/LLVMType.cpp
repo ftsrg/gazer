@@ -7,6 +7,10 @@ llvm::Type* gazer::llvmTypeFromType(llvm::LLVMContext& context, const gazer::Typ
     switch (type.getTypeID()) {
         case Type::BoolTypeID:
             return llvm::Type::getInt1Ty(context);
+        case Type::IntTypeID:
+            return llvm::Type::getIntNTy(
+                context,
+                llvm::cast<IntType>(&type)->getWidth());
         case Type::BvTypeID:
             return llvm::Type::getIntNTy(
                 context,

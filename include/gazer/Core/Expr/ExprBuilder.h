@@ -22,10 +22,14 @@ public:
 
     //--- Literals ---//
     ExprPtr BvLit(uint64_t value, unsigned bits) {
-        return BvLiteralExpr::get(BvType::get(bits), llvm::APInt(bits, value));
+        return BvLiteralExpr::Get(llvm::APInt(bits, value));
     }
     ExprPtr BvLit(llvm::APInt value) {
-        return BvLiteralExpr::get(BvType::get(value.getBitWidth()), value);
+        return BvLiteralExpr::Get(value);
+    }
+
+    ExprPtr IntLit(int64_t value, unsigned width) {
+        return IntLiteralExpr::get(IntType::get(width), value);
     }
 
     ExprPtr True()  { return BoolLiteralExpr::getTrue(); }

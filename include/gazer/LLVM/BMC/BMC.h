@@ -13,54 +13,6 @@
 namespace gazer
 {
 
-class BmcResult final
-{
-public:
-    enum Status
-    {
-        Safe, Unsafe, Unknown, Timeout, Error
-    };
-
-    BmcResult(const BmcResult&) = delete;
-    BmcResult& operator=(const BmcResult&) = delete;
-
-    Status getStatus() const { return mStatus; }
-    BmcTrace& getTrace() {
-        assert(mStatus == Unsafe && "Can only access trace for unsafe results.");
-        return *mTrace;
-    }
-
-    std::optional<unsigned> getErrorType() const {
-        return mErrorCode;
-    }
-
-    bool isSafe() const { return mStatus == Safe; }
-    bool isUnsafe() const { return mStatus == Unsafe; }
-
-public:
-    static BmcResult CreateSafe() { return BmcResult(Safe); }
-    static BmcResult CreateUnsafe(unsigned ec, std::unique_ptr<BmcTrace> trace = nullptr) {
-        return BmcResult(Unsafe, ec, std::move(trace));
-    }
-
-private:
-    BmcResult(Status status, std::unique_ptr<BmcTrace> trace = nullptr)
-        : mStatus(status), mTrace(std::move(trace))
-    {}
-
-    BmcResult(
-        Status status,
-        unsigned errorCode,
-        std::unique_ptr<BmcTrace> trace = nullptr
-    )
-        : mStatus(status), mTrace(std::move(trace)), mErrorCode(errorCode)
-    {}
-private:
-    Status mStatus;
-    std::unique_ptr<BmcTrace> mTrace;
-    std::optional<unsigned> mErrorCode;
-};
-
 /**
  * Implements a simple bounded model checker algorithm.
  */
@@ -116,6 +68,7 @@ private:
 
     // Utils
     llvm::DenseMap<llvm::Value*, ExprPtr> mEliminatedVars;
+    llvm::DenseMap<llvm::BasicBlock*, ExprPtr> mPredecessors;
 
     // This should be the last one to be initialized.
     InstToExpr mIr2Expr;

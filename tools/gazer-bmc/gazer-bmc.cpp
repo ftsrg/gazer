@@ -24,6 +24,8 @@
 #include <llvm/Transforms/IPO/AlwaysInliner.h>
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Support/CommandLine.h>
+#include <llvm/Support/PrettyStackTrace.h>
+#include <llvm/Support/Signals.h>
 
 #include <string>
 
@@ -48,6 +50,10 @@ namespace {
 int main(int argc, char* argv[])
 {
     cl::ParseCommandLineOptions(argc, argv);
+
+    llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
+    llvm::PrettyStackTraceProgram(argc, argv);
+    llvm::EnableDebugBuffering = true;
 
     std::string input = InputFilename;
     unsigned bound = BmcUnwind;

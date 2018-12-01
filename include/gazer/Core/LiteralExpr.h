@@ -20,8 +20,8 @@ private:
         : AtomicExpr(Expr::Undef, type)
     {}
 public:
-    virtual void print(llvm::raw_ostream& os) const override;
     static std::shared_ptr<UndefExpr> Get(const Type& type);
+    virtual void print(llvm::raw_ostream& os) const override;
 };
 
 class BoolLiteralExpr final : public LiteralExpr
@@ -56,32 +56,35 @@ private:
     bool mValue;
 };
 
-class MathIntLiteralExpr final : public LiteralExpr
+class IntLiteralExpr final : public LiteralExpr
 {
 private:
-    MathIntLiteralExpr(const MathIntType& type, long long int value)
+    IntLiteralExpr(const IntType& type, int64_t value)
         : LiteralExpr(type), mValue(value)
     {}
 
 public:
+    static std::shared_ptr<IntLiteralExpr> get(IntType& type, int64_t value);
+
+public:
     virtual void print(llvm::raw_ostream& os) const override;
-    long long int getValue() const { return mValue; }
+    int64_t getValue() const { return mValue; }
 
     static bool classof(const Expr* expr) {
-        return expr->getKind() == Literal && expr->getType().isMathIntType();
+        return expr->getKind() == Literal && expr->getType().isIntType();
     }
 
     static bool classof(const Expr& expr) {
-        return expr.getKind() == Literal && expr.getType().isMathIntType();
+        return expr.getKind() == Literal && expr.getType().isIntType();
     }
 private:
-    long long int mValue;
+    int64_t mValue;
 };
 
 class BvLiteralExpr final : public LiteralExpr
 {
 private:
-    BvLiteralExpr(const BvType& type, llvm::APInt value)
+    BvLiteralExpr(BvType& type, llvm::APInt value)
         : LiteralExpr(type), mValue(value)
     {
         assert(type.getWidth() == value.getBitWidth() && "Type and literal bit width must match.");
@@ -90,7 +93,7 @@ public:
     virtual void print(llvm::raw_ostream& os) const override;
 
 public:
-    static std::shared_ptr<BvLiteralExpr> get(BvType& type, llvm::APInt value);
+    static std::shared_ptr<BvLiteralExpr> Get(llvm::APInt value);
 
     llvm::APInt getValue() const { return mValue; }
 
@@ -99,11 +102,11 @@ public:
     }
 
     static bool classof(const Expr* expr) {
-        return expr->getKind() == Literal && expr->getType().isIntType();
+        return expr->getKind() == Literal && expr->getType().isBvType();
     }
 
     static bool classof(const Expr& expr) {
-        return expr.getKind() == Literal && expr.getType().isIntType();
+        return expr.getKind() == Literal && expr.getType().isBvType();
     }
 
 private:

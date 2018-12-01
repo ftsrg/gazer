@@ -8,24 +8,27 @@
 using namespace gazer;
 using namespace llvm;
 
-cl::opt<bool> NoElimVars("no-elim-vars",
-    cl::desc("Do not eliminate temporary variables"));
+namespace gazer {
+    cl::opt<bool> NoElimVars("no-elim-vars",
+        cl::desc("Do not eliminate temporary variables"));
 
-cl::opt<bool> AssumeNoNaN("assume-no-nan",
-    cl::desc("Assume that floating-point operations never return NaN"));
+    cl::opt<bool> AssumeNoNaN("assume-no-nan",
+        cl::desc("Assume that floating-point operations never return NaN"));
 
-cl::opt<bool> UseMathInt("use-math-int",
-    cl::desc("Use mathematical integers instead of bitvectors."));
+    cl::opt<bool> UseMathInt("use-math-int",
+        cl::desc("Use mathematical integers instead of bitvectors."));
 
-cl::opt<bool> DumpFormula("dump-formula",
-    cl::desc("Dump the encoded program formula to stderr."));
+    cl::opt<bool> DumpFormula("dump-formula",
+        cl::desc("Dump the encoded program formula to stderr."));
 
-cl::opt<bool> DumpSolverFormula("dump-solver-formula",
-    cl::desc("Dump the formula in the solver's format"));
+    cl::opt<bool> DumpSolverFormula("dump-solver-formula",
+        cl::desc("Dump the formula in the solver's format"));
 
-cl::opt<bool> DumpModel("dump-model",
-    cl::desc("Dump the solver SAT model"));
+    cl::opt<bool> DumpModel("dump-model",
+        cl::desc("Dump the solver SAT model"));
 
+    extern cl::opt<bool> PrintTrace;
+}
 
 static bool isErrorFunctionName(llvm::StringRef name)
 {
@@ -48,7 +51,7 @@ static bool isErrorBlock(const BasicBlock* bb)
     return false;
 }
 
-static ExprPtr tryToEliminate(const llvm::Instruction& inst, ExprPtr expr)
+static ExprPtr tryToEliminate(const llvm::Instruction& inst, const ExprPtr& expr)
 {
     if (inst.getNumUses() != 1) {
         return nullptr;
@@ -122,22 +125,72 @@ auto BoundedModelChecker::encode() -> ProgramEncodeMapT
     for (size_t i = 1; i < numBB; ++i) {
         BasicBlock* bb = mTopo[i];
         llvm::SmallVector<ExprPtr, 2> exprs;
+        llvm::SmallVector<BasicBlock*, 2> preds(llvm::pred_begin(bb), llvm::pred_end(bb));
 
-        for (BasicBlock* pred : llvm::predecessors(bb)) {
+
+        ExprPtr predExpr = nullptr;
+        Variable* predVar = nullptr;
+
+        if (PrintTrace) {
+            if (preds.empty()) {
+                predExpr = nullptr;
+                predVar = nullptr;
+            } else if (preds.size() == 1) {
+                size_t predBlockID = blocks[preds[0]];
+                predExpr = mExprBuilder->BvLit(predBlockID, 32);
+                predVar = nullptr;
+                mPredecessors[bb] = predExpr;
+            } else if (preds.size() == 2) {
+                predVar = &mSymbols.create("__gazer_pred_" + bb->getName().str(), BoolType::get());
+
+                size_t first = blocks[preds[0]];
+                size_t second = blocks[preds[1]];
+                
+                predExpr = mExprBuilder->Select(
+                    predVar->getRefExpr(), mExprBuilder->BvLit(first, 32), mExprBuilder->BvLit(second, 32)
+                );
+                mPredecessors[bb] = predExpr;
+            } else {
+                predVar = &mSymbols.create("__gazer_pred_" + bb->getName().str(), BvType::get(32));
+                predExpr = predVar->getRefExpr();
+                mPredecessors[bb] = predExpr;
+            }
+        }
+
+        for (int j = 0; j < preds.size(); ++j) {
+            BasicBlock* pred = preds[j];
+
             auto predIt = blocks.find(pred);
             assert(predIt != blocks.end()
-                && "All blocks must be present in the block map");
+                && "All blocks must be present in the block map.");
 
             size_t predIdx = blocks[pred];
             assert(predIdx < i
-                && "Predecessors must be before block in a topological sort");
+                && "Predecessors must be before block in a topological sort. "
+                "Maybe there is a loop in the CFG?");
+
+
+            ExprPtr predIdentification;
+            if (!PrintTrace || predVar == nullptr) {
+                predIdentification = mExprBuilder->True();
+            } else if (predVar->getType().isBoolType()) {
+                predIdentification =
+                    (j == 0 ? predVar->getRefExpr() : mExprBuilder->Not(predVar->getRefExpr()));
+            } else {
+                predIdentification = mExprBuilder->Eq(
+                    predVar->getRefExpr(),
+                    mExprBuilder->BvLit(predIdx, 32)
+                );
+            }
 
             ExprPtr predFormula = dp[predIdx];
+
             if (predFormula != BoolLiteralExpr::getFalse()) {
-                auto andFormula = mExprBuilder->And(
+                auto andFormula = mExprBuilder->And({
+                    predIdentification,
                     predFormula,
                     encodeEdge(pred, bb)
-                );
+                });
                 exprs.push_back(andFormula);
             }
         }
@@ -260,6 +313,7 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::run()
     }
 
     // Create predecessor identifications
+    #if 0
     llvm::Type* predTy = llvm::IntegerType::get(context, 32);
     for (BasicBlock& bb : mFunction) {
         size_t bbID = blocks[&bb];
@@ -294,6 +348,7 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::run()
             phi->deleteValue();
         }
     }
+    #endif
 
     ProgramEncodeMapT result = this->encode();
 
@@ -333,27 +388,22 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::run()
                 }
 
                 // Display a counterexample trace
-                LLVMBmcTraceBuilder builder(
-                    mTopo, blocks, preds, mIr2Expr.getVariableMap(),
-                    errorBlock
-                );
 
-                auto trace = builder.build(model);
+                std::unique_ptr<Trace> trace = nullptr;
+        
+                if (PrintTrace) {
+                    LLVMBmcTraceBuilder builder(
+                        mTopo, blocks, mPredecessors, mIr2Expr.getVariableMap(),
+                        errorBlock
+                    );
 
-/*
-                auto trace = BmcTrace::Create(
-                    mTopo,
-                    blocks,
-                    preds,
-                    errorBlock,
-                    model,
-                    mIr2Expr.getVariableMap()
-                ); */
+                    trace = builder.build(model);
+                }
 
                 // Find the error code
                 bool foundEC = false;
                 CallInst* errorCall = nullptr;
-                unsigned ec;
+                unsigned ec = 0;
                 for (llvm::Instruction& inst : *errorBlock) {
                     if (auto call = dyn_cast<CallInst>(&inst)) {
                         auto callee = call->getCalledFunction();
@@ -389,7 +439,6 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::run()
                 std::optional<LocationInfo> location;
                 llvm::MDNode* md = errorCall->getMetadata(Metadata::DILocationKind);
 
-                llvm::errs() << *errorCall << "\n";
                 if (md != nullptr) {
                     auto dbgLoc = llvm::cast<DILocation>(md);
                     std::string filename;

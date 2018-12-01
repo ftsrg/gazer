@@ -17,8 +17,10 @@ using llvm::ConstantInt;
 using llvm::isa;
 using llvm::dyn_cast;
 
-extern llvm::cl::opt<bool> AssumeNoNaN;
-extern llvm::cl::opt<bool> UseMathInt;
+namespace gazer {
+    extern llvm::cl::opt<bool> AssumeNoNaN;
+    extern llvm::cl::opt<bool> UseMathInt;
+}
 
 gazer::Type& TypeFromLLVMType(const llvm::Type* type)
 {
@@ -396,7 +398,7 @@ ExprPtr InstToExpr::visitCastInst(llvm::CastInst& cast)
 
     if (castOp->getType().isBoolType()) {
         return integerCast(cast, castOp, 1);
-    } else if (castOp->getType().isIntType()) {
+    } else if (castOp->getType().isBvType()) {
         return integerCast(
             cast, castOp, dyn_cast<BvType>(&castOp->getType())->getWidth()
         );
@@ -602,7 +604,7 @@ ExprPtr InstToExpr::asBool(ExprPtr operand)
 {
     if (operand->getType().isBoolType()) {
         return operand;
-    } else if (operand->getType().isIntType()) {
+    } else if (operand->getType().isBvType()) {
         const BvType* bvTy = dyn_cast<BvType>(&operand->getType());
         unsigned bits = bvTy->getWidth();
 
@@ -624,7 +626,7 @@ ExprPtr InstToExpr::asInt(ExprPtr operand, unsigned bits)
             mExprBuilder->BvLit(1, bits),
             mExprBuilder->BvLit(0, bits)
         );
-    } else if (operand->getType().isIntType()) {
+    } else if (operand->getType().isBvType()) {
         return operand;
     } else {
         assert(false && "Unsupported gazer type.");
@@ -635,9 +637,9 @@ ExprPtr InstToExpr::castResult(ExprPtr expr, const Type& type)
 {
     if (type.isBoolType()) {
         return asBool(expr);
-    } else if (type.isIntType()) {
+    } else if (type.isBvType()) {
         return asInt(expr, dyn_cast<BvType>(&type)->getWidth());
     } else {
-        throw TypeCastError("Invalid cast result type.");
+        assert(!"Invalid cast result type");
     }
 }

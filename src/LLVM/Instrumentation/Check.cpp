@@ -39,12 +39,10 @@ llvm::BasicBlock* Check::createErrorBlock(
     );
     builder.CreateUnreachable();
 
-        llvm::errs() << *call << "\n";
     if (location != nullptr && location->getDebugLoc()) {
         call->setMetadata(
             llvm::Metadata::DILocationKind, location->getDebugLoc().getAsMDNode()
         );
-        llvm::errs() << *call << "\n";
     }
 
     return errorBB;

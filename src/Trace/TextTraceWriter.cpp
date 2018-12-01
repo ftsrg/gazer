@@ -27,7 +27,7 @@ namespace
             if (mPrintBv) {
                 std::bitset<64> bits;
 
-                if (expr->getType().isIntType()) {
+                if (expr->getType().isBvType()) {
                     auto apVal = llvm::dyn_cast<BvLiteralExpr>(expr.get())->getValue();
                     bits = apVal.getLimitedValue();
                 } else if (expr->getType().isFloatType()) {
@@ -57,7 +57,7 @@ namespace
         void visit(FunctionCallEvent& event) override
         {
             mOS << INDENT << "call "
-                << event.getFunctionName() << " -> ";
+                << event.getFunctionName() << "() returned ";
             if (event.getReturnValue()->getKind() == Expr::Undef) {
                 mOS << "???";
             } else {

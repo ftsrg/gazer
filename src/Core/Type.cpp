@@ -1,9 +1,10 @@
 #include "gazer/Core/Type.h"
 
-#include <fmt/format.h>
+#include <llvm/Support/raw_ostream.h>
 #include <llvm/ADT/APFloat.h>
 #include <llvm/ADT/StringMap.h>
 #include <llvm/ADT/DenseMap.h>
+#include <llvm/Support/FormatVariadic.h>
 
 #include <algorithm>
 
@@ -11,39 +12,8 @@ using namespace gazer;
 
 static std::string getArrayTypeStr(Type& indexType, Type& elemType)
 {
-    return fmt::format("[{0} -> {1}]",
-        indexType.getName(), elemType.getName());
+    return llvm::formatv("[{0} -> {1}]", indexType.getName(), elemType.getName());
 }
-
-/*
-static std::string getFunctionTypeStr(Type* returnType, llvm::iterator_range<FunctionType::arg_iterator> args) {
-    auto argPrint = [](Type* type) { return type->getName(); };
-    auto range = llvm::make_range(
-        llvm::map_iterator(args.begin(), argPrint),
-        llvm::map_iterator(args.end(), argPrint)
-    );
-
-    return fmt::format("({0}) -> {1}",
-        fmt::join(range, ", "), returnType->getName()
-    );
-}
-*/
-
-TypeCastError::TypeCastError(const Type& from, const Type& to, std::string message)
-    : TypeCastError(&from, &to, message)
-{}
-
-TypeCastError::TypeCastError(const Type* from, const Type* to, std::string message)
-    : logic_error(fmt::format(
-        "TypeCastError encountered: Invalid cast from type '{0}' to {1}."
-        "Error message: {2}",
-        from->getName(), to->getName(), message
-    ))
-{}
-
-TypeCastError::TypeCastError(std::string message)
-    : logic_error(message)
-{}
 
 std::string Type::getName() const
 {
@@ -54,7 +24,7 @@ std::string Type::getName() const
             auto intType = llvm::cast<BvType>(this);
             return "Bv" + std::to_string(intType->getWidth());
         }
-        case MathIntTypeID:
+        case IntTypeID:
             return "Int";
         case FloatTypeID: {
             auto fltTy = llvm::cast<FloatType>(this);
@@ -75,6 +45,11 @@ std::string Type::getName() const
     }
 
     llvm_unreachable("Invalid TypeID");
+}
+
+llvm::raw_ostream& gazer::operator<<(llvm::raw_ostream& os, const Type& type)
+{
+    return os << type.getName();
 }
 
 bool Type::equals(const Type* other) const
@@ -116,15 +91,21 @@ bool Type::equals(const Type* other) const
     return true;
 }
 
-BvType BvType::Int1Ty(1);
-BvType BvType::Int8Ty(8);
-BvType BvType::Int16Ty(16);
-BvType BvType::Int32Ty(32);
-BvType BvType::Int64Ty(64);
+BvType BvType::Bv1Ty(1);
+BvType BvType::Bv8Ty(8);
+BvType BvType::Bv16Ty(16);
+BvType BvType::Bv32Ty(32);
+BvType BvType::Bv64Ty(64);
 
-BvType& BvType::get(unsigned width)
+IntType IntType::Int1Ty(1);
+IntType IntType::Int8Ty(8);
+IntType IntType::Int16Ty(16);
+IntType IntType::Int32Ty(32);
+IntType IntType::Int64Ty(64);
+
+IntType& IntType::get(unsigned width)
 {
-    static llvm::DenseMap<unsigned, std::unique_ptr<BvType>> Instances;
+    static llvm::DenseMap<unsigned, std::unique_ptr<IntType>> Instances;
 
     switch (width) {
         case 1: return Int1Ty;
@@ -132,6 +113,27 @@ BvType& BvType::get(unsigned width)
         case 16: return Int16Ty;
         case 32: return Int32Ty;
         case 64: return Int64Ty;
+    }
+
+    auto result = Instances.find(width);
+    if (result == Instances.end()) {
+        auto pair = Instances.try_emplace(width, new IntType(width));
+        return *pair.first->second.get();
+    }
+
+    return *result->second.get();
+}
+
+BvType& BvType::get(unsigned width)
+{
+    static llvm::DenseMap<unsigned, std::unique_ptr<BvType>> Instances;
+
+    switch (width) {
+        case 1: return Bv1Ty;
+        case 8: return Bv8Ty;
+        case 16: return Bv16Ty;
+        case 32: return Bv32Ty;
+        case 64: return Bv64Ty;
     }
 
     auto result = Instances.find(width);

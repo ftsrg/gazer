@@ -16,7 +16,7 @@ static llvm::Constant* exprToLLVMValue(std::shared_ptr<AtomicExpr>& expr, LLVMCo
         return llvm::UndefValue::get(llvmTypeFromType(context, expr->getType()));
     }
 
-    if (expr->getType().isIntType()) {
+    if (expr->getType().isBvType()) {
         auto BvLit = llvm::cast<BvLiteralExpr>(expr.get());
         return llvm::ConstantInt::get(context, BvLit->getValue());
     } else if (expr->getType().isBoolType()) {

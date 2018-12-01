@@ -13,8 +13,8 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 #add_subdirectory(vendor/mstch)
 #include_directories(${mstch_INCLUDE_DIR})
 
-add_subdirectory(vendor/fmt)
-include_directories(vendor/fmt/include)
+#add_subdirectory(vendor/fmt)
+#include_directories(vendor/fmt/include)
 
 # Get LLVM
 find_package(LLVM 7.0 REQUIRED CONFIG)
@@ -25,6 +25,10 @@ llvm_map_components_to_libnames(LLVM_LIBS support)
 
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
+
+# Add DSA and AssistDS
+#include_directories(vendor/llvm-dsa/include)
+#add_subdirectory(vendor/llvm-dsa)
 
 # Add boost
 find_package(Boost REQUIRED)

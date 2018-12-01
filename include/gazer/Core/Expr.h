@@ -179,7 +179,7 @@ protected:
 using ExprPtr = std::shared_ptr<Expr>;
 using ExprVector = std::vector<ExprPtr>;
 
-std::ostream& operator<<(std::ostream& os, const Expr& expr);
+llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Expr& expr);
 
 /**
  * Expression base class for atomic expression values.

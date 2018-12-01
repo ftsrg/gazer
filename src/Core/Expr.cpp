@@ -2,7 +2,6 @@
 #include "gazer/Core/ExprTypes.h"
 
 #include <llvm/Support/raw_ostream.h>
-#include <llvm/Support/raw_os_ostream.h>
 
 using namespace gazer;
 
@@ -84,10 +83,9 @@ void NonNullaryExpr::print(llvm::raw_ostream& os) const
     os << ")";
 }
 
-std::ostream& gazer::operator<<(std::ostream& os, const Expr& expr)
+llvm::raw_ostream& gazer::operator<<(llvm::raw_ostream& os, const Expr& expr)
 {
-    llvm::raw_os_ostream ros(os);
-    expr.print(ros);
+    expr.print(os);
     return os;
 }
 

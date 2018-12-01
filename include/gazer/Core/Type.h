@@ -12,6 +12,7 @@
 
 namespace llvm {
     struct fltSemantics;
+    class raw_ostream;
 }
 
 namespace gazer
@@ -28,6 +29,7 @@ public:
         // Primitive types
         BoolTypeID = 0,
         MathIntTypeID,
+        IntTypeID,
         BvTypeID,
         FloatTypeID,
 
@@ -62,11 +64,12 @@ public:
     }
 
     bool isBoolType() const { return getTypeID() == BoolTypeID; }
-    bool isMathIntType() const { return getTypeID() == MathIntTypeID; }
-    bool isIntType() const { return getTypeID() == BvTypeID; }
+    bool isIntType() const { return getTypeID() == IntTypeID; }
+    bool isBvType() const { return getTypeID() == BvTypeID; }
     bool isFloatType() const { return getTypeID() == FloatTypeID; }
-
     bool isArrayType() const { return getTypeID() == ArrayTypeID; }
+
+    bool isMathIntType() const { return getTypeID() == MathIntTypeID; }
     //bool isPointerType() const { return getTypeID() == PointerTypeID; }
 
     bool equals(const Type* other) const;
@@ -80,25 +83,7 @@ private:
     TypeID mTypeID;
 };
 
-/**
- * Exception class for type cast errors.
- */
-class TypeCastError : public std::logic_error {
-public:
-    TypeCastError(const Type* from, const Type* to, std::string message = "");
-    TypeCastError(const Type& from, const Type& to, std::string message = "");
-    TypeCastError(std::string message);
-};
-
-inline void check_type(const Type& from, const Type& to) {
-    if (from != to) {
-        throw TypeCastError(from, to);
-    }
-}
-
-inline void check_type(const Type* from, const Type* to) {
-    throw TypeCastError(from, to);
-}
+llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Type& type);
 
 //*========= Types =========*//
 
@@ -157,7 +142,34 @@ public:
     }
 private:
     unsigned mWidth;
-    static BvType Int1Ty, Int8Ty, Int16Ty, Int32Ty, Int64Ty;
+    static BvType Bv1Ty, Bv8Ty, Bv16Ty, Bv32Ty, Bv64Ty;
+};
+
+/**
+ * Unbounded, mathematical integer type.
+ * For compability reasons, we also define the bit width of this type.
+ */
+class IntType final : public Type
+{
+protected:
+    IntType(unsigned width)
+        : Type(IntTypeID), mWidth(width)
+    {}
+public:
+    unsigned getWidth() const { return mWidth; }
+
+    static IntType& get(unsigned width);
+
+    static bool classof(const Type* type) {
+        return type->getTypeID() == IntTypeID;
+    }
+
+    static bool classof(const Type& type) {
+        return type.getTypeID() == IntTypeID;
+    }
+private:
+    unsigned mWidth;
+    static IntType Int1Ty, Int8Ty, Int16Ty, Int32Ty, Int64Ty;
 };
 
 /**
@@ -198,6 +210,9 @@ private:
     static FloatType HalfTy, SingleTy, DoubleTy, QuadTy;
 };
 
+/**
+ * Represents an array type.
+ */
 class ArrayType final : public Type
 {
     ArrayType(Type* indexType, Type* elementType)

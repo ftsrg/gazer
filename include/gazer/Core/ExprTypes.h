@@ -86,14 +86,12 @@ public:
     }
 
     static std::shared_ptr<ExtCastExpr<Kind>> Create(ExprPtr operand, const Type& type) {
-        assert(operand->getType().isIntType() && "Can only do bitwise cast on integers");
-        assert(type.isIntType() && "Can only do bitwise cast on integers");
+        assert(operand->getType().isBvType() && "Can only do bitwise cast on integers");
+        assert(type.isBvType() && "Can only do bitwise cast on integers");
         
         auto lhsTy = llvm::dyn_cast<BvType>(&operand->getType());
         auto rhsTy = llvm::dyn_cast<BvType>(&type);
-        if (lhsTy->getWidth() >= rhsTy->getWidth()) {
-            throw TypeCastError("Extend casts must increase bit width");
-        }
+        assert((rhsTy->getWidth() > lhsTy->getWidth()) && "Extend casts must increase bit width");
 
         return std::shared_ptr<ExtCastExpr<Kind>>(new ExtCastExpr(operand, *rhsTy));
     }
@@ -181,7 +179,7 @@ protected:
 public:
     static std::shared_ptr<ArithmeticExpr<Kind>> Create(ExprPtr left, ExprPtr right)
     {
-        assert((left->getType().isIntType() || left->getType().isMathIntType())
+        assert((left->getType().isBvType() || left->getType().isMathIntType())
             && "Can only define arithmetic operations on integers.");
         assert(left->getType() == right->getType() && "Arithmetic expression operand types must match.");
 
@@ -269,9 +267,7 @@ protected:
         : NonNullaryExpr(Kind, BoolType::get(), begin, end)
     {
         for (auto it = begin; it != end; ++it) {
-            if (!((*it)->getType().isBoolType())) {
-                throw TypeCastError("Logic expression operands can only be booleans.");
-            }
+            assert((*it)->getType().isBoolType() && "Logic expression operands can only be booleans.");
         }
     }
 
@@ -483,6 +479,9 @@ public:
     }
 };
 
+/**
+ * Reads an element from an array.
+ */
 class ArrayReadExpr final : public NonNullaryExpr
 {
 protected:

@@ -64,6 +64,8 @@ protected:
         switch (type->getTypeID()) {
             case Type::BoolTypeID:
                 return mContext.bool_sort();
+            case Type::IntTypeID:
+                return mContext.int_sort();
             case Type::MathIntTypeID:
                 return mContext.int_sort();
             case Type::BvTypeID: {
@@ -107,7 +109,7 @@ protected:
     }
 
     z3::expr visitLiteral(const std::shared_ptr<LiteralExpr>& expr) override {
-        if (expr->getType().isIntType()) {
+        if (expr->getType().isBvType()) {
             auto lit = llvm::dyn_cast<BvLiteralExpr>(&*expr);
             auto value = lit->getValue();
             return mContext.bv_val(
@@ -117,8 +119,8 @@ protected:
         } else if (expr->getType().isBoolType()) {
             auto value = llvm::dyn_cast<BoolLiteralExpr>(&*expr)->getValue();
             return mContext.bool_val(value);
-        } else if (expr->getType().isMathIntType()) {
-            int64_t value = llvm::dyn_cast<MathIntLiteralExpr>(&*expr)->getValue();
+        } else if (expr->getType().isIntType()) {
+            int64_t value = llvm::dyn_cast<IntLiteralExpr>(&*expr)->getValue();
             return mContext.int_val(value);    
         } else if (expr->getType().isFloatType()) {
             auto fltTy = llvm::dyn_cast<FloatType>(&expr->getType());
@@ -518,16 +520,24 @@ Valuation Z3Solver::getModel()
         if (z3Expr.is_bool()) {
             bool value = z3::eq(model.eval(z3Expr), mContext.bool_val(true));
             expr = BoolLiteralExpr::Get(value);            
+        } else if (z3Expr.is_int()) {
+            // TODO: Maybe try with Z3_get_numeral_string?
+            int64_t value;
+            Z3_get_numeral_int64(mContext, model.eval(z3Expr), &value);
+
+            const Type* varTy = &variable.getType();
+            assert(varTy->isIntType() && "An IntType should only be contained in an IntType variable.");
+        
+            auto intTy = llvm::cast<gazer::IntType>(varTy);
+
+            expr = IntLiteralExpr::get(IntType::get(intTy->getWidth()), value);
         } else if (z3Expr.is_bv()) {
             unsigned int width = Z3_get_bv_sort_size(mContext, z3Expr.get_sort());
             uint64_t value;
             Z3_get_numeral_uint64(mContext, z3Expr, &value);
 
             llvm::APInt iVal(width, value);
-            expr = BvLiteralExpr::get(
-                BvType::get(width),
-                iVal
-            );
+            expr = BvLiteralExpr::Get(iVal);
         } else if (z3Expr.get_sort().sort_kind() == Z3_sort_kind::Z3_FLOATING_POINT_SORT) {
             z3::sort sort = z3Expr.get_sort();
             FloatType::FloatPrecision precision = precFromSort(mContext, sort);

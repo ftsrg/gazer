@@ -31,6 +31,8 @@ private:
     std::shared_ptr<VarRefExpr> mExpr;
 };
 
+llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Variable& variable);
+
 class VarRefExpr final : public Expr
 {
     friend class Variable;

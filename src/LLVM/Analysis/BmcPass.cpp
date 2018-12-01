@@ -18,27 +18,26 @@
 using namespace gazer;
 using namespace llvm;
 
-namespace
+namespace gazer
 {
+    cl::opt<bool> NoFoldingExpr(
+        "no-folding-expr",
+        cl::desc("Do not fold and simplify expressions. Use only for debugging.")
+    );
 
-cl::opt<bool> NoFoldingExpr(
-    "no-folding-expr",
-    cl::desc("Do not fold and simplify expressions. Use only for debugging.")
-);
+    cl::opt<bool> PrintTrace(
+        "trace",
+        cl::desc("Print counterexample traces to stdout.")
+    );
 
-cl::opt<bool> PrintTrace(
-    "trace",
-    cl::desc("Print counterexample traces to stdout.")
-);
-
-cl::opt<std::string> TestHarnessFile(
-    "test-harness",
-    cl::desc("Write test harness to output file"),
-    cl::value_desc("filename"),
-    cl::init("")
-);
-
+    cl::opt<std::string> TestHarnessFile(
+        "test-harness",
+        cl::desc("Write test harness to output file"),
+        cl::value_desc("filename"),
+        cl::init("")
+    );
 }
+
 char BmcPass::ID = 0;
 
 void BmcPass::getAnalysisUsage(llvm::AnalysisUsage& au) const

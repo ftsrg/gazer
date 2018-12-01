@@ -1,4 +1,5 @@
 #include "gazer/LLVM/BMC/BmcTrace.h"
+#include "gazer/Core/Expr/ExprEvaluator.h"
 
 #include <llvm/IR/DebugInfoMetadata.h>
 
@@ -16,31 +17,20 @@ std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuat
     bool hasParent = true;
     BasicBlock* current = mErrorBlock;
 
+    ExprEvaluator eval{model};
+
     while (hasParent) {
         traceBlocks.push_back(current);
 
         auto predRes = mPreds.find(current);
         if (predRes != mPreds.end()) {
-            size_t predId;
-            if (auto ci = llvm::dyn_cast<llvm::ConstantInt>(predRes->second)) {
-                predId = ci->getLimitedValue();
-            } else {
-                auto varRes = mValueMap.find(predRes->second);
-                assert(varRes != mValueMap.end()
-                    && "Pred variables should be in the variable map");
-                
-                auto exprRes = model.find(varRes->second);
-                assert(exprRes != model.end()
-                    && "Pred values should be present in the model");
-                
-                auto lit = llvm::dyn_cast<BvLiteralExpr>(exprRes->second.get());
-                predId = lit->getValue().getLimitedValue();
+            auto predLit = dyn_cast_or_null<BvLiteralExpr>(
+                eval.visit(predRes->second).get()
+            );
+            assert((predLit != nullptr) && "Pred values should be evaluatable!");
 
-            }
-
-            //current->printAsOperand(llvm::errs());
-            //llvm::errs() << " PRED " << predId << "\n";
-            current = mTopo[predId];
+            size_t predID = predLit->getValue().getLimitedValue();
+            current = mTopo[predID];
         } else {
             hasParent = false;
         }
@@ -50,7 +40,7 @@ std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuat
     
     for (BasicBlock* bb : traceBlocks) {
         for (Instruction& instr : *bb) {
-            llvm::CallInst* call = llvm::dyn_cast<llvm::CallInst>(&instr);
+            auto call = llvm::dyn_cast<llvm::CallInst>(&instr);
             if (!call) {
                 continue;
             }
@@ -116,10 +106,7 @@ std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuat
 
                 std::shared_ptr<LiteralExpr> expr = nullptr;
                 if (auto ci = dyn_cast<ConstantInt>(value)) {
-                    expr = BvLiteralExpr::get(
-                        BvType::get(ci->getBitWidth()),
-                        ci->getValue()
-                    );
+                    expr = BvLiteralExpr::Get(ci->getValue());
                 } else {
                     auto result = mValueMap.find(value);
                     if (result != mValueMap.end()) {
@@ -133,7 +120,7 @@ std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuat
                 }
 
                 LocationInfo location = { 0, 0 };
-                if (auto debugLoc = call->getDebugLoc()) {
+                if (auto& debugLoc = call->getDebugLoc()) {
                     location = { debugLoc->getLine(), debugLoc->getColumn() };
                 }
 
