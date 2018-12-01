@@ -6,6 +6,7 @@
 #include <llvm/IR/Function.h>
 #include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/InstIterator.h>
 
 using namespace gazer;
 using namespace llvm;
@@ -31,6 +32,12 @@ public:
             llvm::Type::getVoidTy(context),
             llvm::Type::getMetadataTy(context),
             llvm::Type::getInt8Ty(context)
+        );
+        auto retMark = module.getOrInsertFunction(
+            "gazer.function_call.return",
+            llvm::Type::getVoidTy(context),
+            llvm::Type::getMetadataTy(context),
+            llvm::Type::getMetadataTy(context)
         );
         auto argMark = module.getOrInsertFunction(
             "gazer.function.arg",
@@ -71,6 +78,32 @@ public:
                 llvm::errs()
                     << "Cannot insert function entry marks: "
                     << "DISubprogram missing.\n";
+            }
+
+            // Also mark call returns from other functions
+            std::vector<CallInst*> calls;
+            for (Instruction& inst : llvm::instructions(function)) {
+                if (auto call = dyn_cast<CallInst>(&inst)) {
+                    Function* callee = call->getCalledFunction();
+                    if (callee == nullptr) {
+                        // Currently we do not bother with indirect calls.
+                        continue;
+                    } else if (callee->isDeclaration()) {
+                        // We are only interested in functions for which we can find a body.
+                        continue;
+                    }
+
+                    calls.push_back(call);
+                }
+            }
+
+            for (CallInst* call : calls) {
+                auto md = ValueAsMetadata::get(call);
+                builder.SetInsertPoint(call->getNextNode());
+                builder.CreateCall(retMark, {
+                    MetadataAsValue::get(context, dsp),
+                    MetadataAsValue::get(module.getContext(), md)
+                });
             }
         }
 

@@ -89,7 +89,7 @@ std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuat
                         
                         std::shared_ptr<LiteralExpr> expr = exprResult->second;
 
-                        assigns.emplace_back(new AssignTraceEvent(
+                        assigns.push_back(std::make_unique<AssignTraceEvent>(
                             diVar->getName(),
                             exprResult->second,
                             location
@@ -130,6 +130,14 @@ std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuat
                     location
                 ));
             } else if (callee->getName() == "gazer.function.entry") {
+                auto diSP = dyn_cast<DISubprogram>(
+                    cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata()
+                );
+
+                assigns.push_back(std::make_unique<FunctionEntryEvent>(
+                    diSP->getName()
+                ));
+            } else if (callee->getName() == "gazer.function_call.return") {
                 auto diSP = dyn_cast<DISubprogram>(
                     cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata()
                 );
