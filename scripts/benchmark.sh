@@ -102,7 +102,7 @@ do
                 GAZER_STATUS="Unknown"
             fi
 
-            RUNTIME=$(<$TIMESFILE)
+            RUNTIME=$(tr -d '\n' < $TIMESFILE)
 
             echo "$C_FILE_PATH,$EXPECTED_RESULT,$GAZER_STATUS,$RUNTIME,$unwind,$i" >> $CSVOUT
         done
