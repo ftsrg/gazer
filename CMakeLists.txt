@@ -25,10 +25,15 @@ llvm_map_components_to_libnames(LLVM_LIBS support)
 
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
+list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
 
 # Add DSA and AssistDS
 #include_directories(vendor/llvm-dsa/include)
 #add_subdirectory(vendor/llvm-dsa)
+
+# Add Sea-DSA
+#include_directories(vendor/sea-dsa/include)
+#add_subdirectory(vendor/sea-dsa)
 
 # Add boost
 find_package(Boost REQUIRED)

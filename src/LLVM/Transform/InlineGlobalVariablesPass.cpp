@@ -58,6 +58,9 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
     auto gvIt = module.global_begin();
     while (gvIt != module.global_end()) {
         GlobalVariable& gv = *(gvIt++);
+        if (gv.isConstant()) {
+            continue;
+        }
 
         auto type = gv.getType()->getElementType();
         AllocaInst* alloc = builder.CreateAlloca(type, nullptr, gv.getName());

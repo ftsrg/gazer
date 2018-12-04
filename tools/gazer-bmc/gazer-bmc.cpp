@@ -8,6 +8,8 @@
 
 #include "gazer/LLVM/InstrumentationPasses.h"
 
+#include "gazer/Analysis/MemoryObject.h"
+
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Verifier.h>
@@ -63,7 +65,7 @@ int main(int argc, char* argv[])
     auto module = llvm::parseIRFile(input, err, context);
     
     if (!module) {
-        err.print("llvm2cfa", llvm::errs());
+        err.print("gazer-bmc", llvm::errs());
         return 1;
     }
 
@@ -116,6 +118,12 @@ int main(int argc, char* argv[])
     checks.add(checks::CreateAssertionFailCheck());
     checks.add(checks::CreateDivisionByZeroCheck());
     checks.registerPasses(*pm);
+
+    // Perform memory object analysis
+    pm->add(new BasicAAWrapperPass());
+    pm->add(new GlobalsAAWrapperPass());
+    pm->add(new MemorySSAWrapperPass());
+    //pm->add(new MemoryObjectPass());
 
     if (RunBmc) {
         pm->add(llvm::createCFGSimplificationPass());

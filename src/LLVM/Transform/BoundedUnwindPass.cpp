@@ -225,7 +225,7 @@ void BoundedUnwindPass::getAnalysisUsage(AnalysisUsage& au) const
 
 bool BoundedUnwindPass::runOnFunction(Function& function)
 {
-    errs() << "Unrolling loops for bound " << mBound << ".\n";
+    //errs() << "Unrolling loops for bound " << mBound << ".\n";
     LoopInfo& loopInfo = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
     llvm::SmallVector<Loop*, 4> loopsToUnroll(loopInfo.rbegin(), loopInfo.rend());
     
