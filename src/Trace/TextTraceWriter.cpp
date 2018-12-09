@@ -54,6 +54,22 @@ namespace
                 << " in function " << event.getFunctionName() << ":\n";
         }
 
+        void visit(FunctionReturnEvent& event) override
+        {
+            mOS << INDENT << "return ";
+            if (event.hasReturnValue()) {
+                auto ret = event.getReturnValue();
+                if (event.getReturnValue()->getKind() == Expr::Undef) {
+                    mOS << "???";
+                } else {
+                    event.getReturnValue()->print(mOS);
+                }
+            } else {
+                mOS << "void";
+            }
+            mOS << "\n";
+        }
+
         void visit(FunctionCallEvent& event) override
         {
             mOS << INDENT << "call "

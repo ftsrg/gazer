@@ -26,19 +26,35 @@ public:
     bool runOnModule(Module& module) override
     {
         LLVMContext& context = module.getContext();
+        llvm::DenseMap<llvm::Type*, llvm::Constant*> returnValueMarks;
        
+        // void gazer.function.entry(metadata function_name, i8 num_args);
         auto mark = module.getOrInsertFunction(
             "gazer.function.entry",
             llvm::Type::getVoidTy(context),
             llvm::Type::getMetadataTy(context),
             llvm::Type::getInt8Ty(context)
         );
-        auto retMark = module.getOrInsertFunction(
-            "gazer.function_call.return",
+
+        // void gazer.function.return(metadata function_name, metadata return_value);
+        /*auto retMark = module.getOrInsertFunction(
+            "gazer.function.return",
             llvm::Type::getVoidTy(context),
             llvm::Type::getMetadataTy(context),
             llvm::Type::getMetadataTy(context)
+        ); */
+
+        auto retMarkVoid = module.getOrInsertFunction(
+            "gazer.function.return_void",
+            llvm::Type::getVoidTy(context),
+            llvm::Type::getMetadataTy(context)
         );
+        auto callReturnedMark = module.getOrInsertFunction(
+            "gazer.function.call_returned",
+            llvm::Type::getVoidTy(context),
+            llvm::Type::getMetadataTy(context)
+        );
+    
         auto argMark = module.getOrInsertFunction(
             "gazer.function.arg",
             llvm::Type::getVoidTy(context),
@@ -78,6 +94,48 @@ public:
                 llvm::errs()
                     << "Cannot insert function entry marks: "
                     << "DISubprogram missing.\n";
+                continue;
+            }
+
+            // Also mark call returns to other functions
+            std::vector<ReturnInst*> returns;
+            for (Instruction& inst : llvm::instructions(function)) {
+                if (auto ret = dyn_cast<ReturnInst>(&inst)) {
+                    returns.push_back(ret);
+                }
+            }
+
+            for (ReturnInst* ret : returns) {
+                builder.SetInsertPoint(ret);
+                auto retValueTy = ret->getReturnValue()->getType();
+                if (!retValueTy->isVoidTy()) {
+                    llvm::Constant* retMark = returnValueMarks[retValueTy];
+                    if (retMark == nullptr) {
+                        std::string nameBuffer;
+                        llvm::raw_string_ostream rso(nameBuffer);
+                        retValueTy->print(rso, false, true);
+                        rso.flush();
+
+                        // Insert a new function for this mark type
+                        retMark = module.getOrInsertFunction(
+                            "gazer.function.return_value." + rso.str(),
+                            llvm::Type::getVoidTy(context),
+                            llvm::Type::getMetadataTy(context),
+                            retValueTy
+                        );
+                        returnValueMarks[retValueTy] = retMark;
+                    }
+
+                    auto md = ValueAsMetadata::get(ret->getReturnValue());
+                    builder.CreateCall(retMark, {
+                        MetadataAsValue::get(context, dsp),
+                        ret->getReturnValue()
+                    });
+                } else {
+                    builder.CreateCall(retMarkVoid, {
+                        MetadataAsValue::get(context, dsp)
+                    });
+                }
             }
 
             // Also mark call returns from other functions
@@ -100,9 +158,8 @@ public:
             for (CallInst* call : calls) {
                 auto md = ValueAsMetadata::get(call);
                 builder.SetInsertPoint(call->getNextNode());
-                builder.CreateCall(retMark, {
-                    MetadataAsValue::get(context, dsp),
-                    MetadataAsValue::get(module.getContext(), md)
+                builder.CreateCall(callReturnedMark, {
+                    MetadataAsValue::get(context, dsp)
                 });
             }
         }

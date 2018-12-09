@@ -26,6 +26,7 @@ public:
     {
         Event_Assign,
         Event_FunctionEntry,
+        Event_FunctionReturn,
         Event_FunctionCall
     };
 
@@ -145,6 +146,30 @@ private:
     std::string mFunctionName;
 };
 
+class FunctionReturnEvent : public TraceEvent
+{
+public:
+    FunctionReturnEvent(
+        std::string functionName,
+        std::shared_ptr<AtomicExpr> returnValue,
+        LocationInfo location = {}
+    ) : TraceEvent(TraceEvent::Event_FunctionReturn, location),
+    mFunctionName(functionName), mReturnValue(returnValue)
+    {}
+
+    std::string getFunctionName() const { return mFunctionName; }
+    std::shared_ptr<AtomicExpr> getReturnValue() const { return mReturnValue; }
+    bool hasReturnValue() const { return mReturnValue != nullptr; }
+
+    static bool classof(const TraceEvent* event) {
+        return event->getKind() == TraceEvent::Event_FunctionReturn;
+    }
+
+private:
+    std::string mFunctionName;
+    std::shared_ptr<AtomicExpr> mReturnValue;
+};
+
 /**
  * Indicates a call to a nondetermistic function.
  */
@@ -187,6 +212,7 @@ class TraceEventVisitor
 public:
     virtual ReturnT visit(AssignTraceEvent& event) = 0;
     virtual ReturnT visit(FunctionEntryEvent& event) = 0;
+    virtual ReturnT visit(FunctionReturnEvent& event) = 0;
     virtual ReturnT visit(FunctionCallEvent& event) = 0;
 
     virtual ~TraceEventVisitor() {}
@@ -200,6 +226,8 @@ inline ReturnT TraceEvent::accept(TraceEventVisitor<ReturnT>& visitor)
             return visitor.visit(*llvm::cast<AssignTraceEvent>(this));
         case Event_FunctionEntry:
             return visitor.visit(*llvm::cast<FunctionEntryEvent>(this));
+        case Event_FunctionReturn:
+            return visitor.visit(*llvm::cast<FunctionReturnEvent>(this));
         case Event_FunctionCall:
             return visitor.visit(*llvm::cast<FunctionCallEvent>(this));
     }

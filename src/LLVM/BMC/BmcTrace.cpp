@@ -65,36 +65,17 @@ std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuat
                         }
                     }
 
-                    auto result = mValueMap.find(value);
-                    
-                    if (result == mValueMap.end()) {
-                        if (llvm::isa<UndefValue>(value)) {
-                            continue;
-                        } else if (auto cd = dyn_cast<ConstantData>(value)) {
-                            auto lit = LiteralFromLLVMConst(cd);
-
-                            assigns.push_back(std::make_unique<AssignTraceEvent>(
-                                diVar->getName(),
-                                lit,
-                                location
-                            ));
-                        }
-                    } else {
-                        Variable* variable = result->second;
-                        auto exprResult = model.find(variable);
-
-                        if (exprResult == model.end()) {
-                            continue;
-                        }
-                        
-                        std::shared_ptr<LiteralExpr> expr = exprResult->second;
-
-                        assigns.push_back(std::make_unique<AssignTraceEvent>(
-                            diVar->getName(),
-                            exprResult->second,
-                            location
-                        ));
+                    auto lit = this->getLiteralFromValue(value, model);
+                    if (lit == nullptr) {
+                        // XXX: Perhaps we should just emit an error here.
+                        continue;
                     }
+
+                    assigns.push_back(std::make_unique<AssignTraceEvent>(
+                        diVar->getName(),
+                        lit,
+                        location
+                    ));
                 }
             } else if (callee->getName() == "gazer.inlined_global.write") {
                 auto mdValue = cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata();
@@ -137,7 +118,31 @@ std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuat
                 assigns.push_back(std::make_unique<FunctionEntryEvent>(
                     diSP->getName()
                 ));
-            } else if (callee->getName() == "gazer.function_call.return") {
+            } else if (callee->getName().startswith("gazer.function.return_value.")) {
+                auto diSP = dyn_cast<DISubprogram>(
+                    cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata()
+                );
+
+                auto value = call->getArgOperand(1);
+                auto lit = getLiteralFromValue(value, model);
+                if (lit == nullptr) {
+                    continue;
+                }
+
+                assigns.push_back(std::make_unique<FunctionReturnEvent>(
+                    diSP->getName(),
+                    lit
+                ));
+            } else if (callee->getName() == "gazer.function.return_void") {
+                auto diSP = dyn_cast<DISubprogram>(
+                    cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata()
+                );
+
+                assigns.push_back(std::make_unique<FunctionReturnEvent>(
+                    diSP->getName(),
+                    nullptr
+                ));
+            } else if (callee->getName() == "gazer.function.call_returned") {
                 auto diSP = dyn_cast<DISubprogram>(
                     cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata()
                 );
@@ -191,4 +196,32 @@ std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuat
     }
 
     return assigns;
+}
+
+std::shared_ptr<AtomicExpr> LLVMBmcTraceBuilder::getLiteralFromValue(llvm::Value* value, Valuation& model)
+{
+    auto result = mValueMap.find(value);
+    
+    if (result == mValueMap.end()) {
+        if (llvm::isa<UndefValue>(value)) {
+            // TODO: We should return the value of the corresponding undef here.
+            return nullptr;
+        } else if (auto cd = dyn_cast<ConstantData>(value)) {
+            return LiteralFromLLVMConst(cd);
+        }
+    } else {
+        Variable* variable = result->second;
+        auto exprResult = model.find(variable);
+
+        if (exprResult == model.end()) {
+            // TODO: The expression was not found in the model, perhaps this should be an error?
+            return UndefExpr::Get(variable->getType());
+        }
+        
+        std::shared_ptr<LiteralExpr> expr = exprResult->second;
+
+        return expr;
+    }
+
+    return nullptr;
 }
