@@ -13,7 +13,7 @@ class TestCase:
         self.filename = filename
         self.expect = expected
         self.flags = flags
-z
+
 class TestParseException(Exception):
     pass
 

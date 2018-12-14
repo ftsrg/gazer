@@ -1,5 +1,6 @@
 #include "gazer/LLVM/BMC/BmcTrace.h"
 #include "gazer/Core/Expr/ExprEvaluator.h"
+#include "gazer/LLVM/Instrumentation/Intrinsics.h"
 
 #include <llvm/IR/DebugInfoMetadata.h>
 
@@ -110,7 +111,7 @@ std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuat
                     expr,
                     location
                 ));
-            } else if (callee->getName() == "gazer.function.entry") {
+            } else if (callee->getName() == GazerIntrinsic::FunctionEntryName) {
                 auto diSP = dyn_cast<DISubprogram>(
                     cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata()
                 );
@@ -118,7 +119,7 @@ std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuat
                 assigns.push_back(std::make_unique<FunctionEntryEvent>(
                     diSP->getName()
                 ));
-            } else if (callee->getName().startswith("gazer.function.return_value.")) {
+            } else if (callee->getName().startswith(GazerIntrinsic::FunctionReturnValuePrefix)) {
                 auto diSP = dyn_cast<DISubprogram>(
                     cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata()
                 );
@@ -133,7 +134,7 @@ std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuat
                     diSP->getName(),
                     lit
                 ));
-            } else if (callee->getName() == "gazer.function.return_void") {
+            } else if (callee->getName() == GazerIntrinsic::FunctionReturnVoidName) {
                 auto diSP = dyn_cast<DISubprogram>(
                     cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata()
                 );
@@ -142,7 +143,7 @@ std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuat
                     diSP->getName(),
                     nullptr
                 ));
-            } else if (callee->getName() == "gazer.function.call_returned") {
+            } else if (callee->getName() == GazerIntrinsic::FunctionCallReturnedName) {
                 auto diSP = dyn_cast<DISubprogram>(
                     cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata()
                 );
@@ -150,16 +151,6 @@ std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuat
                 assigns.push_back(std::make_unique<FunctionEntryEvent>(
                     diSP->getName()
                 ));
-            } else if (callee->getName() == "gazer.function.arg") {
-                //auto md = cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata();
-                //auto value = cast<ValueAsMetadata>(md)->getValue();
-
-                //auto variable = mValueMap.find(value)->second;
-                //auto expr = model.find(variable)->second;
-
-                //assigns.push_back(std::make_unique<BmcTrace::ArgumentValueEvent>(
-                //    "", expr
-                //));
             } else if (callee->isDeclaration() && !call->getType()->isVoidTy()) {
                 // This a function call to a nondetermistic function.
                 auto varIt = mValueMap.find(call);

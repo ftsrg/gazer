@@ -11,6 +11,7 @@ set(SOURCE_FILES
     Instrumentation/InsertLastAddress.cpp
     Instrumentation/Check.cpp
     Instrumentation/DefaultChecks.cpp
+    Instrumentation/Intrinsics.cpp
     BMC/BmcTrace.cpp
     BMC/Ir2Expr.cpp
     BMC/BMC.cpp

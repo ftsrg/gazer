@@ -46,7 +46,7 @@ public:
     static constexpr int FirstComposite = ArrayTypeID;
     static constexpr int LastComposite = ArrayTypeID;
 protected:
-    Type(TypeID id)
+    explicit Type(TypeID id)
         : mTypeID(id)
     {}
 

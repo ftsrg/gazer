@@ -28,43 +28,9 @@ public:
         LLVMContext& context = module.getContext();
         llvm::DenseMap<llvm::Type*, llvm::Constant*> returnValueMarks;
        
-        // void gazer.function.entry(metadata function_name, i8 num_args);
-        auto mark = module.getOrInsertFunction(
-            "gazer.function.entry",
-            llvm::Type::getVoidTy(context),
-            llvm::Type::getMetadataTy(context),
-            llvm::Type::getInt8Ty(context)
-        );
-
-        // void gazer.function.return(metadata function_name, metadata return_value);
-        /*auto retMark = module.getOrInsertFunction(
-            "gazer.function.return",
-            llvm::Type::getVoidTy(context),
-            llvm::Type::getMetadataTy(context),
-            llvm::Type::getMetadataTy(context)
-        ); */
-
-        auto retMarkVoid = module.getOrInsertFunction(
-            "gazer.function.return_void",
-            llvm::Type::getVoidTy(context),
-            llvm::Type::getMetadataTy(context)
-        );
-        auto callReturnedMark = module.getOrInsertFunction(
-            "gazer.function.call_returned",
-            llvm::Type::getVoidTy(context),
-            llvm::Type::getMetadataTy(context)
-        );
-    
-        auto argMark = module.getOrInsertFunction(
-            "gazer.function.arg",
-            llvm::Type::getVoidTy(context),
-            llvm::Type::getMetadataTy(context),
-            llvm::Type::getInt8Ty(context)
-        );
-        auto argEnd = module.getOrInsertFunction(
-            "gazer.function.arg_end",
-            llvm::Type::getVoidTy(context)
-        );
+        auto mark = GazerIntrinsic::GetOrInsertFunctionEntry(module);
+        auto retMarkVoid = GazerIntrinsic::GetOrInsertFunctionReturnVoid(module);        
+        auto callReturnedMark = GazerIntrinsic::GetOrInsertFunctionCallReturned(module);
 
         IRBuilder<> builder(context);
         for (Function& function : module) {
@@ -81,15 +47,6 @@ public:
                     MetadataAsValue::get(context, dsp),
                     builder.getInt8(function.arg_size())
                 });
-
-                size_t argCnt = 0;
-                for (llvm::Argument& argument : function.args()) {
-                    builder.CreateCall(argMark, {
-                        MetadataAsValue::get(context, ValueAsMetadata::get(&argument)),
-                        builder.getInt8(argCnt++)
-                    });
-                }
-                builder.CreateCall(argEnd);
             } else {
                 llvm::errs()
                     << "Cannot insert function entry marks: "
@@ -117,12 +74,7 @@ public:
                         rso.flush();
 
                         // Insert a new function for this mark type
-                        retMark = module.getOrInsertFunction(
-                            "gazer.function.return_value." + rso.str(),
-                            llvm::Type::getVoidTy(context),
-                            llvm::Type::getMetadataTy(context),
-                            retValueTy
-                        );
+                        retMark = GazerIntrinsic::GetOrInsertFunctionReturnValue(module, retValueTy);
                         returnValueMarks[retValueTy] = retMark;
                     }
 
@@ -143,11 +95,9 @@ public:
             for (Instruction& inst : llvm::instructions(function)) {
                 if (auto call = dyn_cast<CallInst>(&inst)) {
                     Function* callee = call->getCalledFunction();
-                    if (callee == nullptr) {
-                        // Currently we do not bother with indirect calls.
-                        continue;
-                    } else if (callee->isDeclaration()) {
-                        // We are only interested in functions for which we can find a body.
+                    if (callee == nullptr || callee->isDeclaration()) {
+                        // Currently we do not bother with indirect calls,
+                        // also we only need functions which have a definition.
                         continue;
                     }
 

@@ -155,6 +155,31 @@ std::shared_ptr<LiteralExpr> LiteralFromLLVMConst(
     bool i1AsBool = true
 );
 
+namespace detail
+{
+
+template<Type::TypeID TypeID> struct GetLiteralExprTypeHelper {};
+
+template<>
+struct GetLiteralExprTypeHelper<Type::BoolTypeID> { using T = BoolLiteralExpr; };
+template<>
+struct GetLiteralExprTypeHelper<Type::IntTypeID> { using T = IntLiteralExpr; };
+template<>
+struct GetLiteralExprTypeHelper<Type::BvTypeID> { using T = BvLiteralExpr; };
+template<>
+struct GetLiteralExprTypeHelper<Type::FloatTypeID> { using T = FloatLiteralExpr; };
+
+} // end namespace detail
+
+/**
+ * Helper class that returns the literal expression type for a given Gazer type.
+ */
+template<Type::TypeID TypeID>
+struct GetLiteralExprType
+{
+    using T = typename detail::GetLiteralExprTypeHelper<TypeID>::T;
+};
+
 
 }
 

@@ -56,37 +56,29 @@ bool Type::equals(const Type* other) const
 {
     if (getTypeID() != other->getTypeID()) {
         return false;
-    } else if (getTypeID() == BvTypeID) {
+    }
+    
+    if (getTypeID() == BvTypeID) {
         auto left = llvm::dyn_cast<BvType>(this);
         auto right = llvm::dyn_cast<BvType>(other);
 
         return left->getWidth() == right->getWidth();
-    } else if (getTypeID() == FloatTypeID) {
+    }
+    
+    if (getTypeID() == FloatTypeID) {
         auto left = llvm::dyn_cast<FloatType>(this);
         auto right = llvm::dyn_cast<FloatType>(other);
 
         return left->getPrecision() == right->getPrecision();
-    } else if (getTypeID() == ArrayTypeID) {
+    }
+    
+    if (getTypeID() == ArrayTypeID) {
         auto left = llvm::dyn_cast<ArrayType>(this);
         auto right = llvm::dyn_cast<ArrayType>(other);
 
         return left->getIndexType() == right->getIndexType()
             && left->getElementType() == right->getElementType();
-    } /* else if (getTypeID() == FunctionTypeID) {
-        auto left = llvm::dyn_cast<FunctionType>(this);
-        auto right = llvm::dyn_cast<FunctionType>(other);
-
-        if (left->getReturnType() != right->getReturnType()) {
-            return false;
-        }
-
-        return std::equal(
-            left->arg_begin(), left->arg_end(),
-            right->arg_begin(), right->arg_end(), [](auto lt, auto rt) {
-                return lt->equals(rt);
-            }
-        );
-    } */
+    }
 
     return true;
 }
@@ -118,10 +110,10 @@ IntType& IntType::get(unsigned width)
     auto result = Instances.find(width);
     if (result == Instances.end()) {
         auto pair = Instances.try_emplace(width, new IntType(width));
-        return *pair.first->second.get();
+        return *pair.first->second;
     }
 
-    return *result->second.get();
+    return *result->second;
 }
 
 BvType& BvType::get(unsigned width)
@@ -139,10 +131,10 @@ BvType& BvType::get(unsigned width)
     auto result = Instances.find(width);
     if (result == Instances.end()) {
         auto pair = Instances.try_emplace(width, new BvType(width));
-        return *pair.first->second.get();
+        return *pair.first->second;
     }
 
-    return *result->second.get();
+    return *result->second;
 }
 
 FloatType FloatType::HalfTy(Half);
@@ -184,10 +176,10 @@ ArrayType& ArrayType::get(Type& indexType, Type& elementType)
 
     if (result == Instances.end()) {
         auto pair = Instances.try_emplace(key, new ArrayType(&indexType, &elementType));
-        return *pair.first->second.get();
+        return *pair.first->second;
     }
 
-    return *result->second.get();
+    return *result->second;
 }
 /*
 FunctionType& FunctionType::get(Type* returnType, std::vector<Type*> args)
