@@ -16,9 +16,7 @@
 namespace gazer
 {
 
-/**
- * Base class for all unary expression kinds.
- */
+/// Base class for all unary expression kinds.
 class UnaryExpr : public NonNullaryExpr
 {
 public:
@@ -179,7 +177,7 @@ protected:
 public:
     static std::shared_ptr<ArithmeticExpr<Kind>> Create(ExprPtr left, ExprPtr right)
     {
-        assert((left->getType().isBvType() || left->getType().isMathIntType())
+        assert((left->getType().isBvType() || left->getType().isIntType())
             && "Can only define arithmetic operations on integers.");
         assert(left->getType() == right->getType() && "Arithmetic expression operand types must match.");
 

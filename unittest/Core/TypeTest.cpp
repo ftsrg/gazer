@@ -10,13 +10,13 @@ TEST(Type, PrintType)
     EXPECT_EQ(boolTy.getName(), "Bool");
     
     BvType& intTy = BvType::get(32);
-    EXPECT_EQ(intTy.getName(), "Int");
+    EXPECT_EQ(intTy.getName(), "Bv32");
 
     ArrayType& arrTy = ArrayType::get(intTy, intTy);
-    EXPECT_EQ(arrTy.getName(), "[Int -> Int]");
+    EXPECT_EQ(arrTy.getName(), "[Bv32 -> Bv32]");
 
     ArrayType& arr2Ty = ArrayType::get(intTy, boolTy);
-    EXPECT_EQ(arr2Ty.getName(), "[Int -> Bool]");
+    EXPECT_EQ(arr2Ty.getName(), "[Bv32 -> Bool]");
 /*
     FunctionType& funcType = FunctionType::get(boolTy, {intTy, intTy});
     EXPECT_EQ(funcType->getName(), "(Int, Int) -> Bool");

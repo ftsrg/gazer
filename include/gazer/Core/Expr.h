@@ -1,3 +1,6 @@
+/// \file This file defines the different base classes for expressions.
+/// For implementing classes, see gazer/Core/ExprTypes.h,
+/// gazer/Core/LiteralExpr.h, and gazer/Core/Variable.h
 #ifndef _GAZER_CORE_EXPR_H
 #define _GAZER_CORE_EXPR_H
 
@@ -13,13 +16,11 @@ namespace llvm {
 namespace gazer
 {
 
-/**
- * Base class for all gazer expressions.
- * 
- * Expression subclass constructors are private. The intended way of 
- * instantiation is by using the static ::Create() functions
- * of the subclasses or using an ExprBuilder.
- */
+/// \brief Base class for all gazer expressions.
+///
+/// Expression subclass constructors are private. The intended way of 
+/// instantiation is by using the static ::Create() functions
+/// of the subclasses or using an ExprBuilder.
 class Expr
 {
 public:
@@ -48,17 +49,17 @@ public:
         URem,
 
         // Bit operations
-        Shl,
-        LShr,
-        AShr,
-        BAnd,
-        BOr,
-        BXor,
+        Shl,    ///< binary shift left
+        LShr,   ///< logical shift right
+        AShr,   ///< arithmetic shift right
+        BAnd,   ///< binary AND for bit vectors
+        BOr,    ///< binary OR for bit vectors
+        BXor,   ///< binary XOR for bit vectors
 
         // Binary logic
-        And,
-        Or,
-        Xor,
+        And,    ///< multiary AND operator for booleans
+        Or,     ///< multiary OR operator for booleans
+        Xor,    ///< binary XOR operator for booleans
 
         // Compare
         Eq,
@@ -98,7 +99,7 @@ public:
         FLtEq,
 
         // Ternary
-        Select,
+        Select, ///< ternary if-then-else (ITE) operator
 
         // Array operations
         ArrayRead,
@@ -176,16 +177,16 @@ protected:
     const Type& mType;
 };
 
-using ExprPtr = std::shared_ptr<Expr>;
+template<typename ExprTy = Expr, typename = std::enable_if<std::is_base_of<Expr, ExprTy>::value>>
+using ExprRef = std::shared_ptr<ExprTy>;
+
+using ExprPtr = ExprRef<Expr>;
 using ExprVector = std::vector<ExprPtr>;
 
 llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Expr& expr);
 
-/**
- * Expression base class for atomic expression values.
- * 
- * Currently literals and undef values are considered as atomic.
- */
+/// Expression base class for atomic expression values.
+/// Currently literals and undef values are considered as atomic.
 class AtomicExpr : public Expr
 {
 protected:
@@ -198,14 +199,12 @@ public:
     }
 };
 
-/**
- * Expression class of literal expressions.
- * 
- * Note that while Expr::Literal is used to indicate
- * that an expression is literal, this class is abstract.
- * To acquire the value stored in literals, use the literal
- * subclasses (BvLiteralExpr, ...).
- */
+/// \brief Expression base class of literal expressions.
+/// 
+/// Note that while Expr::Literal is used to indicate
+/// that an expression is literal, this class is abstract.
+/// To acquire the value stored in literals, use the literal
+/// subclasses (BvLiteralExpr, ...).
 class LiteralExpr : public AtomicExpr
 {
 protected:
@@ -218,9 +217,7 @@ public:
     }
 };
 
-/**
- * Base class for all expressions holding one or more operands.
- */
+/// Base class for all expressions holding one or more operands.
 class NonNullaryExpr : public Expr
 {
 protected:

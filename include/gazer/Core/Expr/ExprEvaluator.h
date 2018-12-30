@@ -9,7 +9,7 @@ namespace gazer
 {
 
 /// Base class for expression evaluation implementations.
-/// This class provides all methods to evaluate an expression, except for
+/// This abstract class provides all methods to evaluate an expression, except for
 /// the means of acquiring the value of a variable.
 class ExprEvaluatorBase : public ExprVisitor<std::shared_ptr<LiteralExpr>>
 {

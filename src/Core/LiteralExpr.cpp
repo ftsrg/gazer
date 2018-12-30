@@ -129,16 +129,18 @@ void FloatLiteralExpr::print(llvm::raw_ostream& os) const
     os << buffer;
 }
 
-std::shared_ptr<LiteralExpr> gazer::LiteralFromLLVMConst(llvm::ConstantData* value, bool i1IsBool)
+std::shared_ptr<LiteralExpr> gazer::LiteralFromLLVMConst(llvm::ConstantData* value, bool i1AsBool)
 {
     if (auto ci = llvm::dyn_cast<llvm::ConstantInt>(value)) {
         unsigned width = ci->getType()->getIntegerBitWidth();
-        if (width == 1 && i1IsBool) {
+        if (width == 1 && i1AsBool) {
             return BoolLiteralExpr::Get(ci->isZero() ? false : true);
         }
 
         return BvLiteralExpr::Get(ci->getValue());
-    } else if (auto cfp = llvm::dyn_cast<llvm::ConstantFP>(value)) {
+    }
+    
+    if (auto cfp = llvm::dyn_cast<llvm::ConstantFP>(value)) {
         auto fltTy = cfp->getType();
         FloatType::FloatPrecision precision;
         if (fltTy->isHalfTy()) {

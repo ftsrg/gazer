@@ -28,7 +28,6 @@ public:
     {
         // Primitive types
         BoolTypeID = 0,
-        MathIntTypeID,
         IntTypeID,
         BvTypeID,
         FloatTypeID,
@@ -69,7 +68,6 @@ public:
     bool isFloatType() const { return getTypeID() == FloatTypeID; }
     bool isArrayType() const { return getTypeID() == ArrayTypeID; }
 
-    bool isMathIntType() const { return getTypeID() == MathIntTypeID; }
     //bool isPointerType() const { return getTypeID() == PointerTypeID; }
 
     bool equals(const Type* other) const;
@@ -101,24 +99,6 @@ public:
 
     static bool classof(const Type* type) {
         return type->getTypeID() == BoolTypeID;
-    }
-};
-
-class MathIntType final : public Type
-{
-protected:
-    MathIntType()
-        : Type(MathIntTypeID)
-    {}
-
-public:
-    static MathIntType& get() {
-        static MathIntType instance;
-        return instance;
-    }
-
-    static bool classof(const Type* type) {
-        return type->getTypeID() == MathIntTypeID;
     }
 };
 
@@ -211,7 +191,7 @@ private:
 };
 
 /**
- * Represents an array type.
+ * Represents an array type with arbitrary index and element types.
  */
 class ArrayType final : public Type
 {

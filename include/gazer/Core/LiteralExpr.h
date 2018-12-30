@@ -124,7 +124,7 @@ public:
     virtual void print(llvm::raw_ostream& os) const override;
 
     static std::shared_ptr<FloatLiteralExpr> get(const FloatType& type, const llvm::APFloat& value);
-    static std::shared_ptr<FloatLiteralExpr> get(FloatType::FloatPrecision prec, const llvm::APFloat& value);
+    static std::shared_ptr<FloatLiteralExpr> get(FloatType::FloatPrecision precision, const llvm::APFloat& value);
 
     llvm::APFloat getValue() const { return mValue; }
 

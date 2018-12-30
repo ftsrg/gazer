@@ -12,9 +12,7 @@ namespace
 class DefaultExprBuilder : public ExprBuilder
 {
 public:
-    DefaultExprBuilder()
-        : ExprBuilder()
-    {}
+    DefaultExprBuilder() = default;
 
     ExprPtr Not(const ExprPtr& op) override {
         return NotExpr::Create(op);

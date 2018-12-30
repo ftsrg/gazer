@@ -18,6 +18,7 @@ std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitExpr(const ExprPtr& expr)
 std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitLiteral(const std::shared_ptr<LiteralExpr>& expr) {
     return expr;
 }
+
 std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitVarRef(const std::shared_ptr<VarRefExpr>& expr) {
     return this->getVariableValue(expr->getVariable());
 }
@@ -239,9 +240,7 @@ std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitSelect(const std::shared_pt
     auto then = dyn_cast<BvLiteralExpr>(visit(expr->getThen()).get());
     auto elze = dyn_cast<BvLiteralExpr>(visit(expr->getElse()).get());
 
-    return BvLiteralExpr::Get(
-        cond->getValue() ? then->getValue() : elze->getValue()
-    );
+    return BvLiteralExpr::Get(cond->getValue() ? then->getValue() : elze->getValue());
 }
 
 // Arrays

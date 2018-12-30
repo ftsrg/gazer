@@ -7,32 +7,17 @@
 namespace gazer
 {
 
+/// Base interface for all solvers
 class Solver
 {
 public:
-    enum SolverStatus {
-        SAT, UNSAT, UNKNOWN
-    };
-
-    class InsertIterator
-        : public std::iterator<std::output_iterator_tag, void, void, void, void>
+    enum SolverStatus
     {
-    public:
-        InsertIterator(Solver& solver)
-            : mSolver(solver)
-        {}
-    public:
-        InsertIterator& operator++() { return *this; }
-        InsertIterator operator++(int) { return *this; }
-        InsertIterator& operator*() { return *this; }
-
-        InsertIterator& operator=(ExprPtr value) {
-            mSolver.add(value);
-            return *this;
-        }
-    private:
-        Solver& mSolver;
+        SAT,
+        UNSAT,
+        UNKNOWN
     };
+
 public:
     Solver(SymbolTable& symbols)
         : mSymbols(symbols)
@@ -70,24 +55,12 @@ private:
     unsigned mStatCount = 0;
 };
 
+/// Base factory class for all solvers, used to create new Solver instances.
 class SolverFactory
 {
 public:
-    /**
-     * Creates a new solver instance with a given symbol table.
-     */
+    /// Creates a new solver instance with a given symbol table.
     virtual std::unique_ptr<Solver> createSolver(SymbolTable& symbols) = 0;
-};
-
-/**
- * Exception class for solver-related errors.
- */
-class SolverError : public std::runtime_error
-{
-public:
-    SolverError(std::string message)
-        : runtime_error(message)
-    {}
 };
 
 }
