@@ -10,7 +10,7 @@
 using namespace gazer;
 using namespace llvm;
 
-std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuation &model)
+std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuation& model)
 {
     std::vector<std::unique_ptr<TraceEvent>> assigns;
     std::vector<BasicBlock*> traceBlocks;

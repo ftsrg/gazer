@@ -48,7 +48,7 @@
 namespace gazer { namespace PatternMatch {
 
 template<typename ExprTy, typename Pattern>
-inline bool match(ExprRef<ExprTy>& ptr, const Pattern& pattern) {
+inline bool match(const ExprRef<ExprTy>& ptr, const Pattern& pattern) {
     return const_cast<Pattern&>(pattern).match(ptr);
 }
 
@@ -116,7 +116,7 @@ struct bind_ty
     template<typename InputTy>
     bool match(const ExprRef<InputTy>& ptr) {
         if (auto expr = llvm::dyn_cast<ExprTy>(ptr.get())) {
-            storedPtr = ptr;
+            storedPtr = std::static_pointer_cast<ExprTy>(ptr);
             return true;
         }
 
@@ -128,6 +128,10 @@ inline bind_ty<Expr> m_Expr(ExprRef<Expr>& ptr) { return bind_ty<Expr>(ptr); }
 
 inline bind_ty<VarRefExpr> m_VarRef(ExprRef<VarRefExpr>& ptr) {
     return bind_ty<VarRefExpr>(ptr);
+}
+
+inline bind_ty<LiteralExpr> m_Literal(ExprRef<LiteralExpr>& ptr) {
+    return bind_ty<LiteralExpr>(ptr);
 }
 
 //===------------------- Matcher for unary expressions --------------------===//
@@ -351,11 +355,11 @@ struct multiary_match
     template<size_t N>
     bool subpattern_match_unordered(NonNullaryExpr* expr, std::vector<bool>& bs)
     {
-        if constexpr (N < NumOps) {
+        if constexpr (N < NumPatterns) {
             auto& pattern = std::get<N>(patterns);
 
             bool matched = false;
-            for (int i = 0; i < NumOps; ++i) {
+            for (int i = 0; i < NumPatterns; ++i) {
                 if (!bs[i] && pattern.match(expr->getOperand(i))) {
                     matched = true;
                     bs[i] = true;
@@ -382,13 +386,13 @@ struct multiary_match
         }
 
         NonNullaryExpr* e = llvm::cast<NonNullaryExpr>(expr.get());
-        if (e->getNumOperands() < NumOps) {
+        if (e->getNumOperands() < NumPatterns) {
             return false;
         }
 
         // Check each pattern separately.
         std::vector<bool> bs(e->getNumOperands(), false);
-        bool matched = subpattern_match<0>(e, bs);
+        bool matched = subpattern_match_unordered<0>(e, bs);
 
         // Collect all the unmatched operands
         for (int i = 0; i < bs.size(); ++i) {

@@ -13,8 +13,7 @@ namespace
 
 bool isErrorFunctionName(llvm::StringRef name)
 {
-    return name == "__VERIFIER_error" || name == "__assert_fail"
-        || name == "__gazer_error";
+    return name == "__VERIFIER_error" || name == "__assert_fail" || name == "__gazer_error";
 }
 
 /**
@@ -136,6 +135,14 @@ public:
 
     llvm::StringRef getCheckName() const override { return "div-by-zero"; }
     llvm::StringRef getErrorDescription() const override { return "Divison by zero"; }
+};
+
+/**
+ * Checks for over- and underflow in signed integer operations.
+ */
+class SignedIntegerOverflowCheck final : public Check
+{
+public:
 };
 
 char DivisionByZeroCheck::ID;

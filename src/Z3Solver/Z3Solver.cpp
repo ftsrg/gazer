@@ -19,7 +19,7 @@ class Z3Solver : public Solver
 {
 public:
     Z3Solver(SymbolTable& symbols)
-        : Solver(symbols), mContext(), mSolver(mContext)
+        : Solver(symbols), mSolver(mContext)
     {}
 
     virtual void dump(llvm::raw_ostream& os) override;
@@ -48,9 +48,6 @@ private:
     CacheMapT mCache;
 };
 
-
-// Z3 
-
 class Z3ExprTransformer : public ExprVisitor<z3::expr>
 {
 public:
@@ -65,8 +62,6 @@ protected:
             case Type::BoolTypeID:
                 return mContext.bool_sort();
             case Type::IntTypeID:
-                return mContext.int_sort();
-            case Type::MathIntTypeID:
                 return mContext.int_sort();
             case Type::BvTypeID: {
                 auto intTy = llvm::cast<BvType>(type);
@@ -99,7 +94,7 @@ protected:
     }
 
     z3::expr visitExpr(const ExprPtr& expr) override {
-        throw std::logic_error("Unhandled expression type in Z3ExprTransformer.");
+        assert(!"Unhandled expression type in Z3ExprTransformer.");
     }
 
     z3::expr visitUndef(const std::shared_ptr<UndefExpr>& expr) override {
@@ -108,45 +103,46 @@ protected:
         return mContext.constant(name.c_str(), typeToSort(&expr->getType()));
     }
 
-    z3::expr visitLiteral(const std::shared_ptr<LiteralExpr>& expr) override {
+    z3::expr visitLiteral(const std::shared_ptr<LiteralExpr>& expr) override
+    {
         if (expr->getType().isBvType()) {
             auto lit = llvm::dyn_cast<BvLiteralExpr>(&*expr);
             auto value = lit->getValue();
-            return mContext.bv_val(
-                value.getLimitedValue(),
-                lit->getType().getWidth()
-            );
-        } else if (expr->getType().isBoolType()) {
+
+            return mContext.bv_val(value.getLimitedValue(), lit->getType().getWidth());
+        }
+        
+        if (expr->getType().isBoolType()) {
             auto value = llvm::dyn_cast<BoolLiteralExpr>(&*expr)->getValue();
             return mContext.bool_val(value);
-        } else if (expr->getType().isIntType()) {
+        }
+        
+        if (expr->getType().isIntType()) {
             int64_t value = llvm::dyn_cast<IntLiteralExpr>(&*expr)->getValue();
             return mContext.int_val(value);    
-        } else if (expr->getType().isFloatType()) {
+        }
+        
+        if (expr->getType().isFloatType()) {
             auto fltTy = llvm::dyn_cast<FloatType>(&expr->getType());
             auto value = llvm::dyn_cast<FloatLiteralExpr>(&*expr)->getValue();
             
             if (fltTy->getPrecision() == FloatType::Single) {
-                return z3::expr(mContext,
-                    Z3_mk_fpa_numeral_float(
-                        mContext, value.convertToFloat(), typeToSort(fltTy)
-                    )
-                );
+                return z3::expr(mContext, Z3_mk_fpa_numeral_float(
+                    mContext, value.convertToFloat(), typeToSort(fltTy)
+                ));
             } else if (fltTy->getPrecision() == FloatType::Double) {
-                return z3::expr(mContext,
-                    Z3_mk_fpa_numeral_double(
-                        mContext, value.convertToDouble(), typeToSort(fltTy)
-                    )
-                );
+                return z3::expr(mContext, Z3_mk_fpa_numeral_double(
+                    mContext, value.convertToDouble(), typeToSort(fltTy)
+                ));
             }
         }
 
         assert(false && "Unsupported operand type.");
     }
 
-    z3::expr visitVarRef(const std::shared_ptr<VarRefExpr>& expr) override {
+    z3::expr visitVarRef(const std::shared_ptr<VarRefExpr>& expr) override
+    {
         auto name = expr->getVariable().getName();
-
         return mContext.constant(name.c_str(), typeToSort(&expr->getType()));
     }
 

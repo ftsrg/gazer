@@ -31,7 +31,7 @@ gazer::Type& TypeFromLLVMType(const llvm::Type* type)
         }
 
         if (UseMathInt && width <= 64) {
-            return MathIntType::get();
+            return IntType::get(width);
         }
 
         return BvType::get(width);

@@ -177,7 +177,7 @@ protected:
     const Type& mType;
 };
 
-template<typename ExprTy = Expr, typename = std::enable_if<std::is_base_of<Expr, ExprTy>::value>>
+template<typename ExprTy = Expr>
 using ExprRef = std::shared_ptr<ExprTy>;
 
 using ExprPtr = ExprRef<Expr>;
@@ -233,10 +233,12 @@ protected:
     }
 
 protected:
-    virtual Expr* withOps(std::vector<ExprPtr> ops) const = 0;
+    virtual Expr* withOps(ExprVector ops) const = 0;
 
 public: 
     virtual void print(llvm::raw_ostream& os) const override;
+
+    static ExprPtr clone(ExprRef<NonNullaryExpr> expr, ExprVector ops);
 
 /*
     template<class Iter>

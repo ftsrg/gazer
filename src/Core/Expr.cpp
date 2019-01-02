@@ -83,6 +83,23 @@ void NonNullaryExpr::print(llvm::raw_ostream& os) const
     os << ")";
 }
 
+ExprPtr NonNullaryExpr::clone(ExprRef<NonNullaryExpr> expr, ExprVector ops)
+{
+    assert(expr->getNumOperands() == ops.size()
+        && "Operand counts must match for cloning!");
+    assert(std::none_of(
+        ops.begin(), ops.end(), [](auto& op) { return op != nullptr; }
+    ) && "Cannot clone with a nullptr operand!");
+
+    if (std::equal(ops.begin(), ops.end(), expr->op_begin())) {
+        // The operands are the same, just return the original object
+        return expr;
+    }
+
+    // Otherwise perform the cloning operation and return a new shared_ptr handle
+    return std::shared_ptr<Expr>(expr->withOps(ops));
+}
+
 llvm::raw_ostream& gazer::operator<<(llvm::raw_ostream& os, const Expr& expr)
 {
     expr.print(os);

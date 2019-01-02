@@ -19,7 +19,7 @@ namespace gazer
          * This check fails if a signed integer operation results
          * in an over- or underflow.
          */
-        Check* CreateIntegerOverflowCheck();
+        Check* CreateSignedIntegerOverflowCheck();
     
     } // end namespace checks
 
