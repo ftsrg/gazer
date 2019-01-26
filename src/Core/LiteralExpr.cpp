@@ -1,6 +1,8 @@
 #include "gazer/Core/LiteralExpr.h"
 #include "gazer/Support/DenseMapKeyInfo.h"
 
+#include "GazerContextImpl.h"
+
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/ADT/DenseMap.h>
@@ -9,15 +11,14 @@
 
 using namespace gazer;
 
-ExprRef<UndefExpr> UndefExpr::Get(const Type& type)
+ExprRef<UndefExpr> UndefExpr::Get(Type& type)
 {
-    static std::map<const Type*, ExprRef<UndefExpr>> UndefMap;
-    const Type* pType = &type;
+    auto& pImpl = type.getContext().pImpl;
 
-    auto result = UndefMap.find(pType);
-    if (result == UndefMap.end()) {
+    auto result = pImpl->Undefs.find(&type);
+    if (result == pImpl->Undefs.end()) {
         auto ptr = ExprRef<UndefExpr>(new UndefExpr(type));
-        UndefMap[pType] = ptr;
+        pImpl->Undefs[&type] = ptr;
 
         return ptr;
     }
@@ -25,60 +26,35 @@ ExprRef<UndefExpr> UndefExpr::Get(const Type& type)
     return result->second;
 }
 
-ExprRef<BoolLiteralExpr> BoolLiteralExpr::getTrue()
-{
-    static auto expr = ExprRef<BoolLiteralExpr>(new BoolLiteralExpr(true));
-
-    return expr;
+ExprRef<BoolLiteralExpr> BoolLiteralExpr::True(BoolType& type) {
+    return type.getContext().pImpl->TrueLit;
 }
 
-ExprRef<BoolLiteralExpr> BoolLiteralExpr::getFalse()
-{
-    static auto expr = ExprRef<BoolLiteralExpr>(new BoolLiteralExpr(false));
-
-    return expr;
+ExprRef<BoolLiteralExpr> BoolLiteralExpr::False(BoolType& type) {
+    return type.getContext().pImpl->FalseLit;
 }
 
-ExprRef<IntLiteralExpr> IntLiteralExpr::get(IntType& type, int64_t value)
+ExprRef<IntLiteralExpr> IntLiteralExpr::Get(IntType& type, int64_t value)
 {
-    static llvm::DenseMap<int64_t, ExprRef<IntLiteralExpr>> Exprs;
-
-    auto result = Exprs.find(value);
-    if (result == Exprs.end()) {
-        auto ptr = ExprRef<IntLiteralExpr>(new IntLiteralExpr(type, value));
-        Exprs[value] = ptr;
-
-        return ptr;
-    }
-
-    return result->second;
+    llvm_unreachable("Int literals are not supported yet.");
 }
 
-ExprRef<BvLiteralExpr> BvLiteralExpr::Get(llvm::APInt value)
+ExprRef<BvLiteralExpr> BvLiteralExpr::Get(BvType& type, llvm::APInt value)
 {
-    static llvm::DenseMap<llvm::APInt, ExprRef<BvLiteralExpr>, DenseMapAPIntKeyInfo> Exprs;
-    static ExprRef<BvLiteralExpr> Int1True = 
-        ExprRef<BvLiteralExpr>(new BvLiteralExpr(
-            BvType::get(1), llvm::APInt(1, 1)
-        ));
-    static ExprRef<BvLiteralExpr> Int1False = 
-        ExprRef<BvLiteralExpr>(new BvLiteralExpr(
-            BvType::get(1), llvm::APInt(1, 0)
-        ));
+    assert(type.getWidth() == value.getBitWidth() && "Bit width of type and value must match!");
+
+    auto& pImpl = type.getContext().pImpl;
 
     // Currently our DenseMapAPIntKeyInfo does not allow 1-bit wide APInts as keys.
     // This workaround makes sure that we can also construct those as well.
     if (LLVM_UNLIKELY(value.getBitWidth() == 1)) {
-        return value.getBoolValue() ? Int1True : Int1False;
+        return value.getBoolValue() ? pImpl->Bv1True : pImpl->Bv1False;
     }
 
-    auto result = Exprs.find(value);
-    if (result == Exprs.end()) {
-        auto ptr = ExprRef<BvLiteralExpr>(new BvLiteralExpr(
-            BvType::get(value.getBitWidth()),
-            value
-        ));
-        Exprs[value] = ptr;
+    auto result = pImpl->BvLiterals.find(value);
+    if (result == pImpl->BvLiterals.end()) {
+        auto ptr = ExprRef<BvLiteralExpr>(new BvLiteralExpr(type, value));
+        pImpl->BvLiterals[value] = ptr;
 
         return ptr;
     }
@@ -86,24 +62,21 @@ ExprRef<BvLiteralExpr> BvLiteralExpr::Get(llvm::APInt value)
     return result->second;
 }
 
-ExprRef<FloatLiteralExpr> FloatLiteralExpr::get(const FloatType& type, const llvm::APFloat& value)
+ExprRef<FloatLiteralExpr> FloatLiteralExpr::Get(FloatType& type, const llvm::APFloat& value)
 {
-    static llvm::DenseMap<llvm::APFloat, ExprRef<FloatLiteralExpr>, DenseMapAPFloatKeyInfo> Exprs;
-    
-    auto result = Exprs.find(value);
-    if (result == Exprs.end()) {
+    assert(llvm::APFloat::semanticsPrecision(value.getSemantics()) == type.getPrecision());
+
+    auto& pImpl = type.getContext().pImpl;
+
+    auto result = pImpl->FloatLiterals.find(value);
+    if (result == pImpl->FloatLiterals.end()) {
         auto ptr = ExprRef<FloatLiteralExpr>(new FloatLiteralExpr(type, value));
-        Exprs[value] = ptr;
+        pImpl->FloatLiterals[value] = ptr;
 
         return ptr;
     }
 
     return result->second;
-}
-
-ExprRef<FloatLiteralExpr> FloatLiteralExpr::get(FloatType::FloatPrecision precision, const llvm::APFloat& value)
-{
-    return FloatLiteralExpr::get(FloatType::get(precision), value);
 }
 
 void UndefExpr::print(llvm::raw_ostream& os) const {
@@ -160,15 +133,15 @@ bool FloatLiteralExpr::equals(const LiteralExpr& other) const
 }
 
 
-ExprRef<LiteralExpr> gazer::LiteralFromLLVMConst(llvm::ConstantData* value, bool i1AsBool)
+ExprRef<LiteralExpr> gazer::LiteralFromLLVMConst(GazerContext& context, llvm::ConstantData* value, bool i1AsBool)
 {
     if (auto ci = llvm::dyn_cast<llvm::ConstantInt>(value)) {
         unsigned width = ci->getType()->getIntegerBitWidth();
         if (width == 1 && i1AsBool) {
-            return BoolLiteralExpr::Get(ci->isZero() ? false : true);
+            return BoolLiteralExpr::Get(BoolType::Get(context), ci->isZero() ? false : true);
         }
 
-        return BvLiteralExpr::Get(ci->getValue());
+        return BvLiteralExpr::Get(BvType::Get(context, width), ci->getValue());
     }
     
     if (auto cfp = llvm::dyn_cast<llvm::ConstantFP>(value)) {
@@ -186,7 +159,7 @@ ExprRef<LiteralExpr> gazer::LiteralFromLLVMConst(llvm::ConstantData* value, bool
             assert(false && "Unsupported floating-point type.");
         }
 
-        return FloatLiteralExpr::get(precision, cfp->getValueAPF());
+        return FloatLiteralExpr::Get(FloatType::Get(context, precision), cfp->getValueAPF());
     }
 
     // TODO: We do not support undefs here.

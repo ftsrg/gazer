@@ -27,28 +27,33 @@ ExprRef<LiteralExpr> ExprEvaluatorBase::visitVarRef(const ExprRef<VarRefExpr>& e
 ExprRef<LiteralExpr> ExprEvaluatorBase::visitNot(const ExprRef<NotExpr>& expr)
 {
     auto boolLit = dyn_cast<BoolLiteralExpr>(visit(expr->getOperand()).get());
-    return BoolLiteralExpr::Get(!boolLit->getValue());
+    return BoolLiteralExpr::Get(cast<BoolType>(expr->getType()), !boolLit->getValue());
 }
 
 ExprRef<LiteralExpr> ExprEvaluatorBase::visitZExt(const ExprRef<ZExtExpr>& expr)
 {
     auto bvLit = dyn_cast<BvLiteralExpr>(visit(expr->getOperand()).get());
+    BvType& type = llvm::cast<BvType>(expr->getType());
 
-    return BvLiteralExpr::Get(bvLit->getValue().zext(expr->getExtendedWidth()));
+    return BvLiteralExpr::Get(type, bvLit->getValue().zext(expr->getExtendedWidth()));
 }
 
 ExprRef<LiteralExpr> ExprEvaluatorBase::visitSExt(const ExprRef<SExtExpr>& expr)
 {
     auto bvLit = dyn_cast<BvLiteralExpr>(visit(expr->getOperand()).get());
+    BvType& type = llvm::cast<BvType>(expr->getType());
 
-    return BvLiteralExpr::Get(bvLit->getValue().sext(expr->getExtendedWidth()));
+    return BvLiteralExpr::Get(type, bvLit->getValue().sext(expr->getExtendedWidth()));
 }
 
 ExprRef<LiteralExpr> ExprEvaluatorBase::visitExtract(const ExprRef<ExtractExpr>& expr)
 {
     auto bvLit = dyn_cast<BvLiteralExpr>(visit(expr->getOperand()).get());
 
-    return BvLiteralExpr::Get(bvLit->getValue().extractBits(expr->getExtractedWidth(), expr->getOffset()));
+    return BvLiteralExpr::Get(
+        cast<BvType>(expr->getType()),
+        bvLit->getValue().extractBits(expr->getExtractedWidth(), expr->getOffset())
+    );
 }
 
 template<Expr::ExprKind Kind>
@@ -64,20 +69,22 @@ static ExprRef<LiteralExpr> EvalBinaryArithmetic(
 
     // TODO: Add support for Int types as well...
 
+    BvType& type = llvm::cast<BvType>(expr->getType());
+
     switch (Kind) {
-        case Expr::Add: return BvLiteralExpr::Get(left + right);
-        case Expr::Sub: return BvLiteralExpr::Get(left - right);
-        case Expr::Mul: return BvLiteralExpr::Get(left * right);
-        case Expr::SDiv: return BvLiteralExpr::Get(left.sdiv(right));
-        case Expr::UDiv: return BvLiteralExpr::Get(left.udiv(right));
-        case Expr::SRem: return BvLiteralExpr::Get(left.srem(right));
-        case Expr::URem: return BvLiteralExpr::Get(left.urem(right));
-        case Expr::Shl: return BvLiteralExpr::Get(left.shl(right));
-        case Expr::LShr: return BvLiteralExpr::Get(left.lshr(right.getLimitedValue()));
-        case Expr::AShr: return BvLiteralExpr::Get(left.ashr(right.getLimitedValue()));
-        case Expr::BAnd: return BvLiteralExpr::Get(left & right);
-        case Expr::BOr: return BvLiteralExpr::Get(left | right);
-        case Expr::BXor: return BvLiteralExpr::Get(left ^ right);
+        case Expr::Add: return BvLiteralExpr::Get(type, left + right);
+        case Expr::Sub: return BvLiteralExpr::Get(type, left - right);
+        case Expr::Mul: return BvLiteralExpr::Get(type, left * right);
+        case Expr::SDiv: return BvLiteralExpr::Get(type, left.sdiv(right));
+        case Expr::UDiv: return BvLiteralExpr::Get(type, left.udiv(right));
+        case Expr::SRem: return BvLiteralExpr::Get(type, left.srem(right));
+        case Expr::URem: return BvLiteralExpr::Get(type, left.urem(right));
+        case Expr::Shl: return BvLiteralExpr::Get(type, left.shl(right));
+        case Expr::LShr: return BvLiteralExpr::Get(type, left.lshr(right.getLimitedValue()));
+        case Expr::AShr: return BvLiteralExpr::Get(type, left.ashr(right.getLimitedValue()));
+        case Expr::BAnd: return BvLiteralExpr::Get(type, left & right);
+        case Expr::BOr: return BvLiteralExpr::Get(type, left | right);
+        case Expr::BXor: return BvLiteralExpr::Get(type, left ^ right);
     }
     
     llvm_unreachable("Unknown binary arithmetic expression kind.");
@@ -146,17 +153,19 @@ static ExprRef<LiteralExpr> EvalCompareExpr(
     auto left = dyn_cast<BvLiteralExpr>(visitor->visit(expr->getLeft()).get())->getValue();
     auto right = dyn_cast<BvLiteralExpr>(visitor->visit(expr->getRight()).get())->getValue();
 
+    BoolType& type = BoolType::Get(expr->getContext());
+
     switch (Kind) {
-        case Expr::Eq: return BoolLiteralExpr::Get(left.eq(right));
-        case Expr::NotEq: return BoolLiteralExpr::Get(left.ne(right));
-        case Expr::SLt: return BoolLiteralExpr::Get(left.slt(right));
-        case Expr::SLtEq: return BoolLiteralExpr::Get(left.sle(right));
-        case Expr::SGt: return BoolLiteralExpr::Get(left.sgt(right));
-        case Expr::SGtEq: return BoolLiteralExpr::Get(left.sge(right));
-        case Expr::ULt: return BoolLiteralExpr::Get(left.ult(right));
-        case Expr::ULtEq: return BoolLiteralExpr::Get(left.ule(right));
-        case Expr::UGt: return BoolLiteralExpr::Get(left.ugt(right));
-        case Expr::UGtEq: return BoolLiteralExpr::Get(left.uge(right));
+        case Expr::Eq: return BoolLiteralExpr::Get(type, left.eq(right));
+        case Expr::NotEq: return BoolLiteralExpr::Get(type, left.ne(right));
+        case Expr::SLt: return BoolLiteralExpr::Get(type, left.slt(right));
+        case Expr::SLtEq: return BoolLiteralExpr::Get(type, left.sle(right));
+        case Expr::SGt: return BoolLiteralExpr::Get(type, left.sgt(right));
+        case Expr::SGtEq: return BoolLiteralExpr::Get(type, left.sge(right));
+        case Expr::ULt: return BoolLiteralExpr::Get(type, left.ult(right));
+        case Expr::ULtEq: return BoolLiteralExpr::Get(type, left.ule(right));
+        case Expr::UGt: return BoolLiteralExpr::Get(type, left.ugt(right));
+        case Expr::UGtEq: return BoolLiteralExpr::Get(type, left.uge(right));
     }
 
     llvm_unreachable("Unknown binary arithmetic expression kind.");
@@ -240,7 +249,10 @@ ExprRef<LiteralExpr> ExprEvaluatorBase::visitSelect(const ExprRef<SelectExpr>& e
     auto then = dyn_cast<BvLiteralExpr>(visit(expr->getThen()).get());
     auto elze = dyn_cast<BvLiteralExpr>(visit(expr->getElse()).get());
 
-    return BvLiteralExpr::Get(cond->getValue() ? then->getValue() : elze->getValue());
+    return BvLiteralExpr::Get(
+        cast<BvType>(expr->getType()),
+        cond->getValue() ? then->getValue() : elze->getValue()
+    );
 }
 
 // Arrays

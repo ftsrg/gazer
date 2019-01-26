@@ -51,18 +51,21 @@ bool BmcPass::runOnFunction(llvm::Function& function)
     TopologicalSort& topo = getAnalysis<TopologicalSortPass>()
         .getTopologicalSort();    
 
+    // Create a new gazer context for verification
+    GazerContext context;
+
     Z3SolverFactory solverFactory;
     std::unique_ptr<ExprBuilder> builder;
     if (NoFoldingExpr) {
-        builder = CreateExprBuilder();
+        builder = CreateExprBuilder(context);
     } else {
-        builder = CreateFoldingExprBuilder();
+        builder = CreateFoldingExprBuilder(context);
     }
 
     Stopwatch<> sw;
     sw.start();
     
-    BoundedModelChecker bmc(function, topo, builder.get(), solverFactory, llvm::outs());
+    BoundedModelChecker bmc(function, topo, context, builder.get(), solverFactory, llvm::outs());
     auto result = bmc.run();
     sw.stop();
     llvm::outs() << "Elapsed time: ";
@@ -116,6 +119,5 @@ bool BmcPass::runOnFunction(llvm::Function& function)
         llvm::outs() << "Verification SUCCESSFUL.\n";
     }
 
-    // We modified the program with the predecessors identifications
-    return true;
+    return false;
 }

@@ -127,7 +127,7 @@ protected:
             ExprPtr newOp = this->visit(operand);
             if (auto lit = llvm::dyn_cast<BoolLiteralExpr>(newOp.get())) {
                 if (lit->getValue() == false) {
-                    result = BoolLiteralExpr::getFalse();
+                    result = BoolLiteralExpr::False(expr->getContext());
                     break;
                 } else {
                     // We are not adding unnecessary true literals
@@ -147,7 +147,7 @@ protected:
 
         // If we eliminated all operands
         if (newOps.size() == 0) {
-            return BoolLiteralExpr::getTrue();
+            return BoolLiteralExpr::True(expr->getContext());
         } else if (newOps.size() == 1) {
             return newOps[0];
         }
@@ -301,6 +301,7 @@ ExprPtr ExprSimplifier::simplify(const ExprPtr& expr) const
 
 void ExprSimplifyVisitor::combineFacts(std::vector<LiteralValue> facts, ExprVector &vec, unsigned depth)
 {
+/*
     // LESSTHAN(X, L1) if Eq(X, L2) where L1 < L2 --> True
     for (auto fact : facts) {
         ExprRef<VarRefExpr>  var = fact.variable;
@@ -312,7 +313,7 @@ void ExprSimplifyVisitor::combineFacts(std::vector<LiteralValue> facts, ExprVect
             if (match(vec[i], m_NotEq(m_Specific(var), m_Literal(l1)))) {
                 // NotEq(X, L1) if Eq(X, L2) where L1 == L2 --> False
                 if (l1 == lit) {
-                    vec[0] = BoolLiteralExpr::getFalse();
+                    vec[0] = BoolLiteralExpr::False(expr->getContext())();
                     vec.resize(1);
                     return;
                 }
@@ -321,7 +322,7 @@ void ExprSimplifyVisitor::combineFacts(std::vector<LiteralValue> facts, ExprVect
                 vec[i] = BoolLiteralExpr::getTrue();
             }
         }
-    }
+    } */
 }
 
 ExprPtr ExprSimplifyVisitor::simplifyCompareExpr(const ExprRef<NonNullaryExpr>& expr, const ExprPtr& left, const ExprPtr& right)
@@ -336,13 +337,13 @@ ExprPtr ExprSimplifyVisitor::simplifyCompareExpr(const ExprRef<NonNullaryExpr>& 
             case Expr::ULt:
             case Expr::UGt:
             case Expr::NotEq:
-                return BoolLiteralExpr::getFalse();
+                return BoolLiteralExpr::False(expr->getContext());
             case Expr::Eq:
             case Expr::SLtEq:
             case Expr::SGtEq:
             case Expr::ULtEq:
             case Expr::UGtEq:
-                return BoolLiteralExpr::getTrue();
+                return BoolLiteralExpr::True(expr->getContext());
             default:
                 break;
         }
@@ -354,11 +355,11 @@ ExprPtr ExprSimplifyVisitor::simplifyCompareExpr(const ExprRef<NonNullaryExpr>& 
     llvm::APInt c1, c2;
 
     if (match(left, right, m_Add(m_Bv(&c1), m_Expr(x)), m_Bv(&c2))) {
-        return expr->clone({ visit(x), BvLiteralExpr::Get(c2 - c1)});
+        //return expr->clone({ visit(x), BvLiteralExpr::Get(*llvm::cast<BvType>(&expr->getType()), c2 - c1)});
     }
 
     if (match(expr, m_ULt(m_Sub(m_Bv(&c1), m_Expr(x)), m_Bv(&c2)))) {
-        return expr->clone({ visit(x), BvLiteralExpr::Get(c2 + c1)});
+        //return expr->clone({ visit(x), BvLiteralExpr::Get(*llvm::cast<BvType>(&expr->getType()), c2 + c1)});
     }
 
     return expr->clone({ left, right});

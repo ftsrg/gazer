@@ -1,0 +1,6 @@
+set(SOURCE_FILES
+    Cfa.cpp
+)
+
+add_library(GazerAutomaton ${SOURCE_FILES})
+target_link_libraries(GazerAutomaton GazerCore)

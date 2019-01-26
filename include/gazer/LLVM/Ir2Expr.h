@@ -18,7 +18,7 @@ public:
 public:
     InstToExpr(
         llvm::Function& function,
-        SymbolTable& symbols,
+        GazerContext& context,
         ExprBuilder* builder,
         ValueToVariableMapT& variables,
         llvm::DenseMap<llvm::Value*, ExprPtr>& eliminatedValues
@@ -58,9 +58,12 @@ private:
 
     ExprPtr integerCast(llvm::CastInst& cast, ExprPtr operand, unsigned width);
 
+    Type& typeFromLLVMType(const llvm::Type* type);
+    Type& typeFromLLVMType(const llvm::Value* value);
+
 private:
     llvm::Function& mFunction;
-    SymbolTable& mSymbols;
+    GazerContext& mContext;
     ValueToVariableMapT& mVariables;
     ExprBuilder* mExprBuilder;
     llvm::DenseMap<llvm::Value*, ExprPtr>& mEliminatedValues;

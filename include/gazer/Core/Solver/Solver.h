@@ -19,8 +19,8 @@ public:
     };
 
 public:
-    Solver(SymbolTable& symbols)
-        : mSymbols(symbols)
+    Solver(GazerContext& context)
+        : mContext(context)
     {}
 
     Solver(const Solver&) = delete;
@@ -41,6 +41,8 @@ public:
 
     unsigned getNumConstraints() const { return mStatCount; }
 
+    GazerContext& getContext() const { return mContext; }
+
     virtual void dump(llvm::raw_ostream& os) = 0;
     virtual SolverStatus run() = 0;
     virtual Valuation getModel() = 0;
@@ -50,7 +52,7 @@ public:
 protected:
     virtual void addConstraint(ExprPtr expr) = 0;
 
-    SymbolTable& mSymbols;
+    GazerContext& mContext;
 private:
     unsigned mStatCount = 0;
 };
@@ -60,7 +62,7 @@ class SolverFactory
 {
 public:
     /// Creates a new solver instance with a given symbol table.
-    virtual std::unique_ptr<Solver> createSolver(SymbolTable& symbols) = 0;
+    virtual std::unique_ptr<Solver> createSolver(GazerContext& symbols) = 0;
 };
 
 }

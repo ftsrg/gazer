@@ -25,6 +25,7 @@ public:
     BoundedModelChecker(
         llvm::Function& function,
         TopologicalSort& topo,
+        GazerContext& context,
         ExprBuilder* builder,
         SolverFactory& solverFactory,
         llvm::raw_ostream& os = llvm::nulls()
@@ -55,7 +56,7 @@ private:
     SolverFactory& mSolverFactory;
     llvm::raw_ostream& mOS;
     // Symbols and mappings
-    SymbolTable mSymbols;
+    GazerContext& mContext;
     ExprBuilder* mExprBuilder;
 
     using VariableToValueMapT = llvm::DenseMap<Variable*, llvm::Value*>;

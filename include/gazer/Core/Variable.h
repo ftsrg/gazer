@@ -2,6 +2,8 @@
 #define _GAZER_CORE_VARIABLE_H
 
 #include "gazer/Core/Expr.h"
+#include "gazer/Core/Symbol.h"
+#include "gazer/Core/GazerContext.h"
 
 #include <string>
 #include <memory>
@@ -15,22 +17,25 @@ class VarRefExpr;
 
 class Variable final
 {
-public:
-    Variable(std::string name, const Type& type);
+    friend class GazerContext;
 
+    Variable(std::string name, Type& type);
+public:
     Variable(const Variable&) = delete;
     Variable& operator=(const Variable&) = delete;
 
     bool operator==(const Variable& other) const;
     bool operator!=(const Variable& other) const { return !operator==(other); }
 
-    const Type& getType() const { return mType; }
     std::string getName() const { return mName; }
+    Type& getType() const { return mType; }
     ExprRef<VarRefExpr> getRefExpr() const { return mExpr; }
+
+    GazerContext& getContext() const { return mType.getContext(); }
 
 private:
     std::string mName;
-    const Type& mType;
+    Type& mType;
     ExprRef<VarRefExpr> mExpr;
 };
 
@@ -40,12 +45,12 @@ class VarRefExpr final : public Expr
 {
     friend class Variable;
 private:
-    VarRefExpr(const Variable& variable)
-        : Expr(Expr::VarRef, variable.getType()), mVariable(variable)
+    VarRefExpr(Variable* variable)
+        : Expr(Expr::VarRef, variable->getType()), mVariable(variable)
     {}
 
 public:
-    const Variable& getVariable() const { return mVariable; }
+    Variable& getVariable() const { return *mVariable; }
 
     virtual void print(llvm::raw_ostream& os) const override;
 
@@ -54,7 +59,17 @@ public:
     }
 
 private:
-    const Variable& mVariable;
+    Variable* mVariable;
+};
+
+class VariableContainer
+{
+public:
+    VariableContainer(GazerContext& context);
+protected:
+
+private:
+    llvm::StringMap<Variable*> mVariableNames;
 };
 
 } // end namespace gazer

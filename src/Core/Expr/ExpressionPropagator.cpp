@@ -62,8 +62,8 @@ ExprPtr ExpressionPropagator::combineEqualities(const ExprRef<NonNullaryExpr> &e
 
     // NotEq(X1, L1) if Eq(X1, L2) where L1 != L2 --> True
     if (match(expr, m_NotEq(m_VarRef(x1), m_Literal(l1)))) {
-
-
-        return BoolLiteralExpr::getTrue();
+        return BoolLiteralExpr::True(expr->getContext());
     }
+
+    return expr;
 }

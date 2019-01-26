@@ -88,7 +88,7 @@ std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuat
 
                 ExprRef<LiteralExpr> expr = nullptr;
                 if (auto ci = dyn_cast<ConstantInt>(value)) {
-                    expr = BvLiteralExpr::Get(ci->getValue());
+                    expr = BvLiteralExpr::Get(BvType::Get(mContext, ci->getBitWidth()), ci->getValue());
                 } else {
                     auto result = mValueMap.find(value);
                     if (result != mValueMap.end()) {
@@ -198,7 +198,7 @@ ExprRef<AtomicExpr> LLVMBmcTraceBuilder::getLiteralFromValue(llvm::Value* value,
             // TODO: We should return the value of the corresponding undef here.
             return nullptr;
         } else if (auto cd = dyn_cast<ConstantData>(value)) {
-            return LiteralFromLLVMConst(cd);
+            return LiteralFromLLVMConst(mContext, cd);
         }
     } else {
         Variable* variable = result->second;

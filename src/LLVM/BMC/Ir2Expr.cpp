@@ -22,35 +22,35 @@ namespace gazer {
     extern llvm::cl::opt<bool> UseMathInt;
 }
 
-gazer::Type& TypeFromLLVMType(const llvm::Type* type)
+gazer::Type& InstToExpr::typeFromLLVMType(const llvm::Type* type)
 {
     if (type->isIntegerTy()) {
         auto width = type->getIntegerBitWidth();
         if (width == 1) {
-            return BoolType::get();
+            return BoolType::Get(mContext);
         }
 
-        if (UseMathInt && width <= 64) {
-            return IntType::get(width);
-        }
+        //if (UseMathInt && width <= 64) {
+        //    return IntType::Get(mContext, width);
+        //}
 
-        return BvType::get(width);
+        return BvType::Get(mContext, width);
     } else if (type->isHalfTy()) {
-        return FloatType::get(FloatType::Half);
+        return FloatType::Get(mContext, FloatType::Half);
     } else if (type->isFloatTy()) {
-        return FloatType::get(FloatType::Single);
+        return FloatType::Get(mContext, FloatType::Single);
     } else if (type->isDoubleTy()) {
-        return FloatType::get(FloatType::Double);
+        return FloatType::Get(mContext, FloatType::Double);
     } else if (type->isFP128Ty()) {
-        return FloatType::get(FloatType::Quad);
+        return FloatType::Get(mContext, FloatType::Quad);
     }
 
     assert(false && "Unsupported LLVM type.");
 }
 
-gazer::Type& TypeFromLLVMType(const llvm::Value* value)
+gazer::Type& InstToExpr::typeFromLLVMType(const llvm::Value* value)
 {
-    return TypeFromLLVMType(value->getType());
+    return typeFromLLVMType(value->getType());
 }
 
 static bool isLogicInstruction(unsigned opcode) {
@@ -68,33 +68,33 @@ static bool isNonConstValue(const llvm::Value* value) {
 
 InstToExpr::InstToExpr(
     Function& function,
-    SymbolTable& symbols,
+    GazerContext& symbols,
     ExprBuilder* builder,
     ValueToVariableMapT& variables,
     llvm::DenseMap<llvm::Value*, ExprPtr>& eliminatedValues
 )
-    : mFunction(function), mSymbols(symbols), 
+    : mFunction(function), mContext(symbols), 
     mExprBuilder(builder), mVariables(variables),
     mEliminatedValues(eliminatedValues)
    // mStack(stack), mHeap(heap)
 {
     // Add arguments as local variables
     for (auto& arg : mFunction.args()) {
-        Variable& variable = mSymbols.create(
+        Variable* variable = mContext.createVariable(
             arg.getName(),
-            TypeFromLLVMType(&arg)
+            typeFromLLVMType(&arg)
         );
-        mVariables[&arg] = &variable;
+        mVariables[&arg] = variable;
     }
 
     // Add local values as variables
     for (auto& instr : llvm::instructions(function)) {
         if (instr.getName() != "") {
-            Variable& variable = mSymbols.create(
+            Variable* variable = mContext.createVariable(
                 instr.getName(),
-                TypeFromLLVMType(&instr)
+                typeFromLLVMType(&instr)
             );
-            mVariables[&instr] = &variable;
+            mVariables[&instr] = variable;
         }
     }
 }
@@ -454,7 +454,7 @@ ExprPtr InstToExpr::handleBr(llvm::BranchInst& br, size_t succIdx)
         && "Invalid successor index for Br");
     
     if (br.isUnconditional()) {
-        return BoolLiteralExpr::getTrue();
+        return mExprBuilder->True();
     }
 
     auto cond = asBool(operand(br.getCondition()));
@@ -476,7 +476,7 @@ ExprPtr InstToExpr::handleSwitch(llvm::SwitchInst& swi, size_t succIdx)
 
     if (succIdx == 0) {
         // The SwitchInst is taking the default branch
-        ExprPtr expr = BoolLiteralExpr::getTrue();
+        ExprPtr expr = mExprBuilder->True();
         while (caseIt != swi.case_end()) {
             if (caseIt != swi.case_default()) {
                 ExprPtr value = operand(caseIt->getCaseValue());
@@ -574,8 +574,8 @@ ExprPtr InstToExpr::operand(const Value* value)
             ci->getType()->getIntegerBitWidth()
         );
     } else if (const llvm::ConstantFP* cfp = dyn_cast<llvm::ConstantFP>(value)) {
-        return FloatLiteralExpr::get(
-            *llvm::dyn_cast<FloatType>(&TypeFromLLVMType(cfp->getType())),
+        return FloatLiteralExpr::Get(
+            *llvm::dyn_cast<FloatType>(&typeFromLLVMType(cfp->getType())),
             cfp->getValueAPF()
         );
     } else if (isNonConstValue(value)) {
@@ -586,7 +586,7 @@ ExprPtr InstToExpr::operand(const Value* value)
 
         return getVariable(value)->getRefExpr();
     } else if (isa<llvm::UndefValue>(value)) {
-        return mExprBuilder->Undef(TypeFromLLVMType(value));
+        return mExprBuilder->Undef(typeFromLLVMType(value));
     } else {
         assert(false && "Unhandled value type");
     }

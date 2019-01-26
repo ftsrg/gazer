@@ -18,8 +18,8 @@ namespace
 class Z3Solver : public Solver
 {
 public:
-    Z3Solver(SymbolTable& symbols)
-        : Solver(symbols), mSolver(mContext)
+    Z3Solver(GazerContext& context)
+        : Solver(context), mSolver(mZ3Context)
     {}
 
     virtual void dump(llvm::raw_ostream& os) override;
@@ -30,7 +30,7 @@ protected:
     virtual void addConstraint(ExprPtr expr) override;
 
 protected:
-    z3::context mContext;
+    z3::context mZ3Context;
     z3::solver mSolver;
     unsigned mTmpCount = 0;
 };
@@ -52,7 +52,7 @@ class Z3ExprTransformer : public ExprVisitor<z3::expr>
 {
 public:
     Z3ExprTransformer(z3::context& context, unsigned& tmpCount)
-        : mContext(context), mTmpCount(tmpCount)
+        : mZ3Context(context), mTmpCount(tmpCount)
     {}
 
 protected:
@@ -60,30 +60,30 @@ protected:
     {
         switch (type->getTypeID()) {
             case Type::BoolTypeID:
-                return mContext.bool_sort();
+                return mZ3Context.bool_sort();
             case Type::IntTypeID:
-                return mContext.int_sort();
+                return mZ3Context.int_sort();
             case Type::BvTypeID: {
                 auto intTy = llvm::cast<BvType>(type);
-                return mContext.bv_sort(intTy->getWidth());
+                return mZ3Context.bv_sort(intTy->getWidth());
             }
             case Type::FloatTypeID: {
                 auto fltTy = llvm::cast<FloatType>(type);
                 switch (fltTy->getPrecision()) {
                     case FloatType::Half:
-                        return z3::sort(mContext, Z3_mk_fpa_sort_half(mContext));
+                        return z3::sort(mZ3Context, Z3_mk_fpa_sort_half(mZ3Context));
                     case FloatType::Single:
-                        return z3::sort(mContext, Z3_mk_fpa_sort_single(mContext));
+                        return z3::sort(mZ3Context, Z3_mk_fpa_sort_single(mZ3Context));
                     case FloatType::Double:
-                        return z3::sort(mContext, Z3_mk_fpa_sort_double(mContext));
+                        return z3::sort(mZ3Context, Z3_mk_fpa_sort_double(mZ3Context));
                     case FloatType::Quad:
-                        return z3::sort(mContext, Z3_mk_fpa_sort_quadruple(mContext));
+                        return z3::sort(mZ3Context, Z3_mk_fpa_sort_quadruple(mZ3Context));
                 }
                 llvm_unreachable("Invalid floating-point precision");
             }
             case Type::ArrayTypeID: {
                 auto arrTy = llvm::cast<ArrayType>(type);
-                return mContext.array_sort(
+                return mZ3Context.array_sort(
                     typeToSort(&arrTy->getIndexType()),
                     typeToSort(&arrTy->getElementType())
                 );
@@ -100,7 +100,7 @@ protected:
     z3::expr visitUndef(const ExprRef<UndefExpr>& expr) override {
         std::string name = "__gazer_undef:" + std::to_string(mTmpCount++);
 
-        return mContext.constant(name.c_str(), typeToSort(&expr->getType()));
+        return mZ3Context.constant(name.c_str(), typeToSort(&expr->getType()));
     }
 
     z3::expr visitLiteral(const ExprRef<LiteralExpr>& expr) override
@@ -109,17 +109,17 @@ protected:
             auto lit = llvm::dyn_cast<BvLiteralExpr>(&*expr);
             auto value = lit->getValue();
 
-            return mContext.bv_val(value.getLimitedValue(), lit->getType().getWidth());
+            return mZ3Context.bv_val(value.getLimitedValue(), lit->getType().getWidth());
         }
         
         if (expr->getType().isBoolType()) {
             auto value = llvm::dyn_cast<BoolLiteralExpr>(&*expr)->getValue();
-            return mContext.bool_val(value);
+            return mZ3Context.bool_val(value);
         }
         
         if (expr->getType().isIntType()) {
             int64_t value = llvm::dyn_cast<IntLiteralExpr>(&*expr)->getValue();
-            return mContext.int_val(value);    
+            return mZ3Context.int_val(value);    
         }
         
         if (expr->getType().isFloatType()) {
@@ -127,12 +127,12 @@ protected:
             auto value = llvm::dyn_cast<FloatLiteralExpr>(&*expr)->getValue();
             
             if (fltTy->getPrecision() == FloatType::Single) {
-                return z3::expr(mContext, Z3_mk_fpa_numeral_float(
-                    mContext, value.convertToFloat(), typeToSort(fltTy)
+                return z3::expr(mZ3Context, Z3_mk_fpa_numeral_float(
+                    mZ3Context, value.convertToFloat(), typeToSort(fltTy)
                 ));
             } else if (fltTy->getPrecision() == FloatType::Double) {
-                return z3::expr(mContext, Z3_mk_fpa_numeral_double(
-                    mContext, value.convertToDouble(), typeToSort(fltTy)
+                return z3::expr(mZ3Context, Z3_mk_fpa_numeral_double(
+                    mZ3Context, value.convertToDouble(), typeToSort(fltTy)
                 ));
             }
         }
@@ -143,7 +143,7 @@ protected:
     z3::expr visitVarRef(const ExprRef<VarRefExpr>& expr) override
     {
         auto name = expr->getVariable().getName();
-        return mContext.constant(name.c_str(), typeToSort(&expr->getType()));
+        return mZ3Context.constant(name.c_str(), typeToSort(&expr->getType()));
     }
 
     // Unary
@@ -209,7 +209,7 @@ protected:
 
     // Logic
     z3::expr visitAnd(const ExprRef<AndExpr>& expr) override {
-        z3::expr_vector ops(mContext);
+        z3::expr_vector ops(mZ3Context);
 
         for (ExprPtr& op : expr->operands()) {
             ops.push_back(visit(op));
@@ -218,7 +218,7 @@ protected:
         return z3::mk_and(ops);
     }
     z3::expr visitOr(const ExprRef<OrExpr>& expr) override {
-        z3::expr_vector ops(mContext);
+        z3::expr_vector ops(mZ3Context);
 
         for (ExprPtr& op : expr->operands()) {
             ops.push_back(visit(op));
@@ -269,40 +269,40 @@ protected:
 
     // Floating-point queries
     z3::expr visitFIsNan(const ExprRef<FIsNanExpr>& expr) override {
-        return z3::expr(mContext, Z3_mk_fpa_is_nan(mContext, visit(expr->getOperand())));
+        return z3::expr(mZ3Context, Z3_mk_fpa_is_nan(mZ3Context, visit(expr->getOperand())));
     }
     z3::expr visitFIsInf(const ExprRef<FIsInfExpr>& expr) override {
-        return z3::expr(mContext, Z3_mk_fpa_is_infinite(mContext, visit(expr->getOperand())));
+        return z3::expr(mZ3Context, Z3_mk_fpa_is_infinite(mZ3Context, visit(expr->getOperand())));
     }
 
     // Floating-point arithmetic
     z3::expr visitFAdd(const ExprRef<FAddExpr>& expr) override {
-        return z3::expr(mContext, Z3_mk_fpa_add(
-            mContext,
+        return z3::expr(mZ3Context, Z3_mk_fpa_add(
+            mZ3Context,
             transformRoundingMode(expr->getRoundingMode()),
             visit(expr->getLeft()),
             visit(expr->getRight())
         ));
     }
     z3::expr visitFSub(const ExprRef<FSubExpr>& expr) override {
-        return z3::expr(mContext, Z3_mk_fpa_sub(
-            mContext,
+        return z3::expr(mZ3Context, Z3_mk_fpa_sub(
+            mZ3Context,
             transformRoundingMode(expr->getRoundingMode()),
             visit(expr->getLeft()),
             visit(expr->getRight())
         ));
     }
     z3::expr visitFMul(const ExprRef<FMulExpr>& expr) override {
-        return z3::expr(mContext, Z3_mk_fpa_mul(
-            mContext,
+        return z3::expr(mZ3Context, Z3_mk_fpa_mul(
+            mZ3Context,
             transformRoundingMode(expr->getRoundingMode()),
             visit(expr->getLeft()),
             visit(expr->getRight())
         ));
     }
     z3::expr visitFDiv(const ExprRef<FDivExpr>& expr) override {
-        return z3::expr(mContext, Z3_mk_fpa_div(
-            mContext,
+        return z3::expr(mZ3Context, Z3_mk_fpa_div(
+            mZ3Context,
             transformRoundingMode(expr->getRoundingMode()),
             visit(expr->getLeft()),
             visit(expr->getRight())
@@ -310,28 +310,28 @@ protected:
     }
 
     z3::expr visitFEq(const ExprRef<FEqExpr>& expr) override {
-        return z3::expr(mContext, Z3_mk_fpa_eq(
-            mContext, visit(expr->getLeft()), visit(expr->getRight())
+        return z3::expr(mZ3Context, Z3_mk_fpa_eq(
+            mZ3Context, visit(expr->getLeft()), visit(expr->getRight())
         ));
     }
     z3::expr visitFGt(const ExprRef<FGtExpr>& expr) override {
-        return z3::expr(mContext, Z3_mk_fpa_gt(
-            mContext, visit(expr->getLeft()), visit(expr->getRight())
+        return z3::expr(mZ3Context, Z3_mk_fpa_gt(
+            mZ3Context, visit(expr->getLeft()), visit(expr->getRight())
         ));
     }
     z3::expr visitFGtEq(const ExprRef<FGtEqExpr>& expr) override {
-        return z3::expr(mContext, Z3_mk_fpa_geq(
-            mContext, visit(expr->getLeft()), visit(expr->getRight())
+        return z3::expr(mZ3Context, Z3_mk_fpa_geq(
+            mZ3Context, visit(expr->getLeft()), visit(expr->getRight())
         ));
     }
     z3::expr visitFLt(const ExprRef<FLtExpr>& expr) override {
-        return z3::expr(mContext, Z3_mk_fpa_lt(
-            mContext, visit(expr->getLeft()), visit(expr->getRight())
+        return z3::expr(mZ3Context, Z3_mk_fpa_lt(
+            mZ3Context, visit(expr->getLeft()), visit(expr->getRight())
         ));
     }
     z3::expr visitFLtEq(const ExprRef<FLtEqExpr>& expr) override {
-        return z3::expr(mContext, Z3_mk_fpa_leq(
-            mContext, visit(expr->getLeft()), visit(expr->getRight())
+        return z3::expr(mZ3Context, Z3_mk_fpa_leq(
+            mZ3Context, visit(expr->getLeft()), visit(expr->getRight())
         ));
     }
 
@@ -365,22 +365,22 @@ protected:
     {
         switch (rm) {
             case llvm::APFloat::roundingMode::rmNearestTiesToEven:
-                return z3::expr(mContext, Z3_mk_fpa_round_nearest_ties_to_even(mContext));
+                return z3::expr(mZ3Context, Z3_mk_fpa_round_nearest_ties_to_even(mZ3Context));
             case llvm::APFloat::roundingMode::rmNearestTiesToAway:
-                return z3::expr(mContext, Z3_mk_fpa_round_nearest_ties_to_away(mContext));
+                return z3::expr(mZ3Context, Z3_mk_fpa_round_nearest_ties_to_away(mZ3Context));
             case llvm::APFloat::roundingMode::rmTowardPositive:
-                return z3::expr(mContext, Z3_mk_fpa_round_toward_positive(mContext));
+                return z3::expr(mZ3Context, Z3_mk_fpa_round_toward_positive(mZ3Context));
             case llvm::APFloat::roundingMode::rmTowardNegative:
-                return z3::expr(mContext, Z3_mk_fpa_round_toward_negative(mContext));
+                return z3::expr(mZ3Context, Z3_mk_fpa_round_toward_negative(mZ3Context));
             case llvm::APFloat::roundingMode::rmTowardZero:
-                return z3::expr(mContext, Z3_mk_fpa_round_toward_zero(mContext));
+                return z3::expr(mZ3Context, Z3_mk_fpa_round_toward_zero(mZ3Context));
         }
 
         llvm_unreachable("Invalid rounding mode");
     }
 
 protected:
-    z3::context& mContext;
+    z3::context& mZ3Context;
     unsigned& mTmpCount;
 };
 
@@ -401,7 +401,7 @@ public:
 
         auto result = mCache.find(expr.get());
         if (result != mCache.end()) {
-            return z3::expr(mContext, result->second);
+            return z3::expr(mZ3Context, result->second);
         }
 
         //llvm::errs() << *expr << "\n";
@@ -432,19 +432,19 @@ Solver::SolverStatus Z3Solver::run()
 
 void Z3Solver::addConstraint(ExprPtr expr)
 {
-    Z3ExprTransformer transformer(mContext, mTmpCount);
+    Z3ExprTransformer transformer(mZ3Context, mTmpCount);
     auto z3Expr = transformer.visit(expr);
     mSolver.add(z3Expr);
 }
 
 void Z3Solver::dump(llvm::raw_ostream& os)
 {
-    os << Z3_solver_to_string(mContext, mSolver);    
+    os << Z3_solver_to_string(mZ3Context, mSolver);    
 }
 
 void CachingZ3Solver::addConstraint(ExprPtr expr)
 {
-    CachingZ3ExprTransformer transformer(mContext, mTmpCount, mCache);
+    CachingZ3ExprTransformer transformer(mZ3Context, mTmpCount, mCache);
     auto z3Expr = transformer.visit(expr);
     mSolver.add(z3Expr);
 }
@@ -508,58 +508,58 @@ Valuation Z3Solver::getModel()
             continue;
         }
 
-        auto variableOpt = mSymbols.get(name);
-        assert(variableOpt.has_value() && "The symbol table must contain a referenced variable.");
+        auto variableOpt = mContext.getVariable(name);
+        assert(variableOpt != nullptr && "The symbol table must contain a referenced variable.");
 
-        Variable& variable = variableOpt->get();
+        Variable& variable = *variableOpt;
         ExprRef<LiteralExpr> expr = nullptr;
 
         if (z3Expr.is_bool()) {
-            bool value = z3::eq(model.eval(z3Expr), mContext.bool_val(true));
-            expr = BoolLiteralExpr::Get(value);            
+            bool value = z3::eq(model.eval(z3Expr), mZ3Context.bool_val(true));
+            expr = BoolLiteralExpr::Get(getContext(), value);
         } else if (z3Expr.is_int()) {
             // TODO: Maybe try with Z3_get_numeral_string?
             int64_t value;
-            Z3_get_numeral_int64(mContext, model.eval(z3Expr), &value);
+            Z3_get_numeral_int64(mZ3Context, model.eval(z3Expr), &value);
 
             const Type* varTy = &variable.getType();
             assert(varTy->isIntType() && "An IntType should only be contained in an IntType variable.");
         
             auto intTy = llvm::cast<gazer::IntType>(varTy);
 
-            expr = IntLiteralExpr::get(IntType::get(intTy->getWidth()), value);
+            expr = IntLiteralExpr::Get(IntType::Get(getContext()), value);
         } else if (z3Expr.is_bv()) {
-            unsigned int width = Z3_get_bv_sort_size(mContext, z3Expr.get_sort());
+            unsigned int width = Z3_get_bv_sort_size(mZ3Context, z3Expr.get_sort());
             uint64_t value;
-            Z3_get_numeral_uint64(mContext, z3Expr, &value);
+            Z3_get_numeral_uint64(mZ3Context, z3Expr, &value);
 
             llvm::APInt iVal(width, value);
-            expr = BvLiteralExpr::Get(iVal);
+            expr = BvLiteralExpr::Get(BvType::Get(getContext(), width), iVal);
         } else if (z3Expr.get_sort().sort_kind() == Z3_sort_kind::Z3_FLOATING_POINT_SORT) {
             z3::sort sort = z3Expr.get_sort();
-            FloatType::FloatPrecision precision = precFromSort(mContext, sort);
-            auto& fltTy = FloatType::get(precision);
+            FloatType::FloatPrecision precision = precFromSort(mZ3Context, sort);
+            auto& fltTy = FloatType::Get(getContext(), precision);
 
             bool isNaN = z3::eq(
-                model.eval(z3::expr(mContext, Z3_mk_fpa_is_nan(mContext, z3Expr))),
-                mContext.bool_val(true)
+                model.eval(z3::expr(mZ3Context, Z3_mk_fpa_is_nan(mZ3Context, z3Expr))),
+                mZ3Context.bool_val(true)
             );
 
             if (isNaN) {
-                expr = FloatLiteralExpr::get(fltTy, llvm::APFloat::getNaN(
+                expr = FloatLiteralExpr::Get(fltTy, llvm::APFloat::getNaN(
                     fltTy.getLLVMSemantics()
                 ));
             } else {
-                auto toIEEE = z3::expr(mContext, Z3_mk_fpa_to_ieee_bv(mContext, z3Expr));
+                auto toIEEE = z3::expr(mZ3Context, Z3_mk_fpa_to_ieee_bv(mZ3Context, z3Expr));
                 auto ieeeVal = model.eval(toIEEE);
 
                 uint64_t bits;
-                Z3_get_numeral_uint64(mContext,  ieeeVal, &bits);
+                Z3_get_numeral_uint64(mZ3Context,  ieeeVal, &bits);
 
                 llvm::APInt bv(fltTy.getWidth(), bits);
                 llvm::APFloat apflt(fltTy.getLLVMSemantics(), bv);
 
-                expr = FloatLiteralExpr::get(fltTy, apflt);
+                expr = FloatLiteralExpr::Get(fltTy, apflt);
             }
 
         } else {
@@ -572,11 +572,11 @@ Valuation Z3Solver::getModel()
     return builder.build();
 }
 
-std::unique_ptr<Solver> Z3SolverFactory::createSolver(SymbolTable& symbols)
+std::unique_ptr<Solver> Z3SolverFactory::createSolver(GazerContext& context)
 {
     if (mCache) {
-        return std::unique_ptr<Solver>(new CachingZ3Solver(symbols));
+        return std::unique_ptr<Solver>(new CachingZ3Solver(context));
     }
 
-    return std::unique_ptr<Solver>(new Z3Solver(symbols));
+    return std::unique_ptr<Solver>(new Z3Solver(context));
 }

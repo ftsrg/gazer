@@ -20,7 +20,7 @@ namespace gazer
 class UnaryExpr : public NonNullaryExpr
 {
 public:
-    UnaryExpr(ExprKind kind, const Type& type, ExprPtr operand)
+    UnaryExpr(ExprKind kind, Type& type, ExprPtr operand)
         : NonNullaryExpr(kind, type, {operand})
     {}
 
@@ -32,7 +32,7 @@ class NotExpr final : public UnaryExpr
 {
 protected:
     NotExpr(ExprPtr operand)
-        : UnaryExpr(Expr::Not, BoolType::get(), operand)
+        : UnaryExpr(Expr::Not, BoolType::Get(operand->getContext()), operand)
     {}
 
 protected:
@@ -65,7 +65,7 @@ class ExtCastExpr final : public UnaryExpr
     static_assert(Expr::FirstUnaryCast <= Kind && Kind <= Expr::LastUnaryCast,
         "A unary cast expression must have a unary cast expression kind.");
 private:
-    ExtCastExpr(ExprPtr operand, const BvType& type)
+    ExtCastExpr(ExprPtr operand, BvType& type)
         : UnaryExpr(Kind, type, {operand})
     {}
 
@@ -86,7 +86,7 @@ public:
         return getExtendedWidth() - opType->getWidth();
     }
 
-    static ExprRef<ExtCastExpr<Kind>> Create(ExprPtr operand, const Type& type) {
+    static ExprRef<ExtCastExpr<Kind>> Create(ExprPtr operand, Type& type) {
         assert(operand->getType().isBvType() && "Can only do bitwise cast on integers");
         assert(type.isBvType() && "Can only do bitwise cast on integers");
         
@@ -113,7 +113,7 @@ class ExtractExpr final : public UnaryExpr
 {
 private:
     ExtractExpr(ExprPtr operand, unsigned offset, unsigned width)
-        : UnaryExpr(Expr::Extract, BvType::get(width), {operand}),
+        : UnaryExpr(Expr::Extract, BvType::Get(operand->getContext(), width), {operand}),
             mOffset(offset), mWidth(width)
     {}
 
@@ -155,7 +155,7 @@ private:
 class BinaryExpr : public NonNullaryExpr
 {
 protected:
-    BinaryExpr(ExprKind kind, const Type& type, ExprPtr left, ExprPtr right)
+    BinaryExpr(ExprKind kind, Type& type, ExprPtr left, ExprPtr right)
         : NonNullaryExpr(kind, type, {left, right})
     {}
 public:
@@ -169,7 +169,7 @@ class ArithmeticExpr final : public BinaryExpr
     static_assert(Expr::FirstBinaryArithmetic <= Kind && Kind <= Expr::LastBinaryArithmetic,
         "An arithmetic expression must have an arithmetic expression kind.");
 protected:
-    ArithmeticExpr(const Type& type, ExprPtr left, ExprPtr right)
+    ArithmeticExpr(Type& type, ExprPtr left, ExprPtr right)
         : BinaryExpr(Kind, type, left, right)
     {}
 
@@ -220,7 +220,7 @@ class CompareExpr final : public BinaryExpr
         "A compare expression must have a compare expression kind.");
 protected:
     CompareExpr(ExprPtr left, ExprPtr right)
-        : BinaryExpr(Kind, BoolType::get(), left, right)
+        : BinaryExpr(Kind, BoolType::Get(left->getContext()), left, right)
     {
         assert(left->getType() == right->getType()
             && "Compare expression operand types must match.");
@@ -266,7 +266,7 @@ protected:
     
     template<class InputIterator>
     MultiaryLogicExpr(InputIterator begin, InputIterator end)
-        : NonNullaryExpr(Kind, BoolType::get(), begin, end)
+        : NonNullaryExpr(Kind, BoolType::Get((*begin)->getContext()), begin, end)
     {
         for (auto it = begin; it != end; ++it) {
             assert((*it)->getType().isBoolType() && "Logic expression operands can only be booleans.");
@@ -274,7 +274,7 @@ protected:
     }
 
     MultiaryLogicExpr(ExprPtr left, ExprPtr right)
-        : NonNullaryExpr(Kind, BoolType::get(), {left, right})
+        : NonNullaryExpr(Kind, BoolType::Get(left->getContext()), {left, right})
     {
         assert(left->getType().isBoolType() && "Logic expression operands can only be booleans.");
         assert((left->getType() == right->getType()) && "Logic expression operand types must match.");
@@ -315,7 +315,7 @@ class XorExpr final : public BinaryExpr
 {
 protected:
     XorExpr(ExprPtr left, ExprPtr right)
-        : BinaryExpr(Expr::Xor, BoolType::get(), left, right)
+        : BinaryExpr(Expr::Xor, BoolType::Get(left->getContext()), left, right)
     {}
 
 protected:
@@ -348,7 +348,7 @@ class FpQueryExpr final : public UnaryExpr
         "A floating point query expression must be FIsNan or FIsInf");
 protected:
     FpQueryExpr(ExprPtr operand)
-        : UnaryExpr(Kind, BoolType::get(), operand)
+        : UnaryExpr(Kind, BoolType::Get(operand->getContext()), operand)
     {}
 
     virtual ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
@@ -371,7 +371,7 @@ class FpArithmeticExpr final : public BinaryExpr
     static_assert(Expr::FirstFpArithmetic <= Kind && Kind <= Expr::LastFpArithmetic,
         "An arithmetic expression must have an floating-point arithmetic expression kind.");
 protected:
-    FpArithmeticExpr(const FloatType& type, ExprPtr left, ExprPtr right, llvm::APFloat::roundingMode rm)
+    FpArithmeticExpr(FloatType& type, ExprPtr left, ExprPtr right, llvm::APFloat::roundingMode rm)
         : BinaryExpr(Kind, type, left, right), mRoundingMode(rm)
     {}
 
@@ -421,7 +421,7 @@ class FpCompareExpr final : public BinaryExpr
         "A compare expression must have a compare expression kind.");
 protected:
     FpCompareExpr(ExprPtr left, ExprPtr right)
-        : BinaryExpr(Kind, BoolType::get(), left, right)
+        : BinaryExpr(Kind, BoolType::Get(left->getContext()), left, right)
     {
         assert(left->getType().isFloatType());
         assert(left->getType() == right->getType()
@@ -457,7 +457,7 @@ using FLtEqExpr = FpCompareExpr<Expr::FLtEq>;
 class SelectExpr final : public NonNullaryExpr
 {
 protected:
-    SelectExpr(const Type& type, ExprPtr condition, ExprPtr then, ExprPtr elze)
+    SelectExpr(Type& type, ExprPtr condition, ExprPtr then, ExprPtr elze)
         : NonNullaryExpr(Expr::Select, type, {condition, then, elze})
     {}
 

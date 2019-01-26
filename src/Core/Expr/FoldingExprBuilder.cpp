@@ -14,26 +14,26 @@ namespace
 class FoldingExprBuilder : public ExprBuilder
 {
 public:
-    FoldingExprBuilder()
-        : ExprBuilder()
+    FoldingExprBuilder(GazerContext& context)
+        : ExprBuilder(context)
     {}
 
     ExprPtr Not(const ExprPtr& op) override
     {
         if (auto boolLit = llvm::dyn_cast<BoolLiteralExpr>(op.get())) {
-            return BoolLiteralExpr::Get(!boolLit->getValue());
+            return this->BoolLit(!boolLit->getValue());
         }
 
         return NotExpr::Create(op);
     }
 
-    ExprPtr ZExt(const ExprPtr& op, const BvType& type) override {
+    ExprPtr ZExt(const ExprPtr& op, BvType& type) override {
         return ZExtExpr::Create(op, type);
     }
-    ExprPtr SExt(const ExprPtr& op, const BvType& type) override {
+    ExprPtr SExt(const ExprPtr& op, BvType& type) override {
         return SExtExpr::Create(op, type);
     }
-    ExprPtr Trunc(const ExprPtr& op, const BvType& type) override {
+    ExprPtr Trunc(const ExprPtr& op, BvType& type) override {
         return ExtractExpr::Create(op, 0, type.getWidth());
     }
     ExprPtr Extract(const ExprPtr& op, unsigned offset, unsigned width) override {
@@ -350,7 +350,7 @@ public:
             } */
         } else if (auto lhsLit = dyn_cast<BvLiteralExpr>(left.get())) {
             if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return BoolLiteralExpr::Get(lhsLit->getValue() == rhsLit->getValue()); 
+                return this->BoolLit(lhsLit->getValue() == rhsLit->getValue());
             }
         } else if (left->getKind() == Expr::VarRef && right->getKind() == Expr::VarRef) {
             auto lhsVar = &(llvm::dyn_cast<VarRefExpr>(left.get())->getVariable());
@@ -382,7 +382,7 @@ public:
             }*/
         } else if (auto lhsLit = dyn_cast<BvLiteralExpr>(left.get())) {
             if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return BoolLiteralExpr::Get(lhsLit->getValue() != rhsLit->getValue()); 
+                return this->BoolLit(lhsLit->getValue() != rhsLit->getValue()); 
             }
         } else if (left->getKind() == Expr::VarRef && right->getKind() == Expr::VarRef) {
             auto lhsVar = &(llvm::dyn_cast<VarRefExpr>(left.get())->getVariable());
@@ -400,7 +400,7 @@ public:
     {
         if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
             if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return BoolLiteralExpr::Get(lhsLit->getValue().slt(rhsLit->getValue()));
+                return this->BoolLit(lhsLit->getValue().slt(rhsLit->getValue()));
             }
         }
 
@@ -411,7 +411,7 @@ public:
     {
         if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
             if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return BoolLiteralExpr::Get(lhsLit->getValue().sle(rhsLit->getValue()));
+                return this->BoolLit(lhsLit->getValue().sle(rhsLit->getValue()));
             }
         }
 
@@ -423,7 +423,7 @@ public:
     {
         if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
             if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return BoolLiteralExpr::Get(lhsLit->getValue().sgt(rhsLit->getValue()));
+                return this->BoolLit(lhsLit->getValue().sgt(rhsLit->getValue()));
             }
         }
 
@@ -434,7 +434,7 @@ public:
     {
         if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
             if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return BoolLiteralExpr::Get(lhsLit->getValue().sge(rhsLit->getValue()));
+                return this->BoolLit(lhsLit->getValue().sge(rhsLit->getValue()));
             }
         }
 
@@ -446,7 +446,7 @@ public:
     {
         if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
             if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return BoolLiteralExpr::Get(lhsLit->getValue().ult(rhsLit->getValue()));
+                return this->BoolLit(lhsLit->getValue().ult(rhsLit->getValue()));
             }
         }
 
@@ -457,7 +457,7 @@ public:
     {
         if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
             if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return BoolLiteralExpr::Get(lhsLit->getValue().ule(rhsLit->getValue()));
+                return this->BoolLit(lhsLit->getValue().ule(rhsLit->getValue()));
             }
         }
 
@@ -468,7 +468,7 @@ public:
     {
         if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
             if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return BoolLiteralExpr::Get(lhsLit->getValue().ugt(rhsLit->getValue()));
+                return this->BoolLit(lhsLit->getValue().ugt(rhsLit->getValue()));
             }
         }
 
@@ -479,7 +479,7 @@ public:
     {
         if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
             if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return BoolLiteralExpr::Get(lhsLit->getValue().uge(rhsLit->getValue()));
+                return this->BoolLit(lhsLit->getValue().uge(rhsLit->getValue()));
             }
         }
 
@@ -489,7 +489,7 @@ public:
     ExprPtr FIsNan(const ExprPtr& op) override {
         if (op->getKind() == Expr::Literal) {
             auto fltLit = llvm::dyn_cast<FloatLiteralExpr>(op.get());
-            return BoolLiteralExpr::Get(fltLit->getValue().isNaN());
+            return this->BoolLit(fltLit->getValue().isNaN());
         }
 
         return FIsNanExpr::Create(op);
@@ -498,7 +498,7 @@ public:
     ExprPtr FIsInf(const ExprPtr& op) override {
         if (op->getKind() == Expr::Literal) {
             auto fltLit = llvm::dyn_cast<FloatLiteralExpr>(op.get());
-            return BoolLiteralExpr::Get(fltLit->getValue().isInfinity());
+            return this->BoolLit(fltLit->getValue().isInfinity());
         }
 
         return FIsInfExpr::Create(op);
@@ -515,14 +515,14 @@ public:
     }
     ExprPtr FDiv(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) override {
         if (left->getKind() == Expr::Literal && right->getKind() == Expr::Literal) {
-            auto fltLeft  = llvm::dyn_cast<FloatLiteralExpr>(left.get());
-            auto fltRight = llvm::dyn_cast<FloatLiteralExpr>(right.get());
+            auto fltLeft  = llvm::cast<FloatLiteralExpr>(left.get());
+            auto fltRight = llvm::cast<FloatLiteralExpr>(right.get());
 
             llvm::APFloat result(fltLeft->getValue());
             result.divide(fltRight->getValue(), rm);
 
-            return FloatLiteralExpr::get(
-                *llvm::dyn_cast<FloatType>(&left->getType()), result
+            return FloatLiteralExpr::Get(
+                *llvm::cast<FloatType>(&left->getType()), result
             );
         }
 
@@ -562,6 +562,6 @@ public:
 
 } // end anonymous namespace
 
-std::unique_ptr<ExprBuilder> gazer::CreateFoldingExprBuilder() {
-    return std::unique_ptr<ExprBuilder>(new FoldingExprBuilder());
+std::unique_ptr<ExprBuilder> gazer::CreateFoldingExprBuilder(GazerContext& context) {
+    return std::unique_ptr<ExprBuilder>(new FoldingExprBuilder(context));
 }

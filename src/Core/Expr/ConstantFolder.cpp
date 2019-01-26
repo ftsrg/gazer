@@ -11,23 +11,23 @@ using llvm::cast;
 ExprPtr ConstantFolder::Not(const ExprPtr& op)
 {
     if (auto boolLit = dyn_cast<BoolLiteralExpr>(op.get())) {
-        return BoolLiteralExpr::Get(!boolLit->getValue());
+        return BoolLiteralExpr::Get(op->getContext(), !boolLit->getValue());
     }
 
     return NotExpr::Create(op);
 }
 
-ExprPtr ConstantFolder::ZExt(const ExprPtr& op, const BvType& type)
+ExprPtr ConstantFolder::ZExt(const ExprPtr& op, BvType& type)
 {
     return ZExtExpr::Create(op, type);
 }
 
-ExprPtr ConstantFolder::SExt(const ExprPtr& op, const BvType& type)
+ExprPtr ConstantFolder::SExt(const ExprPtr& op, BvType& type)
 {
     return SExtExpr::Create(op, type);
 }
 
-ExprPtr ConstantFolder::Trunc(const ExprPtr& op, const BvType& type)
+ExprPtr ConstantFolder::Trunc(const ExprPtr& op, BvType& type)
 {
     return ExtractExpr::Create(op, 0, type.getWidth());
 }
@@ -122,14 +122,14 @@ ExprPtr ConstantFolder::Eq(const ExprPtr& left, const ExprPtr& right)
     if (auto c1 = dyn_cast<LiteralExpr>(left.get())) {
         if (auto c2 = dyn_cast<LiteralExpr>(right.get())) {
             assert(c1->getType() == c2->getType() && "Equals expression operand types must match!");
-            return BoolLiteralExpr::Get(c1->equals(*c2));
+            return BoolLiteralExpr::Get(left->getContext(), c1->equals(*c2));
         }
     }
 
     if (auto v1 = dyn_cast<VarRefExpr>(left.get())) {
         if (auto v2 = dyn_cast<VarRefExpr>(right.get())) {
             if (v1->getVariable() == v2->getVariable()) {
-                return BoolLiteralExpr::getTrue();
+                return BoolLiteralExpr::True(left->getContext());
             }
         }
     }

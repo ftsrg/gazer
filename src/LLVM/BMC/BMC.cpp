@@ -87,13 +87,14 @@ static ExprPtr tryToEliminate(const llvm::Instruction& inst, const ExprPtr& expr
 BoundedModelChecker::BoundedModelChecker(
     llvm::Function& function,
     TopologicalSort& topo,
+    GazerContext& context,
     ExprBuilder* exprBuilder,
     SolverFactory& solverFactory,
     llvm::raw_ostream& os
 ) :
     mFunction(function), mTopo(topo), mSolverFactory(solverFactory), mOS(os),
-    mExprBuilder(exprBuilder),
-    mIr2Expr(function, mSymbols, mExprBuilder, mVariables, mEliminatedVars)
+    mContext(context), mExprBuilder(exprBuilder),
+    mIr2Expr(function, mContext, mExprBuilder, mVariables, mEliminatedVars)
 {}
 
 auto BoundedModelChecker::encode() -> ProgramEncodeMapT
@@ -120,7 +121,7 @@ auto BoundedModelChecker::encode() -> ProgramEncodeMapT
     //  (0) dp[0] := True (as the entry node is always reachable)
     //  (1) dp[i] := Or(forall p in pred(i): And(dp[p], SMT(p,i)))
     // This way dp[err] will contain the SMT encoding of all bounded error paths.
-    std::vector<ExprPtr> dp(numBB, BoolLiteralExpr::getFalse());
+    std::vector<ExprPtr> dp(numBB, mExprBuilder->False());
     ProgramEncodeMapT result;
 
     // The entry block is always reachable
@@ -145,7 +146,10 @@ auto BoundedModelChecker::encode() -> ProgramEncodeMapT
                 predVar = nullptr;
                 mPredecessors[bb] = predExpr;
             } else if (preds.size() == 2) {
-                predVar = &mSymbols.create("__gazer_pred_" + bb->getName().str(), BoolType::get());
+                predVar = mContext.createVariable(
+                    "/__gazer_pred_" + bb->getName().str(),
+                    BoolType::Get(mContext)
+                );
 
                 size_t first = blocks[preds[0]];
                 size_t second = blocks[preds[1]];
@@ -155,7 +159,10 @@ auto BoundedModelChecker::encode() -> ProgramEncodeMapT
                 );
                 mPredecessors[bb] = predExpr;
             } else {
-                predVar = &mSymbols.create("__gazer_pred_" + bb->getName().str(), BvType::get(32));
+                predVar = mContext.createVariable(
+                    "/__gazer_pred_" + bb->getName().str(),
+                    BvType::Get(mContext, 32)
+                );
                 predExpr = predVar->getRefExpr();
                 mPredecessors[bb] = predExpr;
             }
@@ -189,7 +196,7 @@ auto BoundedModelChecker::encode() -> ProgramEncodeMapT
 
             ExprPtr predFormula = dp[predIdx];
 
-            if (predFormula != BoolLiteralExpr::getFalse()) {
+            if (predFormula != mExprBuilder->False()) {
                 auto andFormula = mExprBuilder->And({
                     predIdentification,
                     predFormula,
@@ -210,6 +217,7 @@ auto BoundedModelChecker::encode() -> ProgramEncodeMapT
         BasicBlock* block  = entry.second;
         ExprPtr expr = dp[idx];
 
+/*
         if (AssumeNoNaN) {
             // We must also assume that no float type is NaN
             ExprVector notNanExprs;
@@ -226,7 +234,7 @@ auto BoundedModelChecker::encode() -> ProgramEncodeMapT
                 expr,
                 mExprBuilder->And(notNanExprs.begin(), notNanExprs.end())
             );
-        }
+        } */
 
         result[block] = expr;
     }
@@ -326,7 +334,7 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::run()
         errorBlock->printAsOperand(mOS);
         mOS << "'\n";
 
-        std::unique_ptr<Solver> solver = mSolverFactory.createSolver(mSymbols);
+        std::unique_ptr<Solver> solver = mSolverFactory.createSolver(mContext);
 
         // Simplify before adding
         if (!NoExprSimplify) {
@@ -367,7 +375,11 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::run()
     
             if (PrintTrace) {
                 LLVMBmcTraceBuilder builder(
-                    mTopo, blocks, mPredecessors, mIr2Expr.getVariableMap(),
+                    mContext,
+                    mTopo,
+                    blocks,
+                    mPredecessors,
+                    mIr2Expr.getVariableMap(),
                     errorBlock
                 );
 

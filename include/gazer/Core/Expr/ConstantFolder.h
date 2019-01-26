@@ -12,9 +12,9 @@ class ConstantFolder
 {
 public:
     static ExprPtr Not(const ExprPtr& op);
-    static ExprPtr ZExt(const ExprPtr& op, const BvType& type);
-    static ExprPtr SExt(const ExprPtr& op, const BvType& type);
-    static ExprPtr Trunc(const ExprPtr& op, const BvType& type);
+    static ExprPtr ZExt(const ExprPtr& op, BvType& type);
+    static ExprPtr SExt(const ExprPtr& op, BvType& type);
+    static ExprPtr Trunc(const ExprPtr& op, BvType& type);
     static ExprPtr Extract(const ExprPtr& op, unsigned offset, unsigned width);
 
     //--- Binary ---//

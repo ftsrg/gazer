@@ -1,5 +1,7 @@
 #include "gazer/Core/Type.h"
 
+#include "GazerContextImpl.h"
+
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/ADT/APFloat.h>
 #include <llvm/ADT/StringMap.h>
@@ -7,6 +9,7 @@
 #include <llvm/Support/FormatVariadic.h>
 
 #include <algorithm>
+#include <gazer/Core/GazerContext.h>
 
 using namespace gazer;
 
@@ -54,6 +57,10 @@ llvm::raw_ostream& gazer::operator<<(llvm::raw_ostream& os, const Type& type)
 
 bool Type::equals(const Type* other) const
 {
+    if (&mContext != &other->mContext) {
+        return false;
+    }
+
     if (getTypeID() != other->getTypeID()) {
         return false;
     }
@@ -83,72 +90,45 @@ bool Type::equals(const Type* other) const
     return true;
 }
 
-BvType BvType::Bv1Ty(1);
-BvType BvType::Bv8Ty(8);
-BvType BvType::Bv16Ty(16);
-BvType BvType::Bv32Ty(32);
-BvType BvType::Bv64Ty(64);
-
-IntType IntType::Int1Ty(1);
-IntType IntType::Int8Ty(8);
-IntType IntType::Int16Ty(16);
-IntType IntType::Int32Ty(32);
-IntType IntType::Int64Ty(64);
-
-IntType& IntType::get(unsigned width)
+BoolType& BoolType::Get(GazerContext& context)
 {
-    static llvm::DenseMap<unsigned, std::unique_ptr<IntType>> Instances;
+    return context.pImpl->BoolTy;
+}
+
+IntType& IntType::Get(GazerContext& context)
+{
+    return context.pImpl->IntTy;
+}
+
+BvType& BvType::Get(GazerContext& context, unsigned width)
+{
+    auto& pImpl = context.pImpl;
 
     switch (width) {
-        case 1: return Int1Ty;
-        case 8: return Int8Ty;
-        case 16: return Int16Ty;
-        case 32: return Int32Ty;
-        case 64: return Int64Ty;
+        case 8:  return pImpl->Bv8Ty;
+        case 16: return pImpl->Bv16Ty;
+        case 32: return pImpl->Bv32Ty;
+        case 64: return pImpl->Bv64Ty;
     }
 
-    auto result = Instances.find(width);
-    if (result == Instances.end()) {
-        auto pair = Instances.try_emplace(width, new IntType(width));
-        return *pair.first->second;
+    auto result = pImpl->BvTypes.find(width);
+    if (result == pImpl->BvTypes.end()) {
+        auto ptr = std::unique_ptr<BvType>(new BvType(context, width));
+        pImpl->BvTypes.emplace(width, std::move(ptr));
+
+        return *ptr;
     }
 
     return *result->second;
 }
 
-BvType& BvType::get(unsigned width)
-{
-    static llvm::DenseMap<unsigned, std::unique_ptr<BvType>> Instances;
-
-    switch (width) {
-        case 1: return Bv1Ty;
-        case 8: return Bv8Ty;
-        case 16: return Bv16Ty;
-        case 32: return Bv32Ty;
-        case 64: return Bv64Ty;
-    }
-
-    auto result = Instances.find(width);
-    if (result == Instances.end()) {
-        auto pair = Instances.try_emplace(width, new BvType(width));
-        return *pair.first->second;
-    }
-
-    return *result->second;
-}
-
-FloatType FloatType::HalfTy(Half);
-FloatType FloatType::SingleTy(Single);
-FloatType FloatType::DoubleTy(Double);
-FloatType FloatType::QuadTy(Quad);
-
-FloatType& FloatType::get(FloatType::FloatPrecision precision)
+FloatType& FloatType::Get(GazerContext& context, FloatType::FloatPrecision precision)
 {
     switch (precision) {
-        case Half: return HalfTy;
-        case Single: return SingleTy;
-        case Double: return DoubleTy;
-        case Quad: return QuadTy;
+        case Half: return context.pImpl->FpHalfTy;
+        case Single: return context.pImpl->FpSingleTy;
+        case Double: return context.pImpl->FpDoubleTy;
+        case Quad: return context.pImpl->FpQuadTy;
     }
 
     llvm_unreachable("Invalid floating-point type");
@@ -166,35 +146,7 @@ const llvm::fltSemantics& FloatType::getLLVMSemantics() const
     llvm_unreachable("Invalid floating-point type");
 }
 
-ArrayType& ArrayType::get(Type& indexType, Type& elementType)
+ArrayType& ArrayType::Get(GazerContext& context, Type& indexType, Type& elementType)
 {
-    // TODO: This is surely not the best way to do this
-    static llvm::StringMap<std::unique_ptr<ArrayType>> Instances;
-    
-    auto key = getArrayTypeStr(indexType, elementType);
-    auto result = Instances.find(key);
-
-    if (result == Instances.end()) {
-        auto pair = Instances.try_emplace(key, new ArrayType(&indexType, &elementType));
-        return *pair.first->second;
-    }
-
-    return *result->second;
+    llvm_unreachable("Arrays are not yet supported :(");
 }
-/*
-FunctionType& FunctionType::get(Type* returnType, std::vector<Type*> args)
-{
-    static llvm::StringMap<std::unique_ptr<FunctionType>> Instances;
-
-    // TODO: This is surely not the best way to do this
-    auto key = getFunctionTypeStr(returnType, llvm::make_range(args.begin(), args.end()));
-
-    auto result = Instances.find(key);
-    if (result == Instances.end()) {
-        auto pair = Instances.try_emplace(key, new FunctionType(returnType, args));
-        return *pair.first->second.get();
-    }
-
-    return *result->second.get();
-}
-*/

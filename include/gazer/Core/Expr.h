@@ -131,7 +131,7 @@ public:
     static constexpr int LastExprKind = ArrayWrite;
 
 protected:
-    Expr(ExprKind kind, const Type& type)
+    Expr(ExprKind kind, Type& type)
         : mKind(kind), mType(type), mRefCount(0)
     {}
 
@@ -140,7 +140,8 @@ public:
     Expr& operator=(const Expr&) = delete;
 
     ExprKind getKind() const { return mKind; }
-    const Type& getType() const { return mType; }
+    Type& getType() const { return mType; }
+    GazerContext& getContext() const { return mType.getContext(); }
 
     bool isNullary() const { return mKind <= FirstUnary; }
     bool isUnary() const {
@@ -188,7 +189,7 @@ private:
 
 protected:
     const ExprKind mKind;
-    const Type& mType;
+    Type& mType;
 
 private:
     mutable unsigned mRefCount;
@@ -213,7 +214,7 @@ llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Expr& expr);
 class AtomicExpr : public Expr
 {
 protected:
-    AtomicExpr(Expr::ExprKind kind, const Type& type)
+    AtomicExpr(Expr::ExprKind kind, Type& type)
         : Expr(kind, type)
     {}
 public:
@@ -231,7 +232,7 @@ public:
 class LiteralExpr : public AtomicExpr
 {
 protected:
-    explicit LiteralExpr(const Type& type)
+    explicit LiteralExpr(Type& type)
         : AtomicExpr(Literal, type)
     {}
 public:
@@ -246,12 +247,12 @@ public:
 class NonNullaryExpr : public Expr
 {
 protected:
-    NonNullaryExpr(ExprKind kind, const Type& type, std::vector<ExprPtr> ops)
+    NonNullaryExpr(ExprKind kind, Type& type, std::vector<ExprPtr> ops)
         : NonNullaryExpr(kind, type, ops.begin(), ops.end())
     {}
 
     template<class InputIterator>
-    NonNullaryExpr(ExprKind kind, const Type& type, InputIterator begin, InputIterator end)
+    NonNullaryExpr(ExprKind kind, Type& type, InputIterator begin, InputIterator end)
         : Expr(kind, type), mOperands(begin, end)
     {
         assert(mOperands.size() >= 1 && "Non-nullary expressions must have at least one operand.");

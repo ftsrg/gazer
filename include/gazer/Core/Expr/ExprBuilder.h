@@ -15,32 +15,38 @@ namespace gazer
 class ExprBuilder
 {
 protected:
-    ExprBuilder() {}
+    ExprBuilder(GazerContext& context)
+        : mContext(context)
+    {}
+
+public:
+    GazerContext& getContext() const { return mContext; }
 
 public:
     virtual ~ExprBuilder() {}
 
     //--- Literals ---//
     ExprPtr BvLit(uint64_t value, unsigned bits) {
-        return BvLiteralExpr::Get(llvm::APInt(bits, value));
+        return BvLiteralExpr::Get(BvType::Get(mContext, bits), llvm::APInt(bits, value));
     }
     ExprPtr BvLit(llvm::APInt value) {
-        return BvLiteralExpr::Get(value);
+        return BvLiteralExpr::Get(BvType::Get(mContext, value.getBitWidth()), value);
     }
 
-    ExprPtr IntLit(int64_t value, unsigned width) {
-        return IntLiteralExpr::get(IntType::get(width), value);
+    ExprPtr IntLit(int64_t value) {
+        return IntLiteralExpr::Get(IntType::Get(mContext), value);
     }
 
-    ExprPtr True()  { return BoolLiteralExpr::getTrue(); }
-    ExprPtr False() { return BoolLiteralExpr::getFalse(); }
-    ExprPtr Undef(const Type& type) { return UndefExpr::Get(type); }
+    ExprPtr BoolLit(bool value) { return value ? True() : False(); }
+    ExprPtr True()  { return BoolLiteralExpr::True(BoolType::Get(mContext)); }
+    ExprPtr False() { return BoolLiteralExpr::False(BoolType::Get(mContext)); }
+    ExprPtr Undef(Type& type) { return UndefExpr::Get(type); }
 
     //--- Unary ---//
     virtual ExprPtr Not(const ExprPtr& op) = 0;
-    virtual ExprPtr ZExt(const ExprPtr& op, const BvType& type) = 0;
-    virtual ExprPtr SExt(const ExprPtr& op, const BvType& type) = 0;
-    virtual ExprPtr Trunc(const ExprPtr& op, const BvType& type) = 0;
+    virtual ExprPtr ZExt(const ExprPtr& op, BvType& type) = 0;
+    virtual ExprPtr SExt(const ExprPtr& op, BvType& type) = 0;
+    virtual ExprPtr Trunc(const ExprPtr& op, BvType& type) = 0;
     virtual ExprPtr Extract(const ExprPtr& op, unsigned offset, unsigned width) = 0;
 
     //--- Binary ---//
@@ -112,10 +118,12 @@ public:
 
     //--- Ternary ---//
     virtual ExprPtr Select(const ExprPtr& condition, const ExprPtr& then, const ExprPtr& elze) = 0;
+private:
+    GazerContext& mContext;
 };
 
-std::unique_ptr<ExprBuilder> CreateExprBuilder();
-std::unique_ptr<ExprBuilder> CreateFoldingExprBuilder();
+std::unique_ptr<ExprBuilder> CreateExprBuilder(GazerContext& context);
+std::unique_ptr<ExprBuilder> CreateFoldingExprBuilder(GazerContext& context);
 
 }
 

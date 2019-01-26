@@ -18,9 +18,9 @@ namespace llvm {
 namespace gazer
 {
 
-/**
- * Base class for all gazer types.
- */
+class GazerContext;
+
+/// Base class for all gazer types.
 class Type
 {
 public:
@@ -45,14 +45,15 @@ public:
     static constexpr int FirstComposite = ArrayTypeID;
     static constexpr int LastComposite = ArrayTypeID;
 protected:
-    explicit Type(TypeID id)
-        : mTypeID(id)
+    explicit Type(GazerContext& context, TypeID id)
+        : mContext(context), mTypeID(id)
     {}
 
 public:
     Type(const Type&) = delete;
     Type& operator=(const Type&) = delete;
 
+    GazerContext& getContext() const { return mContext; }
     TypeID getTypeID() const { return mTypeID; }
     
     bool isPrimitiveType() const {
@@ -78,25 +79,23 @@ public:
     std::string getName() const;
 
 private:
+    GazerContext& mContext;
     TypeID mTypeID;
 };
 
 llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Type& type);
 
-//*========= Types =========*//
+//------------------------ Type declarations --------------------------------//
 
 class BoolType final : public Type
 {
     friend class GazerContextImpl;
 protected:
-    BoolType()
-        : Type(BoolTypeID)
+    BoolType(GazerContext& context)
+        : Type(context, BoolTypeID)
     {}
 public:
-    static BoolType& get() {
-        static BoolType instance;
-        return instance;
-    }
+    static BoolType& Get(GazerContext& context);
 
     static bool classof(const Type* type) {
         return type->getTypeID() == BoolTypeID;
@@ -107,13 +106,13 @@ class BvType final : public Type
 {
     friend class GazerContextImpl;
 protected:
-    BvType(unsigned width)
-        : Type(BvTypeID), mWidth(width)
+    BvType(GazerContext& context, unsigned width)
+        : Type(context, BvTypeID), mWidth(width)
     {}
 public:
     unsigned getWidth() const { return mWidth; }
 
-    static BvType& get(unsigned width);
+    static BvType& Get(GazerContext& context, unsigned width);
 
     static bool classof(const Type* type) {
         return type->getTypeID() == BvTypeID;
@@ -124,23 +123,18 @@ public:
     }
 private:
     unsigned mWidth;
-    static BvType Bv1Ty, Bv8Ty, Bv16Ty, Bv32Ty, Bv64Ty;
 };
 
-/**
- * Unbounded, mathematical integer type.
- * For compability reasons, we also define the bit width of this type.
- */
+/// Unbounded, mathematical integer type.
 class IntType final : public Type
 {
+    friend class GazerContextImpl;
 protected:
-    IntType(unsigned width)
-        : Type(IntTypeID), mWidth(width)
+    IntType(GazerContext& context)
+        : Type(context, IntTypeID)
     {}
 public:
-    unsigned getWidth() const { return mWidth; }
-
-    static IntType& get(unsigned width);
+    static IntType& Get(GazerContext& context);
 
     static bool classof(const Type* type) {
         return type->getTypeID() == IntTypeID;
@@ -150,13 +144,9 @@ public:
         return type.getTypeID() == IntTypeID;
     }
 private:
-    unsigned mWidth;
-    static IntType Int1Ty, Int8Ty, Int16Ty, Int32Ty, Int64Ty;
 };
 
-/**
- * Represents an IEEE-754 floating point type.
- */
+/// Represents an IEEE-754 floating point type.
 class FloatType final : public Type
 {
     friend class GazerContextImpl;
@@ -170,8 +160,8 @@ public:
     };
 
 protected:
-    FloatType(FloatPrecision precision)
-        : Type(FloatTypeID), mPrecision(precision)
+    FloatType(GazerContext& context, FloatPrecision precision)
+        : Type(context, FloatTypeID), mPrecision(precision)
     {}
 
 public:
@@ -179,7 +169,7 @@ public:
     const llvm::fltSemantics& getLLVMSemantics() const;
     unsigned getWidth() const { return mPrecision; }
 
-    static FloatType& get(FloatPrecision precision);
+    static FloatType& Get(GazerContext& context, FloatPrecision precision);
 
     static bool classof(const Type* type) {
         return type->getTypeID() == FloatTypeID;
@@ -193,13 +183,11 @@ private:
     static FloatType HalfTy, SingleTy, DoubleTy, QuadTy;
 };
 
-/**
- * Represents an array type with arbitrary index and element types.
- */
+/// Represents an array type with arbitrary index and element types.
 class ArrayType final : public Type
 {
-    ArrayType(Type* indexType, Type* elementType)
-        : Type(ArrayTypeID), mIndexType(indexType), mElementType(elementType)
+    ArrayType(GazerContext& context, Type* indexType, Type* elementType)
+        : Type(context, ArrayTypeID), mIndexType(indexType), mElementType(elementType)
     {
         assert(indexType != nullptr);
         assert(elementType != nullptr);
@@ -209,7 +197,7 @@ public:
     Type& getIndexType() const { return *mIndexType; }
     Type& getElementType() const { return *mElementType; }
 
-    static ArrayType& get(Type& indexType, Type& elementType);
+    static ArrayType& Get(GazerContext& context, Type& indexType, Type& elementType);
 
     static bool classof(const Type* type) {
         return type->getTypeID() == ArrayTypeID;
@@ -220,46 +208,6 @@ private:
     Type* mElementType;
 };
 
-/*
-class FunctionType final : public Type
-{
-    FunctionType(Type* returnType, std::vector<Type*> args = {})
-        : Type(FunctionTypeID), mReturnType(returnType), mArgTypes(args)
-    {}
-
-    template<class Iter>
-    FunctionType(Type* returnType, Iter argBegin, Iter argEnd)
-        : Type(FunctionTypeID), mReturnType(returnType), mArgTypes(argBegin, argEnd)
-    {}
-
-public:
-    Type* getReturnType() const { return mReturnType; }
-
-    size_t getNumArgs() const { return mArgTypes.size(); }
-
-    using arg_iterator = std::vector<Type*>::const_iterator;
-    arg_iterator arg_begin() const { return mArgTypes.begin(); }
-    arg_iterator arg_end() const { return mArgTypes.end(); }
-
-    llvm::iterator_range<arg_iterator> args() const {
-        return llvm::make_range(arg_begin(), arg_end());
-    }
-
-    static bool classof(const Type* type) {
-        return type->getTypeID() == FunctionTypeID;
-    }
-
-    static FunctionType& get(Type* returnType, std::vector<Type*> args);
-
-    static FunctionType& get(Type* returnType) {
-        return FunctionType::get(returnType, {});
-    }
-
-private:
-    Type* mReturnType;
-    std::vector<Type*> mArgTypes;
-};
-*/
 }
 
 #endif

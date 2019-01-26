@@ -25,12 +25,15 @@ class LLVMBmcTraceBuilder : public TraceBuilder
 {
 public:
     LLVMBmcTraceBuilder(
+        GazerContext& context,
         const TopologicalSort& topo,
         const llvm::DenseMap<llvm::BasicBlock*, size_t>& blocks,
         const llvm::DenseMap<llvm::BasicBlock*, ExprPtr>& preds,
         const InstToExpr::ValueToVariableMapT& valueMap,
         llvm::BasicBlock* errorBlock
-    ) : mTopo(topo), mBlocks(blocks), mPreds(preds),
+    ) :
+    mContext(context),
+    mTopo(topo), mBlocks(blocks), mPreds(preds),
     mValueMap(valueMap), mErrorBlock(errorBlock)
     {}
 
@@ -44,6 +47,7 @@ private:
     ExprRef<AtomicExpr> getLiteralFromValue(llvm::Value* value, Valuation& model);
 
 private:
+    GazerContext& mContext;
     const TopologicalSort& mTopo;
     const llvm::DenseMap<llvm::BasicBlock*, size_t> mBlocks;
     const llvm::DenseMap<llvm::BasicBlock*, ExprPtr>& mPreds;

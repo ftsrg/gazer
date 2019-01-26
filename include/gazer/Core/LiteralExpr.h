@@ -15,12 +15,13 @@ namespace gazer
 
 class UndefExpr final : public AtomicExpr
 {
+    friend class GazerContextImpl;
 private:
-    UndefExpr(const Type& type)
+    UndefExpr(Type& type)
         : AtomicExpr(Expr::Undef, type)
     {}
 public:
-    static ExprRef<UndefExpr> Get(const Type& type);
+    static ExprRef<UndefExpr> Get(Type& type);
     virtual void print(llvm::raw_ostream& os) const override;
 
     static bool classof(const Expr* expr) {
@@ -30,17 +31,24 @@ public:
 
 class BoolLiteralExpr final : public LiteralExpr
 {
+    friend class GazerContextImpl;
 private:
-    BoolLiteralExpr(bool value)
-        : LiteralExpr(BoolType::get()), mValue(value)
+    BoolLiteralExpr(BoolType& type, bool value)
+        : LiteralExpr(type), mValue(value)
     {}
 
 public:
-    static ExprRef<BoolLiteralExpr> getTrue();
-    static ExprRef<BoolLiteralExpr> getFalse();
+    static ExprRef<BoolLiteralExpr> True(BoolType& type);
+    static ExprRef<BoolLiteralExpr> True(GazerContext& context) { return True(BoolType::Get(context)); }
 
-    static ExprRef<BoolLiteralExpr> Get(bool value) {
-        return value ? getTrue() : getFalse();
+    static ExprRef<BoolLiteralExpr> False(BoolType& type);
+    static ExprRef<BoolLiteralExpr> False(GazerContext& context) { return False(BoolType::Get(context)); }
+
+    static ExprRef<BoolLiteralExpr> Get(GazerContext& context, bool value) {
+        return Get(BoolType::Get(context), value);
+    }
+    static ExprRef<BoolLiteralExpr> Get(BoolType& type, bool value) {
+        return value ? True(type) : False(type);
     }
 
     virtual void print(llvm::raw_ostream& os) const override;
@@ -63,13 +71,14 @@ private:
 
 class IntLiteralExpr final : public LiteralExpr
 {
+    friend class GazerContextImpl;
 private:
-    IntLiteralExpr(const IntType& type, int64_t value)
+    IntLiteralExpr(IntType& type, int64_t value)
         : LiteralExpr(type), mValue(value)
     {}
 
 public:
-    static ExprRef<IntLiteralExpr> get(IntType& type, int64_t value);
+    static ExprRef<IntLiteralExpr> Get(IntType& type, int64_t value);
 
 public:
     virtual void print(llvm::raw_ostream& os) const override;
@@ -90,6 +99,7 @@ private:
 
 class BvLiteralExpr final : public LiteralExpr
 {
+    friend class GazerContextImpl;
 private:
     BvLiteralExpr(BvType& type, llvm::APInt value)
         : LiteralExpr(type), mValue(value)
@@ -101,7 +111,7 @@ public:
     virtual bool equals(const LiteralExpr& other) const override;
 
 public:
-    static ExprRef<BvLiteralExpr> Get(llvm::APInt value);
+    static ExprRef<BvLiteralExpr> Get(BvType& type, llvm::APInt value);
 
     llvm::APInt getValue() const { return mValue; }
 
@@ -124,16 +134,16 @@ private:
 
 class FloatLiteralExpr final : public LiteralExpr
 {
+    friend class GazerContextImpl;
 private:
-    FloatLiteralExpr(const FloatType& type, const llvm::APFloat& value)
+    FloatLiteralExpr(FloatType& type, const llvm::APFloat& value)
         : LiteralExpr(type), mValue(value)
     {}
 public:
     virtual void print(llvm::raw_ostream& os) const override;
     virtual bool equals(const LiteralExpr& other) const override;
 
-    static ExprRef<FloatLiteralExpr> get(const FloatType& type, const llvm::APFloat& value);
-    static ExprRef<FloatLiteralExpr> get(FloatType::FloatPrecision precision, const llvm::APFloat& value);
+    static ExprRef<FloatLiteralExpr> Get(FloatType& type, const llvm::APFloat& value);
 
     llvm::APFloat getValue() const { return mValue; }
 
@@ -153,13 +163,8 @@ private:
     llvm::APFloat mValue;
 };
 
-/**
- * Transforms an LLVM constant into a LiteralExpr.
- * 
- * @param value The value to transform.
- * @param i1AsBool Treat constants of i1 type as booleans.
- */
 ExprRef<LiteralExpr> LiteralFromLLVMConst(
+    GazerContext& context,
     llvm::ConstantData* value,
     bool i1AsBool = true
 );

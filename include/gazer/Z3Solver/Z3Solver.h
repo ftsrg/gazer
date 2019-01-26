@@ -19,15 +19,13 @@ public:
         : mCache(cache)
     {}
 
-    virtual std::unique_ptr<Solver> createSolver(SymbolTable& symbols) override;
+    virtual std::unique_ptr<Solver> createSolver(GazerContext& context) override;
 
 private:
     bool mCache;
 };
 
-/**
- * Utility function which transforms an arbitrary Z3 bitvector into LLVM's APInt.
- */
+/// Utility function which transforms an arbitrary Z3 bitvector into LLVM's APInt.
 llvm::APInt z3_bv_to_apint(z3::context& context, z3::model& model, const z3::expr& expr);
 
 } // end namespace gazer
