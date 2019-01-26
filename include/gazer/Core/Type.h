@@ -87,6 +87,7 @@ llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Type& type);
 
 class BoolType final : public Type
 {
+    friend class GazerContextImpl;
 protected:
     BoolType()
         : Type(BoolTypeID)
@@ -104,6 +105,7 @@ public:
 
 class BvType final : public Type
 {
+    friend class GazerContextImpl;
 protected:
     BvType(unsigned width)
         : Type(BvTypeID), mWidth(width)
@@ -157,6 +159,7 @@ private:
  */
 class FloatType final : public Type
 {
+    friend class GazerContextImpl;
 public:
     enum FloatPrecision
     {

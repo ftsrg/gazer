@@ -101,3 +101,17 @@ TEST_F(MatcherTest, MatchMultiaryUnordered)
     matched = match(E3, shuffled);
     ASSERT_TRUE(matched);
 }
+
+TEST_F(MatcherTest, MatchVector)
+{
+    ExprVector exprs = { E1, E2, E3 };
+    ExprVector unmatched;
+
+    bool matched = unord_match(
+        exprs, unmatched,
+        m_And(m_Eq(m_Expr(), m_Expr()), m_Expr(), m_Expr()),
+        m_And(m_Expr(), m_Eq(m_Expr(), m_Expr())));
+
+    ASSERT_TRUE(matched);
+    ASSERT_EQ(unmatched.size(), 1);
+}

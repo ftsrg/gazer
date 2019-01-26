@@ -14,7 +14,7 @@ namespace gazer
  */
 class Valuation
 {
-    using ValuationMapT = llvm::DenseMap<Variable*, std::shared_ptr<LiteralExpr>>;
+    using ValuationMapT = llvm::DenseMap<Variable*, ExprRef<LiteralExpr>>;
 public:
     class Builder
     {
@@ -23,7 +23,7 @@ public:
             return Valuation(mMap);
         }
 
-        void put(Variable* variable, const std::shared_ptr<LiteralExpr>& expr) {
+        void put(Variable* variable, const ExprRef<LiteralExpr>& expr) {
             assert((variable->getType() == expr->getType()) && "Types must match.");
             mMap[variable] = expr;
         }
@@ -42,9 +42,9 @@ public:
     Valuation(const Valuation&) = default;
     Valuation& operator=(const Valuation&) = default;
 public:
-    std::shared_ptr<LiteralExpr> eval(const ExprPtr& expr);
-    std::shared_ptr<LiteralExpr> operator[](const Variable& variable) const;
-    std::shared_ptr<LiteralExpr> operator[](const Variable* variable) const {
+    ExprRef<LiteralExpr> eval(const ExprPtr& expr);
+    ExprRef<LiteralExpr> operator[](const Variable& variable) const;
+    ExprRef<LiteralExpr> operator[](const Variable* variable) const {
         return operator[](*variable);
     }
     

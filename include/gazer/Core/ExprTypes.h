@@ -36,15 +36,16 @@ protected:
     {}
 
 protected:
-    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
+    virtual ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override
+    {
         return new NotExpr(ops[0]);
     }
 
 public:
-    static std::shared_ptr<NotExpr> Create(ExprPtr operand)
+    static ExprRef<NotExpr> Create(ExprPtr operand)
     {
         assert(operand->getType().isBoolType() && "Can only negate boolean expressions.");
-        return std::shared_ptr<NotExpr>(new NotExpr(operand));
+        return ExprRef<NotExpr>(new NotExpr(operand));
     }
 
     static bool classof(const Expr* expr) {
@@ -69,8 +70,9 @@ private:
     {}
 
 protected:
-    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
-        auto& intTy = *llvm::dyn_cast<BvType>(&getType());
+    virtual ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override
+    {
+        auto& intTy = *llvm::cast<BvType>(&getType());
         return new ExtCastExpr<Kind>(ops[0], intTy);
     }
 
@@ -78,12 +80,13 @@ public:
     unsigned getExtendedWidth() const {
         return llvm::dyn_cast<BvType>(&getType())->getWidth();
     }
+
     unsigned getWidthDiff() const {
         auto opType = llvm::dyn_cast<BvType>(&getOperand(0)->getType());
         return getExtendedWidth() - opType->getWidth();
     }
 
-    static std::shared_ptr<ExtCastExpr<Kind>> Create(ExprPtr operand, const Type& type) {
+    static ExprRef<ExtCastExpr<Kind>> Create(ExprPtr operand, const Type& type) {
         assert(operand->getType().isBvType() && "Can only do bitwise cast on integers");
         assert(type.isBvType() && "Can only do bitwise cast on integers");
         
@@ -91,7 +94,7 @@ public:
         auto rhsTy = llvm::dyn_cast<BvType>(&type);
         assert((rhsTy->getWidth() > lhsTy->getWidth()) && "Extend casts must increase bit width");
 
-        return std::shared_ptr<ExtCastExpr<Kind>>(new ExtCastExpr(operand, *rhsTy));
+        return ExprRef<ExtCastExpr<Kind>>(new ExtCastExpr(operand, *rhsTy));
     }
 
     static bool classof(const Expr* expr) {
@@ -115,7 +118,8 @@ private:
     {}
 
 protected:
-    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
+    virtual ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override
+    {
         return new ExtractExpr(ops[0], mOffset, mWidth);
     }
 
@@ -127,13 +131,13 @@ public:
     unsigned getOffset() const { return mOffset; }
     unsigned getWidth() const { return mWidth; }
 
-    static std::shared_ptr<ExtractExpr> Create(ExprPtr operand, unsigned offset, unsigned width) {
+    static ExprRef<ExtractExpr> Create(ExprPtr operand, unsigned offset, unsigned width) {
         auto opTy = llvm::dyn_cast<BvType>(&operand->getType());
         assert(opTy != nullptr && "Can only do bitwise cast on integers");
         assert(width > 0 && "Can only extract at least one bit");
         assert(opTy->getWidth() > width + offset && "Extracted bitvector must be smaller than the original");
 
-        return std::shared_ptr<ExtractExpr>(new ExtractExpr(operand, offset, width));
+        return ExprRef<ExtractExpr>(new ExtractExpr(operand, offset, width));
     }
 
     static bool classof(const Expr* expr) {
@@ -170,18 +174,18 @@ protected:
     {}
 
 protected:
-    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
+    virtual ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
         return new ArithmeticExpr<Kind>(getType(), ops[0], ops[1]);
     }
 
 public:
-    static std::shared_ptr<ArithmeticExpr<Kind>> Create(ExprPtr left, ExprPtr right)
+    static ExprRef<ArithmeticExpr<Kind>> Create(ExprPtr left, ExprPtr right)
     {
         assert((left->getType().isBvType() || left->getType().isIntType())
             && "Can only define arithmetic operations on integers.");
         assert(left->getType() == right->getType() && "Arithmetic expression operand types must match.");
 
-        return std::shared_ptr<ArithmeticExpr<Kind>>(new ArithmeticExpr<Kind>(left->getType(), left, right));
+        return ExprRef<ArithmeticExpr<Kind>>(new ArithmeticExpr<Kind>(left->getType(), left, right));
     }
 
     /**
@@ -222,13 +226,13 @@ protected:
             && "Compare expression operand types must match.");
     }
 
-    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
+    virtual ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
         return new CompareExpr(ops[0], ops[1]);
     }
 
 public:
-    static std::shared_ptr<CompareExpr<Kind>> Create(ExprPtr left, ExprPtr right) {
-        return std::shared_ptr<CompareExpr<Kind>>(new CompareExpr(left, right));
+    static ExprRef<CompareExpr<Kind>> Create(ExprPtr left, ExprPtr right) {
+        return ExprRef<CompareExpr<Kind>>(new CompareExpr(left, right));
     }
     
     /**
@@ -276,17 +280,21 @@ protected:
         assert((left->getType() == right->getType()) && "Logic expression operand types must match.");
     }
 
-    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
-        return new MultiaryLogicExpr<Kind>(ops[0], ops[1]);
+    virtual ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
+        return new MultiaryLogicExpr<Kind>(ops.begin(), ops.end());
     }
 public:
-    static std::shared_ptr<MultiaryLogicExpr<Kind>> Create(ExprPtr left, ExprPtr right) {
-        return std::shared_ptr<MultiaryLogicExpr<Kind>>(new MultiaryLogicExpr(left, right));
+    static ExprRef<MultiaryLogicExpr<Kind>> Create(ExprPtr left, ExprPtr right) {
+        return ExprRef<MultiaryLogicExpr<Kind>>(new MultiaryLogicExpr(left, right));
     }
 
     template<class InputIterator>
-    static std::shared_ptr<MultiaryLogicExpr<Kind>> Create(InputIterator begin, InputIterator end) {
-        return std::shared_ptr<MultiaryLogicExpr<Kind>>(new MultiaryLogicExpr(begin, end));
+    static ExprRef<MultiaryLogicExpr<Kind>> Create(InputIterator begin, InputIterator end) {
+        return ExprRef<MultiaryLogicExpr<Kind>>(new MultiaryLogicExpr(begin, end));
+    }
+
+    static ExprRef<MultiaryLogicExpr<Kind>> Create(const ExprVector& ops) {
+        return ExprRef<MultiaryLogicExpr<Kind>>(new MultiaryLogicExpr(ops.begin(), ops.end()));
     }
     
     /**
@@ -311,17 +319,17 @@ protected:
     {}
 
 protected:
-    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
+    virtual ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
         return new XorExpr(ops[0], ops[1]);
     }
 
 public:
-    static std::shared_ptr<XorExpr> Create(ExprPtr left, ExprPtr right)
+    static ExprRef<XorExpr> Create(ExprPtr left, ExprPtr right)
     {
         assert(left->getType().isBoolType() && "Can only XOR boolean expressions.");
         assert(right->getType().isBoolType() && "Can only XOR boolean expressions.");
         
-        return std::shared_ptr<XorExpr>(new XorExpr(left, right));
+        return ExprRef<XorExpr>(new XorExpr(left, right));
     }
 
     static bool classof(const Expr* expr) {
@@ -343,14 +351,14 @@ protected:
         : UnaryExpr(Kind, BoolType::get(), operand)
     {}
 
-    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
+    virtual ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
         return new FpQueryExpr<Kind>(ops[0]);   
     }
 public:
-    static std::shared_ptr<FpQueryExpr<Kind>> Create(ExprPtr op)
+    static ExprRef<FpQueryExpr<Kind>> Create(ExprPtr op)
     {
         assert(op->getType().isFloatType() && "FpQuery requrires a float operand");
-        return std::unique_ptr<FpQueryExpr<Kind>>(new FpQueryExpr<Kind>(op));
+        return ExprRef<FpQueryExpr<Kind>>(new FpQueryExpr<Kind>(op));
     }
 };
 
@@ -367,19 +375,19 @@ protected:
         : BinaryExpr(Kind, type, left, right), mRoundingMode(rm)
     {}
 
-    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
+    virtual ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
         return new FpArithmeticExpr<Kind>(
             llvm::cast<FloatType>(getType()), ops[0], ops[1], getRoundingMode()
         );
     }
 
 public:
-    static std::shared_ptr<FpArithmeticExpr<Kind>> Create(ExprPtr left, ExprPtr right, llvm::APFloat::roundingMode rm)
+    static ExprRef<FpArithmeticExpr<Kind>> Create(ExprPtr left, ExprPtr right, llvm::APFloat::roundingMode rm)
     {
         assert(left->getType().isFloatType() && "Can only define floating-point operations on float types.");
         assert(left->getType() == right->getType() && "Arithmetic expression operand types must match.");
 
-        return std::shared_ptr<FpArithmeticExpr<Kind>>(
+        return ExprRef<FpArithmeticExpr<Kind>>(
             new FpArithmeticExpr<Kind>(llvm::cast<FloatType>(left->getType()), left, right, rm)
         );
     }
@@ -420,13 +428,13 @@ protected:
             && "Compare expression operand types must match.");
     }
 
-    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
+    virtual ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
         return new FpCompareExpr<Kind>(ops[0], ops[1]);
     }
 
 public:
-    static std::shared_ptr<FpCompareExpr<Kind>> Create(ExprPtr left, ExprPtr right) {
-        return std::shared_ptr<FpCompareExpr<Kind>>(new FpCompareExpr(left, right));
+    static ExprRef<FpCompareExpr<Kind>> Create(ExprPtr left, ExprPtr right) {
+        return ExprRef<FpCompareExpr<Kind>>(new FpCompareExpr(left, right));
     }
     
     /**
@@ -453,22 +461,16 @@ protected:
         : NonNullaryExpr(Expr::Select, type, {condition, then, elze})
     {}
 
-    virtual Expr* withOps(std::vector<ExprPtr> ops) const override {
-        assert(ops[0]->getType().isBoolType() && "Select expression condition type must be boolean.");
-        assert(ops[1]->getType() == ops[2]->getType() && "Select expression operand types must match.");
-        assert(ops[1]->getType() == getType() && "withOps() can only construct ");
+    virtual ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
         return new SelectExpr(getType(), ops[0], ops[1], ops[2]);
     }
 public:
-    static std::shared_ptr<SelectExpr> Create(ExprPtr condition, ExprPtr then, ExprPtr elze);
+    static ExprRef<SelectExpr> Create(ExprPtr condition, ExprPtr then, ExprPtr elze);
 
     ExprPtr getCondition() const { return getOperand(0); }
     ExprPtr getThen() const { return getOperand(1); }
     ExprPtr getElse() const { return getOperand(2); }
 
-    /**
-     * Type inquiry support.
-     */
     static bool classof(const Expr* expr) {
         return expr->getKind() == Expr::Select;
     }
@@ -477,32 +479,30 @@ public:
     }
 };
 
-/**
- * Reads an element from an array.
- */
+
 class ArrayReadExpr final : public NonNullaryExpr
 {
 protected:
-    ArrayReadExpr(std::shared_ptr<VarRefExpr> array, ExprPtr index)
+    ArrayReadExpr(ExprPtr array, ExprPtr index)
         : NonNullaryExpr(Expr::ArrayRead, array->getType(), {array, index})
     {}
 public:
-    virtual Expr* withOps(std::vector<ExprPtr> ops) const override;
+    virtual ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
+        return new ArrayReadExpr(ops[0], ops[1]);
+    }
 
-    std::shared_ptr<VarRefExpr> getArrayRef() const {
-        return std::static_pointer_cast<VarRefExpr>(getOperand(0));
+    ExprRef<VarRefExpr> getArrayRef() const {
+        return llvm::cast<VarRefExpr>(getOperand(0));
     }
 
     ExprPtr getIndex() const { return getOperand(1); }
 
-    static std::shared_ptr<ArrayReadExpr> Create(std::shared_ptr<VarRefExpr> array, ExprPtr index);
+    static ExprRef<ArrayReadExpr> Create(ExprRef<VarRefExpr> array, ExprPtr index);
 
-    /**
-     * Type inquiry support.
-     */
     static bool classof(const Expr* expr) {
         return expr->getKind() == Expr::ArrayRead;
     }
+
     static bool classof(const Expr& expr) {
         return expr.getKind() == Expr::ArrayRead;
     }
@@ -511,33 +511,33 @@ public:
 class ArrayWriteExpr final : public NonNullaryExpr
 {
 protected:
-    ArrayWriteExpr(std::shared_ptr<VarRefExpr> array, ExprPtr index, ExprPtr value)
+    ArrayWriteExpr(ExprPtr array, ExprPtr index, ExprPtr value)
         : NonNullaryExpr(Expr::ArrayRead, array->getType(), {array, index, value})
     {}
 public:
-    virtual Expr* withOps(std::vector<ExprPtr> ops) const override;
+    virtual ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
+        return new ArrayWriteExpr(ops[0], ops[1], ops[2]);
+    }
 
-    std::shared_ptr<VarRefExpr> getArrayRef() const {
-        return std::static_pointer_cast<VarRefExpr>(getOperand(0));
+    ExprRef<VarRefExpr> getArrayRef() const {
+        return llvm::cast<VarRefExpr>(getOperand(0));
     }
     ExprPtr getIndex() const { return getOperand(1); }
     ExprPtr getElementValue() const { return getOperand(2); }
 
-    static std::shared_ptr<ArrayWriteExpr> Create(
-        std::shared_ptr<VarRefExpr> array, ExprPtr index, ExprPtr value
+    static ExprRef<ArrayWriteExpr> Create(
+        ExprRef<VarRefExpr> array, ExprPtr index, ExprPtr value
     );
 
-    /**
-     * Type inquiry support.
-     */
     static bool classof(const Expr* expr) {
         return expr->getKind() == Expr::ArrayWrite;
     }
+
     static bool classof(const Expr& expr) {
         return expr.getKind() == Expr::ArrayWrite;
     }
 };
 
-}
+} // end namespace gazer
 
 #endif

@@ -47,9 +47,76 @@
 
 namespace gazer { namespace PatternMatch {
 
+/// Match a given expression to a pattern
 template<typename ExprTy, typename Pattern>
 inline bool match(const ExprRef<ExprTy>& ptr, const Pattern& pattern) {
     return const_cast<Pattern&>(pattern).match(ptr);
+}
+
+/// Matches two expressions to two patterns
+template<typename LTy, typename RTy>
+inline bool match(ExprPtr e1, ExprPtr e2, const LTy& left, const RTy& right)
+{
+    return const_cast<LTy&>(left).match(e1) && const_cast<RTy&>(right).match(e2);
+}
+
+template<typename P1, typename P2, typename P3>
+inline bool match(ExprPtr e1, ExprPtr e2, ExprPtr e3, const P1& p1, const P2& p2, const P3& p3)
+{
+    return const_cast<P1&>(p1).match(e1)
+        && const_cast<P2&>(p2).match(e2)
+        && const_cast<P3&>(p3).match(e3);
+}
+
+template<typename LTy, typename RTy>
+inline bool unord_match(ExprPtr e1, ExprPtr e2, const LTy& left, const RTy& right)
+{
+    return (const_cast<LTy&>(left).match(e1) && const_cast<RTy&>(right).match(e2))
+        || (const_cast<LTy&>(left).match(e2) && const_cast<RTy&>(right).match(e1));
+}
+
+namespace detail
+{
+    template<unsigned Current, typename... Patterns>
+    inline bool vector_element_match(ExprVector& unmatched, std::tuple<Patterns...>& tuple)
+    {
+        if constexpr (Current < sizeof...(Patterns)) {
+            auto& pattern = std::get<Current>(tuple);
+            for (int i = 0; i < unmatched.size(); ++i) {
+                if (pattern.match(unmatched[i])) {
+                    // We have a match here, remove the unmatched element from the array and try more patterns.
+                    unmatched.erase(unmatched.begin() + i);
+                    return vector_element_match<Current + 1>(unmatched, tuple);
+                }
+            }
+
+            // This pattern could not be matched, we need to return false.
+            return false;
+        }
+
+        return true;
+    }
+} // end namespace detail
+
+template<typename... Patterns>
+inline bool unord_match(const ExprVector& vec, Patterns... patterns)
+{
+    ExprVector unmatched;
+    std::tuple<Patterns...> patternsTuple(patterns...);
+
+    return detail::vector_element_match<0, Patterns...>(unmatched, patternsTuple);
+}
+
+template<typename... Patterns>
+inline bool unord_match(const ExprVector& vec, ExprVector& unmatched, Patterns... patterns)
+{
+    assert(&vec != &unmatched);
+    assert(unmatched.empty() && "Can only fill an empty unmatched vector!");
+    std::tuple<Patterns...> patternsTuple(patterns...);
+
+    unmatched = vec;
+
+    return detail::vector_element_match<0, Patterns...>(unmatched, patternsTuple);
 }
 
 struct true_match
@@ -107,6 +174,19 @@ inline apint_match m_Bv(llvm::APInt* const result) {
     return apint_match(result);
 }
 
+struct specific_match
+{
+    const ExprPtr& storedExpr;
+
+    specific_match(const ExprPtr& expr) : storedExpr(expr) {}
+
+    bool match(const ExprPtr& expr) { return storedExpr == expr; }
+};
+
+inline specific_match m_Specific(const ExprPtr& expr) {
+    return specific_match(expr);
+}
+
 template<typename ExprTy>
 struct bind_ty
 {
@@ -115,8 +195,8 @@ struct bind_ty
 
     template<typename InputTy>
     bool match(const ExprRef<InputTy>& ptr) {
-        if (auto expr = llvm::dyn_cast<ExprTy>(ptr.get())) {
-            storedPtr = std::static_pointer_cast<ExprTy>(ptr);
+        if (auto expr = llvm::dyn_cast<ExprTy>(ptr)) {
+            storedPtr = expr;
             return true;
         }
 
@@ -132,6 +212,14 @@ inline bind_ty<VarRefExpr> m_VarRef(ExprRef<VarRefExpr>& ptr) {
 
 inline bind_ty<LiteralExpr> m_Literal(ExprRef<LiteralExpr>& ptr) {
     return bind_ty<LiteralExpr>(ptr);
+}
+
+inline bind_ty<BoolLiteralExpr> m_BoolLit(ExprRef<BoolLiteralExpr>& ptr) {
+    return bind_ty<BoolLiteralExpr>(ptr);
+}
+
+inline bind_ty<BvLiteralExpr> m_BvLit(ExprRef<BvLiteralExpr>& ptr) {
+    return bind_ty<BvLiteralExpr>(ptr);
 }
 
 //===------------------- Matcher for unary expressions --------------------===//
@@ -257,6 +345,45 @@ BINARY_MATCHER(UGtEq)
 template<typename CondTy, typename LTy, typename RTy>
 struct select_expr_match
 {
+    CondTy cond;
+    LTy then;
+    RTy elze;
+
+    select_expr_match(const CondTy& cond, const LTy& then, const RTy& elze) : cond(cond), then(then), elze(elze) {}
+
+    template<typename InputTy>
+    bool match(const ExprRef<InputTy>& expr)
+    {
+        if (auto select = llvm::dyn_cast<SelectExpr>(expr.get())) {
+            return cond.match(select->getCondition())
+                && then.match(select->getThen())
+                && elze.match(select->getElse());
+        }
+
+        return false;
+    }
+};
+
+template<typename CondTy, typename LTy, typename RTy>
+select_expr_match<CondTy, LTy, RTy> m_Select(const CondTy& cond, const LTy& left, const RTy& right)
+{
+    return select_expr_match<CondTy, LTy, RTy>(cond, left, right);
+}
+
+
+//===------------------ Matcher for multiary expressions ------------------===//
+//============================================================================//
+
+template<size_t NumPatterns, typename... Patterns>
+struct vector_matcher
+{
+    std::tuple<Patterns...> patterns;
+
+    template<typename InputIterator>
+    bool match(InputIterator begin, InputIterator end, ExprVector& unmatched)
+    {
+
+    }
 };
 
 /// Helper for matching multiary expressions

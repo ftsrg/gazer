@@ -84,7 +84,6 @@ public:
 
     //--- Ternary ---//
     static ExprPtr Select(const ExprPtr& condition, const ExprPtr& then, const ExprPtr& elze);
-
 };
 
 }

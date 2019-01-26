@@ -8,6 +8,7 @@
 
 #include <memory>
 #include <string>
+#include <boost/intrusive_ptr.hpp>
 
 namespace llvm {
     class raw_ostream;
@@ -131,7 +132,7 @@ public:
 
 protected:
     Expr(ExprKind kind, const Type& type)
-        : mKind(kind), mType(type)
+        : mKind(kind), mType(type), mRefCount(0)
     {}
 
 public:
@@ -150,9 +151,11 @@ public:
     bool isArithmetic() const {
         return FirstBinaryArithmetic <= mKind && mKind <= LastBinaryArithmetic;
     }
+
     bool isLogic() const {
         return FirstLogic <= mKind && mKind <= LastLogic;
     }
+
     bool isCompare() const {
         return FirstCompare <= mKind && mKind <= LastCompare;
     }
@@ -172,16 +175,36 @@ public:
 public:
     static std::string getKindName(ExprKind kind);
 
+private:
+    friend void intrusive_ptr_add_ref(Expr* expr) {
+        expr->mRefCount++;
+    }
+
+    friend void intrusive_ptr_release(Expr* expr) {
+        if (--expr->mRefCount == 0) {
+            delete expr;
+        }
+    }
+
 protected:
     const ExprKind mKind;
     const Type& mType;
+
+private:
+    mutable unsigned mRefCount;
 };
 
-template<typename ExprTy = Expr>
-using ExprRef = std::shared_ptr<ExprTy>;
+/// Intrusive reference counting pointer for expression types.
+template<class T = Expr>
+using ExprRef = boost::intrusive_ptr<T>;
 
 using ExprPtr = ExprRef<Expr>;
 using ExprVector = std::vector<ExprPtr>;
+
+template<class T = Expr>
+inline ExprRef<T> make_expr_ref(T* expr) {
+    return ExprRef<T>(expr);
+}
 
 llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Expr& expr);
 
@@ -208,13 +231,15 @@ public:
 class LiteralExpr : public AtomicExpr
 {
 protected:
-    LiteralExpr(const Type& type)
+    explicit LiteralExpr(const Type& type)
         : AtomicExpr(Literal, type)
     {}
 public:
     static bool classof(const Expr* expr) {
         return expr->getKind() == Literal;
     }
+
+    virtual bool equals(const LiteralExpr& other) const = 0;
 };
 
 /// Base class for all expressions holding one or more operands.
@@ -233,44 +258,15 @@ protected:
     }
 
 protected:
-    virtual Expr* withOps(ExprVector ops) const = 0;
+    virtual ExprPtr cloneImpl(ExprVector ops) const = 0;
 
 public: 
     virtual void print(llvm::raw_ostream& os) const override;
 
-    static ExprPtr clone(ExprRef<NonNullaryExpr> expr, ExprVector ops);
-
-/*
-    template<class Iter>
-    Expr* with(Iter begin, Iter end) {
-        // Check if all operands are the same
-        bool equals = true;
-        auto it = begin;
-        auto opIt = op_begin();
-
-        size_t itCount = 0;
-        while (it != end && opIt != op_end()) {
-            assert(*it != nullptr && "nullptr in NonNullaryExpr::with()");
-            if (*it != *opIt) {
-                equals = false;
-                // Cannot break here, because we need
-                // to update the itCount variable.
-            }
-            ++itCount;
-            ++it, ++opIt;
-        }
-
-        if (equals) {
-            // The operands are the same, we can just return this instance
-            return this;
-        }
-        
-        assert(itCount == getNumOperands()
-            && "NonNullaryExpr::with() operand counts must match");
-
-        // Operand types must match to the operands of this class
-        return this->withOps({begin, end});
-    } */
+    /// Creates a clone of this expression, with the operands in \param ops.
+    /// If the operand list of the given expression and the \param ops vector are the same,
+    /// this function returns the original expression.
+    ExprPtr clone(ExprVector ops);
 
     //---- Operand handling ----//
     using op_iterator = typename std::vector<ExprPtr>::iterator;
@@ -304,6 +300,24 @@ private:
     std::vector<ExprPtr> mOperands;
 };
 
-}
+} // end namespace gazer
+
+// Add support for llvm-related stuff
+namespace llvm
+{
+
+template<class T>
+struct simplify_type<gazer::ExprRef<T>> {
+    typedef T* SimpleType;
+    static SimpleType getSimplifiedValue(gazer::ExprRef<T> &Val) { return Val.get(); }
+};
+
+template<class T>
+struct simplify_type<const gazer::ExprRef<T>> {
+    typedef T* SimpleType;
+    static SimpleType getSimplifiedValue(const gazer::ExprRef<T> &Val) { return Val.get(); }
+};
+
+} // end namespace llvm
 
 #endif

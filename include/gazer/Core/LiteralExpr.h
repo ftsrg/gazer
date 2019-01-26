@@ -20,8 +20,12 @@ private:
         : AtomicExpr(Expr::Undef, type)
     {}
 public:
-    static std::shared_ptr<UndefExpr> Get(const Type& type);
+    static ExprRef<UndefExpr> Get(const Type& type);
     virtual void print(llvm::raw_ostream& os) const override;
+
+    static bool classof(const Expr* expr) {
+        return expr->getKind() == Undef;
+    }
 };
 
 class BoolLiteralExpr final : public LiteralExpr
@@ -32,14 +36,15 @@ private:
     {}
 
 public:
-    static std::shared_ptr<BoolLiteralExpr> getTrue();
-    static std::shared_ptr<BoolLiteralExpr> getFalse();
+    static ExprRef<BoolLiteralExpr> getTrue();
+    static ExprRef<BoolLiteralExpr> getFalse();
 
-    static std::shared_ptr<BoolLiteralExpr> Get(bool value) {
+    static ExprRef<BoolLiteralExpr> Get(bool value) {
         return value ? getTrue() : getFalse();
     }
 
     virtual void print(llvm::raw_ostream& os) const override;
+    virtual bool equals(const LiteralExpr& other) const override;
 
     bool getValue() const { return mValue; }
     bool isTrue() const { return mValue == true; }
@@ -64,10 +69,12 @@ private:
     {}
 
 public:
-    static std::shared_ptr<IntLiteralExpr> get(IntType& type, int64_t value);
+    static ExprRef<IntLiteralExpr> get(IntType& type, int64_t value);
 
 public:
     virtual void print(llvm::raw_ostream& os) const override;
+    virtual bool equals(const LiteralExpr& other) const override;
+
     int64_t getValue() const { return mValue; }
 
     static bool classof(const Expr* expr) {
@@ -91,9 +98,10 @@ private:
     }
 public:
     virtual void print(llvm::raw_ostream& os) const override;
+    virtual bool equals(const LiteralExpr& other) const override;
 
 public:
-    static std::shared_ptr<BvLiteralExpr> Get(llvm::APInt value);
+    static ExprRef<BvLiteralExpr> Get(llvm::APInt value);
 
     llvm::APInt getValue() const { return mValue; }
 
@@ -122,9 +130,10 @@ private:
     {}
 public:
     virtual void print(llvm::raw_ostream& os) const override;
+    virtual bool equals(const LiteralExpr& other) const override;
 
-    static std::shared_ptr<FloatLiteralExpr> get(const FloatType& type, const llvm::APFloat& value);
-    static std::shared_ptr<FloatLiteralExpr> get(FloatType::FloatPrecision precision, const llvm::APFloat& value);
+    static ExprRef<FloatLiteralExpr> get(const FloatType& type, const llvm::APFloat& value);
+    static ExprRef<FloatLiteralExpr> get(FloatType::FloatPrecision precision, const llvm::APFloat& value);
 
     llvm::APFloat getValue() const { return mValue; }
 
@@ -150,7 +159,7 @@ private:
  * @param value The value to transform.
  * @param i1AsBool Treat constants of i1 type as booleans.
  */
-std::shared_ptr<LiteralExpr> LiteralFromLLVMConst(
+ExprRef<LiteralExpr> LiteralFromLLVMConst(
     llvm::ConstantData* value,
     bool i1AsBool = true
 );

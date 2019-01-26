@@ -1,6 +1,7 @@
 #include "gazer/LLVM/BMC/BMC.h"
 #include "gazer/Core/Utils/ExprUtils.h"
 #include "gazer/Support/Stopwatch.h"
+#include "gazer/Core/Expr/ExprSimplify.h"
 
 #include <llvm/IR/CFG.h>
 #include <llvm/IR/InstIterator.h>
@@ -26,6 +27,9 @@ namespace gazer {
 
     cl::opt<bool> DumpModel("dump-model",
         cl::desc("Dump the solver SAT model"));
+
+    cl::opt<bool> NoExprSimplify("no-expr-simplify",
+        cl::desc("Do not simplify expressions before passing them to the solver."));
 
     extern cl::opt<bool> PrintTrace;
 }
@@ -312,44 +316,6 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::run()
         blocks.insert({mTopo[i], i});
     }
 
-    // Create predecessor identifications
-    #if 0
-    llvm::Type* predTy = llvm::IntegerType::get(context, 32);
-    for (BasicBlock& bb : mFunction) {
-        size_t bbID = blocks[&bb];
-
-        std::string name = "pred" + std::to_string(bbID);
-        auto phi = llvm::PHINode::Create(predTy, 0, name);
-
-        for (BasicBlock* pred : llvm::predecessors(&bb)) {
-            size_t predID = blocks[pred];
-            phi->addIncoming(
-                llvm::ConstantInt::get(
-                    predTy,
-                    llvm::APInt(predTy->getIntegerBitWidth(), predID)
-                ),
-                pred
-            );
-        }
-
-        if (phi->getNumIncomingValues() > 1) {
-            bb.getInstList().push_front(phi);
-            preds[&bb] = phi;
-            // Also insert this into the symbol table
-            auto& variable = mSymbols.create(name, gazer::BvType::get(32));
-            mVariables[phi] = &variable;
-        } else {
-            // Do not create a PHI node with only one argument
-            if (phi->getNumIncomingValues() == 1) {
-                preds[&bb] = phi->getIncomingValue(0);
-            }
-
-            phi->dropAllReferences();
-            phi->deleteValue();
-        }
-    }
-    #endif
-
     ProgramEncodeMapT result = this->encode();
 
     for (auto& entry : result) {
@@ -362,13 +328,22 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::run()
 
         std::unique_ptr<Solver> solver = mSolverFactory.createSolver(mSymbols);
 
-        mOS << "   Transforming formula.\n";
+        // Simplify before adding
+        if (!NoExprSimplify) {
+            mOS << "Running formula simplifier.\n";
+            formula = ExprSimplifier(ExprSimplifier::Expensive).simplify(formula);
+        }
 
         //formula->print(mOS);
         if (DumpFormula) {
+            //FormatPrintExpr(formula, mOS);
+            //mOS << "=============";
             FormatPrintExpr(formula, mOS);
             mOS << "\n";
         }
+
+        mOS << "   Transforming formula.\n";
+        //solver->add(reducedFormula);
         solver->add(formula);
 
         if (DumpSolverFormula) {

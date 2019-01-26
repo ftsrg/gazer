@@ -59,7 +59,7 @@ public:
             && "Array updates can only work on arrays.");
     }
 
-    std::shared_ptr<ArrayWriteExpr> update(ExprPtr index, ExprPtr elem);
+    ExprRef<ArrayWriteExpr> update(ExprPtr index, ExprPtr elem);
 
 private:
     Variable* mRoot;

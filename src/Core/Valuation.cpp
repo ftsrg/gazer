@@ -16,7 +16,7 @@ void Valuation::print(llvm::raw_ostream& os)
     }
 }
 
-std::shared_ptr<LiteralExpr> Valuation::operator[](const Variable& variable) const
+ExprRef<LiteralExpr> Valuation::operator[](const Variable& variable) const
 {
     auto result = this->find(&variable);
     if (result == this->end()) {
@@ -27,13 +27,13 @@ std::shared_ptr<LiteralExpr> Valuation::operator[](const Variable& variable) con
     return result->second;
 }
 
-std::shared_ptr<LiteralExpr> Valuation::eval(const ExprPtr& expr)
+ExprRef<LiteralExpr> Valuation::eval(const ExprPtr& expr)
 {
     if (auto varRef = llvm::dyn_cast<VarRefExpr>(expr.get())) {
         auto lit = this->operator[](varRef->getVariable());
         return lit;
     } else if (expr->getKind() == Expr::Literal) {
-        return std::static_pointer_cast<LiteralExpr>(expr);
+        return llvm::cast<LiteralExpr>(expr);
     } else {
         // TODO: Expand this part
         return nullptr;

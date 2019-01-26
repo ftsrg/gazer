@@ -9,14 +9,14 @@
 
 using namespace gazer;
 
-std::shared_ptr<UndefExpr> UndefExpr::Get(const Type& type)
+ExprRef<UndefExpr> UndefExpr::Get(const Type& type)
 {
-    static std::map<const Type*, std::shared_ptr<UndefExpr>> UndefMap;
+    static std::map<const Type*, ExprRef<UndefExpr>> UndefMap;
     const Type* pType = &type;
 
     auto result = UndefMap.find(pType);
     if (result == UndefMap.end()) {
-        auto ptr = std::shared_ptr<UndefExpr>(new UndefExpr(type));
+        auto ptr = ExprRef<UndefExpr>(new UndefExpr(type));
         UndefMap[pType] = ptr;
 
         return ptr;
@@ -25,27 +25,27 @@ std::shared_ptr<UndefExpr> UndefExpr::Get(const Type& type)
     return result->second;
 }
 
-std::shared_ptr<BoolLiteralExpr> BoolLiteralExpr::getTrue()
+ExprRef<BoolLiteralExpr> BoolLiteralExpr::getTrue()
 {
-    static auto expr = std::shared_ptr<BoolLiteralExpr>(new BoolLiteralExpr(true));
+    static auto expr = ExprRef<BoolLiteralExpr>(new BoolLiteralExpr(true));
 
     return expr;
 }
 
-std::shared_ptr<BoolLiteralExpr> BoolLiteralExpr::getFalse()
+ExprRef<BoolLiteralExpr> BoolLiteralExpr::getFalse()
 {
-    static auto expr = std::shared_ptr<BoolLiteralExpr>(new BoolLiteralExpr(false));
+    static auto expr = ExprRef<BoolLiteralExpr>(new BoolLiteralExpr(false));
 
     return expr;
 }
 
-std::shared_ptr<IntLiteralExpr> IntLiteralExpr::get(IntType& type, int64_t value)
+ExprRef<IntLiteralExpr> IntLiteralExpr::get(IntType& type, int64_t value)
 {
-    static llvm::DenseMap<int64_t, std::shared_ptr<IntLiteralExpr>> Exprs;
+    static llvm::DenseMap<int64_t, ExprRef<IntLiteralExpr>> Exprs;
 
     auto result = Exprs.find(value);
     if (result == Exprs.end()) {
-        auto ptr = std::shared_ptr<IntLiteralExpr>(new IntLiteralExpr(type, value));
+        auto ptr = ExprRef<IntLiteralExpr>(new IntLiteralExpr(type, value));
         Exprs[value] = ptr;
 
         return ptr;
@@ -54,15 +54,15 @@ std::shared_ptr<IntLiteralExpr> IntLiteralExpr::get(IntType& type, int64_t value
     return result->second;
 }
 
-std::shared_ptr<BvLiteralExpr> BvLiteralExpr::Get(llvm::APInt value)
+ExprRef<BvLiteralExpr> BvLiteralExpr::Get(llvm::APInt value)
 {
-    static llvm::DenseMap<llvm::APInt, std::shared_ptr<BvLiteralExpr>, DenseMapAPIntKeyInfo> Exprs;
-    static std::shared_ptr<BvLiteralExpr> Int1True = 
-        std::shared_ptr<BvLiteralExpr>(new BvLiteralExpr(
+    static llvm::DenseMap<llvm::APInt, ExprRef<BvLiteralExpr>, DenseMapAPIntKeyInfo> Exprs;
+    static ExprRef<BvLiteralExpr> Int1True = 
+        ExprRef<BvLiteralExpr>(new BvLiteralExpr(
             BvType::get(1), llvm::APInt(1, 1)
         ));
-    static std::shared_ptr<BvLiteralExpr> Int1False = 
-        std::shared_ptr<BvLiteralExpr>(new BvLiteralExpr(
+    static ExprRef<BvLiteralExpr> Int1False = 
+        ExprRef<BvLiteralExpr>(new BvLiteralExpr(
             BvType::get(1), llvm::APInt(1, 0)
         ));
 
@@ -74,7 +74,7 @@ std::shared_ptr<BvLiteralExpr> BvLiteralExpr::Get(llvm::APInt value)
 
     auto result = Exprs.find(value);
     if (result == Exprs.end()) {
-        auto ptr = std::shared_ptr<BvLiteralExpr>(new BvLiteralExpr(
+        auto ptr = ExprRef<BvLiteralExpr>(new BvLiteralExpr(
             BvType::get(value.getBitWidth()),
             value
         ));
@@ -86,13 +86,13 @@ std::shared_ptr<BvLiteralExpr> BvLiteralExpr::Get(llvm::APInt value)
     return result->second;
 }
 
-std::shared_ptr<FloatLiteralExpr> FloatLiteralExpr::get(const FloatType& type, const llvm::APFloat& value)
+ExprRef<FloatLiteralExpr> FloatLiteralExpr::get(const FloatType& type, const llvm::APFloat& value)
 {
-    static llvm::DenseMap<llvm::APFloat, std::shared_ptr<FloatLiteralExpr>, DenseMapAPFloatKeyInfo> Exprs;
+    static llvm::DenseMap<llvm::APFloat, ExprRef<FloatLiteralExpr>, DenseMapAPFloatKeyInfo> Exprs;
     
     auto result = Exprs.find(value);
     if (result == Exprs.end()) {
-        auto ptr = std::shared_ptr<FloatLiteralExpr>(new FloatLiteralExpr(type, value));
+        auto ptr = ExprRef<FloatLiteralExpr>(new FloatLiteralExpr(type, value));
         Exprs[value] = ptr;
 
         return ptr;
@@ -101,7 +101,7 @@ std::shared_ptr<FloatLiteralExpr> FloatLiteralExpr::get(const FloatType& type, c
     return result->second;
 }
 
-std::shared_ptr<FloatLiteralExpr> FloatLiteralExpr::get(FloatType::FloatPrecision precision, const llvm::APFloat& value)
+ExprRef<FloatLiteralExpr> FloatLiteralExpr::get(FloatType::FloatPrecision precision, const llvm::APFloat& value)
 {
     return FloatLiteralExpr::get(FloatType::get(precision), value);
 }
@@ -129,7 +129,38 @@ void FloatLiteralExpr::print(llvm::raw_ostream& os) const
     os << buffer;
 }
 
-std::shared_ptr<LiteralExpr> gazer::LiteralFromLLVMConst(llvm::ConstantData* value, bool i1AsBool)
+template<class ExprTy>
+static bool equals_helper(const ExprTy* left, const LiteralExpr& right)
+{
+    if (const ExprTy* lit = llvm::dyn_cast<ExprTy>(&right)) {
+        return left->getValue() == lit->getValue();
+    }
+
+    return false;
+}
+
+#define LITERAL_EQUALS(LITERALCLASS)                                   \
+bool LITERALCLASS::equals(const LiteralExpr& other) const  {           \
+    return equals_helper(this, other);                                 \
+}
+
+LITERAL_EQUALS(BoolLiteralExpr)
+LITERAL_EQUALS(BvLiteralExpr)
+LITERAL_EQUALS(IntLiteralExpr)
+
+#undef LITERAL_EQUALS
+
+bool FloatLiteralExpr::equals(const LiteralExpr& other) const
+{
+    if (auto lit = llvm::dyn_cast<FloatLiteralExpr>(&other)) {
+        return this->getValue().bitwiseIsEqual(lit->getValue());
+    }
+
+    return false;
+}
+
+
+ExprRef<LiteralExpr> gazer::LiteralFromLLVMConst(llvm::ConstantData* value, bool i1AsBool)
 {
     if (auto ci = llvm::dyn_cast<llvm::ConstantInt>(value)) {
         unsigned width = ci->getType()->getIntegerBitWidth();

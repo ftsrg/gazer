@@ -21,14 +21,17 @@ public:
     Variable(const Variable&) = delete;
     Variable& operator=(const Variable&) = delete;
 
+    bool operator==(const Variable& other) const;
+    bool operator!=(const Variable& other) const { return !operator==(other); }
+
     const Type& getType() const { return mType; }
     std::string getName() const { return mName; }
-    std::shared_ptr<VarRefExpr> getRefExpr() const { return mExpr; }
+    ExprRef<VarRefExpr> getRefExpr() const { return mExpr; }
 
 private:
     std::string mName;
     const Type& mType;
-    std::shared_ptr<VarRefExpr> mExpr;
+    ExprRef<VarRefExpr> mExpr;
 };
 
 llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Variable& variable);

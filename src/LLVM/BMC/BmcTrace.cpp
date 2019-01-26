@@ -86,7 +86,7 @@ std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuat
                     cast<MetadataAsValue>(call->getArgOperand(1))->getMetadata()
                 );
 
-                std::shared_ptr<LiteralExpr> expr = nullptr;
+                ExprRef<LiteralExpr> expr = nullptr;
                 if (auto ci = dyn_cast<ConstantInt>(value)) {
                     expr = BvLiteralExpr::Get(ci->getValue());
                 } else {
@@ -156,7 +156,7 @@ std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuat
                 auto varIt = mValueMap.find(call);
                 assert(varIt != mValueMap.end() && "Call results should be present in the value map");
 
-                std::shared_ptr<AtomicExpr> expr;
+                ExprRef<AtomicExpr> expr;
 
                 auto exprIt = model.find(varIt->second);
                 if (exprIt != model.end()) {
@@ -179,7 +179,7 @@ std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuat
                 assigns.push_back(std::make_unique<FunctionCallEvent>(
                     callee->getName(),
                     expr,
-                    std::vector<std::shared_ptr<AtomicExpr>>(),
+                    std::vector<ExprRef<AtomicExpr>>(),
                     location
                 ));
             }
@@ -189,7 +189,7 @@ std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuat
     return assigns;
 }
 
-std::shared_ptr<AtomicExpr> LLVMBmcTraceBuilder::getLiteralFromValue(llvm::Value* value, Valuation& model)
+ExprRef<AtomicExpr> LLVMBmcTraceBuilder::getLiteralFromValue(llvm::Value* value, Valuation& model)
 {
     auto result = mValueMap.find(value);
     
@@ -209,7 +209,7 @@ std::shared_ptr<AtomicExpr> LLVMBmcTraceBuilder::getLiteralFromValue(llvm::Value
             return UndefExpr::Get(variable->getType());
         }
         
-        std::shared_ptr<LiteralExpr> expr = exprResult->second;
+        ExprRef<LiteralExpr> expr = exprResult->second;
 
         return expr;
     }

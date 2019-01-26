@@ -83,21 +83,21 @@ void NonNullaryExpr::print(llvm::raw_ostream& os) const
     os << ")";
 }
 
-ExprPtr NonNullaryExpr::clone(ExprRef<NonNullaryExpr> expr, ExprVector ops)
+ExprPtr NonNullaryExpr::clone(ExprVector ops)
 {
-    assert(expr->getNumOperands() == ops.size()
+    assert(this->getNumOperands() == ops.size()
         && "Operand counts must match for cloning!");
     assert(std::none_of(
-        ops.begin(), ops.end(), [](auto& op) { return op != nullptr; }
+        ops.begin(), ops.end(), [](auto& op) { return op == nullptr; }
     ) && "Cannot clone with a nullptr operand!");
 
-    if (std::equal(ops.begin(), ops.end(), expr->op_begin())) {
+    if (std::equal(ops.begin(), ops.end(), this->op_begin())) {
         // The operands are the same, just return the original object
-        return expr;
+        return make_expr_ref(this);
     }
 
-    // Otherwise perform the cloning operation and return a new shared_ptr handle
-    return std::shared_ptr<Expr>(expr->withOps(ops));
+    // Otherwise perform the cloning operation and return a new ExprRef handle
+    return this->cloneImpl(ops);
 }
 
 llvm::raw_ostream& gazer::operator<<(llvm::raw_ostream& os, const Expr& expr)
@@ -106,57 +106,31 @@ llvm::raw_ostream& gazer::operator<<(llvm::raw_ostream& os, const Expr& expr)
     return os;
 }
 
-std::shared_ptr<SelectExpr> SelectExpr::Create(ExprPtr condition, ExprPtr then, ExprPtr elze)
+ExprRef<SelectExpr> SelectExpr::Create(ExprPtr condition, ExprPtr then, ExprPtr elze)
 {
     assert(then->getType() == elze->getType() && "Select expression operand types must match.");
     assert(condition->getType().isBoolType() && "Select expression condition type must be boolean.");
-    return std::shared_ptr<SelectExpr>(new SelectExpr(then->getType(), condition, then, elze));
+    return ExprRef<SelectExpr>(new SelectExpr(then->getType(), condition, then, elze));
 }
 
-std::shared_ptr<ArrayReadExpr> ArrayReadExpr::Create(
-    std::shared_ptr<VarRefExpr> array, ExprPtr index
+ExprRef<ArrayReadExpr> ArrayReadExpr::Create(
+    ExprRef<VarRefExpr> array, ExprPtr index
 ) {
     assert(array->getType().isArrayType() && "ArrayRead only works on arrays.");
     const ArrayType* arrTy = llvm::cast<ArrayType>(&array->getType());
     assert(arrTy->getIndexType() == index->getType() &&
         "Array index type and index types must match.");
 
-    return std::shared_ptr<ArrayReadExpr>(new ArrayReadExpr(array, index));
+    return ExprRef<ArrayReadExpr>(new ArrayReadExpr(array, index));
 }
 
-Expr* ArrayReadExpr::withOps(std::vector<ExprPtr> ops) const
-{
-    assert(ops[0]->getKind() == Expr::VarRef && "Array references must be variables");
-    assert(ops[0]->getType() == getType() && "withOps() cannot change type");
-    assert(ops[1]->getType() == getIndex()->getType()
-        && "Array index type and index types must match.");
-
-    return new ArrayReadExpr(std::static_pointer_cast<VarRefExpr>(ops[0]), ops[1]);
-}
-
-std::shared_ptr<ArrayWriteExpr> ArrayWriteExpr::Create(
-    std::shared_ptr<VarRefExpr> array, ExprPtr index, ExprPtr value
+ExprRef<ArrayWriteExpr> ArrayWriteExpr::Create(
+    ExprRef<VarRefExpr> array, ExprPtr index, ExprPtr value
 ) {
     assert(array->getType().isArrayType() && "ArrayRead only works on arrays.");
     const ArrayType* arrTy = llvm::cast<ArrayType>(&array->getType());
     assert(arrTy->getIndexType() == index->getType() &&
         "Array index type and index types must match.");
 
-    return std::shared_ptr<ArrayWriteExpr>(new ArrayWriteExpr(array, index, value));
-}
-
-Expr* ArrayWriteExpr::withOps(std::vector<ExprPtr> ops) const
-{    
-    assert(ops[0]->getKind() == Expr::VarRef && "Array references must be variables");
-    assert(ops[0]->getType() == getType() && "withOps() cannot change type");
-    assert(ops[1]->getType() == getIndex()->getType()
-        && "Array index type and index types must match.");
-    assert(ops[2]->getType() == getElementValue()->getType()
-        && "Array element type and element types must match.");
-
-    return new ArrayWriteExpr(
-        std::static_pointer_cast<VarRefExpr>(ops[0]),
-        ops[1],
-        ops[2]
-    );
+    return ExprRef<ArrayWriteExpr>(new ArrayWriteExpr(array, index, value));
 }

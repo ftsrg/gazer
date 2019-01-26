@@ -20,23 +20,32 @@ namespace
 
         void visit(AssignTraceEvent& event) override
         {
-            std::shared_ptr<AtomicExpr> expr = event.getExpr();
+            ExprRef<AtomicExpr> expr = event.getExpr();
             mOS << INDENT << event.getVariableName() << " := ";
-            expr->print(mOS);
 
-            if (mPrintBv) {
-                std::bitset<64> bits;
-
-                if (expr->getType().isBvType()) {
-                    auto apVal = llvm::dyn_cast<BvLiteralExpr>(expr.get())->getValue();
-                    bits = apVal.getLimitedValue();
-                } else if (expr->getType().isFloatType()) {
-                    auto fltVal = llvm::dyn_cast<FloatLiteralExpr>(expr.get())->getValue();
-                    bits = fltVal.bitcastToAPInt().getLimitedValue();
+            if (llvm::isa<UndefExpr>(expr.get())) {
+                mOS << "???";
+                if (mPrintBv) {
+                    mOS << "\t";
+                    mOS.indent(64);
                 }
+            } else {
+                expr->print(mOS);
+                if (mPrintBv) {
+                    std::bitset<64> bits;
 
-                mOS << "\t(0b" << bits.to_string() << ")";
+                    if (expr->getType().isBvType()) {
+                        auto apVal = llvm::dyn_cast<BvLiteralExpr>(expr.get())->getValue();
+                        bits = apVal.getLimitedValue();
+                    } else if (expr->getType().isFloatType()) {
+                        auto fltVal = llvm::dyn_cast<FloatLiteralExpr>(expr.get())->getValue();
+                        bits = fltVal.bitcastToAPInt().getLimitedValue();
+                    }
+
+                    mOS << "\t(0b" << bits.to_string() << ")";
+                }
             }
+
             auto location = event.getLocation();
             if (location.getLine() != 0) {
                 mOS << "\t at "

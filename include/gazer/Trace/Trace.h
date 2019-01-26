@@ -16,9 +16,7 @@ class Valuation;
 template<class ReturnT = void>
 class TraceEventVisitor;
 
-/**
- * Represents a step in a counterexample trace.
- */
+/// Represents a step in a counterexample trace.
 class TraceEvent
 {
 public:
@@ -52,10 +50,8 @@ private:
     LocationInfo mLocation;
 };
 
-/**
- * Represents a detailed counterexample trace,
- * provided by a verification algorithm.
- */
+/// Represents a detailed counterexample trace, possibly provided by
+/// a verification algorithm.
 class Trace final
 {
     friend class TraceBuilder;
@@ -81,54 +77,44 @@ private:
     std::vector<std::unique_ptr<TraceEvent>> mEvents;
 };
 
-/**
- * Interface for building traces.
- */
+/// Interface for building traces.
 class TraceBuilder
 {
 public:
-    /**
-     * Builds a trace from a model.
-     */
-   std::unique_ptr<Trace> build(Valuation& model) {
+    /// Builds a trace from a model.
+    std::unique_ptr<Trace> build(Valuation& model) {
        return std::unique_ptr<Trace>(new Trace(this->buildEvents(model)));
-   }
+    }
 
 protected:
-    /**
-     * Generates a list of events from a model.
-     */
+    /// Generates a list of events from a model.
     virtual std::vector<std::unique_ptr<TraceEvent>> buildEvents(Valuation& model) = 0;
 };
 
-/**
- * Indicates an assignment in the original program.
- */
+/// Indicates an assignment in the original program.
 class AssignTraceEvent final : public TraceEvent
 {
 public:
     AssignTraceEvent(
         std::string variableName,
-        std::shared_ptr<AtomicExpr> expr,
+        ExprRef<AtomicExpr> expr,
         LocationInfo location = {}
     ) : TraceEvent(TraceEvent::Event_Assign, location),
         mVariableName(variableName), mExpr(expr)
     {}
 
     std::string getVariableName() const { return mVariableName; }
-    std::shared_ptr<AtomicExpr> getExpr() const { return mExpr; }
+    ExprRef<AtomicExpr> getExpr() const { return mExpr; }
 
     static bool classof(const TraceEvent* event) {
         return event->getKind() == TraceEvent::Event_Assign;
     }
 private:
     std::string mVariableName;
-    std::shared_ptr<AtomicExpr> mExpr;
+    ExprRef<AtomicExpr> mExpr;
 };
 
-/**
- * Indicates an entry into a procedure.
- */
+/// Indicates an entry into a procedure.
 class FunctionEntryEvent final : public TraceEvent
 {
 public:
@@ -151,14 +137,14 @@ class FunctionReturnEvent : public TraceEvent
 public:
     FunctionReturnEvent(
         std::string functionName,
-        std::shared_ptr<AtomicExpr> returnValue,
+        ExprRef<AtomicExpr> returnValue,
         LocationInfo location = {}
     ) : TraceEvent(TraceEvent::Event_FunctionReturn, location),
     mFunctionName(functionName), mReturnValue(returnValue)
     {}
 
     std::string getFunctionName() const { return mFunctionName; }
-    std::shared_ptr<AtomicExpr> getReturnValue() const { return mReturnValue; }
+    ExprRef<AtomicExpr> getReturnValue() const { return mReturnValue; }
     bool hasReturnValue() const { return mReturnValue != nullptr; }
 
     static bool classof(const TraceEvent* event) {
@@ -167,19 +153,17 @@ public:
 
 private:
     std::string mFunctionName;
-    std::shared_ptr<AtomicExpr> mReturnValue;
+    ExprRef<AtomicExpr> mReturnValue;
 };
 
-/**
- * Indicates a call to a nondetermistic function.
- */
+/// Indicates a call to a nondetermistic function.
 class FunctionCallEvent : public TraceEvent
 {
-    using ArgsVectorTy = std::vector<std::shared_ptr<AtomicExpr>>;
+    using ArgsVectorTy = std::vector<ExprRef<AtomicExpr>>;
 public:
     FunctionCallEvent(
         std::string functionName,
-        std::shared_ptr<AtomicExpr> returnValue,
+        ExprRef<AtomicExpr> returnValue,
         ArgsVectorTy args = {},
         LocationInfo location = {}   
     ) : TraceEvent(TraceEvent::Event_FunctionCall, location),
@@ -187,7 +171,7 @@ public:
     {}
 
     std::string getFunctionName() const { return mFunctionName; }
-    std::shared_ptr<AtomicExpr> getReturnValue() const { return mReturnValue; }
+    ExprRef<AtomicExpr> getReturnValue() const { return mReturnValue; }
 
     using arg_iterator = ArgsVectorTy::iterator;
     arg_iterator arg_begin() { return mArgs.begin(); }
@@ -202,7 +186,7 @@ public:
 
 private:
     std::string mFunctionName;
-    std::shared_ptr<AtomicExpr> mReturnValue;
+    ExprRef<AtomicExpr> mReturnValue;
     ArgsVectorTy mArgs;
 };
 

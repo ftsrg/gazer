@@ -10,7 +10,7 @@
 using namespace gazer;
 using namespace llvm;
 
-static llvm::Constant* exprToLLVMValue(std::shared_ptr<AtomicExpr>& expr, LLVMContext& context)
+static llvm::Constant* exprToLLVMValue(ExprRef<AtomicExpr>& expr, LLVMContext& context)
 {
     if (expr->getKind() == Expr::Undef) {
         return llvm::UndefValue::get(llvmTypeFromType(context, expr->getType()));
@@ -39,7 +39,7 @@ std::unique_ptr<Module> TestGenerator::generateModuleFromTrace(
 ) {
     const DataLayout& dl = module.getDataLayout();
 
-    std::unordered_map<llvm::Function*, std::vector<std::shared_ptr<AtomicExpr>>> calls;
+    std::unordered_map<llvm::Function*, std::vector<ExprRef<AtomicExpr>>> calls;
     for (auto& event : trace) {
         if (event->getKind() == TraceEvent::Event_FunctionCall) {
             auto callEvent = llvm::cast<FunctionCallEvent>(event.get());
@@ -57,7 +57,7 @@ std::unique_ptr<Module> TestGenerator::generateModuleFromTrace(
 
     for (auto& pair : calls) {
         llvm::Function* function = pair.first;
-        std::vector<std::shared_ptr<AtomicExpr>>& vec = pair.second;
+        std::vector<ExprRef<AtomicExpr>>& vec = pair.second;
 
         llvm::SmallVector<llvm::Constant*, 10> values;
         std::transform(vec.begin(), vec.end(), std::back_inserter(values),

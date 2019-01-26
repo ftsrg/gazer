@@ -6,45 +6,45 @@ using llvm::dyn_cast;
 
 /// Checks for undefs among operands.
 
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitUndef(const std::shared_ptr<UndefExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitUndef(const ExprRef<UndefExpr>& expr) {
     assert(!"Invalid undef expression");
 }
 
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitExpr(const ExprPtr& expr)
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitExpr(const ExprPtr& expr)
 {
     assert(!"Unhandled expression type in ExprEvaluatorBase!");
 }
 
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitLiteral(const std::shared_ptr<LiteralExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitLiteral(const ExprRef<LiteralExpr>& expr) {
     return expr;
 }
 
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitVarRef(const std::shared_ptr<VarRefExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitVarRef(const ExprRef<VarRefExpr>& expr) {
     return this->getVariableValue(expr->getVariable());
 }
 
 // Unary
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitNot(const std::shared_ptr<NotExpr>& expr)
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitNot(const ExprRef<NotExpr>& expr)
 {
     auto boolLit = dyn_cast<BoolLiteralExpr>(visit(expr->getOperand()).get());
     return BoolLiteralExpr::Get(!boolLit->getValue());
 }
 
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitZExt(const std::shared_ptr<ZExtExpr>& expr)
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitZExt(const ExprRef<ZExtExpr>& expr)
 {
     auto bvLit = dyn_cast<BvLiteralExpr>(visit(expr->getOperand()).get());
 
     return BvLiteralExpr::Get(bvLit->getValue().zext(expr->getExtendedWidth()));
 }
 
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitSExt(const std::shared_ptr<SExtExpr>& expr)
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitSExt(const ExprRef<SExtExpr>& expr)
 {
     auto bvLit = dyn_cast<BvLiteralExpr>(visit(expr->getOperand()).get());
 
     return BvLiteralExpr::Get(bvLit->getValue().sext(expr->getExtendedWidth()));
 }
 
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitExtract(const std::shared_ptr<ExtractExpr>& expr)
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitExtract(const ExprRef<ExtractExpr>& expr)
 {
     auto bvLit = dyn_cast<BvLiteralExpr>(visit(expr->getOperand()).get());
 
@@ -52,9 +52,9 @@ std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitExtract(const std::shared_p
 }
 
 template<Expr::ExprKind Kind>
-static std::shared_ptr<LiteralExpr> EvalBinaryArithmetic(
+static ExprRef<LiteralExpr> EvalBinaryArithmetic(
     ExprEvaluatorBase* visitor,
-    const std::shared_ptr<ArithmeticExpr<Kind>>& expr)
+    const ExprRef<ArithmeticExpr<Kind>>& expr)
 {
     static_assert(Expr::FirstBinaryArithmetic <= Kind && Kind <= Expr::LastBinaryArithmetic,
         "An arithmetic expression must have an arithmetic expression kind.");
@@ -84,61 +84,61 @@ static std::shared_ptr<LiteralExpr> EvalBinaryArithmetic(
 }
 
 // Binary
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitAdd(const std::shared_ptr<AddExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitAdd(const ExprRef<AddExpr>& expr) {
     return EvalBinaryArithmetic(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitSub(const std::shared_ptr<SubExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitSub(const ExprRef<SubExpr>& expr) {
     return EvalBinaryArithmetic(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitMul(const std::shared_ptr<MulExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitMul(const ExprRef<MulExpr>& expr) {
     return EvalBinaryArithmetic(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitSDiv(const std::shared_ptr<SDivExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitSDiv(const ExprRef<SDivExpr>& expr) {
     return EvalBinaryArithmetic(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitUDiv(const std::shared_ptr<UDivExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitUDiv(const ExprRef<UDivExpr>& expr) {
     return EvalBinaryArithmetic(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitSRem(const std::shared_ptr<SRemExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitSRem(const ExprRef<SRemExpr>& expr) {
     return EvalBinaryArithmetic(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitURem(const std::shared_ptr<URemExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitURem(const ExprRef<URemExpr>& expr) {
     return EvalBinaryArithmetic(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitShl(const std::shared_ptr<ShlExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitShl(const ExprRef<ShlExpr>& expr) {
     return EvalBinaryArithmetic(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitLShr(const std::shared_ptr<LShrExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitLShr(const ExprRef<LShrExpr>& expr) {
     return EvalBinaryArithmetic(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitAShr(const std::shared_ptr<AShrExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitAShr(const ExprRef<AShrExpr>& expr) {
     return EvalBinaryArithmetic(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitBAnd(const std::shared_ptr<BAndExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitBAnd(const ExprRef<BAndExpr>& expr) {
     return EvalBinaryArithmetic(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitBOr(const std::shared_ptr<BOrExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitBOr(const ExprRef<BOrExpr>& expr) {
     return EvalBinaryArithmetic(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitBXor(const std::shared_ptr<BXorExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitBXor(const ExprRef<BXorExpr>& expr) {
     return EvalBinaryArithmetic(this, expr);
 }
 
 // Logic
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitAnd(const std::shared_ptr<AndExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitAnd(const ExprRef<AndExpr>& expr) {
     return this->visitNonNullary(expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitOr(const std::shared_ptr<OrExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitOr(const ExprRef<OrExpr>& expr) {
     return this->visitNonNullary(expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitXor(const std::shared_ptr<XorExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitXor(const ExprRef<XorExpr>& expr) {
     return this->visitNonNullary(expr);
 }
 
 template<Expr::ExprKind Kind>
-static std::shared_ptr<LiteralExpr> EvalCompareExpr(
+static ExprRef<LiteralExpr> EvalCompareExpr(
     ExprEvaluatorBase* visitor, 
-    const std::shared_ptr<CompareExpr<Kind>>& expr)
+    const ExprRef<CompareExpr<Kind>>& expr)
 {
     static_assert(Expr::FirstCompare <= Kind && Kind <= Expr::LastCompare,
         "A compare expression must have a compare expression kind.");
@@ -163,78 +163,78 @@ static std::shared_ptr<LiteralExpr> EvalCompareExpr(
 }
 
 // Compare
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitEq(const std::shared_ptr<EqExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitEq(const ExprRef<EqExpr>& expr) {
     return EvalCompareExpr(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitNotEq(const std::shared_ptr<NotEqExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitNotEq(const ExprRef<NotEqExpr>& expr) {
     return EvalCompareExpr(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitSLt(const std::shared_ptr<SLtExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitSLt(const ExprRef<SLtExpr>& expr) {
     return EvalCompareExpr(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitSLtEq(const std::shared_ptr<SLtEqExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitSLtEq(const ExprRef<SLtEqExpr>& expr) {
     return EvalCompareExpr(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitSGt(const std::shared_ptr<SGtExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitSGt(const ExprRef<SGtExpr>& expr) {
     return EvalCompareExpr(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitSGtEq(const std::shared_ptr<SGtEqExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitSGtEq(const ExprRef<SGtEqExpr>& expr) {
     return EvalCompareExpr(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitULt(const std::shared_ptr<ULtExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitULt(const ExprRef<ULtExpr>& expr) {
     return EvalCompareExpr(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitULtEq(const std::shared_ptr<ULtEqExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitULtEq(const ExprRef<ULtEqExpr>& expr) {
     return EvalCompareExpr(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitUGt(const std::shared_ptr<UGtExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitUGt(const ExprRef<UGtExpr>& expr) {
     return EvalCompareExpr(this, expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitUGtEq(const std::shared_ptr<UGtEqExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitUGtEq(const ExprRef<UGtEqExpr>& expr) {
     return EvalCompareExpr(this, expr);
 }
 
 // Floating-point queries
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitFIsNan(const std::shared_ptr<FIsNanExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitFIsNan(const ExprRef<FIsNanExpr>& expr) {
     return this->visitNonNullary(expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitFIsInf(const std::shared_ptr<FIsInfExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitFIsInf(const ExprRef<FIsInfExpr>& expr) {
     return this->visitNonNullary(expr);
 }
 
 // Floating-point arithmetic
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitFAdd(const std::shared_ptr<FAddExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitFAdd(const ExprRef<FAddExpr>& expr) {
     return this->visitNonNullary(expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitFSub(const std::shared_ptr<FSubExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitFSub(const ExprRef<FSubExpr>& expr) {
     return this->visitNonNullary(expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitFMul(const std::shared_ptr<FMulExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitFMul(const ExprRef<FMulExpr>& expr) {
     return this->visitNonNullary(expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitFDiv(const std::shared_ptr<FDivExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitFDiv(const ExprRef<FDivExpr>& expr) {
     return this->visitNonNullary(expr);
 }
 
 // Floating-point compare
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitFEq(const std::shared_ptr<FEqExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitFEq(const ExprRef<FEqExpr>& expr) {
     return this->visitNonNullary(expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitFGt(const std::shared_ptr<FGtExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitFGt(const ExprRef<FGtExpr>& expr) {
     return this->visitNonNullary(expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitFGtEq(const std::shared_ptr<FGtEqExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitFGtEq(const ExprRef<FGtEqExpr>& expr) {
     return this->visitNonNullary(expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitFLt(const std::shared_ptr<FLtExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitFLt(const ExprRef<FLtExpr>& expr) {
     return this->visitNonNullary(expr);
 }
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitFLtEq(const std::shared_ptr<FLtEqExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitFLtEq(const ExprRef<FLtEqExpr>& expr) {
     return this->visitNonNullary(expr);
 }
 
 // Ternary
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitSelect(const std::shared_ptr<SelectExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitSelect(const ExprRef<SelectExpr>& expr) {
     // TODO: Support Int and Float...
     auto cond = dyn_cast<BoolLiteralExpr>(visit(expr->getCondition()).get());
     auto then = dyn_cast<BvLiteralExpr>(visit(expr->getThen()).get());
@@ -244,10 +244,10 @@ std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitSelect(const std::shared_pt
 }
 
 // Arrays
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitArrayRead(const std::shared_ptr<ArrayReadExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitArrayRead(const ExprRef<ArrayReadExpr>& expr) {
     return this->visitNonNullary(expr);
 }
 
-std::shared_ptr<LiteralExpr> ExprEvaluatorBase::visitArrayWrite(const std::shared_ptr<ArrayWriteExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr) {
     return this->visitNonNullary(expr);
 }

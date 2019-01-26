@@ -19,7 +19,7 @@ public:
     virtual ReturnT visit(const ExprPtr& expr) {
         #define HANDLE_EXPRCASE(KIND)                                       \
             case Expr::KIND:                                                \
-                return this->visit##KIND(std::static_pointer_cast<KIND##Expr>(expr));   \
+                return this->visit##KIND(llvm::cast<KIND##Expr>(expr));     \
 
         switch (expr->getKind()) {
             HANDLE_EXPRCASE(Undef)
@@ -89,173 +89,173 @@ protected:
      */
     virtual ReturnT visitExpr(const ExprPtr& expr) = 0;
 
-    virtual ReturnT visitNonNullary(const std::shared_ptr<NonNullaryExpr>& expr) {
+    virtual ReturnT visitNonNullary(const ExprRef<NonNullaryExpr>& expr) {
         return visitExpr(expr);
     }
 
     // Nullary
-    virtual ReturnT visitUndef(const std::shared_ptr<UndefExpr>& expr) {
+    virtual ReturnT visitUndef(const ExprRef<UndefExpr>& expr) {
         return this->visitExpr(expr);
     }
-    virtual ReturnT visitLiteral(const std::shared_ptr<LiteralExpr>& expr) {
+    virtual ReturnT visitLiteral(const ExprRef<LiteralExpr>& expr) {
         return this->visitExpr(expr);
     }
-    virtual ReturnT visitVarRef(const std::shared_ptr<VarRefExpr>& expr) {
+    virtual ReturnT visitVarRef(const ExprRef<VarRefExpr>& expr) {
         return this->visitExpr(expr);
     }
 
     // Unary
-    virtual ReturnT visitNot(const std::shared_ptr<NotExpr>& expr) {
+    virtual ReturnT visitNot(const ExprRef<NotExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitZExt(const std::shared_ptr<ZExtExpr>& expr) {
+    virtual ReturnT visitZExt(const ExprRef<ZExtExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitSExt(const std::shared_ptr<SExtExpr>& expr) {
+    virtual ReturnT visitSExt(const ExprRef<SExtExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitExtract(const std::shared_ptr<ExtractExpr>& expr) {
+    virtual ReturnT visitExtract(const ExprRef<ExtractExpr>& expr) {
         return this->visitNonNullary(expr);
     }
 
     // Binary
-    virtual ReturnT visitAdd(const std::shared_ptr<AddExpr>& expr) {
+    virtual ReturnT visitAdd(const ExprRef<AddExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitSub(const std::shared_ptr<SubExpr>& expr) {
+    virtual ReturnT visitSub(const ExprRef<SubExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitMul(const std::shared_ptr<MulExpr>& expr) {
-        return this->visitNonNullary(expr);
-    }
-
-    virtual ReturnT visitSDiv(const std::shared_ptr<SDivExpr>& expr) {
-        return this->visitNonNullary(expr);
-    }
-    virtual ReturnT visitUDiv(const std::shared_ptr<UDivExpr>& expr) {
-        return this->visitNonNullary(expr);
-    }
-    virtual ReturnT visitSRem(const std::shared_ptr<SRemExpr>& expr) {
-        return this->visitNonNullary(expr);
-    }
-    virtual ReturnT visitURem(const std::shared_ptr<URemExpr>& expr) {
+    virtual ReturnT visitMul(const ExprRef<MulExpr>& expr) {
         return this->visitNonNullary(expr);
     }
 
-    virtual ReturnT visitShl(const std::shared_ptr<ShlExpr>& expr) {
+    virtual ReturnT visitSDiv(const ExprRef<SDivExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitLShr(const std::shared_ptr<LShrExpr>& expr) {
+    virtual ReturnT visitUDiv(const ExprRef<UDivExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitAShr(const std::shared_ptr<AShrExpr>& expr) {
+    virtual ReturnT visitSRem(const ExprRef<SRemExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitBAnd(const std::shared_ptr<BAndExpr>& expr) {
+    virtual ReturnT visitURem(const ExprRef<URemExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitBOr(const std::shared_ptr<BOrExpr>& expr) {
+
+    virtual ReturnT visitShl(const ExprRef<ShlExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitBXor(const std::shared_ptr<BXorExpr>& expr) {
+    virtual ReturnT visitLShr(const ExprRef<LShrExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitAShr(const ExprRef<AShrExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitBAnd(const ExprRef<BAndExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitBOr(const ExprRef<BOrExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitBXor(const ExprRef<BXorExpr>& expr) {
         return this->visitNonNullary(expr);
     }
 
     // Logic
-    virtual ReturnT visitAnd(const std::shared_ptr<AndExpr>& expr) {
+    virtual ReturnT visitAnd(const ExprRef<AndExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitOr(const std::shared_ptr<OrExpr>& expr) {
+    virtual ReturnT visitOr(const ExprRef<OrExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitXor(const std::shared_ptr<XorExpr>& expr) {
+    virtual ReturnT visitXor(const ExprRef<XorExpr>& expr) {
         return this->visitNonNullary(expr);
     }
 
     // Compare
-    virtual ReturnT visitEq(const std::shared_ptr<EqExpr>& expr) {
+    virtual ReturnT visitEq(const ExprRef<EqExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitNotEq(const std::shared_ptr<NotEqExpr>& expr) {
+    virtual ReturnT visitNotEq(const ExprRef<NotEqExpr>& expr) {
         return this->visitNonNullary(expr);
     }
     
-    virtual ReturnT visitSLt(const std::shared_ptr<SLtExpr>& expr) {
+    virtual ReturnT visitSLt(const ExprRef<SLtExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitSLtEq(const std::shared_ptr<SLtEqExpr>& expr) {
+    virtual ReturnT visitSLtEq(const ExprRef<SLtEqExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitSGt(const std::shared_ptr<SGtExpr>& expr) {
+    virtual ReturnT visitSGt(const ExprRef<SGtExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitSGtEq(const std::shared_ptr<SGtEqExpr>& expr) {
+    virtual ReturnT visitSGtEq(const ExprRef<SGtEqExpr>& expr) {
         return this->visitNonNullary(expr);
     }
 
-    virtual ReturnT visitULt(const std::shared_ptr<ULtExpr>& expr) {
+    virtual ReturnT visitULt(const ExprRef<ULtExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitULtEq(const std::shared_ptr<ULtEqExpr>& expr) {
+    virtual ReturnT visitULtEq(const ExprRef<ULtEqExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitUGt(const std::shared_ptr<UGtExpr>& expr) {
+    virtual ReturnT visitUGt(const ExprRef<UGtExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitUGtEq(const std::shared_ptr<UGtEqExpr>& expr) {
+    virtual ReturnT visitUGtEq(const ExprRef<UGtEqExpr>& expr) {
         return this->visitNonNullary(expr);
     }
 
     // Floating-point queries
-    virtual ReturnT visitFIsNan(const std::shared_ptr<FIsNanExpr>& expr) {
+    virtual ReturnT visitFIsNan(const ExprRef<FIsNanExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitFIsInf(const std::shared_ptr<FIsInfExpr>& expr) {
+    virtual ReturnT visitFIsInf(const ExprRef<FIsInfExpr>& expr) {
         return this->visitNonNullary(expr);
     }
 
     // Floating-point arithmetic
-    virtual ReturnT visitFAdd(const std::shared_ptr<FAddExpr>& expr) {
+    virtual ReturnT visitFAdd(const ExprRef<FAddExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitFSub(const std::shared_ptr<FSubExpr>& expr) {
+    virtual ReturnT visitFSub(const ExprRef<FSubExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitFMul(const std::shared_ptr<FMulExpr>& expr) {
+    virtual ReturnT visitFMul(const ExprRef<FMulExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitFDiv(const std::shared_ptr<FDivExpr>& expr) {
+    virtual ReturnT visitFDiv(const ExprRef<FDivExpr>& expr) {
         return this->visitNonNullary(expr);
     }
 
     // Floating-point compare
-    virtual ReturnT visitFEq(const std::shared_ptr<FEqExpr>& expr) {
+    virtual ReturnT visitFEq(const ExprRef<FEqExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitFGt(const std::shared_ptr<FGtExpr>& expr) {
+    virtual ReturnT visitFGt(const ExprRef<FGtExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitFGtEq(const std::shared_ptr<FGtEqExpr>& expr) {
+    virtual ReturnT visitFGtEq(const ExprRef<FGtEqExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitFLt(const std::shared_ptr<FLtExpr>& expr) {
+    virtual ReturnT visitFLt(const ExprRef<FLtExpr>& expr) {
         return this->visitNonNullary(expr);
     }
-    virtual ReturnT visitFLtEq(const std::shared_ptr<FLtEqExpr>& expr) {
+    virtual ReturnT visitFLtEq(const ExprRef<FLtEqExpr>& expr) {
         return this->visitNonNullary(expr);
     }
 
     // Ternary
-    virtual ReturnT visitSelect(const std::shared_ptr<SelectExpr>& expr) {
+    virtual ReturnT visitSelect(const ExprRef<SelectExpr>& expr) {
         return this->visitNonNullary(expr);
     }
 
     // Arrays
-    virtual ReturnT visitArrayRead(const std::shared_ptr<ArrayReadExpr>& expr) {
+    virtual ReturnT visitArrayRead(const ExprRef<ArrayReadExpr>& expr) {
         return this->visitNonNullary(expr);
     }
 
-    virtual ReturnT visitArrayWrite(const std::shared_ptr<ArrayWriteExpr>& expr) {
+    virtual ReturnT visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr) {
         return this->visitNonNullary(expr);
     }
 };

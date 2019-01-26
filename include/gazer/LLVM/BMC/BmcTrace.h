@@ -41,7 +41,7 @@ protected:
     std::vector<std::unique_ptr<TraceEvent>> buildEvents(Valuation& model) override;
 
 private:
-    std::shared_ptr<AtomicExpr> getLiteralFromValue(llvm::Value* value, Valuation& model);
+    ExprRef<AtomicExpr> getLiteralFromValue(llvm::Value* value, Valuation& model);
 
 private:
     const TopologicalSort& mTopo;

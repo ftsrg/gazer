@@ -23,7 +23,7 @@ protected:
         expr->print(mOS);
     }
 
-    void visitNonNullary(const std::shared_ptr<NonNullaryExpr>& expr) override {
+    void visitNonNullary(const ExprRef<NonNullaryExpr>& expr) override {
         this->indent();
         if (std::all_of(expr->op_begin(), expr->op_end(), [](const ExprPtr& op) {
             return op->isNullary();
