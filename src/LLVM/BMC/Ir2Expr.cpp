@@ -118,7 +118,7 @@ ExprPtr InstToExpr::transform(llvm::Instruction& inst, size_t succIdx, BasicBloc
 ExprPtr InstToExpr::transform(llvm::Instruction& inst)
 {
     #define HANDLE_INST(OPCODE, NAME)                                   \
-        else if (inst.getOpcode() == OPCODE) {                          \
+        else if (inst.getOpcode() == (OPCODE)) {                          \
             return visit##NAME(*llvm::cast<llvm::NAME>(&inst));       \
         }                                                               \
 

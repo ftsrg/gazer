@@ -13,17 +13,7 @@ using namespace gazer;
 
 ExprRef<UndefExpr> UndefExpr::Get(Type& type)
 {
-    auto& pImpl = type.getContext().pImpl;
-
-    auto result = pImpl->Undefs.find(&type);
-    if (result == pImpl->Undefs.end()) {
-        auto ptr = ExprRef<UndefExpr>(new UndefExpr(type));
-        pImpl->Undefs[&type] = ptr;
-
-        return ptr;
-    }
-
-    return result->second;
+    return type.getContext().pImpl->Exprs.create<UndefExpr>(type);
 }
 
 ExprRef<BoolLiteralExpr> BoolLiteralExpr::True(BoolType& type) {
@@ -45,38 +35,14 @@ ExprRef<BvLiteralExpr> BvLiteralExpr::Get(BvType& type, llvm::APInt value)
 
     auto& pImpl = type.getContext().pImpl;
 
-    // Currently our DenseMapAPIntKeyInfo does not allow 1-bit wide APInts as keys.
-    // This workaround makes sure that we can also construct those as well.
-    if (LLVM_UNLIKELY(value.getBitWidth() == 1)) {
-        return value.getBoolValue() ? pImpl->Bv1True : pImpl->Bv1False;
-    }
-
-    auto result = pImpl->BvLiterals.find(value);
-    if (result == pImpl->BvLiterals.end()) {
-        auto ptr = ExprRef<BvLiteralExpr>(new BvLiteralExpr(type, value));
-        pImpl->BvLiterals[value] = ptr;
-
-        return ptr;
-    }
-
-    return result->second;
+    return pImpl->Exprs.create<BvLiteralExpr>(type, value);
 }
 
 ExprRef<FloatLiteralExpr> FloatLiteralExpr::Get(FloatType& type, const llvm::APFloat& value)
 {
     assert(llvm::APFloat::semanticsPrecision(value.getSemantics()) == type.getPrecision());
 
-    auto& pImpl = type.getContext().pImpl;
-
-    auto result = pImpl->FloatLiterals.find(value);
-    if (result == pImpl->FloatLiterals.end()) {
-        auto ptr = ExprRef<FloatLiteralExpr>(new FloatLiteralExpr(type, value));
-        pImpl->FloatLiterals[value] = ptr;
-
-        return ptr;
-    }
-
-    return result->second;
+    return type.getContext().pImpl->Exprs.create<FloatLiteralExpr>(type, value);
 }
 
 void UndefExpr::print(llvm::raw_ostream& os) const {
@@ -101,37 +67,6 @@ void FloatLiteralExpr::print(llvm::raw_ostream& os) const
     mValue.toString(buffer);
     os << buffer;
 }
-
-template<class ExprTy>
-static bool equals_helper(const ExprTy* left, const LiteralExpr& right)
-{
-    if (const ExprTy* lit = llvm::dyn_cast<ExprTy>(&right)) {
-        return left->getValue() == lit->getValue();
-    }
-
-    return false;
-}
-
-#define LITERAL_EQUALS(LITERALCLASS)                                   \
-bool LITERALCLASS::equals(const LiteralExpr& other) const  {           \
-    return equals_helper(this, other);                                 \
-}
-
-LITERAL_EQUALS(BoolLiteralExpr)
-LITERAL_EQUALS(BvLiteralExpr)
-LITERAL_EQUALS(IntLiteralExpr)
-
-#undef LITERAL_EQUALS
-
-bool FloatLiteralExpr::equals(const LiteralExpr& other) const
-{
-    if (auto lit = llvm::dyn_cast<FloatLiteralExpr>(&other)) {
-        return this->getValue().bitwiseIsEqual(lit->getValue());
-    }
-
-    return false;
-}
-
 
 ExprRef<LiteralExpr> gazer::LiteralFromLLVMConst(GazerContext& context, llvm::ConstantData* value, bool i1AsBool)
 {

@@ -1,6 +1,7 @@
 SET(TEST_SOURCES
     TypeTest.cpp
     SymbolTableTest.cpp
+    ExprTest.cpp
     Expr/MatcherTest.cpp
     core_tests.cpp
 )

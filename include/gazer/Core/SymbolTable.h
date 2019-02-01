@@ -8,6 +8,7 @@
 namespace gazer
 {
 
+#if false
 struct SymbolAlreadyExistsError : std::logic_error {
     SymbolAlreadyExistsError(std::string key);
 };
@@ -101,14 +102,16 @@ public:
     using SymbolTableBase::begin;
     using SymbolTableBase::end;
 
-    Variable& create(std::string name, const Type* type) {
+    Variable& create(std::string name, Type* type) {
         return SymbolTableBase::create(name, name, *type);
     }
     
-    Variable& create(std::string name, const Type& type) {
+    Variable& create(std::string name, Type& type) {
         return SymbolTableBase::create(name, name, type);
     }
 };
+
+#endif
 
 }
 

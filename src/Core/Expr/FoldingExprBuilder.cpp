@@ -206,46 +206,8 @@ public:
         } else if (newOps.size() == 1) {
             return *newOps.begin();
         }
-        
-        // Try some optimizations for the binary case
-        if (newOps.size() == 2) {
-            auto left = llvm::dyn_cast<OrExpr>(newOps[0].get());
-            auto right = llvm::dyn_cast<OrExpr>(newOps[1].get());
-            if (left != nullptr && right != nullptr) {
-                // (F1 | F2) & (F1 | F3) -> F1 | (F2 & F3)
-                ExprVector intersect;   // F1
-                std::set_intersection(
-                    left->op_begin(), left->op_end(),
-                    right->op_begin(), right->op_end(),
-                    std::back_inserter(intersect)
-                );
 
-                if (!intersect.empty()) {
-                    ExprVector newLeft;     // F2
-                    ExprVector newRight;    // F3
-                    std::set_difference(
-                        left->op_begin(), left->op_end(),
-                        intersect.begin(), intersect.end(),
-                        std::back_inserter(newLeft)
-                    );
-                    std::set_difference(
-                        right->op_begin(), right->op_end(),
-                        intersect.begin(), intersect.end(),
-                        std::back_inserter(newRight)
-                    );
-
-                    return this->Or({
-                        OrExpr::Create(intersect.begin(), intersect.end()),
-                        this->And({
-                            OrExpr::Create(newLeft.begin(), newLeft.end()),
-                            OrExpr::Create(newRight.begin(), newRight.end())
-                        })
-                    });
-                }
-            }
-        }
-
-        return AndExpr::Create(newOps.begin(), newOps.end());
+        return AndExpr::Create(newOps);
     }
 
     ExprPtr Or(const ExprVector& vector) override
@@ -277,44 +239,8 @@ public:
         }
 
         // Try some optimizations for the binary case
-        if (newOps.size() == 2) {
-            auto left = llvm::dyn_cast<AndExpr>(newOps[0].get());
-            auto right = llvm::dyn_cast<AndExpr>(newOps[1].get());
-            if (left != nullptr && right != nullptr) {
-                // (F1 & F2) | (F1 & F3) -> F1 & (F2 | F3)
-                ExprVector intersect;
-                std::set_intersection(
-                    left->op_begin(), left->op_end(),
-                    right->op_begin(), right->op_end(),
-                    std::back_inserter(intersect)
-                );
-
-                if (!intersect.empty()) {
-                    ExprVector newLeft;
-                    ExprVector newRight;
-                    std::set_difference(
-                        left->op_begin(), left->op_end(),
-                        intersect.begin(), intersect.end(),
-                        std::back_inserter(newLeft)
-                    );
-                    std::set_difference(
-                        right->op_begin(), right->op_end(),
-                        intersect.begin(), intersect.end(),
-                        std::back_inserter(newRight)
-                    );
-
-                    return this->And({
-                        AndExpr::Create(intersect.begin(), intersect.end()),
-                        this->Or({
-                            AndExpr::Create(newLeft.begin(), newLeft.end()),
-                            AndExpr::Create(newRight.begin(), newRight.end())
-                        })
-                    });
-                }
-            }
-        }
        
-        return OrExpr::Create(newOps.begin(), newOps.end());
+        return OrExpr::Create(newOps);
     }
 
     ExprPtr Xor(const ExprPtr& left, const ExprPtr& right) override

@@ -18,8 +18,9 @@ class VarRefExpr;
 class Variable final
 {
     friend class GazerContext;
+    friend class GazerContextImpl;
 
-    Variable(std::string name, Type& type);
+    Variable(llvm::StringRef name, Type& type);
 public:
     Variable(const Variable&) = delete;
     Variable& operator=(const Variable&) = delete;
@@ -44,10 +45,9 @@ llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Variable& variable);
 class VarRefExpr final : public Expr
 {
     friend class Variable;
+    friend class ExprStorage;
 private:
-    VarRefExpr(Variable* variable)
-        : Expr(Expr::VarRef, variable->getType()), mVariable(variable)
-    {}
+    VarRefExpr(Variable* variable);
 
 public:
     Variable& getVariable() const { return *mVariable; }

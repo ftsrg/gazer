@@ -13,18 +13,17 @@ class MatcherTest : public ::testing::Test
 protected:
     void SetUp() override
     {
-        symbols = std::make_unique<SymbolTable>();
-        builder = CreateExprBuilder();
+        builder = CreateExprBuilder(context);
 
-        A = symbols->create("A", BvType::get(32)).getRefExpr();
-        B = symbols->create("B", BoolType::get()).getRefExpr();
-        C = symbols->create("C", BvType::get(32)).getRefExpr();
-        D = symbols->create("D", BvType::get(32)).getRefExpr();
+        A = context.createVariable("A", BvType::Get(context, 32))->getRefExpr();
+        B = context.createVariable("B", BoolType::Get(context))->getRefExpr();
+        C = context.createVariable("C", BvType::Get(context, 32))->getRefExpr();
+        D = context.createVariable("D", BvType::Get(context, 32))->getRefExpr();
 
         // A + (undef * 5)
         E1 = builder->Add(
             A, builder->Mul(
-                builder->Undef(BvType::get(32)),
+                builder->Undef(BvType::Get(context, 32)),
                 builder->BvLit(5, 32)
             )
         );
@@ -45,8 +44,8 @@ protected:
     ExprRef<VarRefExpr> A, B, C, D;
     ExprRef<> E1, E2, E3;
 
-    std::unique_ptr<SymbolTable> symbols;
     std::unique_ptr<ExprBuilder> builder;
+    GazerContext context;
 };
 
 TEST_F(MatcherTest, MatchAndIgnore)

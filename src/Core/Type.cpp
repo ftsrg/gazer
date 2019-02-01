@@ -113,8 +113,8 @@ BvType& BvType::Get(GazerContext& context, unsigned width)
 
     auto result = pImpl->BvTypes.find(width);
     if (result == pImpl->BvTypes.end()) {
-        auto ptr = std::unique_ptr<BvType>(new BvType(context, width));
-        pImpl->BvTypes.emplace(width, std::move(ptr));
+        BvType* ptr = new BvType(context, width);
+        pImpl->BvTypes.emplace(width, ptr);
 
         return *ptr;
     }

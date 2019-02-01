@@ -6,9 +6,12 @@
 
 #include "gazer/Core/Type.h"
 
+#include <llvm/ADT/StringRef.h>
+
+#include <boost/intrusive_ptr.hpp>
+
 #include <memory>
 #include <string>
-#include <boost/intrusive_ptr.hpp>
 
 namespace llvm {
     class raw_ostream;
@@ -17,6 +20,15 @@ namespace llvm {
 namespace gazer
 {
 
+class Expr;
+class GazerContext;
+class GazerContextImpl;
+
+/// Intrusive reference counting pointer for expression types.
+template<class T = Expr> using ExprRef = boost::intrusive_ptr<T>;
+
+using ExprPtr = ExprRef<Expr>;
+
 /// \brief Base class for all gazer expressions.
 ///
 /// Expression subclass constructors are private. The intended way of 
@@ -24,6 +36,8 @@ namespace gazer
 /// of the subclasses or using an ExprBuilder.
 class Expr
 {
+    friend class ExprStorage;
+    friend class GazerContextImpl;
 public:
     enum ExprKind
     {
@@ -36,8 +50,8 @@ public:
         Not,
 
         // Cast
-        ZExt,
-        SExt,
+        ZExt,       ///< zero extend to another type
+        SExt,       ///< sign extend to another type
         Extract,
 
         // Binary arithmetic
@@ -131,9 +145,7 @@ public:
     static constexpr int LastExprKind = ArrayWrite;
 
 protected:
-    Expr(ExprKind kind, Type& type)
-        : mKind(kind), mType(type), mRefCount(0)
-    {}
+    Expr(ExprKind kind, Type& type);
 
 public:
     Expr(const Expr&) = delete;
@@ -169,21 +181,29 @@ public:
         return FirstFpCompare <= mKind && mKind <= LastFpCompare;
     }
 
-    virtual void print(llvm::raw_ostream& os) const = 0;
+    bool hasSubclassData() const {
+        return mKind == Extract || this->isFpArithmetic();
+    }
 
+    /// Calculates a hash code for this expression.
+    std::size_t getHashCode() const;
+
+    virtual void print(llvm::raw_ostream& os) const = 0;
     virtual ~Expr() {}
 
 public:
-    static std::string getKindName(ExprKind kind);
+    static llvm::StringRef getKindName(ExprKind kind);
 
 private:
+    static void DeleteExpr(Expr* expr);
+
     friend void intrusive_ptr_add_ref(Expr* expr) {
         expr->mRefCount++;
     }
 
     friend void intrusive_ptr_release(Expr* expr) {
         if (--expr->mRefCount == 0) {
-            delete expr;
+             DeleteExpr(expr);
         }
     }
 
@@ -193,13 +213,10 @@ protected:
 
 private:
     mutable unsigned mRefCount;
+    Expr* mNextPtr = nullptr;
+    mutable size_t mHashCode = 0;
 };
 
-/// Intrusive reference counting pointer for expression types.
-template<class T = Expr>
-using ExprRef = boost::intrusive_ptr<T>;
-
-using ExprPtr = ExprRef<Expr>;
 using ExprVector = std::vector<ExprPtr>;
 
 template<class T = Expr>
@@ -239,15 +256,14 @@ public:
     static bool classof(const Expr* expr) {
         return expr->getKind() == Literal;
     }
-
-    virtual bool equals(const LiteralExpr& other) const = 0;
 };
 
 /// Base class for all expressions holding one or more operands.
 class NonNullaryExpr : public Expr
 {
+    friend class ExprStorage;
 protected:
-    NonNullaryExpr(ExprKind kind, Type& type, std::vector<ExprPtr> ops)
+    NonNullaryExpr(ExprKind kind, Type& type, const ExprVector& ops)
         : NonNullaryExpr(kind, type, ops.begin(), ops.end())
     {}
 
@@ -256,13 +272,17 @@ protected:
         : Expr(kind, type), mOperands(begin, end)
     {
         assert(mOperands.size() >= 1 && "Non-nullary expressions must have at least one operand.");
+        assert(std::none_of(begin, end, [](ExprPtr elem) { return elem == nullptr; })
+            && "Non-nullary expression operands cannot be null!"
+        );
     }
 
 protected:
+
     virtual ExprPtr cloneImpl(ExprVector ops) const = 0;
 
 public: 
-    virtual void print(llvm::raw_ostream& os) const override;
+    void print(llvm::raw_ostream& os) const override;
 
     /// Creates a clone of this expression, with the operands in \param ops.
     /// If the operand list of the given expression and the \param ops vector are the same,

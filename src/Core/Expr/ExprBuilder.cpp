@@ -73,10 +73,10 @@ public:
     }
 
     ExprPtr And(const ExprVector& vector) override {
-        return AndExpr::Create(vector.begin(), vector.end());
+        return AndExpr::Create(vector);
     }
     ExprPtr Or(const ExprVector& vector) override {
-        return OrExpr::Create(vector.begin(), vector.end());
+        return OrExpr::Create(vector);
     }
     ExprPtr Xor(const ExprPtr& left, const ExprPtr& right) override {
         return XorExpr::Create(left, right);

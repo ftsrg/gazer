@@ -17,63 +17,17 @@ public:
      * Handler for expression pointers.
      */
     virtual ReturnT visit(const ExprPtr& expr) {
-        #define HANDLE_EXPRCASE(KIND)                                       \
+        #define GAZER_EXPR_KIND(KIND)                                       \
             case Expr::KIND:                                                \
                 return this->visit##KIND(llvm::cast<KIND##Expr>(expr));     \
 
         switch (expr->getKind()) {
-            HANDLE_EXPRCASE(Undef)
-            HANDLE_EXPRCASE(Literal)
-            HANDLE_EXPRCASE(VarRef)
-            HANDLE_EXPRCASE(Not)
-            HANDLE_EXPRCASE(ZExt)
-            HANDLE_EXPRCASE(SExt)
-            HANDLE_EXPRCASE(Extract)
-            HANDLE_EXPRCASE(Add)
-            HANDLE_EXPRCASE(Sub)
-            HANDLE_EXPRCASE(Mul)
-            HANDLE_EXPRCASE(SDiv)
-            HANDLE_EXPRCASE(UDiv)
-            HANDLE_EXPRCASE(SRem)
-            HANDLE_EXPRCASE(URem)
-            HANDLE_EXPRCASE(Shl)
-            HANDLE_EXPRCASE(LShr)
-            HANDLE_EXPRCASE(AShr)
-            HANDLE_EXPRCASE(BAnd)
-            HANDLE_EXPRCASE(BOr)
-            HANDLE_EXPRCASE(BXor)
-            HANDLE_EXPRCASE(And)
-            HANDLE_EXPRCASE(Or)
-            HANDLE_EXPRCASE(Xor)
-            HANDLE_EXPRCASE(Eq)
-            HANDLE_EXPRCASE(NotEq)
-            HANDLE_EXPRCASE(SLt)
-            HANDLE_EXPRCASE(SLtEq)
-            HANDLE_EXPRCASE(SGt)
-            HANDLE_EXPRCASE(SGtEq)
-            HANDLE_EXPRCASE(ULt)
-            HANDLE_EXPRCASE(ULtEq)
-            HANDLE_EXPRCASE(UGt)
-            HANDLE_EXPRCASE(UGtEq)
-            HANDLE_EXPRCASE(FIsNan)
-            HANDLE_EXPRCASE(FIsInf)
-            HANDLE_EXPRCASE(FAdd)
-            HANDLE_EXPRCASE(FSub)
-            HANDLE_EXPRCASE(FMul)
-            HANDLE_EXPRCASE(FDiv)
-            HANDLE_EXPRCASE(FEq)
-            HANDLE_EXPRCASE(FGt)
-            HANDLE_EXPRCASE(FGtEq)
-            HANDLE_EXPRCASE(FLt)
-            HANDLE_EXPRCASE(FLtEq)
-            HANDLE_EXPRCASE(Select)
-            HANDLE_EXPRCASE(ArrayRead)
-            HANDLE_EXPRCASE(ArrayWrite)
+            #include "gazer/Core/Expr/ExprKind.inc"
         }
 
         llvm_unreachable("Unknown expression kind");
 
-        #undef HANDLE_EXPRCASE
+        #undef GAZER_EXPR_KIND
     }
 
     virtual ~ExprVisitor() {}

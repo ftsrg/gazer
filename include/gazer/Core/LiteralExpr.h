@@ -15,7 +15,7 @@ namespace gazer
 
 class UndefExpr final : public AtomicExpr
 {
-    friend class GazerContextImpl;
+    friend class ExprStorage;
 private:
     UndefExpr(Type& type)
         : AtomicExpr(Expr::Undef, type)
@@ -51,13 +51,13 @@ public:
         return value ? True(type) : False(type);
     }
 
-    virtual void print(llvm::raw_ostream& os) const override;
-    virtual bool equals(const LiteralExpr& other) const override;
+    void print(llvm::raw_ostream& os) const override;
 
     bool getValue() const { return mValue; }
     bool isTrue() const { return mValue == true; }
     bool isFalse() const { return mValue == false; }
 
+public:
     static bool classof(const Expr* expr) {
         return expr->getKind() == Literal && expr->getType().isBoolType();
     }
@@ -71,7 +71,7 @@ private:
 
 class IntLiteralExpr final : public LiteralExpr
 {
-    friend class GazerContextImpl;
+    friend class ExprStorage;
 private:
     IntLiteralExpr(IntType& type, int64_t value)
         : LiteralExpr(type), mValue(value)
@@ -82,7 +82,6 @@ public:
 
 public:
     virtual void print(llvm::raw_ostream& os) const override;
-    virtual bool equals(const LiteralExpr& other) const override;
 
     int64_t getValue() const { return mValue; }
 
@@ -99,6 +98,7 @@ private:
 
 class BvLiteralExpr final : public LiteralExpr
 {
+    friend class ExprStorage;
     friend class GazerContextImpl;
 private:
     BvLiteralExpr(BvType& type, llvm::APInt value)
@@ -108,7 +108,6 @@ private:
     }
 public:
     virtual void print(llvm::raw_ostream& os) const override;
-    virtual bool equals(const LiteralExpr& other) const override;
 
 public:
     static ExprRef<BvLiteralExpr> Get(BvType& type, llvm::APInt value);
@@ -134,14 +133,13 @@ private:
 
 class FloatLiteralExpr final : public LiteralExpr
 {
-    friend class GazerContextImpl;
+    friend class ExprStorage;
 private:
-    FloatLiteralExpr(FloatType& type, const llvm::APFloat& value)
+    FloatLiteralExpr(FloatType& type, llvm::APFloat value)
         : LiteralExpr(type), mValue(value)
     {}
 public:
-    virtual void print(llvm::raw_ostream& os) const override;
-    virtual bool equals(const LiteralExpr& other) const override;
+    void print(llvm::raw_ostream& os) const override;
 
     static ExprRef<FloatLiteralExpr> Get(FloatType& type, const llvm::APFloat& value);
 
