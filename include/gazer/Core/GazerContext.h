@@ -18,6 +18,9 @@ class GazerContext
 public:
     GazerContext();
 
+    GazerContext(const GazerContext&) = delete;
+    GazerContext& operator=(const GazerContext&) = delete;
+
     ~GazerContext();
 
 public:

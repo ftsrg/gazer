@@ -55,7 +55,7 @@ void Expr::DeleteExpr(gazer::Expr *expr)
 {
     assert(expr != nullptr && "Attempting to remove null expression!");
 
-    if (llvm::isa<BoolLiteralExpr>(expr) || expr->getKind() == Expr::VarRef) {
+    if (llvm::isa<BoolLiteralExpr>(expr)) {
         // These expression classes are allocated separately from the rest,
         // therefore they need to be cleaned up differently.
         delete expr;

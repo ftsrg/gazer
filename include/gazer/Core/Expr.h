@@ -202,8 +202,9 @@ private:
     }
 
     friend void intrusive_ptr_release(Expr* expr) {
+        assert(expr->mRefCount > 0 && "Attempting to decrease a zero ref counter!");
         if (--expr->mRefCount == 0) {
-             DeleteExpr(expr);
+            Expr::DeleteExpr(expr);
         }
     }
 

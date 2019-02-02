@@ -41,11 +41,11 @@ protected:
         });
     }
 
+    GazerContext context;
     ExprRef<VarRefExpr> A, B, C, D;
     ExprRef<> E1, E2, E3;
 
     std::unique_ptr<ExprBuilder> builder;
-    GazerContext context;
 };
 
 TEST_F(MatcherTest, MatchAndIgnore)

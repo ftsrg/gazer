@@ -6,8 +6,9 @@
 using namespace gazer;
 
 Variable::Variable(llvm::StringRef name, Type& type)
-    : mName(name), mType(type), mExpr(type.getContext().pImpl->Exprs.create<VarRefExpr>(this))
+    : mName(name), mType(type)
 {
+    mExpr = type.getContext().pImpl->Exprs.create<VarRefExpr>(this);
 }
 
 VarRefExpr::VarRefExpr(Variable* variable)

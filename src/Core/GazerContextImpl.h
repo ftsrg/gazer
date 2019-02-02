@@ -7,6 +7,7 @@
 #include "gazer/Core/LiteralExpr.h"
 #include "gazer/Core/ExprTypes.h"
 #include "gazer/Support/DenseMapKeyInfo.h"
+#include "gazer/Support/Debug.h"
 
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/Hashing.h>
@@ -202,6 +203,8 @@ class ExprStorage
             : Ptr(nullptr)
         {}
 
+        Bucket(const Bucket&) = delete;
+
         Expr* Ptr;
     };
 
@@ -244,6 +247,10 @@ public:
     }
 
     void destroy(Expr* expr);
+
+    /// Removes unreferenced expression nodes from the table
+    void purgeUnused();
+
     void rehashTable(size_t newSize);
 
 private:
@@ -252,9 +259,9 @@ private:
     ExprRef<ExprTy> createIfNotExists(ConstructorArgs&&... args)
     {
         auto hash = expr_hasher<ExprTy>::hash_value(args...);
-        Bucket& bucket = this->getBucketForHash(hash);
+        Bucket* bucket = &getBucketForHash(hash);
 
-        Expr* current = bucket.Ptr;
+        Expr* current = bucket->Ptr;
         while (current != nullptr) {
             if (expr_hasher<ExprTy>::equals(current, args...)) {
                 return ExprRef<ExprTy>(llvm::cast<ExprTy>(current));
@@ -263,24 +270,38 @@ private:
             current = current->mNextPtr;
         }
 
-        size_t numNewEntries = mEntryCount + 1;
-        if (numNewEntries * 4 >= mBucketCount * 3) {
+        if (needsRehash(mEntryCount + 1)) {
             this->rehashTable(mBucketCount * 2);
+
+            // Rehashing invalidated the previously calculated bucket,
+            // so we need to get it again.
+            bucket = &getBucketForHash(hash);
         }
 
         ExprTy* expr = new ExprTy(args...);
         expr->mHashCode = hash;
 
+        GAZER_DEBUG(
+            llvm::errs()
+                << "[ExprStorage] Created new "
+                << Expr::getKindName(expr->getKind())
+                << " address " << expr << "\n"
+        );
+
         ++mEntryCount;
 
-        expr->mNextPtr = bucket.Ptr;
-        bucket.Ptr = expr;
+        expr->mNextPtr = bucket->Ptr;
+        bucket->Ptr = expr;
 
         return ExprRef<ExprTy>(expr);
     };
 
-    Bucket& getBucketForHash(size_t hash) {
+    Bucket& getBucketForHash(size_t hash) const {
         return mStorage[hash % mBucketCount];
+    }
+
+    bool needsRehash(size_t entries) const {
+        return entries * 4 >= mBucketCount * 3;
     }
 
 private:
@@ -302,15 +323,12 @@ public:
     std::unordered_map<unsigned, std::unique_ptr<BvType>> BvTypes;
     FloatType FpHalfTy, FpSingleTy, FpDoubleTy, FpQuadTy;
 
-    //-------------------- Variables --------------------//
-    // This map contains all variables created by this context, with FQNs as the map key.
-    llvm::StringMap<std::unique_ptr<Variable>> VariableTable;
-
     //------------------- Expressions -------------------//
+    ExprStorage Exprs;
+    llvm::StringMap<std::unique_ptr<Variable>> VariableTable;
     ExprRef<BoolLiteralExpr> TrueLit, FalseLit;
 
     // This set will contain all expressions created by this context.
-    ExprStorage Exprs;
 
     ~GazerContextImpl();
 };
