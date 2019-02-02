@@ -6,11 +6,6 @@
 
 #include <unordered_set>
 
-// PURGE_ON_REHASH
-#ifndef GAZER_CONFIG_PURGE_ON_REHASH
-#define GAZER_CONFIG_PURGE_ON_REHASH true
-#endif
-
 // TODO: Move this.
 #ifdef GAZER_ENABLE_DEBUG
 bool ::gazer::IsDebugEnabled = true;
@@ -50,12 +45,6 @@ Variable* GazerContext::getVariable(llvm::StringRef name)
 
 void ExprStorage::destroy(Expr *expr)
 {
-    GAZER_DEBUG(
-        llvm::errs()
-            << "[ExprStorage] Destroy called on "
-            << Expr::getKindName(expr->getKind())
-            << " address " << expr << "\n"
-    );
     Bucket& bucket = getBucketForHash(expr->getHashCode());
 
     // If this was the first element in the bucket
@@ -105,32 +94,6 @@ void ExprStorage::rehashTable(size_t newSize)
     mStorage = newStorage;
 }
 
-void ExprStorage::purgeUnused()
-{
-    GAZER_DEBUG(llvm::errs() << "[ExprStorage] Purge called! Elems=" << mEntryCount << "\n");
-    for (size_t i = 0; i < mBucketCount; ++i) {
-        Bucket& bucket = mStorage[i];
-
-        Expr* prev = nullptr;
-        Expr* current = bucket.Ptr;
-        while (current != nullptr) {
-            Expr* next = current->mNextPtr;
-
-            if (current->mRefCount == 0) {
-                delete current;
-                if (prev != nullptr) {
-                    prev->mNextPtr = next;
-                }
-                --mEntryCount;
-            }
-
-            prev = current;
-            current = next;
-        }
-    }
-    GAZER_DEBUG(llvm::errs() << "[ExprStorage] Purge finished. Elems=" << mEntryCount << "\n");
-}
-
 ExprStorage::~ExprStorage()
 {
     // Free each expression stored in the buckets
@@ -140,7 +103,9 @@ ExprStorage::~ExprStorage()
         Expr* current = bucket.Ptr;
 
         while (current != nullptr) {
-            GAZER_DEBUG(llvm::errs() << "[ExprStorage] Leaking expression! " << current << "\n");
+            GAZER_DEBUG(llvm::errs()
+                << "[ExprStorage] Leaking expression! "
+                << current << "\n");
             Expr* next = current->mNextPtr;
             delete current;
             current = next;
@@ -148,6 +113,12 @@ ExprStorage::~ExprStorage()
     }
 
     delete[] mStorage;
+}
+
+//-------------------------------- Resources --------------------------------//
+void GazerContext::addManagedResouce(ManagedResource* resource)
+{
+    this->pImpl->ManagedResources.emplace_back(resource);
 }
 
 GazerContextImpl::GazerContextImpl(GazerContext& ctx)

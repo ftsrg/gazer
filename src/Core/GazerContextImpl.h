@@ -218,8 +218,11 @@ public:
 
     ~ExprStorage();
 
-    template<class ExprTy, class... SubclassData>
-    ExprRef<ExprTy> create(Type &type, std::initializer_list<ExprPtr> init, SubclassData&&... data)
+    template<
+        class ExprTy,
+        class = std::enable_if<std::is_base_of<NonNullaryExpr, ExprTy>::value>,
+        class... SubclassData
+    > ExprRef<ExprTy> create(Type &type, std::initializer_list<ExprPtr> init, SubclassData&&... data)
     {
         return createRange<ExprTy>(type, init.begin(), init.end(), data...);
     }
@@ -247,9 +250,6 @@ public:
     }
 
     void destroy(Expr* expr);
-
-    /// Removes unreferenced expression nodes from the table
-    void purgeUnused();
 
     void rehashTable(size_t newSize);
 
@@ -313,8 +313,11 @@ private:
 class GazerContextImpl
 {
     friend class GazerContext;
-
     explicit GazerContextImpl(GazerContext& ctx);
+
+public:
+    ~GazerContextImpl();
+
 public:
     //---------------------- Types ----------------------//
     BoolType BoolTy;
@@ -328,9 +331,11 @@ public:
     llvm::StringMap<std::unique_ptr<Variable>> VariableTable;
     ExprRef<BoolLiteralExpr> TrueLit, FalseLit;
 
-    // This set will contain all expressions created by this context.
+private:
+    //---------------------- Others ----------------------//
+    std::vector<std::unique_ptr<ManagedResource>> ManagedResources;
 
-    ~GazerContextImpl();
+    // This set will contain all expressions created by this context.
 };
 
 } // end namespace gazer
