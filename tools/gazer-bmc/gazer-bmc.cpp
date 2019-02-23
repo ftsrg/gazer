@@ -123,7 +123,7 @@ int main(int argc, char* argv[])
     pm->add(new BasicAAWrapperPass());
     pm->add(new GlobalsAAWrapperPass());
     pm->add(new MemorySSAWrapperPass());
-    //pm->add(new MemoryObjectPass());
+    pm->add(new MemoryObjectPass());
 
     if (RunBmc) {
         pm->add(llvm::createCFGSimplificationPass());

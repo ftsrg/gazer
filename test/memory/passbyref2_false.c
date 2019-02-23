@@ -14,7 +14,15 @@ int main(void)
     klee_make_symbolic(&loc, sizeof(loc), "loc");
 
     for (int i = 0; i < 5; ++i) {
-        update(&c);
+        int cond = __VERIFIER_nondet_int();
+        int* p;
+        if (cond) {
+            p = &c;
+        } else {
+            p = &loc;
+        }
+
+        *p = __VERIFIER_nondet_int();
         loc = loc + c;
     }
 

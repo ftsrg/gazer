@@ -1,5 +1,5 @@
-#ifndef _GAZER_LLVM_BMC_BMC_H
-#define _GAZER_LLVM_BMC_BMC_H
+#ifndef GAZER_LLVM_BMC_BMC_H
+#define GAZER_LLVM_BMC_BMC_H
 
 #include "gazer/Core/Solver/Solver.h"
 #include "gazer/LLVM/Analysis/TopologicalSort.h"
@@ -12,6 +12,8 @@
 
 namespace gazer
 {
+
+class MemoryModel;
 
 /**
  * Implements a simple bounded model checker algorithm.
@@ -27,6 +29,7 @@ public:
         TopologicalSort& topo,
         GazerContext& context,
         ExprBuilder* builder,
+        MemoryModel& memoryModel,
         SolverFactory& solverFactory,
         llvm::raw_ostream& os = llvm::nulls()
     );
@@ -62,7 +65,7 @@ private:
     using VariableToValueMapT = llvm::DenseMap<Variable*, llvm::Value*>;
     VariableToValueMapT mVariableToValueMap;
 
-    InstToExpr::ValueToVariableMapT mVariables;
+    ValueToVariableMap mVariables;
 
     using FormulaCacheT = llvm::DenseMap<llvm::BasicBlock*, ExprPtr>;
     FormulaCacheT mFormulaCache;

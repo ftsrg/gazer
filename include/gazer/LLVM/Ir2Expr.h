@@ -1,5 +1,5 @@
-#ifndef _GAZER_LLVM_IR2EXPR_H
-#define _GAZER_LLVM_IR2EXPR_H
+#ifndef GAZER_LLVM_IR2EXPR_H
+#define GAZER_LLVM_IR2EXPR_H
 
 #include "gazer/Core/Expr.h"
 #include "gazer/Core/SymbolTable.h"
@@ -11,16 +11,19 @@
 namespace gazer
 {
 
+using ValueToVariableMap = llvm::DenseMap<const llvm::Value*, Variable*>;
+
+class MemoryModel;
+
 class InstToExpr
 {
-public:
-    using ValueToVariableMapT = llvm::DenseMap<const llvm::Value*, Variable*>;
 public:
     InstToExpr(
         llvm::Function& function,
         GazerContext& context,
         ExprBuilder* builder,
-        ValueToVariableMapT& variables,
+        ValueToVariableMap& variables,
+        MemoryModel& memoryModel,
         llvm::DenseMap<llvm::Value*, ExprPtr>& eliminatedValues
     );
 
@@ -29,7 +32,7 @@ public:
 
     ExprBuilder* getBuilder() const { return mExprBuilder; }
 
-    const ValueToVariableMapT& getVariableMap() const { return mVariables; }
+    const ValueToVariableMap& getVariableMap() const { return mVariables; }
 
 public:
     ExprPtr visitBinaryOperator(llvm::BinaryOperator &binop);
@@ -63,12 +66,13 @@ private:
 
 private:
     llvm::Function& mFunction;
+
     GazerContext& mContext;
-    ValueToVariableMapT& mVariables;
     ExprBuilder* mExprBuilder;
+
+    ValueToVariableMap& mVariables;
+    MemoryModel& mMemoryModel;
     llvm::DenseMap<llvm::Value*, ExprPtr>& mEliminatedValues;
-    //Variable& mStack;
-    //Variable& mHeap;
 };
 
 }

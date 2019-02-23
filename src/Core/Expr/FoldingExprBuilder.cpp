@@ -186,6 +186,8 @@ public:
         for (const ExprPtr& op : vector) {
             if (op->getKind() == Expr::Literal) {
                 auto lit = llvm::dyn_cast<BoolLiteralExpr>(op.get());
+
+                assert(lit != nullptr && "Operands for ANDs should be booleans!");
                 if (lit->getValue() == false) {
                     return this->False();
                 } else {

@@ -29,7 +29,7 @@ public:
         const TopologicalSort& topo,
         const llvm::DenseMap<llvm::BasicBlock*, size_t>& blocks,
         const llvm::DenseMap<llvm::BasicBlock*, ExprPtr>& preds,
-        const InstToExpr::ValueToVariableMapT& valueMap,
+        const ValueToVariableMap& valueMap,
         llvm::BasicBlock* errorBlock
     ) :
     mContext(context),
@@ -51,7 +51,7 @@ private:
     const TopologicalSort& mTopo;
     const llvm::DenseMap<llvm::BasicBlock*, size_t> mBlocks;
     const llvm::DenseMap<llvm::BasicBlock*, ExprPtr>& mPreds;
-    const InstToExpr::ValueToVariableMapT& mValueMap;
+    const ValueToVariableMap& mValueMap;
     llvm::BasicBlock* mErrorBlock;
 };
 

@@ -1,6 +1,7 @@
 #include "gazer/LLVM/Ir2Expr.h"
 
 #include "gazer/Core/Type.h"
+#include "gazer/Analysis/MemoryModel.h"
 
 #include <llvm/IR/InstIterator.h>
 #include <llvm/Support/CommandLine.h>
@@ -43,6 +44,8 @@ gazer::Type& InstToExpr::typeFromLLVMType(const llvm::Type* type)
         return FloatType::Get(mContext, FloatType::Double);
     } else if (type->isFP128Ty()) {
         return FloatType::Get(mContext, FloatType::Quad);
+    } else if (type->isPointerTy()) {
+        return mMemoryModel.getTypeFromPointerType(llvm::cast<llvm::PointerType>(type));
     }
 
     assert(false && "Unsupported LLVM type.");
@@ -68,13 +71,15 @@ static bool isNonConstValue(const llvm::Value* value) {
 
 InstToExpr::InstToExpr(
     Function& function,
-    GazerContext& symbols,
+    GazerContext& context,
     ExprBuilder* builder,
-    ValueToVariableMapT& variables,
+    ValueToVariableMap& variables,
+    MemoryModel& memoryModel,
     llvm::DenseMap<llvm::Value*, ExprPtr>& eliminatedValues
 )
-    : mFunction(function), mContext(symbols), 
+    : mFunction(function), mContext(context),
     mExprBuilder(builder), mVariables(variables),
+    mMemoryModel(memoryModel),
     mEliminatedValues(eliminatedValues)
    // mStack(stack), mHeap(heap)
 {
@@ -97,6 +102,8 @@ InstToExpr::InstToExpr(
             mVariables[&instr] = variable;
         }
     }
+
+    mMemoryModel.initialize(function, mVariables);
 }
 
 ExprPtr InstToExpr::transform(llvm::Instruction& inst, size_t succIdx, BasicBlock* pred)
@@ -118,8 +125,8 @@ ExprPtr InstToExpr::transform(llvm::Instruction& inst, size_t succIdx, BasicBloc
 ExprPtr InstToExpr::transform(llvm::Instruction& inst)
 {
     #define HANDLE_INST(OPCODE, NAME)                                   \
-        else if (inst.getOpcode() == (OPCODE)) {                          \
-            return visit##NAME(*llvm::cast<llvm::NAME>(&inst));       \
+        else if (inst.getOpcode() == (OPCODE)) {                        \
+            return visit##NAME(*llvm::cast<llvm::NAME>(&inst));         \
         }                                                               \
 
     if (inst.isBinaryOp()) {
@@ -132,6 +139,9 @@ ExprPtr InstToExpr::transform(llvm::Instruction& inst)
     HANDLE_INST(Instruction::FCmp, FCmpInst)
     HANDLE_INST(Instruction::Select, SelectInst)
     HANDLE_INST(Instruction::GetElementPtr, GetElementPtrInst)
+    HANDLE_INST(Instruction::Load, LoadInst)
+    HANDLE_INST(Instruction::Alloca, AllocaInst)
+    HANDLE_INST(Instruction::Store, StoreInst)
 
     #undef HANDLE_INST
 
@@ -395,6 +405,9 @@ ExprPtr InstToExpr::integerCast(llvm::CastInst& cast, ExprPtr operand, unsigned 
 ExprPtr InstToExpr::visitCastInst(llvm::CastInst& cast)
 {
     auto castOp = operand(cast.getOperand(0));
+    if (cast.getOperand(0)->getType()->isPointerTy()) {
+        return mMemoryModel.handlePointerCast(cast, castOp);
+    }
 
     if (castOp->getType().isBoolType()) {
         return integerCast(cast, castOp, 1);
@@ -402,13 +415,6 @@ ExprPtr InstToExpr::visitCastInst(llvm::CastInst& cast)
         return integerCast(
             cast, castOp, dyn_cast<BvType>(&castOp->getType())->getWidth()
         );
-    }
-
-    if (cast.getOpcode() == Instruction::BitCast) {
-        auto castTy = cast.getType();
-        // Bitcast is no-op, just changes the type.
-        // For pointer operands, this means a simple pointer cast.
-        // TODO
     }
 
     assert(false && "Unsupported cast operation");
@@ -511,42 +517,19 @@ ExprPtr InstToExpr::handleSwitch(llvm::SwitchInst& swi, size_t succIdx)
     return mExprBuilder->Eq(condition, value);
 }
 
-//----- Memory operations -----//
-ExprPtr InstToExpr::visitStoreInst(llvm::StoreInst& store)
-{
-    // TODO: For now, we assume only heap operations
-    auto value = operand(store.getOperand(0));
-}
-
 ExprPtr InstToExpr::visitLoadInst(llvm::LoadInst& load)
 {
-    auto result = getVariable(&load);
-    auto index  = operand(load.getOperand(0));
+    return mMemoryModel.handleLoad(load);
+}
 
-    if (load.getType()->isIntegerTy()) {
-        auto intTy = llvm::cast<llvm::IntegerType>(load.getType());
-        if (intTy->getBitWidth() > 8) {
-            // A load to an Int32 will be represented as:
-            //  x[0..7] = M[addr], x[8..15] = M[addr + 1], etc.
-            
-            // TODO: Is this correct for all cases?
-            ExprVector exprs;
-            /*
-            for (unsigned i = 0, j = 0; i < intTy->getBitWidth(); i += 8, ++j) {
-                exprs.push_back(mExprBuilder->Eq(
-                    mExprBuilder->Extract(result->getRefExpr(), i, 8),
-                    ArrayReadExpr::Create(
-                        mHeap.getRefExpr(),
-                        mExprBuilder->Add(index, mExprBuilder->BvLit(j, 32))
-                    )
-                ));
-            } */
-            
-            return mExprBuilder->And(exprs);
-        }
-    }
+ExprPtr InstToExpr::visitStoreInst(llvm::StoreInst& store)
+{
+    return mMemoryModel.handleStore(store);
+}
 
-    assert(false && "Only integer arrays are supported");
+ExprPtr InstToExpr::visitAllocaInst(llvm::AllocaInst& alloca)
+{
+    return mMemoryModel.handleAlloca(alloca);
 }
 
 ExprPtr InstToExpr::visitGetElementPtrInst(llvm::GetElementPtrInst& gep)

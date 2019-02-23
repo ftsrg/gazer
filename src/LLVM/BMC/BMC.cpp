@@ -2,6 +2,7 @@
 #include "gazer/Core/Utils/ExprUtils.h"
 #include "gazer/Support/Stopwatch.h"
 #include "gazer/Core/Expr/ExprSimplify.h"
+#include "gazer/Analysis/MemoryModel.h"
 
 #include <llvm/IR/CFG.h>
 #include <llvm/IR/InstIterator.h>
@@ -89,12 +90,13 @@ BoundedModelChecker::BoundedModelChecker(
     TopologicalSort& topo,
     GazerContext& context,
     ExprBuilder* exprBuilder,
+    MemoryModel& memoryModel,
     SolverFactory& solverFactory,
     llvm::raw_ostream& os
 ) :
     mFunction(function), mTopo(topo), mSolverFactory(solverFactory), mOS(os),
     mContext(context), mExprBuilder(exprBuilder),
-    mIr2Expr(function, mContext, mExprBuilder, mVariables, mEliminatedVars)
+    mIr2Expr(function, mContext, mExprBuilder, mVariables, memoryModel, mEliminatedVars)
 {}
 
 auto BoundedModelChecker::encode() -> ProgramEncodeMapT
@@ -131,7 +133,6 @@ auto BoundedModelChecker::encode() -> ProgramEncodeMapT
         BasicBlock* bb = mTopo[i];
         llvm::SmallVector<ExprPtr, 2> exprs;
         llvm::SmallVector<BasicBlock*, 2> preds(llvm::pred_begin(bb), llvm::pred_end(bb));
-
 
         ExprPtr predExpr = nullptr;
         Variable* predVar = nullptr;
