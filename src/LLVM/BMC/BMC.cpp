@@ -46,6 +46,9 @@ static bool isErrorBlock(const BasicBlock* bb)
         if (instr.getOpcode() == llvm::Instruction::Call) {
             auto call = llvm::dyn_cast<llvm::CallInst>(&instr);
             llvm::Function* callee = call->getCalledFunction();
+            if (callee == nullptr) {
+                continue;
+            }
 
             if (isErrorFunctionName(callee->getName())) {
                 return true;

@@ -30,12 +30,13 @@ public:
     virtual ExprRef<> handleStore(llvm::StoreInst& store) = 0;
     virtual ExprRef<> handleLoad(llvm::LoadInst& load) = 0;
     virtual ExprRef<> handleCall(llvm::CallInst& call) = 0;
-    virtual ExprRef<> handleGetElementPtr(llvm::GetElementPtrInst& gep) = 0;
+    virtual ExprRef<> handleGetElementPtr(llvm::GetElementPtrInst& gep, const ExprVector& operands) = 0;
 
     virtual ExprRef<> handlePointerCast(llvm::CastInst& cast, ExprRef<> operand) = 0;
     virtual ExprRef<> handlePointerValue(llvm::Value* ptr) = 0;
 
     virtual Type& getTypeFromPointerType(const llvm::PointerType* type) = 0;
+    virtual ExprRef<> getNullPointer() const = 0;
 
     virtual ~MemoryModel() = default;
 

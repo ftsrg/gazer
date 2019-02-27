@@ -30,8 +30,7 @@ class ExpressionPropagator : public ExprVisitor<ExprPtr>
     using PropagationTable = llvm::DenseMap<Variable*, PropagationTableEntry>;
 
 public:
-    ExprPtr visit(const ExprPtr &expr) override
-    {
+    ExprPtr visit(const ExprPtr &expr) override {
         if (mCurrentDepth > mDepthLimit) {
             return expr;
         }
@@ -40,8 +39,7 @@ public:
     }
 
 protected:
-    ExprPtr visitExpr(const ExprPtr &expr) override
-    {
+    ExprPtr visitExpr(const ExprPtr &expr) override {
         return expr;
     }
 

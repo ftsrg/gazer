@@ -15,8 +15,13 @@ public:
         : FunctionPass(ID)
     {}
 
-    virtual void getAnalysisUsage(llvm::AnalysisUsage& au) const override;
-    virtual bool runOnFunction(llvm::Function& function) override;
+    void getAnalysisUsage(llvm::AnalysisUsage& au) const override;
+    bool runOnFunction(llvm::Function& function) override;
+
+    llvm::StringRef getPassName() const override {
+        return "Bounded model cheking";
+    }
+
 private:
 };
 

@@ -38,6 +38,10 @@ public:
                 if (it->getOpcode() == llvm::Instruction::Call) {
                     auto call = llvm::dyn_cast<llvm::CallInst>(&*it);
                     llvm::Function* callee = call->getCalledFunction();
+                    if (callee == nullptr) {
+                        ++it;
+                        continue;
+                    }
 
                     // Replace error calls with an unconditional jump
                     // to an error block

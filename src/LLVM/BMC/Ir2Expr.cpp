@@ -5,6 +5,7 @@
 
 #include <llvm/IR/InstIterator.h>
 #include <llvm/Support/CommandLine.h>
+#include <llvm/Support/Debug.h>
 
 using namespace gazer;
 
@@ -17,6 +18,8 @@ using llvm::GlobalVariable;
 using llvm::ConstantInt;
 using llvm::isa;
 using llvm::dyn_cast;
+
+#define DEBUG_TYPE "inst2expr"
 
 namespace gazer {
     extern llvm::cl::opt<bool> AssumeNoNaN;
@@ -103,6 +106,7 @@ InstToExpr::InstToExpr(
         }
     }
 
+    // Initialize other variables the memory model might introduce
     mMemoryModel.initialize(function, mVariables);
 }
 
@@ -124,6 +128,7 @@ ExprPtr InstToExpr::transform(llvm::Instruction& inst, size_t succIdx, BasicBloc
 
 ExprPtr InstToExpr::transform(llvm::Instruction& inst)
 {
+    LLVM_DEBUG(llvm::dbgs() << "  Transforming instruction " << inst << "\n");
     #define HANDLE_INST(OPCODE, NAME)                                   \
         else if (inst.getOpcode() == (OPCODE)) {                        \
             return visit##NAME(*llvm::cast<llvm::NAME>(&inst));         \
@@ -423,6 +428,11 @@ ExprPtr InstToExpr::visitCastInst(llvm::CastInst& cast)
 ExprPtr InstToExpr::visitCallInst(llvm::CallInst& call)
 {
     const Function* callee = call.getCalledFunction();
+    if (callee == nullptr) {
+        // This is an indirect call, use the memory model to resolve it.
+        return mMemoryModel.handleCall(call);
+    }
+
     assert(callee != nullptr && "Indirect calls are not supported.");
 
     if (callee->isDeclaration()) {
@@ -534,12 +544,14 @@ ExprPtr InstToExpr::visitAllocaInst(llvm::AllocaInst& alloca)
 
 ExprPtr InstToExpr::visitGetElementPtrInst(llvm::GetElementPtrInst& gep)
 {
-    ExprPtr expr = operand(gep.getOperand(0));
-    for (size_t i = 1; i < gep.getNumOperands(); ++i) {
-        expr = mExprBuilder->Add(expr, operand(gep.getOperand(i)));
-    }
+    ExprVector exprs;
+    std::transform(
+        gep.op_begin(), gep.op_end(),
+        std::back_inserter(exprs),
+        [this] (const llvm::Value* val) { return operand(val); }
+    );
 
-    return expr;
+    return mMemoryModel.handleGetElementPtr(gep, exprs);
 }
 
 //----- Utils and casting -----//
@@ -561,6 +573,8 @@ ExprPtr InstToExpr::operand(const Value* value)
             *llvm::dyn_cast<FloatType>(&typeFromLLVMType(cfp->getType())),
             cfp->getValueAPF()
         );
+    } else if (const llvm::ConstantPointerNull* ptr = dyn_cast<llvm::ConstantPointerNull>(value)) {
+        return mMemoryModel.getNullPointer();
     } else if (isNonConstValue(value)) {
         auto result = mEliminatedValues.find(value);
         if (result != mEliminatedValues.end()) {
@@ -571,6 +585,7 @@ ExprPtr InstToExpr::operand(const Value* value)
     } else if (isa<llvm::UndefValue>(value)) {
         return mExprBuilder->Undef(typeFromLLVMType(value));
     } else {
+        LLVM_DEBUG(llvm::dbgs() << "  Unhandled value for operand: " << *value << "\n");
         assert(false && "Unhandled value type");
     }
 }

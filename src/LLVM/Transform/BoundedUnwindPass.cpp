@@ -37,7 +37,7 @@ static bool UnwindLoop(
     LoopInfo* loopInfo,
     LoopQueueT& loopsToUnroll)
 {
-    //llvm::errs() << "Unwind loop: " << *loop << "\n";
+    LLVM_DEBUG(llvm::dbgs() << "Unwind loop: " << *loop << "\n");
 
     // Get some basic info about the loop
     BasicBlock* preheader = loop->getLoopPreheader();
@@ -78,7 +78,7 @@ static bool UnwindLoop(
     auto blockEnd = dfs.endRPO();
 
     for (int cnt = 1; cnt <= bound; ++cnt) {
-        //llvm::errs() << "Unrolling cnt " << cnt << "\n";
+        LLVM_DEBUG(llvm::dbgs() << "  Unrolling count=" << cnt << "\n");
         llvm::SmallDenseMap<BasicBlock*, BasicBlock*, 4> newBlocks;
         llvm::SmallDenseMap<BasicBlock*, ValueToValueMapTy*, 4> valueMaps;
 
@@ -225,10 +225,9 @@ void BoundedUnwindPass::getAnalysisUsage(AnalysisUsage& au) const
 
 bool BoundedUnwindPass::runOnFunction(Function& function)
 {
-    //errs() << "Unrolling loops for bound " << mBound << ".\n";
+    errs() << "Unrolling loops for bound " << mBound << ".\n";
     LoopInfo& loopInfo = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
     llvm::SmallVector<Loop*, 4> loopsToUnroll(loopInfo.rbegin(), loopInfo.rend());
-    
 
     IRBuilder<> builder(function.getContext());
 

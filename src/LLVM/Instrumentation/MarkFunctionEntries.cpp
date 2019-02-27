@@ -64,8 +64,9 @@ public:
 
             for (ReturnInst* ret : returns) {
                 builder.SetInsertPoint(ret);
-                auto retValueTy = ret->getReturnValue()->getType();
-                if (!retValueTy->isVoidTy()) {
+                llvm::Value* retValue = ret->getReturnValue();
+                if (retValue != nullptr) {
+                    auto retValueTy = retValue->getType();
                     llvm::Constant* retMark = returnValueMarks[retValueTy];
                     if (retMark == nullptr) {
                         std::string nameBuffer;
@@ -78,10 +79,10 @@ public:
                         returnValueMarks[retValueTy] = retMark;
                     }
 
-                    auto md = ValueAsMetadata::get(ret->getReturnValue());
+                    auto md = ValueAsMetadata::get(retValue);
                     builder.CreateCall(retMark, {
                         MetadataAsValue::get(context, dsp),
-                        ret->getReturnValue()
+                        retValue
                     });
                 } else {
                     builder.CreateCall(retMarkVoid, {

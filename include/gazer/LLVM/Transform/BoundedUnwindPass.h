@@ -13,8 +13,11 @@ public:
 
     BoundedUnwindPass(unsigned bound = 1);
 
-    virtual void getAnalysisUsage(llvm::AnalysisUsage& au) const override;
-    virtual bool runOnFunction(llvm::Function& function) override;
+    void getAnalysisUsage(llvm::AnalysisUsage& au) const override;
+    bool runOnFunction(llvm::Function& function) override;
+    llvm::StringRef getPassName() const override {
+        return "Bounded unwinding";
+    }
 private:
     unsigned mBound;
 };

@@ -11,6 +11,7 @@
 namespace gazer
 {
 
+/// A dummy memory model which basically does nothing and havoc's all loads.
 class HavocMemoryModel : public MemoryModel
 {
 public:
@@ -18,6 +19,14 @@ public:
 
     void initialize(llvm::Function& function, ValueToVariableMap& vmap) override
     {
+        // Add global variables
+        for (llvm::GlobalVariable& gv : function.getParent()->globals()) {
+            Variable* variable = mContext.createVariable(
+                gv.getName(),
+                this->getTypeFromPointerType(gv.getType())
+            );
+            vmap[&gv] = variable;
+        }
     }
 
     ExprRef<> handleAlloca(llvm::AllocaInst& alloc) override {
@@ -36,7 +45,7 @@ public:
         return BoolLiteralExpr::True(mContext);
     }
 
-    ExprRef<> handleGetElementPtr(llvm::GetElementPtrInst& gep) override {
+    ExprRef<> handleGetElementPtr(llvm::GetElementPtrInst& gep, const ExprVector& operands) override {
         return BoolLiteralExpr::True(mContext);
     }
 
@@ -52,8 +61,18 @@ public:
         // Return just some bogus type.
         return BvType::Get(mContext, 1);
     }
+
+    ExprRef<> getNullPointer() const override {
+        return UndefExpr::Get(BvType::Get(mContext, 1));
+    }
 private:
     llvm::DenseMap<llvm::Instruction*, Variable*> mVariables;
+};
+
+/// A flat memory model which translates all variables on the heap into a single array.
+class FlatMemoryModel : public MemoryModel
+{
+public:
 };
 
 }
