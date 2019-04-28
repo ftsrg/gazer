@@ -13,6 +13,12 @@ bool ::gazer::IsDebugEnabled = true;
 bool ::gazer::IsDebugEnabled = false;
 #endif
 
+#ifndef NDEBUG
+#define GAZER_DEBUG_ASSERT(X) assert(X)
+#else
+#define GAZER_DEBUG_ASSERT(X)
+#endif
+
 using namespace gazer;
 
 GazerContext::GazerContext()
@@ -25,6 +31,8 @@ GazerContext::~GazerContext() {}
 
 Variable* GazerContext::createVariable(std::string name, Type &type)
 {
+    GAZER_DEBUG(llvm::errs() << "[GazerContext] Adding variable with name: '" << name << "'\n")
+    GAZER_DEBUG_ASSERT(pImpl->VariableTable.count(name) == 0);
     auto ptr = new Variable(name, type);
     pImpl->VariableTable[name] = std::unique_ptr<Variable>(ptr);
 
@@ -68,7 +76,7 @@ void ExprStorage::destroy(Expr *expr)
 
 void ExprStorage::rehashTable(size_t newSize)
 {
-    GAZER_DEBUG(llvm::errs() << "[ExprStorage] Extending table " << newSize << "\n");
+    GAZER_DEBUG(llvm::errs() << "[ExprStorage] Extending table " << newSize << "\n")
     Bucket* newStorage = new Bucket[newSize];
 
     size_t copied = 0;
@@ -105,7 +113,7 @@ ExprStorage::~ExprStorage()
         while (current != nullptr) {
             GAZER_DEBUG(llvm::errs()
                 << "[ExprStorage] Leaking expression! "
-                << current << "\n");
+                << current << "\n")
             Expr* next = current->mNextPtr;
             delete current;
             current = next;

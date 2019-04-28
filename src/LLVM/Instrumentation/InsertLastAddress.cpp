@@ -52,6 +52,7 @@ public:
 
     virtual bool runOnModule(Module& module)
     {
+#if 0
         auto& context = module.getContext();
         IRBuilder<> builder(context);
 
@@ -112,7 +113,7 @@ public:
                 llvm::ReplaceInstWithInst(call, newCall);
             }
         }
-
+#endif
         return true;
     }
 

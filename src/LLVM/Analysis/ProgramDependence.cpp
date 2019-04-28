@@ -59,11 +59,12 @@ ProgramDependenceGraph::Create(llvm::Function& function, llvm::PostDominatorTree
 
     // Calculate control dependencies
     for (BasicBlock& bb : function) {
-        auto successors = bb.getTerminator()->successors();
-        for (auto succ = successors.begin(); succ != successors.end(); ++succ) {
+        for (size_t succIdx = 0; succIdx < bb.getTerminator()->getNumSuccessors(); ++succIdx) {
+            auto succ = bb.getTerminator()->getSuccessor(succIdx);
+
             // Let S consist of all edges (A, B) in the control flow graph...
             BasicBlock *a = &bb;
-            BasicBlock *b = *succ;
+            BasicBlock *b = succ;
 
             // ...such that B is not an ancestor of A in the post-dominator tree
             if (!pdt.dominates(b, a)) {

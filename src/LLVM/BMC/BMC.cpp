@@ -32,6 +32,9 @@ namespace gazer {
     cl::opt<bool> NoExprSimplify("no-expr-simplify",
         cl::desc("Do not simplify expressions before passing them to the solver."));
 
+    cl::opt<bool> PrintSolverStats("print-solver-stats",
+        cl::desc("Print solver statistics"));
+
     extern cl::opt<bool> PrintTrace;
 }
 

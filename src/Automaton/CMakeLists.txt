@@ -1,5 +1,6 @@
 set(SOURCE_FILES
     Cfa.cpp
+    CfaPrinter.cpp
 )
 
 add_library(GazerAutomaton ${SOURCE_FILES})

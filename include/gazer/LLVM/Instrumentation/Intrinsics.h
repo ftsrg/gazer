@@ -28,17 +28,17 @@ public:
 
 public:
     /// Returns a 'gazer.function.entry(metadata fn_name, i8 num_args)' intrinsic.
-    static llvm::Constant* GetOrInsertFunctionEntry(llvm::Module& module);
+    static llvm::FunctionCallee GetOrInsertFunctionEntry(llvm::Module& module);
 
     /// Returns a 'gazer.function.return_void(metadata fn_name)' intrinsic.
-    static llvm::Constant* GetOrInsertFunctionReturnVoid(llvm::Module& module);
+    static llvm::FunctionCallee GetOrInsertFunctionReturnVoid(llvm::Module& module);
 
     /// Returns a 'gazer.function.call_returned(metadata fn_name)' intrinsic.
-    static llvm::Constant* GetOrInsertFunctionCallReturned(llvm::Module& module);
+    static llvm::FunctionCallee GetOrInsertFunctionCallReturned(llvm::Module& module);
 
     /// Returns a 'gazer.function.return_value.T(metadata fn_name, T retval)' intrinsic,
     /// where 'T' is the given return type.
-    static llvm::Constant* GetOrInsertFunctionReturnValue(llvm::Module& module, llvm::Type* type);
+    static llvm::FunctionCallee GetOrInsertFunctionReturnValue(llvm::Module& module, llvm::Type* type);
 };
 
 }

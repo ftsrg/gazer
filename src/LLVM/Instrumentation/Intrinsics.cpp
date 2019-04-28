@@ -4,7 +4,7 @@
 
 using namespace gazer;
 
-llvm::Constant* GazerIntrinsic::GetOrInsertFunctionEntry(llvm::Module& module)
+llvm::FunctionCallee GazerIntrinsic::GetOrInsertFunctionEntry(llvm::Module& module)
 {
     return module.getOrInsertFunction(
         FunctionEntryName,
@@ -14,7 +14,7 @@ llvm::Constant* GazerIntrinsic::GetOrInsertFunctionEntry(llvm::Module& module)
     );
 }
 
-llvm::Constant* GazerIntrinsic::GetOrInsertFunctionReturnVoid(llvm::Module& module)
+llvm::FunctionCallee GazerIntrinsic::GetOrInsertFunctionReturnVoid(llvm::Module& module)
 {
     return module.getOrInsertFunction(
         FunctionReturnVoidName,
@@ -23,7 +23,7 @@ llvm::Constant* GazerIntrinsic::GetOrInsertFunctionReturnVoid(llvm::Module& modu
     );
 }
 
-llvm::Constant* GazerIntrinsic::GetOrInsertFunctionCallReturned(llvm::Module& module)
+llvm::FunctionCallee GazerIntrinsic::GetOrInsertFunctionCallReturned(llvm::Module& module)
 {
     return module.getOrInsertFunction(
         FunctionCallReturnedName,
@@ -32,7 +32,7 @@ llvm::Constant* GazerIntrinsic::GetOrInsertFunctionCallReturned(llvm::Module& mo
     );
 }
 
-llvm::Constant* GazerIntrinsic::GetOrInsertFunctionReturnValue(llvm::Module& module, llvm::Type* type)
+llvm::FunctionCallee GazerIntrinsic::GetOrInsertFunctionReturnValue(llvm::Module& module, llvm::Type* type)
 {
     assert(type != nullptr);
 

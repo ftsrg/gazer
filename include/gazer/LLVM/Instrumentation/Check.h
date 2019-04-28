@@ -71,8 +71,8 @@ class CheckRegistry
     CheckRegistry(const CheckRegistry&) = delete;
     CheckRegistry& operator=(const CheckRegistry&) = delete;
 public:
-    static llvm::Constant* GetErrorFunction(llvm::Module& module);
-    static llvm::Constant* GetErrorFunction(llvm::Module* module) {
+    static llvm::FunctionCallee GetErrorFunction(llvm::Module& module);
+    static llvm::FunctionCallee GetErrorFunction(llvm::Module* module) {
         return GetErrorFunction(*module);
     }
 

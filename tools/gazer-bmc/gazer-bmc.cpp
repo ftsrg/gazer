@@ -8,6 +8,8 @@
 
 #include "gazer/LLVM/InstrumentationPasses.h"
 
+#include "gazer/LLVM/Automaton/ModuleToAutomata.h"
+
 #include "gazer/Analysis/MemoryObject.h"
 
 #include <llvm/IR/LLVMContext.h>
@@ -138,7 +140,7 @@ int main(int argc, char* argv[])
         pm->add(new llvm::ScalarEvolutionWrapperPass());
         pm->add(new llvm::AssumptionCacheTracker());
         
-        pm->add(new gazer::BoundedUnwindPass(bound));
+        // pm->add(new gazer::BoundedUnwindPass(bound));
         pm->add(llvm::createInstructionNamerPass());
 
         bool NeedsPDG = BackwardSlice || PrintPDG;
@@ -161,7 +163,7 @@ int main(int argc, char* argv[])
         //pm->add(gazer::createPromoteUndefsPass());
         //pm->add(llvm::createCFGSimplificationPass());
         //pm->add(createCombineErrorCallsPass());
-        pm->add(createTopologicalSortPass());
+        //pm->add(createTopologicalSortPass());
 
         if (ShowUnrolledCFG) {
             pm->add(llvm::createCFGPrinterLegacyPassPass());
@@ -172,7 +174,8 @@ int main(int argc, char* argv[])
         //if (PrintCFA) {
         //    pm->add(createCfaPrinterPass());
         //}
-        pm->add(new gazer::BmcPass());
+        //pm->add(new gazer::BmcPass());
+        pm->add(new gazer::ModuleToAutomataPass());
     }
 
     //pm->add(llvm::createCFGPrinterLegacyPassPass());

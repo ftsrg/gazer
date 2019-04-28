@@ -26,7 +26,7 @@ public:
     bool runOnModule(Module& module) override
     {
         LLVMContext& context = module.getContext();
-        llvm::DenseMap<llvm::Type*, llvm::Constant*> returnValueMarks;
+        llvm::DenseMap<llvm::Type*, llvm::Value*> returnValueMarks;
        
         auto mark = GazerIntrinsic::GetOrInsertFunctionEntry(module);
         auto retMarkVoid = GazerIntrinsic::GetOrInsertFunctionReturnVoid(module);        
@@ -67,7 +67,7 @@ public:
                 llvm::Value* retValue = ret->getReturnValue();
                 if (retValue != nullptr) {
                     auto retValueTy = retValue->getType();
-                    llvm::Constant* retMark = returnValueMarks[retValueTy];
+                    llvm::Value* retMark = returnValueMarks[retValueTy];
                     if (retMark == nullptr) {
                         std::string nameBuffer;
                         llvm::raw_string_ostream rso(nameBuffer);
@@ -75,7 +75,7 @@ public:
                         rso.flush();
 
                         // Insert a new function for this mark type
-                        retMark = GazerIntrinsic::GetOrInsertFunctionReturnValue(module, retValueTy);
+                        retMark = GazerIntrinsic::GetOrInsertFunctionReturnValue(module, retValueTy).getCallee();
                         returnValueMarks[retValueTy] = retMark;
                     }
 

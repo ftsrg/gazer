@@ -44,7 +44,7 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
         llvm::Type::getMetadataTy(module.getContext())
     }, false);
 
-    llvm::Constant* mark = module.getOrInsertFunction(
+    auto mark = module.getOrInsertFunction(
         "gazer.inlined_global.write", fType
     );
 
@@ -87,7 +87,7 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
                 if (auto inst = llvm::dyn_cast<StoreInst>(user)) {
                     llvm::Value* value = inst->getOperand(0);
                     CallInst* call = CallInst::Create(
-                        fType, mark, {
+                        fType, mark.getCallee(), {
                             MetadataAsValue::get(module.getContext(), ValueAsMetadata::get(value)),
                             MetadataAsValue::get(module.getContext(), diGlobalVariable)
                         }

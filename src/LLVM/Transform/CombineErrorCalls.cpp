@@ -42,7 +42,7 @@ char CombineErrorCallsPass::ID = 0;
 
 bool CombineErrorCallsPass::runOnModule(llvm::Module& module)
 {
-    llvm::Constant* error = CheckRegistry::GetErrorFunction(module);
+    auto error = CheckRegistry::GetErrorFunction(module).getCallee();
     llvm::Type* codeTy = llvm::Type::getInt16Ty(module.getContext());
 
     llvm::IRBuilder<> builder(module.getContext());

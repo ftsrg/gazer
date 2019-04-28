@@ -208,7 +208,7 @@ bool BackwardSlicerPass::runOnModule(llvm::Module& module)
             BasicBlock* bottom = bottom_blocks.empty() ? nullptr : *(bottom_blocks.begin());
 
             for (auto bb : top_blocks) {
-                TerminatorInst* terminator = bb->getTerminator();
+                Instruction* terminator = bb->getTerminator();
                 if (terminator->getOpcode() == Instruction::Br) {
                     BranchInst* br = dyn_cast<BranchInst>(terminator);
                     BranchInst* new_br;

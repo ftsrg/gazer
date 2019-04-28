@@ -58,7 +58,7 @@ llvm::FunctionType* CheckRegistry::GetErrorFunctionType(llvm::LLVMContext& conte
     );
 }
 
-llvm::Constant* CheckRegistry::GetErrorFunction(llvm::Module& module)
+llvm::FunctionCallee CheckRegistry::GetErrorFunction(llvm::Module& module)
 {
     return module.getOrInsertFunction(
         "gazer.error_code",

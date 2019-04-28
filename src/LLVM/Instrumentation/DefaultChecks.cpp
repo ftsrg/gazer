@@ -13,7 +13,9 @@ namespace
 
 bool isErrorFunctionName(llvm::StringRef name)
 {
-    return name == "__VERIFIER_error" || name == "__assert_fail" || name == "__gazer_error";
+    return name == "__VERIFIER_error"
+        || name == "__assert_fail"
+        || name == "__gazer_error";
 }
 
 /**
@@ -144,7 +146,7 @@ public:
 /**
  * Checks for over- and underflow in signed integer operations.
  */
-class SignedIntegerOverflowCheck final : public Check
+class SignedIntegerOverflowCheck : public Check
 {
 public:
 };

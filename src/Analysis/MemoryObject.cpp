@@ -194,11 +194,11 @@ auto MemoryObjectAnalysis::Create(
         }
 
         // Calculate an SSA-form using iterated dominance frontiers.
-        //idf.setDefiningBlocks(defBlocks);
-        //idf.setLiveInBlocks(liveBlocks);
+        idf.setDefiningBlocks(defBlocks);
+        idf.setLiveInBlocks(liveBlocks);
 
-        //llvm::SmallVector<BasicBlock*, 32> phiBlocks;
-        //idf.calculate(phiBlocks);
+        llvm::SmallVector<BasicBlock*, 32> phiBlocks;
+        idf.calculate(phiBlocks);
     }
 
     visitor.clear();
@@ -336,7 +336,7 @@ void MemoryObject::print(llvm::raw_ostream& os) const
         "Unknown",
         "Global",
         "Alloca",
-        "FunctionCall"
+        "Heap"
     };
 
     static const char* const ObjectTypeNames[] = {
@@ -355,7 +355,7 @@ void MemoryObject::print(llvm::raw_ostream& os) const
         << ", valueType=" << *mValueType << ")";
 }
 
-llvm::raw_ostream& gazer::operator<<(llvm::raw_ostream& os, const MemoryObject& memObject)
+llvm::raw_ostream& gazer::operator<<(llvm::raw_ostream& os, const gazer::MemoryObject& memObject)
 {
     memObject.print(os);
     return os;

@@ -36,16 +36,14 @@ enum class MemoryObjectType : unsigned
 };
 
 class MemoryObject;
-
 class MemoryObjectDef;
-
 class MemoryUse;
 
 class MemoryObjectUseOrDef
 {
 protected:
     MemoryObjectUseOrDef(MemoryObject *object)
-            : mMemoryObject(object)
+        : mMemoryObject(object)
     {}
 
 protected:
@@ -53,62 +51,65 @@ protected:
     MemoryObjectDef *mReachingDef;
 };
 
-/// Represents a unique definition of a memory object.
-class MemoryObjectDef : public MemoryObjectUseOrDef
+/// Helper struct to represent a memory object - SSA version pair.
+class MemoryObjectVersion
 {
-    friend class MemoryObjectAnalysis;
-protected:
-    MemoryObjectDef(MemoryObject *object, unsigned idx)
-        : MemoryObjectUseOrDef(object), mIndex(idx)
+public:
+    MemoryObjectVersion(MemoryObject* object, unsigned version)
+        : mObject(object), mVersion(version)
     {}
 
-public:
-    using use_iterator = std::vector<MemoryUse *>::const_iterator;
+    MemoryObjectVersion(const MemoryObjectVersion&) = default;
+    MemoryObjectVersion& operator=(const MemoryObjectVersion&) = default;
 
-    use_iterator use_begin() const
-    { return mUses.begin(); }
-
-    use_iterator use_end() const
-    { return mUses.end(); }
-
+    MemoryObject* getObject() const { return mObject; }
+    unsigned getVersion() const { return mVersion; }
 private:
-    MemoryObject *mMemoryObject;
-    unsigned mIndex;
-    std::vector<MemoryUse *> mUses;
+    MemoryObject* mObject;
+    unsigned mVersion;
 };
 
-/// An LLVM instruction which may modify memory.
-class MemoryObjectDefInstruction : public MemoryObjectDef
+class MemoryObjectDef
 {
 public:
-    MemoryObjectDefInstruction(MemoryObject* memoryObject, unsigned idx, llvm::Instruction* inst)
-        : MemoryObjectDef(memoryObject, idx), mInst(inst)
+    MemoryObjectDef(std::vector<MemoryObjectVersion> defs)
+        : mDefinedObjects(defs)
     {}
 
-private:
-    llvm::Instruction* mInst;
+    using iterator = std::vector<MemoryObjectVersion>::iterator;
+    iterator begin() { return mDefinedObjects.begin(); }
+    iterator end() { return mDefinedObjects.end(); }
+
+protected:
+    std::vector<MemoryObjectVersion> mDefinedObjects;
 };
 
 class MemoryObjectPhi : public MemoryObjectDef
 {
 public:
-    MemoryObjectPhi(MemoryObject* memoryObject, unsigned idx, llvm::BasicBlock* bb);
-};
-
-/// Represents
-class MemoryObjectUse : public MemoryObjectUseOrDef
-{
-    friend class MemoryObjectAnalysis;
-public:
-
-public:
-    MemoryObjectUse(MemoryObject* object)
-        : MemoryObjectUseOrDef(object)
+    MemoryObjectPhi(llvm::BasicBlock* bb, std::vector<MemoryObjectVersion> defs)
+        : mBasicBlock(bb), MemoryObjectDef(defs)
     {}
+private:
+    llvm::BasicBlock* mBasicBlock;
 };
 
-using MemoryObjectSize = uint64_t;
-constexpr MemoryObjectSize UnknownMemoryObjectSize = ~uint64_t(0);
+class MemoryObjectInst : public MemoryObjectDef
+{
+public:
+    MemoryObjectInst(llvm::Instruction* inst, std::vector<MemoryObjectVersion> defs)
+        : mInstruction(inst), MemoryObjectDef(defs)
+    {}
+private:
+    llvm::Instruction* mInstruction;
+};
+
+class MemoryObjectUse
+{
+
+};
+
+
 
 /// \brief A memory object is a continuous area of memory which does
 /// not overlap with other memory objects.
@@ -119,6 +120,9 @@ constexpr MemoryObjectSize UnknownMemoryObjectSize = ~uint64_t(0);
 class MemoryObject
 {
     friend class MemoryObjectAnalysis;
+
+    using MemoryObjectSize = uint64_t;
+    static constexpr MemoryObjectSize UnknownMemoryObjectSize = ~uint64_t(0);
 public:
     MemoryObject(
         unsigned id,
@@ -154,22 +158,6 @@ private:
     std::list<MemoryObjectDef*> mDefs;
     std::list<MemoryObjectUse*> mUses;
 };
-
-/// \brief Identifies a specific offset within a memory object.
-class MemoryCell
-{
-public:
-    MemoryCell(MemoryObject* memoryObject, MemoryObjectSize begin, MemoryObjectSize end = UnknownMemoryObjectSize)
-        : mMemoryObject(memoryObject), mBeginOffset(begin), mEndOffset(end)
-    {}
-
-private:
-    MemoryObject* mMemoryObject;
-    MemoryObjectSize mBeginOffset;
-    MemoryObjectSize mEndOffset;
-};
-
-llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const MemoryObject& memObject);
 
 class MemoryPointerVisitor;
 
@@ -210,6 +198,9 @@ public:
     bool runOnModule(llvm::Module& module) override;
 };
 
-}
+llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const MemoryObject& memObject);
+
+} // end namespace gazer
+
 
 #endif
