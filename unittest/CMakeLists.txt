@@ -7,4 +7,5 @@ enable_testing()
 
 add_subdirectory(Core)
 add_subdirectory(Automaton)
+add_subdirectory(LLVM)
 add_subdirectory(SolverZ3)

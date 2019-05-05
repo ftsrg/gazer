@@ -165,7 +165,7 @@ protected:
         Location* source, Location* target,
         ExprPtr guard,
         Cfa* callee,
-        std::vector<VariableAssignment> inputArgs,
+        std::vector<ExprPtr> inputArgs,
         std::vector<VariableAssignment> outputArgs
     );
 
@@ -173,18 +173,19 @@ public:
     Cfa* getCalledAutomaton() const { return mCallee; }
 
     //-------------------------- Iterator support ---------------------------//
-    using arg_iterator = std::vector<VariableAssignment>::const_iterator;
+    using input_arg_iterator  = std::vector<ExprPtr>::const_iterator;
+    using output_arg_iterator = std::vector<VariableAssignment>::const_iterator;
 
-    arg_iterator input_begin() const { return mInputArgs.begin(); }
-    arg_iterator input_end() const { return mInputArgs.end(); }
-    llvm::iterator_range<arg_iterator> inputs() const {
+    input_arg_iterator input_begin() const { return mInputArgs.begin(); }
+    input_arg_iterator input_end() const { return mInputArgs.end(); }
+    llvm::iterator_range<input_arg_iterator> inputs() const {
         return llvm::make_range(input_begin(), input_end());
     }
     size_t getNumInputs() const { return mInputArgs.size(); }
 
-    arg_iterator output_begin() const { return mOutputArgs.begin(); }
-    arg_iterator output_end() const { return mOutputArgs.end(); }
-    llvm::iterator_range<arg_iterator> outputs() const {
+    output_arg_iterator output_begin() const { return mOutputArgs.begin(); }
+    output_arg_iterator output_end() const { return mOutputArgs.end(); }
+    llvm::iterator_range<output_arg_iterator> outputs() const {
         return llvm::make_range(output_begin(), output_end());
     }
     size_t getNumOutputs() const { return mOutputArgs.size(); }
@@ -195,7 +196,7 @@ public:
 
 private:
     Cfa* mCallee;
-    std::vector<VariableAssignment> mInputArgs;
+    std::vector<ExprPtr> mInputArgs;
     std::vector<VariableAssignment> mOutputArgs;
 };
 
@@ -233,12 +234,12 @@ public:
 
     CallTransition* createCallTransition(
         Location* source, Location* target, ExprPtr guard,
-        Cfa* callee, std::vector<VariableAssignment> inputArgs, std::vector<VariableAssignment> outputArgs
+        Cfa* callee, std::vector<ExprPtr> inputArgs, std::vector<VariableAssignment> outputArgs
     );
 
     CallTransition* createCallTransition(
         Location* source, Location* target,
-        Cfa* callee, std::vector<VariableAssignment> inputArgs, std::vector<VariableAssignment> outputArgs
+        Cfa* callee, std::vector<ExprPtr> inputArgs, std::vector<VariableAssignment> outputArgs
     );
 
     Variable* addInput(llvm::StringRef name, Type& type);
@@ -310,6 +311,9 @@ public:
 
     size_t getNumNestedAutomata() const { return mNestedAutomata.size(); }
 
+    /// Returns the index of a given input variable in input list of this automaton.
+    size_t getInputNumber(Variable* variable) const;
+
     /// View the graph representation of this CFA with the
     /// system's default GraphViz viewer.
     void view() const;
@@ -365,6 +369,9 @@ public:
     const_iterator end() const { return mAutomata.end(); }
 
     GazerContext& getContext() { return mContext; }
+
+    size_t getNumAutomata() const { return mAutomata.size(); }
+    Cfa* getAutomatonByName(llvm::StringRef name) const;
 
 private:
     GazerContext& mContext;

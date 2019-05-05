@@ -54,7 +54,7 @@ AssignTransition *Cfa::createAssignTransition(Location *source, Location *target
 }
 
 CallTransition *Cfa::createCallTransition(Location *source, Location *target, ExprPtr guard,
-    Cfa *callee, std::vector<VariableAssignment> inputArgs, std::vector<VariableAssignment> outputArgs)
+    Cfa *callee, std::vector<ExprPtr> inputArgs, std::vector<VariableAssignment> outputArgs)
 {
     assert(source != nullptr);
     assert(target != nullptr);
@@ -71,7 +71,7 @@ CallTransition *Cfa::createCallTransition(
     Location *source,
     Location *target,
     Cfa *callee,
-    std::vector<VariableAssignment> inputArgs,
+    std::vector<ExprPtr> inputArgs,
     std::vector<VariableAssignment> outputArgs)
 {
     return createCallTransition(source, target, BoolLiteralExpr::True(mContext), callee, inputArgs, outputArgs);
@@ -120,6 +120,14 @@ void Cfa::addNestedAutomaton(Cfa* cfa)
     cfa->mParentAutomaton = this;
 }
 
+size_t Cfa::getInputNumber(gazer::Variable* variable) const
+{
+    auto it = std::find(mInputs.begin(), mInputs.end(), variable);
+    assert(it != mInputs.end() && "Variable must be present in the input list!");
+
+    return std::distance(mInputs.begin(), it);
+}
+
 // Support code for locations
 //-----------------------------------------------------------------------------
 
@@ -155,11 +163,14 @@ AssignTransition::AssignTransition(
 
 CallTransition::CallTransition(
     Location *source, Location *target, ExprPtr guard, Cfa *callee,
-    std::vector<VariableAssignment> inputArgs, std::vector<VariableAssignment> outputArgs
+    std::vector<ExprPtr> inputArgs, std::vector<VariableAssignment> outputArgs
 ) : Transition(source, target, guard, Transition::Edge_Call), mCallee(callee),
     mInputArgs(inputArgs), mOutputArgs(outputArgs)
 {
+    assert(source != nullptr);
+    assert(target != nullptr);
     assert(callee != nullptr);
+    assert(callee->getNumInputs() == inputArgs.size());
 }
 
 // Automata system
@@ -191,4 +202,17 @@ Cfa* AutomataSystem::createNestedCfa(Cfa* parent, std::string name)
 void AutomataSystem::addGlobalVariable(Variable* variable)
 {
     mGlobalVariables.push_back(variable);
+}
+
+Cfa* AutomataSystem::getAutomatonByName(llvm::StringRef name) const
+{
+    auto result = std::find_if(begin(), end(), [name](Cfa& cfa) {
+        return cfa.getName() == name;
+    });
+
+    if (result == end()) {
+        return nullptr;
+    }
+
+    return &*result;
 }
