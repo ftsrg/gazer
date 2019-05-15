@@ -2,6 +2,7 @@
 #include "gazer/Core/ExprVisitor.h"
 #include "gazer/Core/Expr/ExprSimplify.h"
 #include "gazer/Core/Expr/Matcher.h"
+#include "gazer/Core/Expr/ExprPropagator.h"
 
 #include <llvm/ADT/DenseMap.h>
 
@@ -13,23 +14,11 @@ namespace gazer
 
 class ExpressionPropagator : public ExprVisitor<ExprPtr>
 {
-    struct PropagationTableEntry
-    {
-        ExprPtr expr;
-        unsigned depth;
-
-        PropagationTableEntry()
-            : expr(nullptr), depth(~0)
-        {}
-
-        PropagationTableEntry(const ExprPtr &expr, unsigned depth)
-            : expr(expr), depth(depth)
-        {}
-    };
-
-    using PropagationTable = llvm::DenseMap<Variable*, PropagationTableEntry>;
-
 public:
+    ExpressionPropagator(PropagationTable& propTable, unsigned maxDepth)
+        : mPropTable(propTable), mDepthLimit(maxDepth), mCurrentDepth(0)
+    {}
+
     ExprPtr visit(const ExprPtr &expr) override {
         if (mCurrentDepth > mDepthLimit) {
             return expr;
@@ -43,25 +32,40 @@ protected:
         return expr;
     }
 
-    ExprPtr combineEqualities(const ExprRef<NonNullaryExpr>& expr);
+    ExprPtr visitNonNullary(const ExprRef<NonNullaryExpr>& expr) {
+        ExprVector ops;
+        ops.reserve(expr->getNumOperands());
+
+        ++mCurrentDepth;
+        for (auto& operand : expr->operands()) {
+            auto newOp = this->visit(operand);
+            ops.push_back(newOp);
+        }
+        --mCurrentDepth;
+
+        return expr->clone(ops);
+    }
+
+    ExprPtr visitVarRef(const ExprRef<VarRefExpr>& expr) {
+        Variable* variable = &expr->getVariable();
+
+        auto range = mPropTable.get(variable);
+
+
+        return expr;
+    }
 
 private:
-    PropagationTable mPropTable;
+    PropagationTable& mPropTable;
     unsigned mDepthLimit;
     unsigned mCurrentDepth;
 };
 
-} // end namespace gazer
-
-ExprPtr ExpressionPropagator::combineEqualities(const ExprRef<NonNullaryExpr> &expr)
+ExprPtr PropagateExpression(ExprPtr expr, PropagationTable& propTable, unsigned depth)
 {
-    ExprRef<VarRefExpr> x1, x2;
-    ExprRef<LiteralExpr> l1, l2;
+    ExpressionPropagator propagator(propTable, depth);
 
-    // NotEq(X1, L1) if Eq(X1, L2) where L1 != L2 --> True
-    if (match(expr, m_NotEq(m_VarRef(x1), m_Literal(l1)))) {
-        return BoolLiteralExpr::True(expr->getContext());
-    }
-
-    return expr;
+    return propagator.visit(expr);
 }
+
+} // end namespace gazer

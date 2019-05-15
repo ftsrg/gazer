@@ -31,10 +31,16 @@ GazerContext::~GazerContext() {}
 
 Variable* GazerContext::createVariable(std::string name, Type &type)
 {
-    GAZER_DEBUG(llvm::errs() << "[GazerContext] Adding variable with name: '" << name << "'\n")
     GAZER_DEBUG_ASSERT(pImpl->VariableTable.count(name) == 0);
     auto ptr = new Variable(name, type);
     pImpl->VariableTable[name] = std::unique_ptr<Variable>(ptr);
+
+    GAZER_DEBUG(llvm::errs()
+        << "[GazerContext] Adding variable with name: '"
+        << name
+        << " address "
+        << ptr
+        << "'\n")
 
     return ptr;
 }
@@ -53,6 +59,12 @@ Variable* GazerContext::getVariable(llvm::StringRef name)
 
 void ExprStorage::destroy(Expr *expr)
 {
+    GAZER_DEBUG(llvm::errs()
+        << "[ExprStorage] Removing "
+        << Expr::getKindName(expr->getKind())
+        << " address " << expr
+        << "\n"
+    )
     Bucket& bucket = getBucketForHash(expr->getHashCode());
 
     // If this was the first element in the bucket

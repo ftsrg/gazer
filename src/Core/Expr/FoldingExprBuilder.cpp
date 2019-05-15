@@ -2,10 +2,15 @@
 #include "gazer/Core/ExprTypes.h"
 #include "gazer/Core/LiteralExpr.h"
 #include "gazer/Core/Variable.h"
+#include "gazer/Core/Expr/Matcher.h"
+#include "gazer/Core/Expr/ConstantFolder.h"
+#include "gazer/Core/Expr/ExprPropagator.h"
 
 #include <llvm/ADT/DenseMap.h>
 
 using namespace gazer;
+using namespace gazer::PatternMatch;
+
 using llvm::dyn_cast;
 
 namespace
@@ -20,11 +25,33 @@ public:
 
     ExprPtr Not(const ExprPtr& op) override
     {
-        if (auto boolLit = llvm::dyn_cast<BoolLiteralExpr>(op.get())) {
-            return this->BoolLit(!boolLit->getValue());
+        // Not(Not(X)) --> X
+        if (op->getKind() == Expr::Not) {
+            return llvm::cast<NotExpr>(op.get())->getOperand();
         }
 
-        return NotExpr::Create(op);
+        ExprPtr e1 = nullptr, e2 = nullptr;
+
+        // Not(Eq(E1, E2)) --> NotEq(E1, E2)
+        if (match(op, m_Eq(m_Expr(e1), m_Expr(e2)))) {
+            return ConstantFolder::NotEq(e1, e2);
+        }
+
+        // Not(NotEq(E1, E2)) --> Eq(E1, E2)
+        if (match(op, m_NotEq(m_Expr(e1), m_Expr(e2)))) {
+            return ConstantFolder::Eq(e1, e2);
+        }
+
+        // Not(LESSTHAN(E1, E2)) --> GREATERTHANEQ(E1, E2)
+        if (match(op, m_ULt(m_Expr(e1), m_Expr(e2)))) {
+            return ConstantFolder::UGtEq(e1, e2);
+        }
+
+        if (match(op, m_SLt(m_Expr(e1), m_Expr(e2)))) {
+            return ConstantFolder::SGtEq(e1, e2);
+        }
+
+        return ConstantFolder::Not(op);
     }
 
     ExprPtr ZExt(const ExprPtr& op, BvType& type) override {
@@ -42,13 +69,7 @@ public:
 
     ExprPtr Add(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BvLit(lhsLit->getValue() + rhsLit->getValue());
-            }
-        }
-
-        return AddExpr::Create(left, right);
+        return ConstantFolder::Add(left, right);
     }
 
     ExprPtr Sub(const ExprPtr& left, const ExprPtr& right) override
@@ -194,7 +215,7 @@ public:
                     // We are not adding unnecessary true literals
                 }
             } else if (op->getKind() == Expr::And) {
-                // For AndExpr operands, we try to flatten the expression
+                // For AndExpr operands, we flatten the expression
                 auto andExpr = llvm::dyn_cast<AndExpr>(op.get());    
                 newOps.insert(newOps.end(), andExpr->op_begin(), andExpr->op_end());
             } else {
@@ -207,6 +228,44 @@ public:
             return this->True();
         } else if (newOps.size() == 1) {
             return *newOps.begin();
+        }
+
+        ExprRef<> x1;
+        ExprRef<> e1, e2, e3;
+
+        if (newOps.size() == 2) {
+            ExprPtr lhs = newOps[0];
+            ExprPtr rhs = newOps[1];
+
+            // And(Or(E1, E2), Or(E1, E3)) --> And(E1, Or(E2, E3))
+            if (match(lhs, rhs, m_Or(m_Expr(e1), m_Expr(e2)), m_Or(m_Specific(e1), m_Expr(e3)))) {
+                newOps[0] = e1;
+                newOps[1] = this->Or({e2, e3});
+            }
+        }
+
+        // And(Eq(E1, E2), NotEq(E1, E2)) --> False
+        // if (unord_match(newOps, m_Eq(m_Expr(e1), m_Expr(e2)), m_NotEq(m_Specific(e1), m_Specific(e2)))) {
+        //    return this->False();
+        // }
+
+        // Move the Eq(X, C1) expressions to the front.
+        auto propStart = std::partition(newOps.begin(), newOps.end(), [](const ExprRef<>& e) {
+            return match(e, m_Eq(m_VarRef(), m_Literal()));
+        });
+
+        PropagationTable propTable;
+        for (auto it = newOps.begin(); it != propStart; ++it) {
+            ExprRef<VarRefExpr> x;
+            ExprRef<LiteralExpr> lit;
+
+            if (match(*it, m_Eq(m_VarRef(x), m_Literal(lit)))) {
+                propTable.put(&x->getVariable(), *it);
+            }
+        }
+
+        for (auto it = propStart; it != newOps.end(); ++it) {
+            *it = PropagateExpression(*it, propTable);
         }
 
         return AndExpr::Create(newOps);
@@ -266,30 +325,31 @@ public:
             return this->True();
         }
 
-        auto& opTy = left->getType();
-        if (opTy.isBoolType()) {
-            // true == X -> X
-            // false == X -> not X
-            /*
-            if (auto lb = dyn_cast<BoolLiteralExpr>(left.get())) {
-                return lb->isTrue() ? right : this->Not(right);
-            } else if (auto rb = dyn_cast<BoolLiteralExpr>(right.get())) {
-                return rb->isTrue() ? left : this->Not(left);
-            } */
-        } else if (auto lhsLit = dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BoolLit(lhsLit->getValue() == rhsLit->getValue());
-            }
-        } else if (left->getKind() == Expr::VarRef && right->getKind() == Expr::VarRef) {
-            auto lhsVar = &(llvm::dyn_cast<VarRefExpr>(left.get())->getVariable());
-            auto rhsVar = &(llvm::dyn_cast<VarRefExpr>(right.get())->getVariable());
+        ExprRef<BoolLiteralExpr> b1 = nullptr;
+        ExprPtr c1 = nullptr;
+        ExprPtr e1 = nullptr, e2 = nullptr;
 
-            if (lhsVar == rhsVar) {
-                return this->True();
+        // Eq(True, X) --> X
+        // Eq(False, X) --> Not(X)
+        if (unord_match(left, right, m_BoolLit(b1), m_Expr(e1))) {
+            if (b1->isTrue()) {
+                return e1;
             }
+
+            return this->Not(e1);
         }
 
-        return EqExpr::Create(left, right);
+        // Eq(Select(C1, E1, E2), E1) --> C1
+        // Eq(Select(C1, E1, E2), E2) --> Not(C1)
+        if (unord_match(left, right, m_Select(m_Expr(c1), m_Expr(e1), m_Expr(e2)), m_Specific(e1))) {
+            return c1;
+        }
+
+        if (unord_match(left, right, m_Select(m_Expr(c1), m_Expr(e1), m_Expr(e2)), m_Specific(e2))) {
+            return this->Not(c1);
+        }
+
+        return ConstantFolder::Eq(left, right);
     }
 
     ExprPtr NotEq(const ExprPtr& left, const ExprPtr& right) override
@@ -298,120 +358,98 @@ public:
             return this->False();
         }
 
-        auto& opTy = left->getType();
-        if (opTy.isBoolType()) {
-            // false != X -> X
-            // true == X -> not X
-            /*
-            if (auto lb = dyn_cast<BoolLiteralExpr>(left.get())) {
-                return lb->isFalse() ? right : this->Not(right);
-            } else if (auto rb = dyn_cast<BoolLiteralExpr>(right.get())) {
-                return rb->isFalse() ? left : this->Not(left);
-            }*/
-        } else if (auto lhsLit = dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BoolLit(lhsLit->getValue() != rhsLit->getValue()); 
-            }
-        } else if (left->getKind() == Expr::VarRef && right->getKind() == Expr::VarRef) {
-            auto lhsVar = &(llvm::dyn_cast<VarRefExpr>(left.get())->getVariable());
-            auto rhsVar = &(llvm::dyn_cast<VarRefExpr>(right.get())->getVariable());
+        ExprRef<BoolLiteralExpr> b1 = nullptr;
+        ExprPtr e1 = nullptr, e2 = nullptr, e3 = nullptr;
 
-            if (lhsVar == rhsVar) {
-                return this->False();
+        // NotEq(True, X) --> Not(X)
+        // NotEq(False, X) --> X
+        if (unord_match(left, right, m_BoolLit(b1), m_Expr(e1))) {
+            if (b1->isTrue()) {
+                return this->Not(e1);
+            }
+
+            return e1;
+        }
+
+        ExprRef<> x1 = nullptr, x2 = nullptr;
+
+        // NotEq(Select(NotEq(X1, X2), E1, E2), E1) --> Eq(X)
+        // NotEq(Select(NotEq(X1, X2), E1, E2), E2) --> NotEq(X)
+        if (unord_match(left, right,
+            m_Select(
+                m_NotEq(m_Expr(x1), m_Expr(x2)),
+                m_Expr(e1),
+                m_Expr(e2)
+            ),
+            m_Expr(e3))
+        ) {
+            if (e3 == e1) {
+                return ConstantFolder::Eq(x1, x2);
+            } else if (e3 == e2) {
+                return ConstantFolder::NotEq(x1, x2);
             }
         }
-        
-        return NotEqExpr::Create(left, right);
+
+
+        return ConstantFolder::NotEq(left, right);
     }
+
+    #define COMPARE_ARITHMETIC_SIMPLIFY(OPCODE)                             \
+        ExprRef<> x;                                                        \
+        llvm::APInt c1, c2;                                                 \
+                                                                            \
+        /* CMP(Add(X, C1), C2) --> CMP(X, C2 - C1) */                       \
+        if (unord_match(left, right, m_Add(m_Bv(&c1), m_Expr(x)), m_Bv(&c2))) {   \
+            return ConstantFolder::OPCODE(x, this->BvLit(c2 - c1));         \
+        }                                                                   \
+
 
     ExprPtr SLt(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BoolLit(lhsLit->getValue().slt(rhsLit->getValue()));
-            }
-        }
-
-        return SLtExpr::Create(left, right);
+        return ConstantFolder::SLt(left, right);
     }
 
     ExprPtr SLtEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BoolLit(lhsLit->getValue().sle(rhsLit->getValue()));
-            }
-        }
-
-
-        return SLtEqExpr::Create(left, right);
+        return ConstantFolder::SLtEq(left, right);
     }
 
     ExprPtr SGt(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BoolLit(lhsLit->getValue().sgt(rhsLit->getValue()));
-            }
-        }
-
-        return SGtExpr::Create(left, right);
+        return ConstantFolder::SGt(left, right);
     }
 
     ExprPtr SGtEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BoolLit(lhsLit->getValue().sge(rhsLit->getValue()));
-            }
-        }
-
-
-        return SGtEqExpr::Create(left, right);
+        return ConstantFolder::SGtEq(left, right);
     }
 
     ExprPtr ULt(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BoolLit(lhsLit->getValue().ult(rhsLit->getValue()));
-            }
-        }
+        COMPARE_ARITHMETIC_SIMPLIFY(ULt)
 
-        return ULtExpr::Create(left, right);
+        return ConstantFolder::ULt(left, right);
     }
 
     ExprPtr ULtEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BoolLit(lhsLit->getValue().ule(rhsLit->getValue()));
-            }
-        }
+        COMPARE_ARITHMETIC_SIMPLIFY(ULtEq)
 
-        return ULtEqExpr::Create(left, right);
+        return ConstantFolder::ULtEq(left, right);
     }
 
     ExprPtr UGt(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BoolLit(lhsLit->getValue().ugt(rhsLit->getValue()));
-            }
-        }
+        COMPARE_ARITHMETIC_SIMPLIFY(UGt)
 
-        return UGtExpr::Create(left, right);
+        return ConstantFolder::UGt(left, right);
     }
 
     ExprPtr UGtEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BoolLit(lhsLit->getValue().uge(rhsLit->getValue()));
-            }
-        }
+        COMPARE_ARITHMETIC_SIMPLIFY(UGtEq)
 
-        return UGtEqExpr::Create(left, right);
+        return ConstantFolder::UGtEq(left, right);
     }
 
     ExprPtr FIsNan(const ExprPtr& op) override {
@@ -475,16 +513,36 @@ public:
 
     ExprPtr Select(const ExprPtr& condition, const ExprPtr& then, const ExprPtr& elze) override
     {
-        if (condition->getKind() == Expr::Literal) {
-            auto lit = llvm::dyn_cast<BoolLiteralExpr>(condition.get());
-            if (lit->getValue() == true) {
-                return then;
-            } else {
-                return elze;
-            }
+        // Select(True, E1, E2) --> E1
+        // Select(False, E1, E2) --> E2
+        if (auto condLit = llvm::dyn_cast<BoolLiteralExpr>(condition.get())) {
+            return condLit->isTrue() ? then : elze;
         }
 
-        return SelectExpr::Create(condition, then, elze);
+        ExprPtr c1 = nullptr, c2 = nullptr;
+        ExprPtr e1 = nullptr, e2 = nullptr;
+
+        // Select(C, E, E) --> E
+        if (then == elze) {
+            return then;
+        }
+
+        // Select(not C, E1, E2) --> Select(C, E2, E1)
+        if (match(condition, then, elze, m_Not(m_Expr(c1)), m_Expr(e1), m_Expr(e2))) {
+            return ConstantFolder::Select(condition, elze, then);
+        }
+
+        // Select(C1, Select(C2, E1, E2), E2) --> Select(C1 and C2, E1, E2)
+        if (match(condition, then, elze, m_Expr(c1), m_Select(m_Expr(c2), m_Expr(e1), m_Expr(e2)), m_Specific(e2))) {
+            return ConstantFolder::Select(ConstantFolder::And({c1, c2}), e1, e2);
+        }
+
+        // Select(C1, E1, Select(C2, E1, E2)) --> Select(C1 or C2, E1, E2)
+        if (match(condition, then, elze, m_Expr(c1), m_Expr(e1), m_Select(m_Expr(c2), m_Specific(e1), m_Expr(e2)))) {
+            return ConstantFolder::Select(ConstantFolder::Or({c1, c2}), e1, e2);
+        }
+
+        return ConstantFolder::Select(condition, then, elze);
     }
 };
 

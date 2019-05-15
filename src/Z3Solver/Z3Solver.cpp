@@ -22,6 +22,7 @@ public:
         : Solver(context), mSolver(mZ3Context)
     {}
 
+    virtual void printStats(llvm::raw_ostream& os) override;
     virtual void dump(llvm::raw_ostream& os) override;
     virtual SolverStatus run() override;
     virtual Valuation getModel() override;
@@ -391,10 +392,11 @@ public:
         z3::context& context,
         unsigned& tmpCount,
         CachingZ3Solver::CacheMapT& cache)
-        : Z3ExprTransformer(context, tmpCount), mCache(cache)
+        : Z3ExprTransformer(context, tmpCount), mCache(cache)   
     {}
 
-    z3::expr visit(const ExprPtr& expr) override {
+    z3::expr visit(const ExprPtr& expr) override
+    {
         if (expr->isNullary() || expr->isUnary()) {
             return ExprVisitor::visit(expr);
         }
@@ -437,9 +439,16 @@ void Z3Solver::addConstraint(ExprPtr expr)
     mSolver.add(z3Expr);
 }
 
+void Z3Solver::printStats(llvm::raw_ostream& os)
+{    
+    std::stringstream ss;
+    ss << mSolver.statistics();
+    os << ss.str();
+}
+
 void Z3Solver::dump(llvm::raw_ostream& os)
 {
-    os << Z3_solver_to_string(mZ3Context, mSolver);    
+    os << Z3_solver_to_string(mZ3Context, mSolver);
 }
 
 void CachingZ3Solver::addConstraint(ExprPtr expr)

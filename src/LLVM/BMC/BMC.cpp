@@ -344,10 +344,10 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::run()
         std::unique_ptr<Solver> solver = mSolverFactory.createSolver(mContext);
 
         // Simplify before adding
-        if (!NoExprSimplify) {
-            mOS << "Running formula simplifier.\n";
-            formula = ExprSimplifier(ExprSimplifier::Expensive).simplify(formula);
-        }
+        //if (!NoExprSimplify) {
+        //    mOS << "Running formula simplifier.\n";
+        //    formula = ExprSimplifier(ExprSimplifier::Expensive).simplify(formula);
+        //}
 
         //formula->print(mOS);
         if (DumpFormula) {
@@ -367,6 +367,12 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::run()
 
         mOS << "   Running solver.\n";
         auto status = solver->run();
+
+        if (PrintSolverStats) {
+            mOS << "   Solver stats:\n";
+            solver->printStats(mOS);
+            mOS << "\n";
+        }
 
         if (status == Solver::SAT) {
             mOS << "   Formula is SAT\n";

@@ -374,18 +374,6 @@ select_expr_match<CondTy, LTy, RTy> m_Select(const CondTy& cond, const LTy& left
 //===------------------ Matcher for multiary expressions ------------------===//
 //============================================================================//
 
-template<size_t NumPatterns, typename... Patterns>
-struct vector_matcher
-{
-    std::tuple<Patterns...> patterns;
-
-    template<typename InputIterator>
-    bool match(InputIterator begin, InputIterator end, ExprVector& unmatched)
-    {
-
-    }
-};
-
 /// Helper for matching multiary expressions
 template<size_t NumOps, Expr::ExprKind Kind, bool Commutable, typename... Ts>
 struct multiary_match_precise

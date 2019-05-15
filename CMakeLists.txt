@@ -46,9 +46,13 @@ find_package(Boost REQUIRED)
 include_directories(${Boost_INCLUDE_DIR})
 
 # Project directories
-
 include_directories(include)
 
 add_subdirectory(src)
 add_subdirectory(tools)
-add_subdirectory(unittest)
+
+option(GAZER_ENABLE_UNIT_TESTS "Enable unit tests" OFF)
+
+if (GAZER_ENABLE_UNIT_TESTS)
+    add_subdirectory(unittest)
+endif()
