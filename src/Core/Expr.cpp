@@ -85,26 +85,6 @@ ExprPtr NonNullaryExpr::clone(ExprVector ops)
     return this->cloneImpl(ops);
 }
 
-void NonNullaryExpr::print(llvm::raw_ostream& os) const
-{
-    size_t i = 0;
-    os << getType().getName() << " " << Expr::getKindName(getKind()) << "(";
-    while (i < getNumOperands() - 1) {
-        getOperand(i)->print(os);
-        os << ",";
-        ++i;
-    }
-
-    getOperand(i)->print(os);
-    os << ")";
-}
-
-llvm::raw_ostream& gazer::operator<<(llvm::raw_ostream& os, const Expr& expr)
-{
-    expr.print(os);
-    return os;
-}
-
 //----------------------- Subtype initializers ------------------------//
 
 auto NotExpr::Create(const ExprPtr& operand) -> ExprRef<NotExpr>
@@ -273,4 +253,31 @@ llvm::StringRef Expr::getKindName(ExprKind kind)
     }
 
     llvm_unreachable("Invalid expression kind.");
+}
+
+void NonNullaryExpr::print(llvm::raw_ostream& os) const
+{
+    size_t i = 0;
+    os << getType().getName() << " " << Expr::getKindName(getKind()) << "(";
+    while (i < getNumOperands() - 1) {
+        getOperand(i)->print(os);
+        os << ",";
+        ++i;
+    }
+
+    getOperand(i)->print(os);
+    os << ")";
+}
+
+void ExtractExpr::print(llvm::raw_ostream& os) const
+{
+    os << getType().getName() << " " << Expr::getKindName(getKind()) << "(";
+    getOperand()->print(os);
+    os << ", " << mOffset << ", " << mWidth << ")";
+}
+
+llvm::raw_ostream& gazer::operator<<(llvm::raw_ostream& os, const Expr& expr)
+{
+    expr.print(os);
+    return os;
 }

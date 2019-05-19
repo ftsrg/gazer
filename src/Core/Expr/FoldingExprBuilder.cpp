@@ -55,16 +55,16 @@ public:
     }
 
     ExprPtr ZExt(const ExprPtr& op, BvType& type) override {
-        return ZExtExpr::Create(op, type);
+        return ConstantFolder::ZExt(op, type);
     }
     ExprPtr SExt(const ExprPtr& op, BvType& type) override {
-        return SExtExpr::Create(op, type);
+        return ConstantFolder::SExt(op, type);
     }
     ExprPtr Trunc(const ExprPtr& op, BvType& type) override {
-        return ExtractExpr::Create(op, 0, type.getWidth());
+        return ConstantFolder::Extract(op, 0, type.getWidth());
     }
     ExprPtr Extract(const ExprPtr& op, unsigned offset, unsigned width) override {
-        return ExtractExpr::Create(op, offset, width);
+        return ConstantFolder::Extract(op, offset, width);
     }
 
     ExprPtr Add(const ExprPtr& left, const ExprPtr& right) override

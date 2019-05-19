@@ -23,7 +23,7 @@ protected:
     using NonNullaryExpr::NonNullaryExpr;
 public:
     using NonNullaryExpr::getOperand;
-    ExprPtr getOperand() { return getOperand(0); }
+    ExprPtr getOperand() const { return getOperand(0); }
 };
 
 class NotExpr final : public UnaryExpr
@@ -114,6 +114,8 @@ public:
 
     unsigned getOffset() const { return mOffset; }
     unsigned getWidth() const { return mWidth; }
+
+    void print(llvm::raw_ostream& os) const;
 
     static ExprRef<ExtractExpr> Create(const ExprPtr& operand, unsigned offset, unsigned width);
 

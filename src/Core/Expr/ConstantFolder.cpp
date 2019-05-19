@@ -8,6 +8,7 @@ using namespace gazer::PatternMatch;
 using llvm::dyn_cast;
 using llvm::cast;
 
+
 ExprPtr ConstantFolder::Not(const ExprPtr& op)
 {
     if (auto boolLit = dyn_cast<BoolLiteralExpr>(op.get())) {
@@ -19,11 +20,19 @@ ExprPtr ConstantFolder::Not(const ExprPtr& op)
 
 ExprPtr ConstantFolder::ZExt(const ExprPtr& op, BvType& type)
 {
+    if (auto bvLit = dyn_cast<BvLiteralExpr>(op)) {
+        return BvLiteralExpr::Get(type, bvLit->getValue().zext(type.getWidth()));
+    }
+
     return ZExtExpr::Create(op, type);
 }
 
 ExprPtr ConstantFolder::SExt(const ExprPtr& op, BvType& type)
 {
+    if (auto bvLit = dyn_cast<BvLiteralExpr>(op)) {
+        return BvLiteralExpr::Get(type, bvLit->getValue().sext(type.getWidth()));
+    }
+
     return SExtExpr::Create(op, type);
 }
 
@@ -34,6 +43,13 @@ ExprPtr ConstantFolder::Trunc(const ExprPtr& op, BvType& type)
 
 ExprPtr ConstantFolder::Extract(const ExprPtr& op, unsigned offset, unsigned width)
 {
+    if (auto bvLit = dyn_cast<BvLiteralExpr>(op)) {
+        return BvLiteralExpr::Get(
+            BvType::Get(op->getContext(), width),
+            bvLit->getValue().extractBits(width, offset)
+        );
+    }
+
     return ExtractExpr::Create(op, offset, width);
 }
 
@@ -236,6 +252,10 @@ ExprPtr ConstantFolder::Xor(const ExprPtr& left, const ExprPtr& right)
 
 ExprPtr ConstantFolder::Eq(const ExprPtr& left, const ExprPtr& right)
 {
+    if (left == right) {
+        return BoolLiteralExpr::True(left->getContext());
+    }
+
     if (auto c1 = dyn_cast<LiteralExpr>(left.get())) {
         if (auto c2 = dyn_cast<LiteralExpr>(right.get())) {
             assert(c1->getType() == c2->getType() && "Equals expression operand types must match!");
@@ -256,6 +276,10 @@ ExprPtr ConstantFolder::Eq(const ExprPtr& left, const ExprPtr& right)
 
 ExprPtr ConstantFolder::NotEq(const ExprPtr& left, const ExprPtr& right)
 {
+    if (left == right) {
+        return BoolLiteralExpr::False(left->getContext());
+    }
+
     return NotEqExpr::Create(left, right);
 }
 
