@@ -109,8 +109,6 @@ class MemoryObjectUse
 
 };
 
-
-
 /// \brief A memory object is a continuous area of memory which does
 /// not overlap with other memory objects.
 ///

@@ -17,14 +17,14 @@ ExternalProject_Add(googletest
   TEST_COMMAND      ""
 )
 
-add_dependencies(gtest googletest)
 add_subdirectory(${GOOGLETEST_SOURCE_DIR} "${GOOGLETEST_BINARY_DIR}")
-
 include_directories(${GOOGLETEST_SOURCE_DIR}/googletest/include)
-
-# Enable unit testing
-enable_testing()
 
 add_subdirectory(Core)
 add_subdirectory(Automaton)
 add_subdirectory(SolverZ3)
+
+add_custom_target(check-unit
+  COMMAND ctest --output-on-failure
+)
+add_dependencies(check-unit GazerCoreTest GazerAutomatonTest GazerSolverZ3Test)

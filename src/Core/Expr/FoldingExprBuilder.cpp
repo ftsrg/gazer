@@ -233,21 +233,26 @@ public:
         ExprRef<> x1;
         ExprRef<> e1, e2, e3;
 
+        // And(Eq(E1, E2), NotEq(E1, E2)) --> False            
+        if (unord_match(newOps, m_Eq(m_Expr(e1), m_Expr(e2)), m_NotEq(m_Specific(e1), m_Specific(e2)))) {
+            return this->False();
+        }
+
         if (newOps.size() == 2) {
             ExprPtr lhs = newOps[0];
             ExprPtr rhs = newOps[1];
 
+            // And(Not(X), X) --> False
+            if (unord_match(lhs, rhs, m_Not(m_Expr(e1)), m_Specific(e1))) {
+                return this->False();
+            }
+
             // And(Or(E1, E2), Or(E1, E3)) --> And(E1, Or(E2, E3))
-            if (match(lhs, rhs, m_Or(m_Expr(e1), m_Expr(e2)), m_Or(m_Specific(e1), m_Expr(e3)))) {
+            if (unord_match(lhs, rhs, m_Or(m_Expr(e1), m_Expr(e2)), m_Or(m_Specific(e1), m_Expr(e3)))) {
                 newOps[0] = e1;
                 newOps[1] = this->Or({e2, e3});
             }
         }
-
-        // And(Eq(E1, E2), NotEq(E1, E2)) --> False
-        // if (unord_match(newOps, m_Eq(m_Expr(e1), m_Expr(e2)), m_NotEq(m_Specific(e1), m_Specific(e2)))) {
-        //    return this->False();
-        // }
 
         // Move the Eq(X, C1) expressions to the front.
         auto propStart = std::partition(newOps.begin(), newOps.end(), [](const ExprRef<>& e) {

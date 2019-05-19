@@ -54,5 +54,6 @@ add_subdirectory(tools)
 option(GAZER_ENABLE_UNIT_TESTS "Enable unit tests" OFF)
 
 if (GAZER_ENABLE_UNIT_TESTS)
+    enable_testing()
     add_subdirectory(unittest)
 endif()

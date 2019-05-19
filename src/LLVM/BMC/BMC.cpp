@@ -2,7 +2,7 @@
 #include "gazer/Core/Utils/ExprUtils.h"
 #include "gazer/Support/Stopwatch.h"
 #include "gazer/Core/Expr/ExprSimplify.h"
-#include "gazer/Analysis/MemoryModel.h"
+#include "gazer/Analysis/LegacyMemoryModel.h"
 
 #include <llvm/IR/CFG.h>
 #include <llvm/IR/InstIterator.h>
@@ -96,7 +96,7 @@ BoundedModelChecker::BoundedModelChecker(
     TopologicalSort& topo,
     GazerContext& context,
     ExprBuilder* exprBuilder,
-    MemoryModel& memoryModel,
+    legacy::MemoryModel& memoryModel,
     SolverFactory& solverFactory,
     llvm::raw_ostream& os
 ) :

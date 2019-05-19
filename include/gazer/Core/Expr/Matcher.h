@@ -101,7 +101,7 @@ namespace detail
 template<typename... Patterns>
 inline bool unord_match(const ExprVector& vec, Patterns... patterns)
 {
-    ExprVector unmatched;
+    ExprVector unmatched = vec;
     std::tuple<Patterns...> patternsTuple(patterns...);
 
     return detail::vector_element_match<0, Patterns...>(unmatched, patternsTuple);
