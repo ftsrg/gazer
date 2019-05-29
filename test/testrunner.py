@@ -74,9 +74,18 @@ def discover_tests(directory):
     return tests
 
 if __name__ == '__main__':
-    gazer_bmc_path = pathlib.Path("./build/tools/gazer-bmc/gazer-bmc")
-    tests = discover_tests(sys.argv[1])
     results = []
+
+    argument_parser = argparse.ArgumentParser(description="Run Gazer functional test suite.")
+    argument_parser.add_argument("tests", help="Path to the test directory.")
+    argument_parser.add_argument("--clang-path", default="clang", help="Name of the clang compile command to run")
+    argument_parser.add_argument("--gazer-path", help="Path to the Gazer executable.")
+
+    args = argument_parser.parse_args()
+    tests = discover_tests(pathlib.Path(args.tests))
+
+    clang_cmd = args.clang_path
+    gazer_bmc_path = pathlib.Path(args.gazer_path)
 
     PASSED = 0
     FAILED = 1
@@ -94,7 +103,7 @@ if __name__ == '__main__':
 
         try:
             clang_success = subprocess.run([
-                "clang",
+                clang_cmd,
                 "-Wno-everything",
                 "-g", "-O1", "-Xclang", "-disable-llvm-passes",
                 "-c", "-emit-llvm",
@@ -151,5 +160,5 @@ if __name__ == '__main__':
         elif result[1] == SKIP:
             print("SKIP    {0} ({1})".format(result[0], result[2]))
         else:
-            print("UNKNOWN {0}".format(result[0]))
+            print("UNKNOWN {0} ({1})".format(result[0], result[2]))
         
