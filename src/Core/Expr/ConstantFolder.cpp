@@ -374,31 +374,88 @@ ExprPtr ConstantFolder::UGtEq(const ExprPtr& left, const ExprPtr& right)
 //--- Floating point ---//
 ExprPtr ConstantFolder::FIsNan(const ExprPtr& op)
 {
+    if (op->getKind() == Expr::Literal) {
+        auto fltLit = llvm::dyn_cast<FloatLiteralExpr>(op.get());
+        return BoolLiteralExpr::Get(BoolType::Get(op->getContext()), fltLit->getValue().isNaN());
+    }
+
     return FIsNanExpr::Create(op);
 }
 
 ExprPtr ConstantFolder::FIsInf(const ExprPtr& op)
 {
+    if (op->getKind() == Expr::Literal) {
+        auto fltLit = llvm::dyn_cast<FloatLiteralExpr>(op.get());
+        return BoolLiteralExpr::Get(BoolType::Get(op->getContext()), fltLit->getValue().isInfinity());
+    }
+
     return FIsInfExpr::Create(op);
 }
 
 ExprPtr ConstantFolder::FAdd(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm)
 {
+    if (left->getKind() == Expr::Literal && right->getKind() == Expr::Literal) {
+        auto fltLeft  = llvm::cast<FloatLiteralExpr>(left.get());
+        auto fltRight = llvm::cast<FloatLiteralExpr>(right.get());
+
+        llvm::APFloat result(fltLeft->getValue());
+        result.add(fltRight->getValue(), rm);
+
+        return FloatLiteralExpr::Get(
+            *llvm::cast<FloatType>(&left->getType()), result
+        );
+    }
+
     return FAddExpr::Create(left, right, rm);
 }
 
 ExprPtr ConstantFolder::FSub(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm)
 {
+    if (left->getKind() == Expr::Literal && right->getKind() == Expr::Literal) {
+        auto fltLeft  = llvm::cast<FloatLiteralExpr>(left.get());
+        auto fltRight = llvm::cast<FloatLiteralExpr>(right.get());
+
+        llvm::APFloat result(fltLeft->getValue());
+        result.subtract(fltRight->getValue(), rm);
+
+        return FloatLiteralExpr::Get(
+            *llvm::cast<FloatType>(&left->getType()), result
+        );
+    }
     return FSubExpr::Create(left, right, rm);
 }
 
 ExprPtr ConstantFolder::FMul(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm)
 {
+    if (left->getKind() == Expr::Literal && right->getKind() == Expr::Literal) {
+        auto fltLeft  = llvm::cast<FloatLiteralExpr>(left.get());
+        auto fltRight = llvm::cast<FloatLiteralExpr>(right.get());
+
+        llvm::APFloat result(fltLeft->getValue());
+        result.multiply(fltRight->getValue(), rm);
+
+        return FloatLiteralExpr::Get(
+            *llvm::cast<FloatType>(&left->getType()), result
+        );
+    }
+
     return FMulExpr::Create(left, right, rm);
 }
 
 ExprPtr ConstantFolder::FDiv(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm)
 {
+    if (left->getKind() == Expr::Literal && right->getKind() == Expr::Literal) {
+        auto fltLeft  = llvm::cast<FloatLiteralExpr>(left.get());
+        auto fltRight = llvm::cast<FloatLiteralExpr>(right.get());
+
+        llvm::APFloat result(fltLeft->getValue());
+        result.divide(fltRight->getValue(), rm);
+
+        return FloatLiteralExpr::Get(
+            *llvm::cast<FloatType>(&left->getType()), result
+        );
+    }
+
     return FDivExpr::Create(left, right, rm);
 }
 

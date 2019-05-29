@@ -115,7 +115,7 @@ public:
     unsigned getOffset() const { return mOffset; }
     unsigned getWidth() const { return mWidth; }
 
-    void print(llvm::raw_ostream& os) const;
+    void print(llvm::raw_ostream& os) const override;
 
     static ExprRef<ExtractExpr> Create(const ExprPtr& operand, unsigned offset, unsigned width);
 
