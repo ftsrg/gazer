@@ -51,6 +51,8 @@ public:
             return ConstantFolder::SGtEq(e1, e2);
         }
 
+        // Not(Or(V1, Not(And(V2)))) --> And(Not(V1), V2)
+
         return ConstantFolder::Not(op);
     }
 
@@ -74,130 +76,62 @@ public:
 
     ExprPtr Sub(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BvLit(lhsLit->getValue() - rhsLit->getValue());
-            }
-        }
-
-        return SubExpr::Create(left, right);
+        return ConstantFolder::Sub(left, right);
     }
 
     ExprPtr Mul(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BvLit(lhsLit->getValue() * rhsLit->getValue());
-            }
-        }
-
-        return MulExpr::Create(left, right);
+        return ConstantFolder::Mul(left, right);
     }
 
     ExprPtr SDiv(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BvLit(lhsLit->getValue().sdiv(rhsLit->getValue()));
-            }
-        }
-
-        return SDivExpr::Create(left, right);
+        return ConstantFolder::SDiv(left, right);
     }
 
     ExprPtr UDiv(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BvLit(lhsLit->getValue().udiv(rhsLit->getValue()));
-            }
-        }
-
-        return UDivExpr::Create(left, right);
+        return ConstantFolder::UDiv(left, right);
     }
 
     ExprPtr SRem(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BvLit(lhsLit->getValue().srem(rhsLit->getValue()));
-            }
-        }
-
-        return SRemExpr::Create(left, right);
+        return ConstantFolder::SRem(left, right);
     }
 
     ExprPtr URem(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BvLit(lhsLit->getValue().urem(rhsLit->getValue()));
-            }
-        }
-
-        return URemExpr::Create(left, right);
+        return ConstantFolder::URem(left, right);
     }
 
     ExprPtr Shl(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BvLit(lhsLit->getValue().shl(rhsLit->getValue()));
-            }
-        }
-
-        return ShlExpr::Create(left, right);
+        return ConstantFolder::Shl(left, right);
     }
 
     ExprPtr LShr(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BvLit(lhsLit->getValue().lshr(rhsLit->getValue()));
-            }
-        }
-        return LShrExpr::Create(left, right);
+        return ConstantFolder::LShr(left, right);
     }
 
     ExprPtr AShr(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BvLit(lhsLit->getValue().ashr(rhsLit->getValue()));
-            }
-        }
-        return AShrExpr::Create(left, right);
+        return ConstantFolder::AShr(left, right);
     }
 
     ExprPtr BAnd(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BvLit(lhsLit->getValue() & rhsLit->getValue());
-            }
-        }
-        return BAndExpr::Create(left, right);
+        return ConstantFolder::BAnd(left, right);
     }
 
     ExprPtr BOr(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BvLit(lhsLit->getValue() | rhsLit->getValue());
-            }
-        }
-        return BOrExpr::Create(left, right);
+        return ConstantFolder::BOr(left, right);
     }
 
     ExprPtr BXor(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
-            if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
-                return this->BvLit(lhsLit->getValue() ^ rhsLit->getValue());
-            }
-        }
-
-        return BXorExpr::Create(left, right);
+        return ConstantFolder::BXor(left, right);
     }
 
     ExprPtr And(const ExprVector& vector) override
@@ -311,6 +245,8 @@ public:
 
     ExprPtr Xor(const ExprPtr& left, const ExprPtr& right) override
     {
+        // Xor(True, E1) --> Not(E1)
+        // Xor(False, E1) --> E1
         if (left == this->True()) {
             return this->Not(right);
         } else if (right == this->True()) {
@@ -395,7 +331,6 @@ public:
             }
         }
 
-
         return ConstantFolder::NotEq(left, right);
     }
 
@@ -458,62 +393,43 @@ public:
     }
 
     ExprPtr FIsNan(const ExprPtr& op) override {
-        if (op->getKind() == Expr::Literal) {
-            auto fltLit = llvm::dyn_cast<FloatLiteralExpr>(op.get());
-            return this->BoolLit(fltLit->getValue().isNaN());
-        }
-
-        return FIsNanExpr::Create(op);
+        return ConstantFolder::FIsNan(op);
     }
 
     ExprPtr FIsInf(const ExprPtr& op) override {
-        if (op->getKind() == Expr::Literal) {
-            auto fltLit = llvm::dyn_cast<FloatLiteralExpr>(op.get());
-            return this->BoolLit(fltLit->getValue().isInfinity());
-        }
-
-        return FIsInfExpr::Create(op);
+        return ConstantFolder::FIsInf(op);
     }
     
     ExprPtr FAdd(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) override {
-        return FAddExpr::Create(left, right, rm);
+        return ConstantFolder::FAdd(left, right, rm);
     }
+    
     ExprPtr FSub(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) override {
-        return FSubExpr::Create(left, right, rm);
+        return ConstantFolder::FSub(left, right, rm);
     }
+
     ExprPtr FMul(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) override {
-        return FMulExpr::Create(left, right, rm);
+        return ConstantFolder::FMul(left, right, rm);
     }
+
     ExprPtr FDiv(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) override {
-        if (left->getKind() == Expr::Literal && right->getKind() == Expr::Literal) {
-            auto fltLeft  = llvm::cast<FloatLiteralExpr>(left.get());
-            auto fltRight = llvm::cast<FloatLiteralExpr>(right.get());
-
-            llvm::APFloat result(fltLeft->getValue());
-            result.divide(fltRight->getValue(), rm);
-
-            return FloatLiteralExpr::Get(
-                *llvm::cast<FloatType>(&left->getType()), result
-            );
-        }
-
-        return FDivExpr::Create(left, right, rm);
+        return ConstantFolder::FDiv(left, right, rm);
     }
     
     ExprPtr FEq(const ExprPtr& left, const ExprPtr& right) override {
-        return FEqExpr::Create(left, right);
+        return ConstantFolder::FEq(left, right);
     }
     ExprPtr FGt(const ExprPtr& left, const ExprPtr& right) override {
-        return FGtExpr::Create(left, right);
+        return ConstantFolder::FGt(left, right);
     }
     ExprPtr FGtEq(const ExprPtr& left, const ExprPtr& right) override {
-        return FGtEqExpr::Create(left, right);
+        return ConstantFolder::FGtEq(left, right);
     }
     ExprPtr FLt(const ExprPtr& left, const ExprPtr& right) override {
-        return FLtExpr::Create(left, right);
+        return ConstantFolder::FLt(left, right);
     }
     ExprPtr FLtEq(const ExprPtr& left, const ExprPtr& right) override {
-        return FLtEqExpr::Create(left, right);
+        return ConstantFolder::FLtEq(left, right);
     }
 
     ExprPtr Select(const ExprPtr& condition, const ExprPtr& then, const ExprPtr& elze) override
