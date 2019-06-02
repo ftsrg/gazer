@@ -80,7 +80,7 @@ CallTransition *Cfa::createCallTransition(
 // Member variables
 //-----------------------------------------------------------------------------
 
-Variable *Cfa::addInput(llvm::StringRef name, Type &type)
+Variable *Cfa::createInput(llvm::StringRef name, Type& type)
 {
     Variable* variable = this->createMemberVariable(name, type);
     mInputs.push_back(variable);
@@ -88,15 +88,12 @@ Variable *Cfa::addInput(llvm::StringRef name, Type &type)
     return variable;
 }
 
-Variable *Cfa::addOutput(llvm::StringRef name, Type &type)
+void Cfa::addOutput(Variable* variable)
 {
-    Variable* variable = this->createMemberVariable(name, type);
     mOutputs.push_back(variable);
-
-    return variable;
 }
 
-Variable *Cfa::addLocal(llvm::StringRef name, Type &type)
+Variable *Cfa::createLocal(llvm::StringRef name, Type& type)
 {
     Variable* variable = this->createMemberVariable(name, type);
     mLocals.push_back(variable);
@@ -106,7 +103,7 @@ Variable *Cfa::addLocal(llvm::StringRef name, Type &type)
 
 Variable *Cfa::createMemberVariable(llvm::Twine name, Type &type)
 {
-    llvm::Twine variableName = mName + "/" + name;
+    llvm::Twine variableName = llvm::Twine(mName, "/") + name;
 
     return mContext.createVariable(variableName.str(), type);
 }

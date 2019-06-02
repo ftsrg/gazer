@@ -43,7 +43,9 @@ public:
 
     GazerContext& getContext() const { return mContext; }
 
+    virtual void printStats(llvm::raw_ostream& os) = 0;
     virtual void dump(llvm::raw_ostream& os) = 0;
+
     virtual SolverStatus run() = 0;
     virtual Valuation getModel() = 0;
 

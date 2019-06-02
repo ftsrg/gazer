@@ -78,7 +78,7 @@ std::vector<std::unique_ptr<TraceEvent>> LLVMBmcTraceBuilder::buildEvents(Valuat
                         location
                     ));
                 }
-            } else if (callee->getName() == "gazer.inlined_global.write") {
+            } else if (callee->getName() == GazerIntrinsic::InlinedGlobalWriteName) {
                 auto mdValue = cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata();
                 auto value = cast<ValueAsMetadata>(mdValue)->getValue();
 

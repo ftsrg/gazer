@@ -34,8 +34,8 @@
 /// The implementation in this file is mostly based on the Value matcher
 /// mechanism found in LLVM.
 /// 
-#ifndef _GAZER_CORE_EXPR_MATCHER_H
-#define _GAZER_CORE_EXPR_MATCHER_H
+#ifndef GAZER_CORE_EXPR_MATCHER_H
+#define GAZER_CORE_EXPR_MATCHER_H
 
 #include "gazer/Core/Expr.h"
 #include "gazer/Core/ExprTypes.h"
@@ -101,7 +101,7 @@ namespace detail
 template<typename... Patterns>
 inline bool unord_match(const ExprVector& vec, Patterns... patterns)
 {
-    ExprVector unmatched;
+    ExprVector unmatched = vec;
     std::tuple<Patterns...> patternsTuple(patterns...);
 
     return detail::vector_element_match<0, Patterns...>(unmatched, patternsTuple);
@@ -373,18 +373,6 @@ select_expr_match<CondTy, LTy, RTy> m_Select(const CondTy& cond, const LTy& left
 
 //===------------------ Matcher for multiary expressions ------------------===//
 //============================================================================//
-
-template<size_t NumPatterns, typename... Patterns>
-struct vector_matcher
-{
-    std::tuple<Patterns...> patterns;
-
-    template<typename InputIterator>
-    bool match(InputIterator begin, InputIterator end, ExprVector& unmatched)
-    {
-
-    }
-};
 
 /// Helper for matching multiary expressions
 template<size_t NumOps, Expr::ExprKind Kind, bool Commutable, typename... Ts>

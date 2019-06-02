@@ -49,6 +49,11 @@ protected:
         mOS << ")";
     }
 
+    void visitExtract(const ExprRef<ExtractExpr>& expr) override {
+        this->indent();
+        expr->print(mOS);
+    }
+
 private:
     void indent() {
         for (size_t i = 0; i < mIndent; ++i) {

@@ -225,6 +225,11 @@ inline ExprRef<T> make_expr_ref(T* expr) {
     return ExprRef<T>(expr);
 }
 
+template<class ToT, class FromT>
+inline ExprRef<ToT> expr_cast(const ExprRef<FromT>& value) {
+    return llvm::isa<ToT>(value.get()) ? boost::static_pointer_cast<ToT>(value) : nullptr;
+}
+
 llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Expr& expr);
 
 /// Expression base class for atomic expression values.

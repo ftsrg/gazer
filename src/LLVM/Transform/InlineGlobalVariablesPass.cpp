@@ -1,4 +1,5 @@
 #include "gazer/LLVM/Transform/Passes.h"
+#include "gazer/LLVM/Instrumentation/Intrinsics.h"
 
 #include <llvm/Pass.h>
 #include <llvm/IR/Module.h>
@@ -9,6 +10,7 @@
 #include <llvm/IR/DIBuilder.h>
 
 using namespace llvm;
+using namespace gazer;
 
 namespace
 {
@@ -39,14 +41,7 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
         return false;
     }
 
-    auto fType = llvm::FunctionType::get(llvm::Type::getVoidTy(module.getContext()), {
-        llvm::Type::getMetadataTy(module.getContext()),
-        llvm::Type::getMetadataTy(module.getContext())
-    }, false);
-
-    auto mark = module.getOrInsertFunction(
-        "gazer.inlined_global.write", fType
-    );
+    auto mark = GazerIntrinsic::GetOrInsertInlinedGlobalWrite(module);
 
     Function* dbgDecl = Intrinsic::getDeclaration(&module, Intrinsic::dbg_declare);
 
@@ -87,7 +82,7 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
                 if (auto inst = llvm::dyn_cast<StoreInst>(user)) {
                     llvm::Value* value = inst->getOperand(0);
                     CallInst* call = CallInst::Create(
-                        fType, mark.getCallee(), {
+                        mark.getFunctionType(), mark.getCallee(), {
                             MetadataAsValue::get(module.getContext(), ValueAsMetadata::get(value)),
                             MetadataAsValue::get(module.getContext(), diGlobalVariable)
                         }

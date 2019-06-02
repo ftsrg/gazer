@@ -43,9 +43,19 @@ llvm::FunctionCallee GazerIntrinsic::GetOrInsertFunctionReturnValue(llvm::Module
 
     // Insert a new function for this mark type
     return module.getOrInsertFunction(
-        "gazer.function.return_value." + rso.str(),
+        FunctionReturnValuePrefix + rso.str(),
         llvm::Type::getVoidTy(module.getContext()),
         llvm::Type::getMetadataTy(module.getContext()),
         type
+    );
+}
+
+llvm::FunctionCallee GazerIntrinsic::GetOrInsertInlinedGlobalWrite(llvm::Module& module)
+{
+    return module.getOrInsertFunction(
+        InlinedGlobalWriteName,
+        llvm::Type::getVoidTy(module.getContext()),
+        llvm::Type::getMetadataTy(module.getContext()),
+        llvm::Type::getMetadataTy(module.getContext())
     );
 }

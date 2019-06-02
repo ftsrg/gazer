@@ -3,5 +3,5 @@ SET(TEST_SOURCES
 )
 
 add_executable(GazerAutomatonTest ${TEST_SOURCES})
-target_link_libraries(GazerAutomatonTest ${GTEST_BOTH_LIBRARIES} GazerCore GazerAutomaton)
+target_link_libraries(GazerAutomatonTest gtest_main GazerCore GazerAutomaton)
 add_test(GazerAutomatonTest GazerAutomatonTest)

@@ -120,48 +120,53 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate()
             // Insert the loop variables
             for (BasicBlock* bb : loopBlocks) {
                 for (Instruction& inst : *bb) {
-                    if (inst.getOpcode() == Instruction::PHI && bb == loop->getHeader()) {
-                        // PHI nodes of the entry block should also be inputs.
-                        auto variable = nested->addInput(inst.getName(), typeFromLLVMType(inst.getType(), mContext));
-                        loopGenInfo.PhiInputs[&inst] = variable;
-                        continue;
-                    }
-
-                    for (auto oi = inst.op_begin(), oe = inst.op_end(); oi != oe; ++oi) {
-                        llvm::Value* value = *oi;
-                        if (isDefinedInCaller(value, loopBlocks)) {
-                            auto variable = nested->addInput(value->getName(), typeFromLLVMType(value->getType(), mContext));
-                            loopGenInfo.Inputs[value] = variable;
-
-                            LLVM_DEBUG(llvm::dbgs() << "  Added input variable " << *variable << "\n");
-                        }
-                    }
-
+                    Variable* variable = nullptr;
                     if (inst.getType()->isVoidTy()) {
                         continue;
                     }
 
-                    bool isLocal = true;
+                    if (inst.getOpcode() == Instruction::PHI && bb == loop->getHeader()) {
+                        // PHI nodes of the entry block should also be inputs.
+                        variable = nested->createInput(inst.getName(), typeFromLLVMType(inst.getType(), mContext));
+                        loopGenInfo.PhiInputs[&inst] = variable;
+                    } else {
+                        for (auto oi = inst.op_begin(), oe = inst.op_end(); oi != oe; ++oi) {
+                            llvm::Value* value = *oi;
+                            if (isDefinedInCaller(value, loopBlocks)) {
+                                auto argVariable = nested->createInput(
+                                    value->getName(),
+                                    typeFromLLVMType(value->getType(), mContext)
+                                );
+                                loopGenInfo.Inputs[value] = argVariable;
+
+                                LLVM_DEBUG(llvm::dbgs() << "  Added input variable " << *variable << "\n");
+                            }
+                        }
+
+                        // If the instruction is defined in an already visited block, it is a local of
+                        // a subloop rather than this loop.
+                        if (visitedBlocks.count(bb) == 0) {
+                            variable = nested->createLocal(inst.getName(), typeFromLLVMType(inst.getType(), mContext));
+                            loopGenInfo.Locals[&inst] = variable;
+
+                            LLVM_DEBUG(llvm::dbgs() << "  Added local variable " << *variable << "\n");
+                        } else {
+                            // TODO
+                            variable = nullptr;
+                        }
+                    }
+
                     for (auto user : inst.users()) {
                         if (auto i = llvm::dyn_cast<Instruction>(user)) {
-                            if (std::find(loopBlocks.begin(), loopBlocks.end(), i->getParent()) == loopBlocks.end()) {
-                                auto variable = nested->addOutput(inst.getName(), typeFromLLVMType(i->getType(), mContext));
+                            if (std::find(loopBlocks.begin(), loopBlocks.end(), i->getParent()) ==
+                                loopBlocks.end()) {
+                                nested->addOutput(variable);
                                 loopGenInfo.Outputs[&inst] = variable;
-                                isLocal = false;
 
                                 LLVM_DEBUG(llvm::dbgs() << "  Added output variable " << *variable << "\n");
                                 break;
                             }
                         }
-                    }
-
-                    // If the instruction is defined in an already visited block, it is a local of
-                    // a subloop rather than this loop.
-                    if (isLocal && inst.getName() != "" && visitedBlocks.count(bb) == 0) {
-                        auto variable = nested->addLocal(inst.getName(), typeFromLLVMType(inst.getType(), mContext));
-                        loopGenInfo.Locals[&inst] = variable;
-
-                        LLVM_DEBUG(llvm::dbgs() << "  Added local variable " << *variable << "\n");
                     }
                 }
 
@@ -175,7 +180,12 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate()
             }
 
             // If the loop has multiple exits, add a selector output to disambiguate between these.
-            loopGenInfo.ExitVariable = nested->addOutput(nested->getName().str() + "/output_selector", BvType::Get(mContext, 8));
+            llvm::SmallVector<llvm::BasicBlock*, 8> exitBlocks;
+            loop->getUniqueExitBlocks(exitBlocks);
+            if (exitBlocks.size() != 1) {
+                loopGenInfo.ExitVariable = nested->createLocal("__output_selector", BvType::Get(mContext, 8));
+                nested->addOutput(loopGenInfo.ExitVariable);
+            }
 
             std::vector<BasicBlock*> blocksToEncode;
             std::copy_if(
@@ -203,12 +213,15 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate()
 
         // Add function input and output parameters
         for (llvm::Argument& argument : function.args()) {
-            Variable* variable = cfa->addInput(argument.getName(), typeFromLLVMType(argument.getType(), mContext));
+            Variable* variable = cfa->createInput(argument.getName(), typeFromLLVMType(argument.getType(), mContext));
             genInfo.Inputs[&argument] = variable;
         }
 
         // TODO: Maybe add RET_VAL to genInfo outputs in some way?
-        cfa->addOutput("RET_VAL", typeFromLLVMType(function.getReturnType(), mContext));
+        if (!function.getReturnType()->isVoidTy()) {
+            auto retval = cfa->createLocal("RET_VAL", typeFromLLVMType(function.getReturnType(), mContext));
+            cfa->addOutput(retval);
+        }
 
         // For the local variables, we only need to add the values not present
         // in any of the loops.
@@ -220,7 +233,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate()
             for (Instruction& inst : bb) {
                 // FIXME: This requires the instnamer pass as a dependency, we should find another way around this.
                 if (inst.getName() != "") {
-                    Variable* variable = cfa->addLocal(inst.getName(), typeFromLLVMType(inst.getType(), mContext));
+                    Variable* variable = cfa->createLocal(inst.getName(), typeFromLLVMType(inst.getType(), mContext));
                     genInfo.Locals[&inst] = variable;
                 }
             }

@@ -114,8 +114,8 @@ public:
 
     llvm::APInt getValue() const { return mValue; }
 
-    const BvType& getType() const {
-        return static_cast<const BvType&>(mType);
+    BvType& getType() const {
+        return static_cast<BvType&>(mType);
     }
 
     static bool classof(const Expr* expr) {

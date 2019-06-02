@@ -2,7 +2,7 @@
 #include "gazer/Core/Utils/ExprUtils.h"
 #include "gazer/Support/Stopwatch.h"
 #include "gazer/Core/Expr/ExprSimplify.h"
-#include "gazer/Analysis/MemoryModel.h"
+#include "gazer/Analysis/LegacyMemoryModel.h"
 
 #include <llvm/IR/CFG.h>
 #include <llvm/IR/InstIterator.h>
@@ -96,7 +96,7 @@ BoundedModelChecker::BoundedModelChecker(
     TopologicalSort& topo,
     GazerContext& context,
     ExprBuilder* exprBuilder,
-    MemoryModel& memoryModel,
+    legacy::MemoryModel& memoryModel,
     SolverFactory& solverFactory,
     llvm::raw_ostream& os
 ) :
@@ -344,10 +344,10 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::run()
         std::unique_ptr<Solver> solver = mSolverFactory.createSolver(mContext);
 
         // Simplify before adding
-        if (!NoExprSimplify) {
-            mOS << "Running formula simplifier.\n";
-            formula = ExprSimplifier(ExprSimplifier::Expensive).simplify(formula);
-        }
+        //if (!NoExprSimplify) {
+        //    mOS << "Running formula simplifier.\n";
+        //    formula = ExprSimplifier(ExprSimplifier::Expensive).simplify(formula);
+        //}
 
         //formula->print(mOS);
         if (DumpFormula) {
@@ -367,6 +367,12 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::run()
 
         mOS << "   Running solver.\n";
         auto status = solver->run();
+
+        if (PrintSolverStats) {
+            mOS << "   Solver stats:\n";
+            solver->printStats(mOS);
+            mOS << "\n";
+        }
 
         if (status == Solver::SAT) {
             mOS << "   Formula is SAT\n";

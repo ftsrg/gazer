@@ -94,6 +94,8 @@ if __name__ == '__main__':
     SKIP = 4
     UNKNOWN = 5
 
+    outputs_file = open("test_outputs.txt", "w")
+
     for test in sorted(tests, key=operator.attrgetter('filename')):
         # Execute all tests
         print("Test {0} {1}".format(test.filename, test.flags))
@@ -130,6 +132,9 @@ if __name__ == '__main__':
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 text=True).stdout
+
+            outputs_file.write(">>>>>> Output for {0} {1}:\n".format(test.filename, test.flags))
+            outputs_file.write(gazer_output)
 
             verification_result = ""
             if "Verification FAILED" in gazer_output:

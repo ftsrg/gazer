@@ -1,7 +1,7 @@
 #include "gazer/LLVM/Ir2Expr.h"
 
 #include "gazer/Core/Type.h"
-#include "gazer/Analysis/MemoryModel.h"
+#include "gazer/Analysis/LegacyMemoryModel.h"
 
 #include <llvm/IR/InstIterator.h>
 #include <llvm/Support/CommandLine.h>
@@ -77,7 +77,7 @@ InstToExpr::InstToExpr(
     GazerContext& context,
     ExprBuilder* builder,
     ValueToVariableMap& variables,
-    MemoryModel& memoryModel,
+    legacy::MemoryModel& memoryModel,
     llvm::DenseMap<llvm::Value*, ExprPtr>& eliminatedValues
 )
     : mFunction(function), mContext(context),
