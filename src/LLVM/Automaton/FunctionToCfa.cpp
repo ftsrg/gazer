@@ -10,7 +10,7 @@ void FunctionToCfa::encode(Cfa* cfa)
 {
     // Insert all arguments into the CFA
     for (auto& argument : mFunction.args()) {
-        auto variable = cfa->addInput(
+        auto variable = cfa->createInput(
             argument.getName(),
             typeFromLLVMType(argument.getType(), mContext)
         );
@@ -19,9 +19,7 @@ void FunctionToCfa::encode(Cfa* cfa)
 
     // Add a return value if needed
     if (!mFunction.getReturnType()->isVoidTy()) {
-        cfa->addOutput("RET_VAL", typeFromLLVMType(
-            mFunction.getReturnType(), mContext
-        ));
+        //cfa->addOutput("RET_VAL");
     }
 
     // As loops will be represented as separate automata,
@@ -61,7 +59,7 @@ void FunctionToCfa::encode(Cfa* cfa)
     // Add local values
     for (auto& instr : llvm::instructions(mFunction)) {
         if (instr.getName() != "") {
-            Variable* variable = cfa->addLocal(
+            Variable* variable = cfa->createLocal(
                 instr.getName(),
                 typeFromLLVMType(instr.getType(), mContext)
             );

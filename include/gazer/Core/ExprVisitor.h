@@ -9,13 +9,12 @@
 namespace gazer
 {
 
+/// Generic visitor interface for expressions.
 template<class ReturnT = void>
 class ExprVisitor
 {
 public:
-    /**
-     * Handler for expression pointers.
-     */
+    /// Handler for expression pointers.
     virtual ReturnT visit(const ExprPtr& expr) {
         #define GAZER_EXPR_KIND(KIND)                                       \
             case Expr::KIND:                                                \
@@ -38,9 +37,7 @@ protected:
     // In case you don't override specific expression classes,
     // these will be called as a fallback.
     
-    /**
-     * Basic fallback method, for unhandled instruction types.
-     */
+    /// Basic fallback method for unhandled instruction types.
     virtual ReturnT visitExpr(const ExprPtr& expr) = 0;
 
     virtual ReturnT visitNonNullary(const ExprRef<NonNullaryExpr>& expr) {

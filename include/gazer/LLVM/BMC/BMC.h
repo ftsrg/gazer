@@ -29,7 +29,7 @@ public:
         TopologicalSort& topo,
         GazerContext& context,
         ExprBuilder* builder,
-        MemoryModel& memoryModel,
+        legacy::MemoryModel& memoryModel,
         SolverFactory& solverFactory,
         llvm::raw_ostream& os = llvm::nulls()
     );

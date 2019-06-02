@@ -1,4 +1,4 @@
-#include "gazer/Analysis/MemoryModel.h"
+#include "gazer/Analysis/LegacyMemoryModel.h"
 #include "gazer/Core/LiteralExpr.h"
 #include "gazer/Core/Variable.h"
 #include "gazer/LLVM/Ir2Expr.h"
@@ -10,6 +10,10 @@
 
 namespace gazer
 {
+
+
+
+namespace legacy {
 
 /// A dummy memory model which basically does nothing and havoc's all loads.
 class HavocMemoryModel : public MemoryModel
@@ -76,12 +80,13 @@ public:
 };
 
 }
+}
 
 using namespace gazer;
 using llvm::dyn_cast;
 using llvm::cast;
 
-std::unique_ptr<MemoryModel> gazer::createHavocMemoryModel(GazerContext& context) {
-    return std::make_unique<HavocMemoryModel>(context);
+std::unique_ptr<gazer::legacy::MemoryModel> gazer::legacy::createHavocMemoryModel(GazerContext& context) {
+    return std::make_unique<legacy::HavocMemoryModel>(context);
 }
 

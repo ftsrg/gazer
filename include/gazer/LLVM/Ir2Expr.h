@@ -13,7 +13,9 @@ namespace gazer
 
 using ValueToVariableMap = llvm::DenseMap<const llvm::Value*, Variable*>;
 
+namespace legacy {
 class MemoryModel;
+}
 
 class InstToExpr
 {
@@ -23,7 +25,7 @@ public:
         GazerContext& context,
         ExprBuilder* builder,
         ValueToVariableMap& variables,
-        MemoryModel& memoryModel,
+        legacy::MemoryModel& memoryModel,
         llvm::DenseMap<llvm::Value*, ExprPtr>& eliminatedValues
     );
 
@@ -71,7 +73,7 @@ private:
     ExprBuilder* mExprBuilder;
 
     ValueToVariableMap& mVariables;
-    MemoryModel& mMemoryModel;
+    legacy::MemoryModel& mMemoryModel;
     llvm::DenseMap<llvm::Value*, ExprPtr>& mEliminatedValues;
 };
 

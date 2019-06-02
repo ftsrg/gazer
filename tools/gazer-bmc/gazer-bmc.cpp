@@ -132,7 +132,7 @@ int main(int argc, char* argv[])
         pm->add(llvm::createLowerSwitchPass());
         pm->add(llvm::createLoopSimplifyPass());
         pm->add(llvm::createLoopRotatePass());
-        pm->add(llvm::createIndVarSimplifyPass());
+        //pm->add(llvm::createIndVarSimplifyPass());
         pm->add(llvm::createLoopSimplifyPass());
         
         pm->add(new llvm::DominatorTreeWrapperPass());
@@ -140,7 +140,7 @@ int main(int argc, char* argv[])
         pm->add(new llvm::ScalarEvolutionWrapperPass());
         pm->add(new llvm::AssumptionCacheTracker());
         
-        // pm->add(new gazer::BoundedUnwindPass(bound));
+        pm->add(new gazer::BoundedUnwindPass(bound));
         pm->add(llvm::createInstructionNamerPass());
 
         bool NeedsPDG = BackwardSlice || PrintPDG;
@@ -161,9 +161,11 @@ int main(int argc, char* argv[])
         }
 
         //pm->add(gazer::createPromoteUndefsPass());
+
+        // TODO: CFG Simplifcation seems to introduce some semantic changes, breaking verification.
         //pm->add(llvm::createCFGSimplificationPass());
-        //pm->add(createCombineErrorCallsPass());
-        //pm->add(createTopologicalSortPass());
+        pm->add(createCombineErrorCallsPass());
+        pm->add(createTopologicalSortPass());
 
         if (ShowUnrolledCFG) {
             pm->add(llvm::createCFGPrinterLegacyPassPass());
@@ -172,10 +174,10 @@ int main(int argc, char* argv[])
         //pm->add(llvm::createVerifierPass());
         //pm->add(new gazer::CfaBuilderPass(LargeBlockCFA));
         //if (PrintCFA) {
-        //    pm->add(createCfaPrinterPass());
+        //   pm->add(createCfaPrinterPass());
         //}
-        //pm->add(new gazer::BmcPass());
-        pm->add(new gazer::ModuleToAutomataPass());
+        pm->add(new gazer::BmcPass());
+        //pm->add(new gazer::ModuleToAutomataPass());
     }
 
     //pm->add(llvm::createCFGPrinterLegacyPassPass());

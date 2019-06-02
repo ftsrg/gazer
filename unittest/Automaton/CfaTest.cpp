@@ -29,13 +29,15 @@ TEST(Cfa, CanCreateCfa)
     ASSERT_EQ(4, loc4->getId());
 
     // Add variables
-    Variable* in1 = cfa->addInput("in1", BoolType::Get(context));
-    Variable* out1 = cfa->addOutput("out1", BoolType::Get(context));
-    Variable* tmp = cfa->addLocal("tmp", BoolType::Get(context));
+    Variable* in1 = cfa->createInput("in1", BoolType::Get(context));
+    Variable* tmp = cfa->createLocal("tmp", BoolType::Get(context));
+    Variable* out1 = cfa->createLocal("out1", BoolType::Get(context));
+
+    cfa->addOutput(out1);
 
     ASSERT_EQ(1, cfa->getNumInputs());
     ASSERT_EQ(1, cfa->getNumOutputs());
-    ASSERT_EQ(1, cfa->getNumLocals());
+    ASSERT_EQ(2, cfa->getNumLocals());
 
     ASSERT_EQ("Test/in1", in1->getName());
     ASSERT_EQ("Test/out1", out1->getName());

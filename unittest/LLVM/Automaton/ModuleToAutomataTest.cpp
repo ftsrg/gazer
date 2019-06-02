@@ -17,6 +17,23 @@ using namespace gazer;
 namespace
 {
 
+::testing::AssertionResult VariableListContains(
+    llvm::iterator_range<Cfa::var_iterator> vars,
+    std::initializer_list<std::pair<std::string, gazer::Type*>> names
+) {
+    for (auto& pair : names) {
+        if (std::none_of(vars.begin(), vars.end(), [&pair](Variable& v) {
+            return v.getName() == pair.first && v.getType() == *pair.second;
+        })) {
+            return ::testing::AssertionFailure()
+                << "Expected " << pair.first << " with type "
+                << pair.second->getName() << " in the given variable list";
+        }
+    }
+
+    return ::testing::AssertionSuccess();
+}
+
 class ModuleToAutomataTest : public testing::Test
 {
 protected:
@@ -66,8 +83,7 @@ loop.header:
     br i1 %cond, label %loop.body, label %loop.end
 loop.body:
     %a = call i32 @__VERIFIER_nondet_int()
-    %b = call i32 @__VERIFIER_nondet_int()
-    %s = call i32 @calculate(i32 %a, i32 %b)
+    %s = call i32 @calculate(i32 %a, i32 %sum)
     %i1 = add nsw i32 %i, 1
     br label %loop.header
 loop.end:
@@ -81,6 +97,8 @@ TEST_F(BasicModuleToAutomataTest, CanCreateAllAutomata)
     GazerContext context;
     auto system = translateModuleToAutomata(*module, loopInfoMap, context);
 
+    module->getFunction("main")->viewCFG();
+
     ASSERT_EQ(system->getNumAutomata(), 3);
 
     Cfa* main = system->getAutomatonByName("main");
@@ -93,16 +111,55 @@ TEST_F(BasicModuleToAutomataTest, CanCreateAllAutomata)
     ASSERT_TRUE(loop != nullptr);
 
     EXPECT_EQ(main->getNumInputs(), 0);
-    EXPECT_EQ(main->getNumLocals(), 1); // sum
+    EXPECT_EQ(main->getNumLocals(), 2); // limit, RET_VAL
     EXPECT_EQ(main->getNumOutputs(), 1); // RET_VAL
 
+    EXPECT_TRUE(VariableListContains(main->locals(), {
+        { "main/limit", &BvType::Get(context, 32) }
+    }));
+
     EXPECT_EQ(calculate->getNumInputs(), 2); // x, y
-    EXPECT_EQ(calculate->getNumLocals(), 1); // sum
+    EXPECT_EQ(calculate->getNumLocals(), 2); // sum, RET_VAL
     EXPECT_EQ(calculate->getNumOutputs(), 1); // RET_VAL
 
+    EXPECT_TRUE(VariableListContains(calculate->inputs(), {
+        { "calculate/x", &BvType::Get(context, 32) },
+        { "calculate/y", &BvType::Get(context, 32) }
+    }));
+    EXPECT_TRUE(VariableListContains(calculate->locals(), {
+        { "calculate/sum", &BvType::Get(context, 32) }
+    }));
+
     EXPECT_EQ(loop->getNumInputs(), 3); // i, sum, limit
-    EXPECT_EQ(loop->getNumLocals(), 5); // cond, a, b, s, i1
-    EXPECT_EQ(loop->getNumOutputs(), 1); // s
+    EXPECT_EQ(loop->getNumLocals(), 4); // cond, a, s, i1
+    EXPECT_EQ(loop->getNumOutputs(), 1); // sum
+
+    loop->view();
+
+    EXPECT_TRUE(VariableListContains(loop->inputs(), {
+        { "main/loop.header/i", &BvType::Get(context, 32) },
+        { "main/loop.header/sum", &BvType::Get(context, 32) },
+        { "main/loop.header/limit", &BvType::Get(context, 32) }
+    }));
+    EXPECT_TRUE(VariableListContains(loop->locals(), {
+        { "main/loop.header/cond", &BoolType::Get(context) },
+        { "main/loop.header/a", &BvType::Get(context, 32) },
+        { "main/loop.header/s", &BvType::Get(context, 32) },
+        { "main/loop.header/i1", &BvType::Get(context, 32) },
+    }));
+    EXPECT_TRUE(VariableListContains(loop->outputs(), {
+        { "main/loop.header/sum", &BvType::Get(context, 32) }
+    }));
+
+    EXPECT_TRUE(VariableListContains(calculate->inputs(), {
+        { "calculate/x", &BvType::Get(context, 32) },
+        { "calculate/y", &BvType::Get(context, 32) }
+    }));
+    EXPECT_TRUE(VariableListContains(calculate->locals(), {
+        { "calculate/sum", &BvType::Get(context, 32) }
+    }));
+
+
 }
 
 } // end anonymous namespace

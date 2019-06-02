@@ -23,11 +23,12 @@ protected:
     using NonNullaryExpr::NonNullaryExpr;
 public:
     using NonNullaryExpr::getOperand;
-    ExprPtr getOperand() { return getOperand(0); }
+    ExprPtr getOperand() const { return getOperand(0); }
 };
 
 class NotExpr final : public UnaryExpr
 {
+    friend class ExprStorage;
 protected:
     using UnaryExpr::UnaryExpr;
 
@@ -54,6 +55,7 @@ public:
 template<Expr::ExprKind Kind>
 class ExtCastExpr final : public UnaryExpr
 {    
+    friend class ExprStorage;
     static_assert(Expr::FirstUnaryCast <= Kind && Kind <= Expr::LastUnaryCast,
         "A unary cast expression must have a unary cast expression kind.");
 private:
@@ -113,6 +115,8 @@ public:
     unsigned getOffset() const { return mOffset; }
     unsigned getWidth() const { return mWidth; }
 
+    void print(llvm::raw_ostream& os) const override;
+
     static ExprRef<ExtractExpr> Create(const ExprPtr& operand, unsigned offset, unsigned width);
 
     static bool classof(const Expr* expr) {
@@ -142,6 +146,7 @@ class ArithmeticExpr final : public BinaryExpr
     static_assert(Expr::FirstBinaryArithmetic <= Kind && Kind <= Expr::LastBinaryArithmetic,
         "An arithmetic expression must have an arithmetic expression kind.");
 
+    friend class ExprStorage;
 protected:
     using BinaryExpr::BinaryExpr;
 
@@ -197,6 +202,7 @@ class CompareExpr final : public BinaryExpr
 {
     static_assert(Expr::FirstCompare <= Kind && Kind <= Expr::LastCompare,
         "A compare expression must have a compare expression kind.");
+    friend class ExprStorage;
 protected:
     using BinaryExpr::BinaryExpr;
 
@@ -245,6 +251,7 @@ class MultiaryLogicExpr final : public NonNullaryExpr
 {
     static_assert(Expr::And == Kind || Expr::Or == Kind,
         "A logic expression must have a logic expression kind.");
+    friend class ExprStorage;
 protected:
     using NonNullaryExpr::NonNullaryExpr;
 
@@ -277,6 +284,7 @@ using OrExpr  = MultiaryLogicExpr<Expr::Or>;
 
 class XorExpr final : public BinaryExpr
 {
+    friend class ExprStorage;
 protected:
     using BinaryExpr::BinaryExpr;
 
@@ -302,6 +310,7 @@ class FpQueryExpr final : public UnaryExpr
 {
     static_assert(Kind == Expr::FIsNan || Kind == Expr::FIsInf,
         "A floating point query expression must be FIsNan or FIsInf");
+    friend class ExprStorage;
 protected:
     using UnaryExpr::UnaryExpr;
 
@@ -370,6 +379,7 @@ class FpCompareExpr final : public BinaryExpr
 {
     static_assert(Expr::FirstFpCompare <= Kind && Kind <= Expr::LastFpCompare,
         "A compare expression must have a compare expression kind.");
+    friend class ExprStorage;
 protected:
     using BinaryExpr::BinaryExpr;
 
@@ -405,6 +415,7 @@ using FLtEqExpr = FpCompareExpr<Expr::FLtEq>;
 
 class SelectExpr final : public NonNullaryExpr
 {
+    friend class ExprStorage;
 protected:
     using NonNullaryExpr::NonNullaryExpr;
 

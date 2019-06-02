@@ -46,9 +46,20 @@ find_package(Boost REQUIRED)
 include_directories(${Boost_INCLUDE_DIR})
 
 # Project directories
-
 include_directories(include)
 
 add_subdirectory(src)
 add_subdirectory(tools)
-add_subdirectory(unittest)
+
+option(GAZER_ENABLE_UNIT_TESTS "Enable unit tests" ON)
+
+if (GAZER_ENABLE_UNIT_TESTS)
+    enable_testing()
+
+    set(GOOGLETEST_SOURCE_DIR "vendor/googletest")
+    set(GOOGLETEST_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/googletest-build")
+
+    add_subdirectory(${GOOGLETEST_SOURCE_DIR})
+
+    add_subdirectory(unittest)
+endif()

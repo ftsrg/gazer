@@ -7,7 +7,7 @@
 #include "gazer/LLVM/BMC/BMC.h"
 #include "gazer/LLVM/TestGenerator/TestGenerator.h"
 
-#include "gazer/Analysis/MemoryModel.h"
+#include "gazer/Analysis/LegacyMemoryModel.h"
 
 #include "gazer/Support/Stopwatch.h"
 #include "gazer/Trace/TraceWriter.h"
@@ -67,7 +67,7 @@ bool BmcPass::runOnFunction(llvm::Function& function)
     Stopwatch<> sw;
     sw.start();
 
-    auto memoryModel = createHavocMemoryModel(context);
+    auto memoryModel = legacy::createHavocMemoryModel(context);
     
     BoundedModelChecker bmc(
         function, topo, context, builder.get(),

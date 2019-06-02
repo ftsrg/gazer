@@ -242,9 +242,13 @@ public:
         Cfa* callee, std::vector<ExprPtr> inputArgs, std::vector<VariableAssignment> outputArgs
     );
 
-    Variable* addInput(llvm::StringRef name, Type& type);
-    Variable* addOutput(llvm::StringRef name, Type& type);
-    Variable* addLocal(llvm::StringRef name, Type& type);
+    // Variable handling
+
+    Variable* createInput(llvm::StringRef name, Type& type);
+    Variable* createLocal(llvm::StringRef name, Type& type);
+
+    /// Mark an already existing variable as an output.
+    void addOutput(Variable* variable);
 
     //-------------------------- Iterator support ---------------------------//
     using node_iterator = std::vector<std::unique_ptr<Location>>::iterator;

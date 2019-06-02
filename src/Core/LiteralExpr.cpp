@@ -40,7 +40,7 @@ ExprRef<BvLiteralExpr> BvLiteralExpr::Get(BvType& type, llvm::APInt value)
 
 ExprRef<FloatLiteralExpr> FloatLiteralExpr::Get(FloatType& type, const llvm::APFloat& value)
 {
-    assert(llvm::APFloat::semanticsPrecision(value.getSemantics()) == type.getPrecision());
+    assert(llvm::APFloat::semanticsSizeInBits(value.getSemantics()) == type.getPrecision());
 
     return type.getContext().pImpl->Exprs.create<FloatLiteralExpr>(type, value);
 }
