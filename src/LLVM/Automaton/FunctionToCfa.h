@@ -15,33 +15,6 @@ namespace gazer
 
 using ValueToVariableMap = llvm::DenseMap<llvm::Value*, Variable*>;
 
-Type& typeFromLLVMType(const llvm::Type* type, GazerContext& context);
-
-class FunctionToCfa
-{
-public:
-    FunctionToCfa(
-        llvm::Function& function,
-        GazerContext& context,
-        ExprBuilder* builder,
-        ValueToVariableMap& variables,
-        llvm::LoopInfo& loopInfo
-    );
-
-public:
-    void encode(Cfa* cfa);
-
-private:
-    llvm::Function& mFunction;
-    GazerContext& mContext;
-    ExprBuilder* mExprBuilder;
-    ValueToVariableMap& mVariables;
-    llvm::LoopInfo& mLoopInfo;
-
-    AutomataSystem* mSystem;
-    std::unordered_map<llvm::BasicBlock*, std::pair<Location*, Location*>> mBlockMap;
-};
-
 /// Stores information about loops which were transformed to automata.
 struct CfaGenInfo
 {
@@ -55,6 +28,7 @@ struct CfaGenInfo
 
     // For automata with multiple exit paths, this variable tells us which was taken.
     Variable* ExitVariable = nullptr;
+    llvm::SmallDenseMap<llvm::BasicBlock*, ExprRef<BvLiteralExpr>, 4> ExitBlocks;
 
     CfaGenInfo() = default;
     CfaGenInfo(CfaGenInfo&&) = default;
@@ -73,10 +47,47 @@ struct GenerationContext
     AutomataSystem& System;
 
 public:
-    explicit GenerationContext(AutomataSystem& system);
+    explicit GenerationContext(AutomataSystem& system)
+        : System(system)
+    {}
 
     GenerationContext(const GenerationContext&) = delete;
     GenerationContext& operator=(const GenerationContext&) = delete;
+};
+
+class ModuleToCfa final
+{
+public:
+    using LoopInfoMapTy = std::unordered_map<llvm::Function*, llvm::LoopInfo*>;
+
+    static constexpr char FunctionReturnValueName[] = "RET_VAL";
+    static constexpr char LoopOutputSelectorName[] = "__output_selector";
+
+    ModuleToCfa(
+        llvm::Module& module,
+        LoopInfoMapTy& loops,
+        GazerContext& context
+    )
+        : mModule(module),
+        mLoops(loops), mContext(context)
+    {
+        mSystem = std::make_unique<AutomataSystem>(context);
+    }
+
+    std::unique_ptr<AutomataSystem> generate();
+
+private:
+    llvm::Module& mModule;
+    LoopInfoMapTy& mLoops;
+
+    GazerContext& mContext;
+    std::unique_ptr<AutomataSystem> mSystem;
+
+    // Generation helpers
+    std::unordered_map<llvm::Function*, Cfa*> mFunctionMap;
+    std::unordered_map<llvm::Loop*, Cfa*> mLoopMap;
+
+    ValueToVariableMap mVariables;
 };
 
 class BlocksToCfa
@@ -126,6 +137,6 @@ private:
     ExprBuilder& mExprBuilder;
 };
 
-}
+} // end namespace gazer
 
 #endif //GAZER_SRC_FUNCTIONTOAUTOMATA_H

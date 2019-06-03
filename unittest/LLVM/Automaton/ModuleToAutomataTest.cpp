@@ -97,8 +97,6 @@ TEST_F(BasicModuleToAutomataTest, CanCreateAllAutomata)
     GazerContext context;
     auto system = translateModuleToAutomata(*module, loopInfoMap, context);
 
-    module->getFunction("main")->viewCFG();
-
     ASSERT_EQ(system->getNumAutomata(), 3);
 
     Cfa* main = system->getAutomatonByName("main");
@@ -134,9 +132,6 @@ TEST_F(BasicModuleToAutomataTest, CanCreateAllAutomata)
     EXPECT_EQ(loop->getNumInputs(), 3); // i, sum, limit
     EXPECT_EQ(loop->getNumLocals(), 4); // cond, a, s, i1
     EXPECT_EQ(loop->getNumOutputs(), 1); // sum
-
-    loop->view();
-    main->view();
 
     EXPECT_TRUE(VariableListContains(loop->inputs(), {
         { "main/loop.header/i", &BvType::Get(context, 32) },
@@ -196,6 +191,52 @@ TEST_F(PostTestLoopTest, CanTransformPostTestLoop)
 
     Cfa* loop = system->getAutomatonByName("main/loop.header");
     ASSERT_TRUE(loop != nullptr);
+}
+
+class LoopWithMultipleExitsTest : public ModuleToAutomataTest
+{
+public:
+    LoopWithMultipleExitsTest()
+        : ModuleToAutomataTest(R"ASM(
+declare i32 @__VERIFIER_nondet_int()
+
+define i32 @main() {
+entry:
+    %limit = call i32 @__VERIFIER_nondet_int()
+    br label %loop.header
+loop.header:
+    %i = phi i32 [ 0, %entry ], [ %i1, %loop.body ]
+    %sum = phi i32 [ 0, %entry ], [ %s, %loop.body ]
+    %cond = icmp slt i32 %i, %limit
+    br i1 %cond, label %loop.body, label %loop.end
+loop.body:
+    %a = call i32 @__VERIFIER_nondet_int()
+    %i1 = add nsw i32 %i, 1
+    %s = add nsw i32 %sum, %a
+    %c = call i32 @__VERIFIER_nondet_int()
+    %c1 = trunc i32 %c to i1
+    br i1 %c1, label %loop.end, label %loop.header
+loop.end:
+    ret i32 %sum
+}
+)ASM") {}
+};
+
+TEST_F(LoopWithMultipleExitsTest, CanTransformLoopWithMultipleExits)
+{
+    GazerContext context;
+    auto system = translateModuleToAutomata(*module, loopInfoMap, context);
+
+    Cfa* main = system->getAutomatonByName("main");
+    ASSERT_TRUE(main != nullptr);
+
+    Cfa* loop = system->getAutomatonByName("main/loop.header");
+    ASSERT_TRUE(loop != nullptr);
+
+    module->getFunction("main")->viewCFG();
+
+    main->view();
+    loop->view();
 }
 
 } // end anonymous namespace
