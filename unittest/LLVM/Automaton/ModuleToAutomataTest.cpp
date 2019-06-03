@@ -47,7 +47,6 @@ public:
     ModuleToAutomataTest(const char* moduleStr)
         : module(llvm::parseAssemblyString(moduleStr, error, llvmContext))
     {
-        error.print("test", llvm::errs());
         assert(module != nullptr && "Failed to construct LLVM module.");
 
         for (llvm::Function& function : *module) {
@@ -112,11 +111,12 @@ TEST_F(BasicModuleToAutomataTest, CanCreateAllAutomata)
     ASSERT_TRUE(loop != nullptr);
 
     EXPECT_EQ(main->getNumInputs(), 0);
-    EXPECT_EQ(main->getNumLocals(), 2); // limit, RET_VAL
+    EXPECT_EQ(main->getNumLocals(), 3); // limit, RET_VAL, sum
     EXPECT_EQ(main->getNumOutputs(), 1); // RET_VAL
 
     EXPECT_TRUE(VariableListContains(main->locals(), {
-        { "main/limit", &BvType::Get(context, 32) }
+        { "main/limit", &BvType::Get(context, 32) },
+        { "main/sum", &BvType::Get(context, 32) }
     }));
 
     EXPECT_EQ(calculate->getNumInputs(), 2); // x, y
@@ -136,6 +136,7 @@ TEST_F(BasicModuleToAutomataTest, CanCreateAllAutomata)
     EXPECT_EQ(loop->getNumOutputs(), 1); // sum
 
     loop->view();
+    main->view();
 
     EXPECT_TRUE(VariableListContains(loop->inputs(), {
         { "main/loop.header/i", &BvType::Get(context, 32) },
