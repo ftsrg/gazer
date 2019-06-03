@@ -77,6 +77,20 @@ static bool isDefinedInCaller(llvm::Value* value, llvm::ArrayRef<llvm::BasicBloc
     return false;
 }
 
+template<class Range>
+static bool hasUsesInBlockRange(llvm::Instruction* inst, Range&& range)
+{
+    for (auto user : inst->users()) {
+        if (auto i = llvm::dyn_cast<Instruction>(user)) {
+            if (std::find(std::begin(range), std::end(range), i->getParent()) != std::end(range)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 static gazer::Type& typeFromLLVMType(const llvm::Type* type, GazerContext& context);
 static gazer::Type& typeFromLLVMType(const llvm::Value* value, GazerContext& context);
 
@@ -226,35 +240,44 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate()
             cfa->addOutput(retval);
         }
 
-        // For the local variables, we only need to add the values not present
-        // in any of the loops.
-        for (BasicBlock& bb : function) {
-            if (loopInfo->getLoopFor(&bb) != nullptr) {
-                continue;
+        // At this point, the loops are already encoded, we only need to handle the blocks outside of the loops.
+        std::vector<BasicBlock*> functionBlocks;
+        std::for_each(function.begin(), function.end(), [&visitedBlocks, &functionBlocks] (BasicBlock& bb) {
+            if (visitedBlocks.count(&bb) == 0) {
+                functionBlocks.push_back(&bb);
             }
+        });
 
+        // For the local variables, we only need to add the values not present in any of the loops.
+        for (BasicBlock& bb : function) {
             for (Instruction& inst : bb) {
+                if (loopInfo->getLoopFor(&bb) != nullptr && !hasUsesInBlockRange(&inst, functionBlocks)) {
+                    continue;
+                }
+
                 // FIXME: This requires the instnamer pass as a dependency, we should find another way around this.
                 if (inst.getName() != "") {
                     Variable* variable = cfa->createLocal(inst.getName(), typeFromLLVMType(inst.getType(), mContext));
                     genInfo.Locals[&inst] = variable;
                 }
             }
+        }
 
+        for (BasicBlock* bb : functionBlocks) {
             Location* entry = cfa->createLocation();
             Location* exit = cfa->createLocation();
 
-            genInfo.Blocks[&bb] = std::make_pair(entry, exit);
+            genInfo.Blocks[bb] = std::make_pair(entry, exit);
         }
 
-        // Now do the actual encoding.
-        // First, we start with the loops.
-        //for (auto li = loops.rbegin(), le = loops.rend(); li != le; ++li) {
-        //   Loop* loop = *li;
-
-        //    CfaGenInfo& loopToCfaInfo = genCtx.LoopMap[loop];
-
-        //}
+        BlocksToCfa blocksToCfa(
+            genCtx,
+            genInfo,
+            functionBlocks,
+            cfa,
+            *exprBuilder
+        );
+        blocksToCfa.encode(&function.getEntryBlock());
     }
 
     return std::move(mSystem);
@@ -387,6 +410,8 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
                     auto nestedCfa = nestedLoopInfo.Automaton;
 
                     ExprVector loopArgs(nestedCfa->getNumInputs());
+                    std::vector<VariableAssignment> outputArgs;
+
                     for (auto entry : nestedLoopInfo.PhiInputs) {
                         auto incoming = llvm::cast<PHINode>(entry.first)->getIncomingValueForBlock(bb);
                         size_t idx = nestedCfa->getInputNumber(entry.second);
@@ -395,16 +420,32 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
                     }
 
                     for (auto entry : nestedLoopInfo.Inputs) {
-                        // Whatever variable is used as an input here, it should be present here
-                        // as well in some form.
+                        // Whatever variable is used as an input, it should be present here as well in some form.
                         Variable* variable = getVariable(entry.first);
                         size_t idx = nestedCfa->getInputNumber(entry.second);
 
                         loopArgs[idx] = variable->getRefExpr();
                     }
 
+                    // For the outputs, find the corresponding variables in the parent and create the assignments.
+                    for (auto& pair : nestedLoopInfo.Outputs) {
+                        llvm::Value* value = pair.first;
+                        Variable* nestedOutputVar = pair.second;
+
+                        // It is either a local or input in parent.
+                        auto result = mGenInfo.Locals.find(value);
+                        if (result == mGenInfo.Locals.end()) {
+                            result = mGenInfo.Inputs.find(value);
+                            assert(result != mGenInfo.Inputs.end()
+                                && "Nested output variable should be present in parent as an input or local!");
+                        }
+
+                        Variable* parentVar = result->second;
+                        outputArgs.emplace_back(parentVar, nestedOutputVar->getRefExpr());
+                    }
+
                     auto loc = mCfa->createLocation();
-                    mCfa->createCallTransition(exit, loc, succCondition, nestedCfa, loopArgs, {});
+                    mCfa->createCallTransition(exit, loc, succCondition, nestedCfa, loopArgs, outputArgs);
 
                     llvm::SmallVector<BasicBlock*, 4> exitBlocks;
                     loop->getExitBlocks(exitBlocks);
@@ -416,13 +457,19 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
                             mCfa->createAssignTransition(loc, result->second.first);
                         }
                     }
-
                 } else {
                     mCfa->createAssignTransition(exit, mCfa->getExit(), succCondition);
                 }
             }
+        } else if (auto ret = llvm::dyn_cast<ReturnInst>(terminator)) {
+            Variable* retval = mCfa->findOutputByName(ModuleToCfa::FunctionReturnValueName);
+            mCfa->createAssignTransition(exit, mCfa->getExit(), mExprBuilder.True(), {
+                VariableAssignment{ retval, operand(ret->getReturnValue()) }
+            });
+        } else {
+            LLVM_DEBUG(llvm::dbgs() << *terminator << "\n");
+            llvm_unreachable("Unknown terminator instruction.");
         }
-
     }
 }
 
