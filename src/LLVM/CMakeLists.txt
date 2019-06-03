@@ -18,7 +18,7 @@ set(SOURCE_FILES
     TestGenerator/TestGenerator.cpp
     Utils/LLVMType.cpp
     Automaton/ModuleToAutomata.cpp
-    Automaton/FunctionToCfa.cpp Automaton/FunctionToCfa.h)
+)
 
 llvm_map_components_to_libnames(LLVM_LIBS support core irreader transformutils scalaropts ipo)
 message(STATUS "Using LLVM libraries: ${LLVM_LIBS}")

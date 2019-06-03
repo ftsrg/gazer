@@ -26,21 +26,21 @@ public:
     virtual ~ExprBuilder() {}
 
     //--- Literals ---//
-    ExprPtr BvLit(uint64_t value, unsigned bits) {
+    ExprRef<BvLiteralExpr> BvLit(uint64_t value, unsigned bits) {
         return BvLiteralExpr::Get(BvType::Get(mContext, bits), llvm::APInt(bits, value));
     }
-    ExprPtr BvLit(llvm::APInt value) {
+    ExprRef<BvLiteralExpr> BvLit(llvm::APInt value) {
         return BvLiteralExpr::Get(BvType::Get(mContext, value.getBitWidth()), value);
     }
 
-    ExprPtr IntLit(int64_t value) {
+    ExprRef<IntLiteralExpr> IntLit(int64_t value) {
         return IntLiteralExpr::Get(IntType::Get(mContext), value);
     }
 
-    ExprPtr BoolLit(bool value) { return value ? True() : False(); }
-    ExprPtr True()  { return BoolLiteralExpr::True(BoolType::Get(mContext)); }
-    ExprPtr False() { return BoolLiteralExpr::False(BoolType::Get(mContext)); }
-    ExprPtr Undef(Type& type) { return UndefExpr::Get(type); }
+    ExprRef<BoolLiteralExpr> BoolLit(bool value) { return value ? True() : False(); }
+    ExprRef<BoolLiteralExpr> True()  { return BoolLiteralExpr::True(BoolType::Get(mContext)); }
+    ExprRef<BoolLiteralExpr> False() { return BoolLiteralExpr::False(BoolType::Get(mContext)); }
+    ExprRef<UndefExpr> Undef(Type& type) { return UndefExpr::Get(type); }
 
     //--- Unary ---//
     virtual ExprPtr Not(const ExprPtr& op) = 0;
