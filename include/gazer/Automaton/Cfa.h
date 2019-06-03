@@ -315,8 +315,12 @@ public:
 
     size_t getNumNestedAutomata() const { return mNestedAutomata.size(); }
 
-    /// Returns the index of a given input variable in input list of this automaton.
+    /// Returns the index of a given input variable in the input list of this automaton.
     size_t getInputNumber(Variable* variable) const;
+
+    Variable* findInputByName(llvm::StringRef name) const;
+    Variable* findLocalByName(llvm::StringRef name) const;
+    Variable* findOutputByName(llvm::StringRef name) const;
 
     /// View the graph representation of this CFA with the
     /// system's default GraphViz viewer.
@@ -324,6 +328,7 @@ public:
 
 private:
     Variable* createMemberVariable(llvm::Twine name, Type& type);
+    Variable* findVariableByName(const std::vector<Variable*>& vec, llvm::StringRef name) const;
 
     /// Inserts the given automaton into this object as nested automaton.
     void addNestedAutomaton(Cfa* cfa);

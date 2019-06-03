@@ -53,7 +53,7 @@ struct CfaGenInfo
 
     Cfa* Automaton;
 
-    // For automata with multiple exit paths, this variable which was taken.
+    // For automata with multiple exit paths, this variable tells us which was taken.
     Variable* ExitVariable = nullptr;
 
     CfaGenInfo() = default;

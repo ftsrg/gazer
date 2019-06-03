@@ -34,7 +34,7 @@ namespace
     return ::testing::AssertionSuccess();
 }
 
-class ModuleToAutomataTest : public testing::Test
+class ModuleToAutomataTest : public ::testing::Test
 {
 protected:
     llvm::LLVMContext llvmContext;
@@ -47,6 +47,7 @@ public:
     ModuleToAutomataTest(const char* moduleStr)
         : module(llvm::parseAssemblyString(moduleStr, error, llvmContext))
     {
+        error.print("test", llvm::errs());
         assert(module != nullptr && "Failed to construct LLVM module.");
 
         for (llvm::Function& function : *module) {
@@ -79,7 +80,7 @@ entry:
 loop.header:
     %i = phi i32 [ 0, %entry ], [ %i1, %loop.body ]
     %sum = phi i32 [ 0, %entry ], [ %s, %loop.body ]
-    %cond = icmp slt i32 0, %limit
+    %cond = icmp slt i32 %i, %limit
     br i1 %cond, label %loop.body, label %loop.end
 loop.body:
     %a = call i32 @__VERIFIER_nondet_int()
@@ -160,6 +161,40 @@ TEST_F(BasicModuleToAutomataTest, CanCreateAllAutomata)
     }));
 
 
+}
+
+class PostTestLoopTest : public ModuleToAutomataTest
+{
+public:
+    PostTestLoopTest()
+        : ModuleToAutomataTest(R"ASM(
+declare i32 @__VERIFIER_nondet_int()
+
+define i32 @main() {
+entry:
+    %limit = call i32 @__VERIFIER_nondet_int()
+    br label %loop.header
+loop.header:
+    %i = phi i32 [ 0, %entry ], [ %i1, %loop.header ]
+    %i1 = add nsw i32 %i, 1
+    %cond = icmp slt i32 %i1, %limit
+    br i1 %cond, label %loop.header, label %loop.end
+loop.end:
+    ret i32 0
+}
+)ASM") {}
+};
+
+TEST_F(PostTestLoopTest, CanTransformPostTestLoop)
+{
+    GazerContext context;
+    auto system = translateModuleToAutomata(*module, loopInfoMap, context);
+
+    Cfa* main = system->getAutomatonByName("main");
+    ASSERT_TRUE(main != nullptr);
+
+    Cfa* loop = system->getAutomatonByName("main/loop.header");
+    ASSERT_TRUE(loop != nullptr);
 }
 
 } // end anonymous namespace
