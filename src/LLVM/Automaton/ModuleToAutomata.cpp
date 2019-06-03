@@ -11,6 +11,7 @@
 #include <llvm/IR/InstIterator.h>
 #include <llvm/IR/Dominators.h>
 #include <llvm/ADT/StringExtras.h>
+#include <llvm/IR/CallSite.h>
 
 #include "FunctionToCfa.h"
 
@@ -23,6 +24,8 @@ class ModuleToCfa final
 {
 public:
     using LoopInfoMapTy = std::unordered_map<llvm::Function*, llvm::LoopInfo*>;
+
+    static constexpr char FunctionReturnValueName[] = "RET_VAL";
 
     ModuleToCfa(
         llvm::Module& module,
@@ -219,7 +222,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate()
 
         // TODO: Maybe add RET_VAL to genInfo outputs in some way?
         if (!function.getReturnType()->isVoidTy()) {
-            auto retval = cfa->createLocal("RET_VAL", typeFromLLVMType(function.getReturnType(), mContext));
+            auto retval = cfa->createLocal(FunctionReturnValueName, typeFromLLVMType(function.getReturnType(), mContext));
             cfa->addOutput(retval);
         }
 
@@ -279,6 +282,52 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
         for (auto it = bb->getFirstInsertionPt(); it != bb->end(); ++it) {
             llvm::Instruction& inst = *it;
 
+            if (auto call = llvm::dyn_cast<CallInst>(&inst)) {
+                Function* callee = call->getCalledFunction();
+                if (callee != nullptr && !callee->isDeclaration()) {
+                    auto it = mGenCtx.FunctionMap.find(callee);
+                    assert(it != mGenCtx.FunctionMap.end()
+                        && "Function definitions must be present in the FunctionMap of the CFA generator!");
+                    
+                    CfaGenInfo& calledAutomatonInfo = it->second;
+                    Cfa* calledCfa = calledAutomatonInfo.Automaton;
+
+                    assert(calledCfa != nullptr && "The callee automaton must exist in a function call!");
+                    
+                    // Split the current transition here and create a call.
+                    Location* callBegin = mCfa->createLocation();
+                    Location* callEnd = mCfa->createLocation();
+
+                    mCfa->createAssignTransition(entry, callBegin, assignments);
+
+                    std::vector<ExprPtr> inputs;
+                    std::vector<VariableAssignment> outputs;
+
+                    for (size_t i = 0; i < call->getNumArgOperands(); ++i) {
+                        ExprPtr expr = this->operand(call->getArgOperand(i));
+                        inputs.push_back(expr);
+                    }
+
+                    if (!callee->getReturnType()->isVoidTy()) {
+                        Variable* variable = getVariable(&inst);
+
+                        // Find the return variable of this function.                        
+                        Variable* retval = calledCfa->findOutputByName(ModuleToCfa::FunctionReturnValueName);
+                        assert(retval != nullptr && "A non-void function must have a return value!");
+                        
+                        outputs.emplace_back(variable, retval->getRefExpr());
+                    }
+
+                    mCfa->createCallTransition(callBegin, callEnd, calledCfa, inputs, outputs);
+
+                    // Continue the translation from the end location of the call.
+                    entry = callEnd;
+
+                    // Do not generate an assignment for this call.
+                    continue;
+                }
+            }
+
             if (inst.getType()->isVoidTy()) {
                 continue;
             }
@@ -308,8 +357,7 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
                     mCfa->createAssignTransition(exit, loc, succCondition);
 
                     // Add possible calls arguments.
-                    // Due to the SSA-formed LLVM IR, regular inputs are not modified
-                    // by loop iterations.
+                    // Due to the SSA-formed LLVM IR, regular inputs are not modified by loop iterations.
                     // For PHI inputs, we need to determine which parent block to use for expression translation.
                     ExprVector loopArgs(mCfa->getNumInputs());
                     for (auto entry : mGenInfo.PhiInputs) {

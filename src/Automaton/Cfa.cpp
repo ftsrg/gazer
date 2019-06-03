@@ -125,6 +125,38 @@ size_t Cfa::getInputNumber(gazer::Variable* variable) const
     return std::distance(mInputs.begin(), it);
 }
 
+Variable* Cfa::findVariableByName(const std::vector<Variable*>& vec, llvm::StringRef name) const
+{
+    auto variableName = llvm::Twine(mName, "/") + name;
+    Variable* variable = mContext.getVariable(variableName.str());
+    if (variable == nullptr) {
+        return nullptr;
+    }
+
+    // We must also make sure that the required vector contains said variable.
+    if (std::find(vec.begin(), vec.end(), variable) == vec.end()) {
+        return nullptr;
+    }
+
+    return variable;
+}
+
+Variable* Cfa::findInputByName(llvm::StringRef name) const
+{
+    return findVariableByName(mInputs, name);
+}
+
+Variable* Cfa::findLocalByName(llvm::StringRef name) const
+{
+    return findVariableByName(mLocals, name);
+}
+
+Variable* Cfa::findOutputByName(llvm::StringRef name) const
+{
+    return findVariableByName(mOutputs, name);
+}
+
+
 // Support code for locations
 //-----------------------------------------------------------------------------
 

@@ -122,7 +122,7 @@ void Transition::print(llvm::raw_ostream &os) const
             for (VariableAssignment varAssignment : call->outputs()) {
                 os
                     << varAssignment.getVariable()->getName()
-                    << " => ";
+                    << " <= ";
                 varAssignment.getValue()->print(os);
                 os << ", ";
             }
