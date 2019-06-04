@@ -129,12 +129,16 @@ private:
 
     void insertPhiAssignments(llvm::BasicBlock* source, llvm::BasicBlock* target, std::vector<VariableAssignment>& phiAssignments);
 
+    void createExitTransition(llvm::BasicBlock* target, Location* pred, ExprPtr succCondition);
+
+    ExprPtr getExitCondition(llvm::BasicBlock* target, Variable* exitSelector, CfaGenInfo& nestedInfo);
 private:
     GenerationContext& mGenCtx;
     CfaGenInfo& mGenInfo;
     llvm::ArrayRef<llvm::BasicBlock*> mBlocks;
     Cfa* mCfa;
     ExprBuilder& mExprBuilder;
+    unsigned mCounter = 0;
 };
 
 } // end namespace gazer
