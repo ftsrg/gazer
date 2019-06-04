@@ -158,7 +158,6 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate()
             }
 
             // If the loop has multiple exits, add a selector output to disambiguate between these.
-            // TODO: Add support on the call output side.
             llvm::SmallVector<llvm::BasicBlock*, 4> exitBlocks;
             loop->getUniqueExitBlocks(exitBlocks);
             if (exitBlocks.size() != 1) {
@@ -409,6 +408,15 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
                         outputArgs.emplace_back(parentVar, nestedOutputVar->getRefExpr());
                     }
 
+                    Variable* exitSelector = nullptr;
+                    if (nestedLoopInfo.ExitVariable != nullptr) {
+                        exitSelector = mCfa->createLocal(
+                            Twine(ModuleToCfa::LoopOutputSelectorName).concat(Twine(mCounter++)).str(),
+                            BvType::Get(mGenCtx.System.getContext(), 8)
+                        );
+                        outputArgs.emplace_back(exitSelector, nestedLoopInfo.ExitVariable->getRefExpr());
+                    }
+
                     auto loc = mCfa->createLocation();
                     mCfa->createCallTransition(exit, loc, succCondition, nestedCfa, loopArgs, outputArgs);
 
@@ -416,14 +424,15 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
                     loop->getUniqueExitBlocks(exitBlocks);
 
                     for (BasicBlock* exitBlock : exitBlocks) {
-                        // If the exit block is inside our current code region...
                         auto result = mGenInfo.Blocks.find(exitBlock);
                         if (result != mGenInfo.Blocks.end()) {
-                            mCfa->createAssignTransition(loc, result->second.first);
+                            mCfa->createAssignTransition(loc, result->second.first, getExitCondition(exitBlock, exitSelector, nestedLoopInfo));
+                        } else {
+                            this->createExitTransition(succ, exit, succCondition);
                         }
                     }
                 } else {
-                    mCfa->createAssignTransition(exit, mCfa->getExit(), succCondition);
+                    this->createExitTransition(succ, exit, succCondition);
                 }
             }
         } else if (auto ret = llvm::dyn_cast<ReturnInst>(terminator)) {
@@ -436,6 +445,34 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
             llvm_unreachable("Unknown terminator instruction.");
         }
     }
+}
+
+void BlocksToCfa::createExitTransition(BasicBlock* target, Location* pred, ExprPtr succCondition)
+{
+    // If the target is outside of our region, create a simple edge to the exit.
+    std::vector<VariableAssignment> exitAssigns;
+
+    if (mGenInfo.ExitVariable != nullptr) {
+        // If there are multiple exits, create an assignment to indicate which one to take.
+        ExprPtr exitVal = mGenInfo.ExitBlocks[target];
+        assert(exitVal != nullptr && "An exit block must be present in the exit blocks map!");
+
+        exitAssigns.emplace_back(mGenInfo.ExitVariable, exitVal);
+    }
+
+    mCfa->createAssignTransition(pred, mCfa->getExit(), succCondition, exitAssigns);
+}
+
+ExprPtr BlocksToCfa::getExitCondition(llvm::BasicBlock* target, Variable* exitSelector, CfaGenInfo& nestedInfo)
+{
+    if (nestedInfo.ExitVariable == nullptr) {
+        return mExprBuilder.True();
+    }
+
+    ExprPtr exitVal = nestedInfo.ExitBlocks[target];
+    assert(exitVal != nullptr && "An exit block must be present in the exit blocks map!");
+
+    return mExprBuilder.Eq(exitSelector->getRefExpr(), exitVal);
 }
 
 ExprPtr BlocksToCfa::transform(llvm::Instruction& inst)
