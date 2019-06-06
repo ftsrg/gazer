@@ -18,16 +18,25 @@ class Location
 {
     friend class Cfa;
     using EdgeVectorTy = std::vector<Transition*>;
-private:
-    explicit Location(unsigned id)
-        : mID(id)
-    {}
+public:
+    enum LocationKind
+    {
+        State,
+        Error
+    };
 
+private:
+    explicit Location(unsigned id, LocationKind kind = State)
+        : mID(id), mKind(kind)
+    {}
+    
 public:
     Location(const Location&) = delete;
     Location& operator=(const Location&) = delete;
 
     unsigned getId() const { return mID; }
+
+    bool isError() const { return mKind == Error; }
 
     size_t getNumIncoming() const { return mIncoming.size(); }
     size_t getNumOutgoing() const { return mOutgoing.size(); }
@@ -68,6 +77,7 @@ private:
     void removeOutgoing(Transition* edge);
 
 private:
+    LocationKind mKind;
     EdgeVectorTy mIncoming;
     EdgeVectorTy mOutgoing;
     unsigned mID;
@@ -216,6 +226,7 @@ public:
 public:
     //------------------------- Locations and edges -------------------------//
     Location* createLocation();
+    Location* createErrorLocation();
 
     AssignTransition* createAssignTransition(Location* source, Location* target);
 
@@ -338,6 +349,7 @@ private:
 
     std::vector<std::unique_ptr<Location>> mLocations;
     std::vector<std::unique_ptr<Transition>> mTransitions;
+    llvm::SmallVector<Location*, 1> mErrorLocations;
 
     std::vector<Variable*> mInputs;
     std::vector<Variable*> mOutputs;

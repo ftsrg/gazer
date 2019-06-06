@@ -41,9 +41,9 @@ struct DOTGraphTraits<Cfa> : public DefaultDOTGraphTraits
         std::string str;
         llvm::raw_string_ostream rso(str);
 
-        //if (cp->getKind() == Location::CP_Error) {
-        //    rso << "fillcolor=\"red\",style=filled";
-        //}
+        if (loc->isError()) {
+            rso << "fillcolor=\"red\",style=filled";
+        }
 
         rso.flush();
         return str;

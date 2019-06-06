@@ -42,6 +42,13 @@ public:
     ExprRef<BoolLiteralExpr> False() { return BoolLiteralExpr::False(BoolType::Get(mContext)); }
     ExprRef<UndefExpr> Undef(Type& type) { return UndefExpr::Get(type); }
 
+    ExprRef<FloatLiteralExpr> FloatLit(llvm::APFloat value) {
+        auto numbits = llvm::APFloat::getSizeInBits(value.getSemantics());
+        auto& type = FloatType::Get(mContext, static_cast<FloatType::FloatPrecision>(numbits));
+
+        return FloatLiteralExpr::Get(type, value);
+    }
+
     //--- Unary ---//
     virtual ExprPtr Not(const ExprPtr& op) = 0;
     virtual ExprPtr ZExt(const ExprPtr& op, BvType& type) = 0;
