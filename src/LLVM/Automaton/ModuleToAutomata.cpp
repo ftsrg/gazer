@@ -2,6 +2,7 @@
 #include "gazer/Automaton/Cfa.h"
 #include "gazer/Core/Expr/ExprBuilder.h"
 #include "gazer/ADT/StringUtils.h"
+#include "gazer/LLVM/Instrumentation/Check.h"
 
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Instructions.h>
@@ -54,6 +55,21 @@ static bool hasUsesInBlockRange(llvm::Instruction* inst, Range&& range)
 
 static gazer::Type& typeFromLLVMType(const llvm::Type* type, GazerContext& context);
 static gazer::Type& typeFromLLVMType(const llvm::Value* value, GazerContext& context);
+
+static bool isErrorBlock(llvm::BasicBlock* bb)
+{
+    auto inst = bb->getFirstInsertionPt();
+    // In error blocks, the first instruction should be the 'gazer.error_code' call.
+
+    if (auto call = llvm::dyn_cast<CallInst>(inst)) {
+        Function* function = call->getCalledFunction();
+        if (function != nullptr && function->getName() == "gazer.error_code") {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 std::unique_ptr<AutomataSystem> ModuleToCfa::generate()
 {
@@ -108,16 +124,17 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate()
                         variable = nested->createInput(inst.getName(), typeFromLLVMType(inst.getType(), mContext));
                         loopGenInfo.PhiInputs[&inst] = variable;
                     } else {
+                        // Add operands which were defined in the caller as inputs
                         for (auto oi = inst.op_begin(), oe = inst.op_end(); oi != oe; ++oi) {
                             llvm::Value* value = *oi;
-                            if (isDefinedInCaller(value, loopBlocks)) {
+                            if (isDefinedInCaller(value, loopBlocks) && loopGenInfo.Inputs.count(value) == 0) {
                                 auto argVariable = nested->createInput(
                                     value->getName(),
                                     typeFromLLVMType(value->getType(), mContext)
                                 );
                                 loopGenInfo.Inputs[value] = argVariable;
 
-                                LLVM_DEBUG(llvm::dbgs() << "  Added input variable " << *variable << "\n");
+                                LLVM_DEBUG(llvm::dbgs() << "  Added input variable " << *argVariable << "\n");
                             }
                         }
 
@@ -151,7 +168,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate()
                 // Create locations for this block
                 if (visitedBlocks.count(bb)  == 0) {
                     Location* entry = nested->createLocation();
-                    Location* exit = nested->createLocation();
+                    Location* exit = isErrorBlock(bb) ? nested->createErrorLocation() : nested->createLocation();
 
                     loopGenInfo.Blocks[bb] = std::make_pair(entry, exit);
                 }
@@ -229,7 +246,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate()
 
         for (BasicBlock* bb : functionBlocks) {
             Location* entry = cfa->createLocation();
-            Location* exit = cfa->createLocation();
+            Location* exit = isErrorBlock(bb) ? cfa->createErrorLocation() : cfa->createLocation();
 
             genInfo.Blocks[bb] = std::make_pair(entry, exit);
         }
@@ -440,6 +457,8 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
             mCfa->createAssignTransition(exit, mCfa->getExit(), mExprBuilder.True(), {
                 VariableAssignment{ retval, operand(ret->getReturnValue()) }
             });
+        } else if (terminator->getOpcode() == Instruction::Unreachable) {
+            // Do nothing.
         } else {
             LLVM_DEBUG(llvm::dbgs() << *terminator << "\n");
             llvm_unreachable("Unknown terminator instruction.");
@@ -808,6 +827,7 @@ ExprPtr BlocksToCfa::visitCastInst(llvm::CastInst& cast)
 
     assert(false && "Unsupported cast operation");
 }
+
 ExprPtr BlocksToCfa::operand(const Value* value)
 {
     if (const ConstantInt* ci = dyn_cast<ConstantInt>(value)) {
@@ -820,12 +840,9 @@ ExprPtr BlocksToCfa::operand(const Value* value)
             ci->getValue().getLimitedValue(),
             ci->getType()->getIntegerBitWidth()
         );
-    } /* else if (const llvm::ConstantFP* cfp = dyn_cast<llvm::ConstantFP>(value)) {
-        return FloatLiteralExpr::Get(
-            *llvm::dyn_cast<FloatType>(&typeFromLLVMType(cfp->getType())),
-            cfp->getValueAPF()
-        );
-    } else if (const llvm::ConstantPointerNull* ptr = dyn_cast<llvm::ConstantPointerNull>(value)) {
+    } else if (const llvm::ConstantFP* cfp = dyn_cast<llvm::ConstantFP>(value)) {
+        return mExprBuilder.FloatLit(cfp->getValueAPF());
+    } /*else if (const llvm::ConstantPointerNull* ptr = dyn_cast<llvm::ConstantPointerNull>(value)) {
         return mMemoryModel.getNullPointer();
     } */ else if (isNonConstValue(value)) {
         //auto result = mEliminatedValues.find(value);
@@ -834,9 +851,9 @@ ExprPtr BlocksToCfa::operand(const Value* value)
         //}
 
         return getVariable(value)->getRefExpr();
-    } /* else if (isa<llvm::UndefValue>(value)) {
-        return mExprBuilder.Undef(typeFromLLVMType(value));
-    } */else {
+    } else if (isa<llvm::UndefValue>(value)) {
+        return mExprBuilder.Undef(typeFromLLVMType(value, getContext()));
+    } else {
         LLVM_DEBUG(llvm::dbgs() << "  Unhandled value for operand: " << *value << "\n");
         assert(false && "Unhandled value type");
     }
@@ -910,7 +927,7 @@ ExprPtr BlocksToCfa::castResult(ExprPtr expr, const Type& type)
         return asInt(expr, dyn_cast<BvType>(&type)->getWidth());
     } else {
         assert(!"Invalid cast result type");
-    }
+    } 
 }
 
 gazer::Type& typeFromLLVMType(const llvm::Type* type, GazerContext& context)
@@ -940,6 +957,11 @@ gazer::Type& typeFromLLVMType(const llvm::Type* type, GazerContext& context)
 
     llvm::errs() << "Unsupported LLVM Type: " << *type << "\n";
     assert(false && "Unsupported LLVM type.");
+}
+
+gazer::Type& typeFromLLVMType(const llvm::Value* value, GazerContext& context)
+{
+    return typeFromLLVMType(value->getType(), context);
 }
 
 std::unique_ptr<AutomataSystem> gazer::translateModuleToAutomata(

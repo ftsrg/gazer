@@ -20,10 +20,19 @@ Cfa::Cfa(GazerContext &context, std::string name, AutomataSystem* parent)
 
 // Location and edge construction
 //-------------------------------------------------------------------------
-Location *Cfa::createLocation()
+Location* Cfa::createLocation()
 {
     Location* loc = new Location(mLocationIdx++);
     mLocations.emplace_back(loc);
+
+    return loc;
+}
+
+Location* Cfa::createErrorLocation()
+{
+    Location* loc = new Location(mLocationIdx++, Location::Error);
+    mLocations.emplace_back(loc);
+    mErrorLocations.emplace_back(loc);
 
     return loc;
 }

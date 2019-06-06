@@ -118,6 +118,8 @@ public:
     ExprPtr visitCallInst(llvm::CallInst& call);
 
 private:
+    GazerContext& getContext() const { return mGenCtx.System.getContext(); }
+private:
     ExprPtr integerCast(llvm::CastInst& cast, ExprPtr operand, unsigned int width);
     ExprPtr operand(const llvm::Value* value);
 
@@ -128,9 +130,7 @@ private:
     ExprPtr castResult(ExprPtr expr, const Type& type);
 
     void insertPhiAssignments(llvm::BasicBlock* source, llvm::BasicBlock* target, std::vector<VariableAssignment>& phiAssignments);
-
     void createExitTransition(llvm::BasicBlock* target, Location* pred, ExprPtr succCondition);
-
     ExprPtr getExitCondition(llvm::BasicBlock* target, Variable* exitSelector, CfaGenInfo& nestedInfo);
 private:
     GenerationContext& mGenCtx;

@@ -3,6 +3,7 @@
 
 #include <llvm/Support/Allocator.h>
 #include <llvm/Support/MathExtras.h>
+#include <llvm/Support/Debug.h>
 
 #include <unordered_set>
 
@@ -19,6 +20,8 @@ bool ::gazer::IsDebugEnabled = false;
 #define GAZER_DEBUG_ASSERT(X)
 #endif
 
+#define DEBUG_TYPE "GazerContext"
+
 using namespace gazer;
 
 GazerContext::GazerContext()
@@ -31,6 +34,7 @@ GazerContext::~GazerContext() {}
 
 Variable* GazerContext::createVariable(std::string name, Type &type)
 {
+    LLVM_DEBUG(llvm::dbgs() << "Adding variable with name " << name << " and type " << type << "\n");
     GAZER_DEBUG_ASSERT(pImpl->VariableTable.count(name) == 0);
     auto ptr = new Variable(name, type);
     pImpl->VariableTable[name] = std::unique_ptr<Variable>(ptr);
