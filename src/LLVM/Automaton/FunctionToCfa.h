@@ -129,7 +129,9 @@ private:
     ExprPtr asInt(ExprPtr operand, unsigned int bits);
     ExprPtr castResult(ExprPtr expr, const Type& type);
 
+    void insertOutputAssignments(CfaGenInfo& callee, std::vector<VariableAssignment>& outputArgs);
     void insertPhiAssignments(llvm::BasicBlock* source, llvm::BasicBlock* target, std::vector<VariableAssignment>& phiAssignments);
+    
     void createExitTransition(llvm::BasicBlock* target, Location* pred, ExprPtr succCondition);
     ExprPtr getExitCondition(llvm::BasicBlock* target, Variable* exitSelector, CfaGenInfo& nestedInfo);
 private:
