@@ -376,7 +376,15 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
                         loopArgs[idx] = entry.second->getRefExpr();
                     }
 
-                    mCfa->createCallTransition(loc, mCfa->getExit(), mCfa, loopArgs, {});
+                    Variable* exitSelector = nullptr;
+                    std::vector<VariableAssignment> outputArgs;                    
+                    this->insertOutputAssignments(mGenInfo, outputArgs);
+
+                    if (mGenInfo.ExitVariable != nullptr) {
+                        outputArgs.emplace_back(mGenInfo.ExitVariable, mGenInfo.ExitVariable->getRefExpr());
+                    }
+
+                    mCfa->createCallTransition(loc, mCfa->getExit(), mCfa, loopArgs, outputArgs);
                 } else if (std::find(mBlocks.begin(), mBlocks.end(), succ) != mBlocks.end()) {
                     // Else if the target is is inside the block region, just create a simple edge.
                     Location* to = mGenInfo.Blocks[succ].first;
@@ -391,8 +399,6 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
                     auto nestedCfa = nestedLoopInfo.Automaton;
 
                     ExprVector loopArgs(nestedCfa->getNumInputs());
-                    std::vector<VariableAssignment> outputArgs;
-
                     for (auto entry : nestedLoopInfo.PhiInputs) {
                         auto incoming = llvm::cast<PHINode>(entry.first)->getIncomingValueForBlock(bb);
                         size_t idx = nestedCfa->getInputNumber(entry.second);
@@ -408,22 +414,8 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
                         loopArgs[idx] = variable->getRefExpr();
                     }
 
-                    // For the outputs, find the corresponding variables in the parent and create the assignments.
-                    for (auto& pair : nestedLoopInfo.Outputs) {
-                        llvm::Value* value = pair.first;
-                        Variable* nestedOutputVar = pair.second;
-
-                        // It is either a local or input in parent.
-                        auto result = mGenInfo.Locals.find(value);
-                        if (result == mGenInfo.Locals.end()) {
-                            result = mGenInfo.Inputs.find(value);
-                            assert(result != mGenInfo.Inputs.end()
-                                && "Nested output variable should be present in parent as an input or local!");
-                        }
-
-                        Variable* parentVar = result->second;
-                        outputArgs.emplace_back(parentVar, nestedOutputVar->getRefExpr());
-                    }
+                    std::vector<VariableAssignment> outputArgs;
+                    this->insertOutputAssignments(nestedLoopInfo, outputArgs);
 
                     Variable* exitSelector = nullptr;
                     if (nestedLoopInfo.ExitVariable != nullptr) {
@@ -515,6 +507,26 @@ ExprPtr BlocksToCfa::transform(llvm::Instruction& inst)
 #undef HANDLE_INST
 
     llvm_unreachable("Unsupported instruction kind");
+}
+
+void BlocksToCfa::insertOutputAssignments(CfaGenInfo& callee, std::vector<VariableAssignment>& outputArgs)
+{
+    // For the outputs, find the corresponding variables in the parent and create the assignments.
+    for (auto& pair : callee.Outputs) {
+        llvm::Value* value = pair.first;
+        Variable* nestedOutputVar = pair.second;
+
+        // It is either a local or input in parent.
+        auto result = mGenInfo.Locals.find(value);
+        if (result == mGenInfo.Locals.end()) {
+            result = mGenInfo.Inputs.find(value);
+            assert(result != mGenInfo.Inputs.end()
+                && "Nested output variable should be present in parent as an input or local!");
+        }
+
+        Variable* parentVar = result->second;
+        outputArgs.emplace_back(parentVar, nestedOutputVar->getRefExpr());
+    }
 }
 
 void BlocksToCfa::insertPhiAssignments(
