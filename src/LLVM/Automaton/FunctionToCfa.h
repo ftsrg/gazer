@@ -18,8 +18,8 @@ using ValueToVariableMap = llvm::DenseMap<llvm::Value*, Variable*>;
 /// Stores information about loops which were transformed to automata.
 struct CfaGenInfo
 {
-    llvm::SmallDenseMap<llvm::Value*, Variable*, 8> Inputs;
-    llvm::SmallDenseMap<llvm::Value*, Variable*, 8> Outputs;
+    llvm::SmallDenseMap<llvm::Value*, Variable*, 4> Inputs;
+    llvm::SmallDenseMap<llvm::Value*, Variable*, 4> Outputs;
     llvm::SmallDenseMap<llvm::Value*, Variable*, 4> PhiInputs;
     llvm::DenseMap<llvm::Value*, Variable*> Locals;
     llvm::DenseMap<llvm::BasicBlock*, std::pair<Location*, Location*>> Blocks;
