@@ -520,8 +520,11 @@ void BlocksToCfa::insertOutputAssignments(CfaGenInfo& callee, std::vector<Variab
         auto result = mGenInfo.Locals.find(value);
         if (result == mGenInfo.Locals.end()) {
             result = mGenInfo.Inputs.find(value);
-            assert(result != mGenInfo.Inputs.end()
-                && "Nested output variable should be present in parent as an input or local!");
+            if (result == mGenInfo.Inputs.end()) {
+                result = mGenInfo.PhiInputs.find(value);
+                assert(result != mGenInfo.PhiInputs.end()
+                       && "Nested output variable should be present in parent as an input or local!");
+            }
         }
 
         Variable* parentVar = result->second;
