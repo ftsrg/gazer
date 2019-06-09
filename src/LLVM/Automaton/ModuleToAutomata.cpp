@@ -21,6 +21,11 @@
 using namespace gazer;
 using namespace llvm;
 
+namespace gazer {
+    cl::opt<bool> NoElimVars("no-elim-vars",
+        cl::desc("Do not eliminate temporary variables"));
+}
+
 static bool isDefinedInCaller(llvm::Value* value, llvm::ArrayRef<llvm::BasicBlock*> blocks)
 {
     if (isa<Argument>(value)) {
@@ -40,7 +45,7 @@ static bool isDefinedInCaller(llvm::Value* value, llvm::ArrayRef<llvm::BasicBloc
 }
 
 template<class Range>
-static bool hasUsesInBlockRange(llvm::Instruction* inst, Range&& range)
+static bool hasUsesInBlockRange(const llvm::Instruction* inst, Range&& range)
 {
     for (auto user : inst->users()) {
         if (auto i = llvm::dyn_cast<Instruction>(user)) {
@@ -51,6 +56,21 @@ static bool hasUsesInBlockRange(llvm::Instruction* inst, Range&& range)
     }
 
     return false;
+}
+
+template<class Range>
+static size_t getNumUsesInBlockRange(const llvm::Instruction* inst, Range&& range)
+{
+    size_t cnt = 0;
+    for (auto user : inst->users()) {
+        if (auto i = llvm::dyn_cast<Instruction>(user)) {
+            if (std::find(std::begin(range), std::end(range), i->getParent()) != std::end(range)) {
+                cnt += 1;
+            }
+        }
+    }
+
+    return cnt;
 }
 
 static gazer::Type& typeFromLLVMType(const llvm::Type* type, GazerContext& context);
@@ -339,7 +359,14 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
             Variable* variable = getVariable(&inst);
             ExprPtr expr = this->transform(inst);
 
-            assignments.emplace_back(variable, expr);
+            if (!NoElimVars
+                && inst.getOpcode() != Instruction::Call
+                && getNumUsesInBlockRange(&inst, mBlocks) == 1
+            ) {
+                mEliminatedVars[&*it] = expr;
+            } else {
+                assignments.emplace_back(variable, expr);
+            }
         }
 
         mCfa->createAssignTransition(entry, exit, assignments);
@@ -860,10 +887,10 @@ ExprPtr BlocksToCfa::operand(const Value* value)
     } /*else if (const llvm::ConstantPointerNull* ptr = dyn_cast<llvm::ConstantPointerNull>(value)) {
         return mMemoryModel.getNullPointer();
     } */ else if (isNonConstValue(value)) {
-        //auto result = mEliminatedValues.find(value);
-        //if (result != mEliminatedValues.end()) {
-        //    return result->second;
-        //}
+        auto result = mEliminatedVars.find(value);
+        if (result != mEliminatedVars.end()) {
+            return result->second;
+        }
 
         return getVariable(value)->getRefExpr();
     } else if (isa<llvm::UndefValue>(value)) {

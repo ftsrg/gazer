@@ -11,8 +11,7 @@ using namespace gazer;
 using namespace llvm;
 
 namespace gazer {
-    cl::opt<bool> NoElimVars("no-elim-vars",
-        cl::desc("Do not eliminate temporary variables"));
+    extern cl::opt<bool> NoElimVars;
 
     cl::opt<bool> AssumeNoNaN("assume-no-nan",
         cl::desc("Assume that floating-point operations never return NaN"));
@@ -280,7 +279,7 @@ ExprPtr BoundedModelChecker::encodeEdge(BasicBlock* from, BasicBlock* to)
 
             auto expr = mIr2Expr.transform(*it);
 
-            if (!NoElimVars) {                
+            if (!NoElimVars) {
                 if (auto elimExpr = tryToEliminate(*it, expr)) {
                     mEliminatedVars[&*it] = elimExpr;
                     continue;

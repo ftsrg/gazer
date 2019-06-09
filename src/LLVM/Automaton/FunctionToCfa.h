@@ -141,6 +141,7 @@ private:
     Cfa* mCfa;
     ExprBuilder& mExprBuilder;
     unsigned mCounter = 0;
+    llvm::DenseMap<llvm::Value*, ExprPtr> mEliminatedVars;
 };
 
 } // end namespace gazer
