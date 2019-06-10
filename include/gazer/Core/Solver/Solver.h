@@ -49,6 +49,8 @@ public:
     virtual SolverStatus run() = 0;
     virtual Valuation getModel() = 0;
 
+    virtual void reset() = 0;
+
     virtual ~Solver() {}
 
 protected:

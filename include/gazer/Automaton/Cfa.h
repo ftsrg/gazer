@@ -41,6 +41,8 @@ public:
     size_t getNumIncoming() const { return mIncoming.size(); }
     size_t getNumOutgoing() const { return mOutgoing.size(); }
 
+    Cfa* getAutomaton() const { return mCfa; }
+
     //-------------------------- Iterator support ---------------------------//
     using edge_iterator = EdgeVectorTy::iterator;
     using const_edge_iterator = EdgeVectorTy::const_iterator;
@@ -81,11 +83,13 @@ private:
     EdgeVectorTy mIncoming;
     EdgeVectorTy mOutgoing;
     unsigned mID;
+    Cfa* mCfa;
 };
 
 /// A simple transition with a guard or summary expression.
 class Transition
 {
+    friend class Cfa;
 public:
     enum EdgeKind
     {
@@ -110,7 +114,7 @@ public:
     Location* getSource() const { return mSource; }
     Location* getTarget() const { return mTarget; }
 
-    ExprPtr getExpr() const { return mExpr; }
+    ExprPtr getGuard() const { return mExpr; }
     EdgeKind getKind() const { return mEdgeKind; }
 
     bool isAssign() const { return mEdgeKind == Edge_Assign; }
@@ -200,6 +204,9 @@ public:
     }
     size_t getNumOutputs() const { return mOutputArgs.size(); }
 
+    ExprPtr getInputArgument(size_t i) const { return mInputArgs[i]; }
+    VariableAssignment getOutputArgument(size_t i) const { return mOutputArgs[i]; }
+
     static bool classof(const Transition* edge) {
         return edge->getKind() == Edge_Call;
     }
@@ -252,6 +259,10 @@ public:
         Location* source, Location* target,
         Cfa* callee, std::vector<ExprPtr> inputArgs, std::vector<VariableAssignment> outputArgs
     );
+
+    /// Disconnects \param edge from its connected locations,
+    /// and removes it from the graph.
+    void removeEdge(Transition* edge);
 
     // Variable handling
 
@@ -332,6 +343,8 @@ public:
     Variable* findInputByName(llvm::StringRef name) const;
     Variable* findLocalByName(llvm::StringRef name) const;
     Variable* findOutputByName(llvm::StringRef name) const;
+
+    Variable* getInput(size_t i) const { return mInputs[i]; }
 
     /// View the graph representation of this CFA with the
     /// system's default GraphViz viewer.
@@ -468,6 +481,32 @@ struct GraphTraits<gazer::Cfa>
     static unsigned size(gazer::Cfa& cfa) {
         return cfa.getNumLocations();
     }
+};
+
+template<>
+struct GraphTraits<gazer::Location*>
+{
+    using NodeRef = gazer::Location*;
+
+    static constexpr auto GetEdgeTarget = [](gazer::Transition* edge) -> gazer::Location*  {
+        return edge->getTarget();
+    };
+
+    // Child traversal
+    using ChildIteratorType = llvm::mapped_iterator<
+        gazer::Location::edge_iterator,
+        decltype(GetEdgeTarget),
+        NodeRef
+    >;
+
+    static ChildIteratorType child_begin(NodeRef loc) {
+        return ChildIteratorType(loc->outgoing_begin(), GetEdgeTarget);
+    }
+    static ChildIteratorType child_end(NodeRef loc) {
+        return ChildIteratorType(loc->outgoing_end(), GetEdgeTarget);
+    }
+
+    static NodeRef getEntryNode(gazer::Location* cp) { return cp; }
 };
 
 }

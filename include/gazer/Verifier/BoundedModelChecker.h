@@ -1,0 +1,9 @@
+#ifndef GAZER_VERIFIER_BOUNDEDMODELCHECKER_H
+#define GAZER_VERIFIER_BOUNDEDMODELCHECKER_H
+
+namespace gazer
+{
+
+}
+
+#endif
