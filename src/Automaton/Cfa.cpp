@@ -86,6 +86,20 @@ CallTransition *Cfa::createCallTransition(
     return createCallTransition(source, target, BoolLiteralExpr::True(mContext), callee, inputArgs, outputArgs);
 }
 
+void Cfa::removeEdge(Transition* edge)
+{
+    edge->getSource()->removeOutgoing(edge);
+    edge->getTarget()->removeIncoming(edge);
+
+    edge->mSource = nullptr;
+    edge->mTarget = nullptr;
+
+    //mTransitions.erase(
+    //    std::remove(mTransitions.begin(), mTransitions.end(), edge),
+    //    mTransitions.end()
+    //);
+}
+
 // Member variables
 //-----------------------------------------------------------------------------
 

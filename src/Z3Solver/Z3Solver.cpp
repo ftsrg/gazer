@@ -22,13 +22,14 @@ public:
         : Solver(context), mSolver(mZ3Context)
     {}
 
-    virtual void printStats(llvm::raw_ostream& os) override;
-    virtual void dump(llvm::raw_ostream& os) override;
-    virtual SolverStatus run() override;
-    virtual Valuation getModel() override;
+    void printStats(llvm::raw_ostream& os) override;
+    void dump(llvm::raw_ostream& os) override;
+    SolverStatus run() override;
+    Valuation getModel() override;
+    void reset() override;
 
 protected:
-    virtual void addConstraint(ExprPtr expr) override;
+    void addConstraint(ExprPtr expr) override;
 
 protected:
     z3::context mZ3Context;
@@ -43,7 +44,8 @@ public:
     using Z3Solver::Z3Solver;
 
 protected:
-    virtual void addConstraint(ExprPtr expr) override;
+    void addConstraint(ExprPtr expr) override;
+    void reset() override;
 
 private:
     CacheMapT mCache;
@@ -439,6 +441,11 @@ void Z3Solver::addConstraint(ExprPtr expr)
     mSolver.add(z3Expr);
 }
 
+void Z3Solver::reset()
+{
+    mSolver.reset();
+}
+
 void Z3Solver::printStats(llvm::raw_ostream& os)
 {    
     std::stringstream ss;
@@ -456,6 +463,12 @@ void CachingZ3Solver::addConstraint(ExprPtr expr)
     CachingZ3ExprTransformer transformer(mZ3Context, mTmpCount, mCache);
     auto z3Expr = transformer.visit(expr);
     mSolver.add(z3Expr);
+}
+
+void CachingZ3Solver::reset()
+{
+    mCache.clear();
+    Z3Solver::reset();
 }
 
 //---- Support for model extraction ----//
