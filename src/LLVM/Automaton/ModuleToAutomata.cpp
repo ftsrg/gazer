@@ -131,13 +131,17 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate()
 
             ArrayRef<BasicBlock*> loopBlocks = loop->getBlocks();
 
+            std::vector<BasicBlock*> loopOnlyBlocks;
+            std::copy_if(
+                loopBlocks.begin(), loopBlocks.end(),
+                std::back_inserter(loopOnlyBlocks),
+                [&visitedBlocks] (BasicBlock* b) { return visitedBlocks.count(b) == 0; }
+            );
+
             // Insert the loop variables
             for (BasicBlock* bb : loopBlocks) {
                 for (Instruction& inst : *bb) {
                     Variable* variable = nullptr;
-                    if (inst.getType()->isVoidTy()) {
-                        continue;
-                    }
 
                     if (inst.getOpcode() == Instruction::PHI && bb == loop->getHeader()) {
                         // PHI nodes of the entry block should also be inputs.
@@ -158,9 +162,14 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate()
                             }
                         }
 
+                        // Do not create a variable if the instruction has no return type.
+                        if (inst.getType()->isVoidTy()) {
+                            continue;
+                        }
+
                         // If the instruction is defined in an already visited block, it is a local of
                         // a subloop rather than this loop.
-                        if (visitedBlocks.count(bb) == 0) {
+                        if (visitedBlocks.count(bb) == 0 || hasUsesInBlockRange(&inst, loopOnlyBlocks)) {
                             variable = nested->createLocal(inst.getName(), typeFromLLVMType(inst.getType(), mContext));
                             loopGenInfo.Locals[&inst] = variable;
 
@@ -170,6 +179,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate()
                             variable = nullptr;
                         }
                     }
+
 
                     for (auto user : inst.users()) {
                         if (auto i = llvm::dyn_cast<Instruction>(user)) {
@@ -253,6 +263,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate()
         for (BasicBlock& bb : function) {
             for (Instruction& inst : bb) {
                 if (loopInfo->getLoopFor(&bb) != nullptr && !hasUsesInBlockRange(&inst, functionBlocks)) {
+                    LLVM_DEBUG(llvm::dbgs() << "Skipped " << inst << "\n");
                     continue;
                 }
 
@@ -542,6 +553,11 @@ void BlocksToCfa::insertOutputAssignments(CfaGenInfo& callee, std::vector<Variab
     for (auto& pair : callee.Outputs) {
         llvm::Value* value = pair.first;
         Variable* nestedOutputVar = pair.second;
+
+        LLVM_DEBUG(
+            llvm::dbgs() << "  Inserting output assignment for " << *value
+            << " variable " << *nestedOutputVar << "\n"
+        );
 
         // It is either a local or input in parent.
         auto result = mGenInfo.Locals.find(value);

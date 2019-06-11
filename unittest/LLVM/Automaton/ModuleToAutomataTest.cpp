@@ -11,8 +11,11 @@
 
 #include <gtest/gtest.h>
 
-
 using namespace gazer;
+
+namespace gazer {
+    extern llvm::cl::opt<bool> NoElimVars;
+}
 
 namespace
 {
@@ -155,8 +158,6 @@ TEST_F(BasicModuleToAutomataTest, CanCreateAllAutomata)
     EXPECT_TRUE(VariableListContains(calculate->locals(), {
         { "calculate/sum", &BvType::Get(context, 32) }
     }));
-
-
 }
 
 class PostTestLoopTest : public ModuleToAutomataTest
@@ -237,11 +238,125 @@ TEST_F(LoopWithMultipleExitsTest, CanTransformLoopWithMultipleExits)
 
     Cfa* loop = system->getAutomatonByName("main/loop.header");
     ASSERT_TRUE(loop != nullptr);
+}
 
-    module->getFunction("main")->viewCFG();
+class NestedLoopsTest : public ModuleToAutomataTest
+{
 
-    main->view();
-    loop->view();
+public:
+    NestedLoopsTest()
+        : ModuleToAutomataTest(R"ASM(
+declare i32 @__VERIFIER_nondet_int()
+
+define i32 @main() {
+entry:
+    %c1 = call i32 @__VERIFIER_nondet_int()
+    %c2 = call i32 @__VERIFIER_nondet_int()
+    br label %loop.header
+
+loop.header:
+    %result = phi i32 [ 0, %entry ], [ %result1, %loop.latch ]
+    %i = phi i32 [ 0, %entry ], [ %i1, %loop.latch ]
+    %loop.cond = icmp slt i32 %i, %c1
+    br i1 %loop.cond, label %loop.body, label %exit
+
+loop.body:
+    %x = call i32 @__VERIFIER_nondet_int()
+    br label %nested.header
+
+nested.header:
+    %s  = phi i32 [ 0, %loop.body ], [ %s2, %nested.body ]
+    %j  = phi i32 [ 0, %loop.body ], [ %j1, %nested.body ]
+    %nested.cond = icmp slt i32 %j, %c2
+    br i1 %nested.cond, label %nested.body, label %loop.latch
+nested.body:
+    %y  = call i32 @__VERIFIER_nondet_int()
+    %s1 = add nsw i32 %x, %y
+    %s2 = add nsw i32 %s, %s1
+    %j1 = add nsw i32 %j, 1
+    br label %nested.header
+
+loop.latch:
+    %result1 = add nsw i32 %result, %s
+    %i1 = add nsw i32 %i, 1
+    br label %loop.header
+
+exit:
+    ret i32 %result
+}
+)ASM") {}
+};
+
+TEST_F(NestedLoopsTest, CanTransformLoopWithNestedLoop)
+{
+    // Turn off variable elimination
+    NoElimVars.setValue(true);
+
+    GazerContext context;
+    auto system = translateModuleToAutomata(*module, loopInfoMap, context);
+
+    Cfa* main = system->getAutomatonByName("main");
+    ASSERT_TRUE(main != nullptr);
+
+    EXPECT_EQ(main->getNumInputs(), 0);
+    EXPECT_EQ(main->getNumLocals(), 4); // c1, c2, result, RET_VAL
+    EXPECT_EQ(main->getNumOutputs(), 1); // RET_VAL
+
+    EXPECT_TRUE(VariableListContains(main->locals(), {
+        { "main/c1", &BvType::Get(context, 32) },
+        { "main/c2", &BvType::Get(context, 32) },
+        { "main/result", &BvType::Get(context, 32) },
+        { "main/RET_VAL", &BvType::Get(context, 32) }
+    }));
+
+    Cfa* loop = system->getAutomatonByName("main/loop.header");
+    ASSERT_TRUE(loop != nullptr);
+
+    EXPECT_EQ(loop->getNumInputs(), 4); // c1, c2, result, i
+    EXPECT_EQ(loop->getNumLocals(), 5); // loop.cond, x, s, result1, i1
+    EXPECT_EQ(loop->getNumOutputs(), 1); // result
+
+    EXPECT_TRUE(VariableListContains(loop->inputs(), {
+        { "main/loop.header/c1", &BvType::Get(context, 32) },
+        { "main/loop.header/c2", &BvType::Get(context, 32) },
+        { "main/loop.header/result", &BvType::Get(context, 32) },
+        { "main/loop.header/i", &BvType::Get(context, 32) },
+    }));
+    EXPECT_TRUE(VariableListContains(loop->locals(), {
+        { "main/loop.header/loop.cond", &BoolType::Get(context) },
+        { "main/loop.header/x", &BvType::Get(context, 32) },
+        { "main/loop.header/s", &BvType::Get(context, 32) },
+        { "main/loop.header/result1", &BvType::Get(context, 32) },
+        { "main/loop.header/i1", &BvType::Get(context, 32) }
+    }));
+    EXPECT_TRUE(VariableListContains(loop->outputs(), {
+        { "main/loop.header/result", &BvType::Get(context, 32) }
+    }));
+
+    Cfa* nested = system->getAutomatonByName("main/nested.header");
+    ASSERT_TRUE(nested != nullptr);
+
+    EXPECT_EQ(nested->getNumInputs(), 4); // c2, x, s, j
+    EXPECT_EQ(nested->getNumLocals(), 5); // nested.cond, j1, s1, s2, y
+    EXPECT_EQ(nested->getNumOutputs(), 1); // s
+
+    EXPECT_TRUE(VariableListContains(nested->inputs(), {
+        { "main/nested.header/c2", &BvType::Get(context, 32) },
+        { "main/nested.header/x", &BvType::Get(context, 32) },
+        { "main/nested.header/s", &BvType::Get(context, 32) },
+        { "main/nested.header/j", &BvType::Get(context, 32) },
+    }));
+    EXPECT_TRUE(VariableListContains(nested->locals(), {
+        { "main/nested.header/nested.cond", &BoolType::Get(context) },
+        { "main/nested.header/j1", &BvType::Get(context, 32) },
+        { "main/nested.header/s1", &BvType::Get(context, 32) },
+        { "main/nested.header/s2", &BvType::Get(context, 32) },
+        { "main/nested.header/y", &BvType::Get(context, 32) }
+    }));
+    EXPECT_TRUE(VariableListContains(nested->outputs(), {
+        { "main/nested.header/s", &BvType::Get(context, 32) }
+    }));
+
 }
 
 } // end anonymous namespace
