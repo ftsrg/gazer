@@ -193,8 +193,8 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
 
             if (status == Solver::SAT) {
                 llvm::outs() << "  Under-approximated formula is SAT.\n";
-                LLVM_DEBUG(formula->print(llvm::dbgs()));
-                LLVM_DEBUG(solver->getModel().print(llvm::dbgs()));
+                //LLVM_DEBUG(formula->print(llvm::dbgs()));
+                solver->getModel().print(llvm::outs());
                 return SafetyResult::CreateFail(0);
             }
 
@@ -331,7 +331,7 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     llvm::DenseMap<Location*, Location*> locToLocMap;
     llvm::DenseMap<Transition*, Transition*> edgeToEdgeMap;
 
-    ExprRewrite rewrite;
+    ExprRewrite rewrite(mExprBuilder);
 
     // Clone all local variables into the parent
     for (Variable& local : callee->locals()) {
