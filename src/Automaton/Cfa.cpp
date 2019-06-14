@@ -3,6 +3,8 @@
 
 #include <llvm/ADT/Twine.h>
 #include <llvm/ADT/StringExtras.h>
+#include <llvm/ADT/DepthFirstIterator.h>
+
 #include <boost/iterator/indirect_iterator.hpp>
 
 using namespace gazer;
@@ -86,20 +88,6 @@ CallTransition *Cfa::createCallTransition(
     return createCallTransition(source, target, BoolLiteralExpr::True(mContext), callee, inputArgs, outputArgs);
 }
 
-void Cfa::removeEdge(Transition* edge)
-{
-    edge->getSource()->removeOutgoing(edge);
-    edge->getTarget()->removeIncoming(edge);
-
-    edge->mSource = nullptr;
-    edge->mTarget = nullptr;
-
-    //mTransitions.erase(
-    //    std::remove(mTransitions.begin(), mTransitions.end(), edge),
-    //    mTransitions.end()
-    //);
-}
-
 // Member variables
 //-----------------------------------------------------------------------------
 
@@ -148,6 +136,19 @@ size_t Cfa::getInputNumber(gazer::Variable* variable) const
     return std::distance(mInputs.begin(), it);
 }
 
+size_t Cfa::getOutputNumber(gazer::Variable* variable) const
+{
+    auto it = std::find(mOutputs.begin(), mOutputs.end(), variable);
+    assert(it != mOutputs.end() && "Variable must be present in the output list!");
+
+    return std::distance(mOutputs.begin(), it);
+}
+
+bool Cfa::isOutput(Variable* variable) const
+{
+    return std::find(mOutputs.begin(), mOutputs.end(), variable) != mOutputs.end();
+}
+
 Variable* Cfa::findVariableByName(const std::vector<Variable*>& vec, llvm::StringRef name) const
 {
     auto variableName = llvm::Twine(mName, "/") + name;
@@ -177,6 +178,65 @@ Variable* Cfa::findLocalByName(llvm::StringRef name) const
 Variable* Cfa::findOutputByName(llvm::StringRef name) const
 {
     return findVariableByName(mOutputs, name);
+}
+
+// Transformations
+//-----------------------------------------------------------------------------
+
+void Cfa::disconnectLocation(Location* location)
+{
+    for (Transition* edge : location->incoming()) {
+        edge->mTarget = nullptr;
+        edge->mSource->removeOutgoing(edge);
+    }
+
+    for (Transition* edge : location->outgoing()) {
+        edge->mSource = nullptr;
+        edge->mTarget->removeIncoming(edge);
+    }
+
+    location->mIncoming.clear();
+    location->mOutgoing.clear();
+}
+
+void Cfa::disconnectEdge(Transition* edge)
+{
+    edge->getSource()->removeOutgoing(edge);
+    edge->getTarget()->removeIncoming(edge);
+
+    edge->mSource = nullptr;
+    edge->mTarget = nullptr;
+}
+
+void Cfa::removeUnreachableLocations()
+{
+    llvm::df_iterator_default_set<Location*> visited;
+    auto begin = llvm::df_ext_begin(*this, visited);
+    auto end = llvm::df_ext_end(*this, visited);
+
+    for (auto it = begin; it != end; ++it) {
+        // The DFS algorithm is executed by running the iterators.
+    }
+
+    std::vector<Location*> unreachable;
+    for (auto& loc : mLocations) {
+        if (visited.count(&*loc) == 0) {
+            this->disconnectLocation(&*loc);
+        }
+    }
+
+    this->clearDisconnectedElements();
+}
+
+void Cfa::clearDisconnectedElements()
+{
+    mLocations.erase(std::remove_if(mLocations.begin(), mLocations.end(), [](auto& loc) {
+        return loc->mIncoming.empty() && loc->mOutgoing.empty();
+    }), mLocations.end());
+
+    mTransitions.erase(std::remove_if(mTransitions.begin(), mTransitions.end(), [](auto& edge) {
+        return edge->mSource == nullptr || edge->mTarget == nullptr;
+    }), mTransitions.end());
 }
 
 

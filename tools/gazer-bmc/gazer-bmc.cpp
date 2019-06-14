@@ -7,6 +7,7 @@
 #include "gazer/LLVM/Instrumentation/DefaultChecks.h"
 
 #include "gazer/LLVM/InstrumentationPasses.h"
+#include "gazer/LLVM/Verifier/BmcPass.h"
 
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
 
@@ -62,15 +63,16 @@ int main(int argc, char* argv[])
     std::string input = InputFilename;
     unsigned bound = BmcUnwind;
 
-    llvm::LLVMContext context;
+    llvm::LLVMContext llvmContext;
     llvm::SMDiagnostic err;
-    auto module = llvm::parseIRFile(input, err, context);
+    auto module = llvm::parseIRFile(input, err, llvmContext);
     
     if (!module) {
         err.print("gazer-bmc", llvm::errs());
         return 1;
     }
 
+    GazerContext context;
     auto pm = std::make_unique<llvm::legacy::PassManager>();
 
     if (InlineFunctions) {
@@ -177,7 +179,9 @@ int main(int argc, char* argv[])
         //   pm->add(createCfaPrinterPass());
         //}
         //pm->add(new gazer::BmcPass());
-        pm->add(new gazer::ModuleToAutomataPass());
+
+        pm->add(new gazer::ModuleToAutomataPass(context));
+        pm->add(new gazer::BoundedModelCheckerPass());
     }
 
     //pm->add(llvm::createCFGPrinterLegacyPassPass());

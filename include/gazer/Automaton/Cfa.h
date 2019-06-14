@@ -260,10 +260,6 @@ public:
         Cfa* callee, std::vector<ExprPtr> inputArgs, std::vector<VariableAssignment> outputArgs
     );
 
-    /// Disconnects \param edge from its connected locations,
-    /// and removes it from the graph.
-    void removeEdge(Transition* edge);
-
     // Variable handling
 
     Variable* createInput(llvm::StringRef name, Type& type);
@@ -338,17 +334,29 @@ public:
     size_t getNumNestedAutomata() const { return mNestedAutomata.size(); }
 
     /// Returns the index of a given input variable in the input list of this automaton.
+
     size_t getInputNumber(Variable* variable) const;
+    size_t getOutputNumber(Variable* variable) const;
 
     Variable* findInputByName(llvm::StringRef name) const;
     Variable* findLocalByName(llvm::StringRef name) const;
     Variable* findOutputByName(llvm::StringRef name) const;
 
     Variable* getInput(size_t i) const { return mInputs[i]; }
+    Variable* getOutput(size_t i) const { return mOutputs[i]; }
+
+    bool isOutput(Variable* variable) const;
 
     /// View the graph representation of this CFA with the
     /// system's default GraphViz viewer.
     void view() const;
+
+    void removeUnreachableLocations();
+
+    void disconnectLocation(Location* location);
+    void disconnectEdge(Transition* edge);
+
+    void clearDisconnectedElements();
 
 private:
     Variable* createMemberVariable(llvm::Twine name, Type& type);
@@ -413,6 +421,17 @@ private:
     std::vector<Variable*> mGlobalVariables;
 };
 
+inline llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Transition& transition)
+{
+    transition.print(os);
+    return os;
+}
+
+inline llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const VariableAssignment& va)
+{
+    va.print(os);
+    return os;
+}
 
 } // end namespace gazer
 
@@ -462,7 +481,7 @@ struct GraphTraits<gazer::Cfa>
         return nodes_iterator(cfa.node_end(), GetLocationFromPtr);
     }
 
-    static NodeRef getEntryNode(gazer::Cfa& cfa) {
+    static NodeRef getEntryNode(const gazer::Cfa& cfa) {
         return cfa.getEntry();
     }
 
@@ -509,7 +528,7 @@ struct GraphTraits<gazer::Location*>
     static NodeRef getEntryNode(gazer::Location* cp) { return cp; }
 };
 
-}
+} // end namespace llvm
 
 #endif
 

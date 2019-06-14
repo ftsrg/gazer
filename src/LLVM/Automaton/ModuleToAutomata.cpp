@@ -85,7 +85,7 @@ static bool isErrorBlock(llvm::BasicBlock* bb)
         Function* function = call->getCalledFunction();
         if (function != nullptr && function->getName() == "gazer.error_code") {
             return true;
-        }
+        } 
     }
 
     return false;
@@ -290,6 +290,12 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate()
             *exprBuilder
         );
         blocksToCfa.encode(&function.getEntryBlock());
+    }
+
+
+    // CFAs must be connected graphs. Remove unreachable components now.
+    for (auto& cfa : *mSystem) {
+        cfa.removeUnreachableLocations();
     }
 
     return std::move(mSystem);
@@ -1051,23 +1057,18 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
         }
     }
 
-    GazerContext context;
-    auto system = translateModuleToAutomata(module, loops, context);
+    mSystem = translateModuleToAutomata(module, loops, mContext);
 
-    for (Cfa& cfa : *system) {
-        llvm::errs() << cfa.getName() << "("
-            << llvm::join(to_string_range(cfa.inputs()), ",")
-            << ")\n -> "
-            << llvm::join(to_string_range(cfa.outputs()), ", ")
-            << " {\n"
-            << llvm::join(to_string_range(cfa.locals()), "\n")
-            << "\n}";
-        llvm::errs() << "\n";
-    }
-
-    for (Cfa& cfa : *system) {
-        cfa.view();
-    }
+    // for (Cfa& cfa : *mSystem) {
+    //     llvm::errs() << cfa.getName() << "("
+    //         << llvm::join(to_string_range(cfa.inputs()), ",")
+    //         << ")\n -> "
+    //         << llvm::join(to_string_range(cfa.outputs()), ", ")
+    //         << " {\n"
+    //         << llvm::join(to_string_range(cfa.locals()), "\n")
+    //         << "\n}";
+    //     llvm::errs() << "\n";
+    // }
 
     return false;
 }
