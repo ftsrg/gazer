@@ -17,8 +17,8 @@ class ModuleToAutomataPass : public llvm::ModulePass
 public:
     static char ID;
 
-    ModuleToAutomataPass()
-        : ModulePass(ID)
+    ModuleToAutomataPass(GazerContext& context)
+        : ModulePass(ID), mContext(context)
     {}
 
     void getAnalysisUsage(llvm::AnalysisUsage& au) const override;
@@ -28,6 +28,12 @@ public:
     llvm::StringRef getPassName() const override {
         return "Module to automata transformation";
     }
+
+    AutomataSystem& getSystem() { return *mSystem; }
+
+private:
+    std::unique_ptr<AutomataSystem> mSystem;
+    GazerContext& mContext;
 };
 
 std::unique_ptr<AutomataSystem> translateModuleToAutomata(

@@ -9,14 +9,18 @@
 #include <llvm/ADT/PostOrderIterator.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/ADT/DenseSet.h>
+#include <llvm/Support/Debug.h>
+
+#define DEBUG_TYPE "BoundedModelChecker"
 
 namespace gazer
 {
 
 llvm::cl::opt<unsigned> MaxBound("bound", llvm::cl::desc("Maximum iterations for the bounded model checker."));
 llvm::cl::opt<bool> VerifierDebug("debug-verif", llvm::cl::desc("Print verifier debug info"));
+llvm::cl::opt<bool> DumpCfa("debug-dump-cfa", llvm::cl::desc("Dump the generated after each inlining step."));
 
-class BoundedModelChecker
+class BoundedModelCheckerImpl
 {
     struct VcCell
     {
@@ -36,29 +40,73 @@ class BoundedModelChecker
         unsigned cost = 0;
     };
 public:
-    BoundedModelChecker(
+    BoundedModelCheckerImpl(
         AutomataSystem& system,
         ExprBuilder& builder,
         SolverFactory& solverFactory
-    ) : mSystem(system), mExprBuilder(builder), mSolverFactory(solverFactory)
+    );
+
+    std::unique_ptr<SafetyResult> check();
+
+private:
+    void updateVC(size_t startIdx);
+    void inlineCallIntoRoot(
+        CallTransition* call,
+        llvm::DenseMap<Variable*, Variable*>& vmap,
+        llvm::Twine suffix
+    );
+    void clearInfeasiblePaths();
+
+private:
+    AutomataSystem& mSystem;
+    ExprBuilder& mExprBuilder;
+    SolverFactory& mSolverFactory;
+
+    Cfa* mRoot;
+    Location* mError;
+
+    std::vector<VcCell> mVC;
+    std::vector<Location*> mTopo;
+
+    llvm::DenseMap<Location*, size_t> mLocNumbers;
+    llvm::DenseMap<CallTransition*, CallInfo> mCalls;
+    llvm::DenseSet<CallTransition*> mOpenCalls;
+    std::unordered_map<Cfa*, std::vector<Location*>> mTopoSortMap;
+};
+
+}
+
+using namespace gazer;
+
+std::unique_ptr<SafetyResult> BoundedModelChecker::check(AutomataSystem& system)
+{
+    auto builder = CreateFoldingExprBuilder(system.getContext());
+    BoundedModelCheckerImpl impl{system, *builder, mSolverFactory};
+    return impl.check();
+}
+
+BoundedModelCheckerImpl::BoundedModelCheckerImpl(
+    AutomataSystem& system, ExprBuilder& builder, SolverFactory& solverFactory
+) : mSystem(system), mExprBuilder(builder), mSolverFactory(solverFactory)
     {
         // TODO: Make this more flexible
         mRoot = mSystem.getAutomatonByName("main");
 
-        size_t size = mRoot->getNumLocations();
 
-        // Fill the initial VC vector with False
-        mVC.resize(size);
+        // Create the topological sorts
+        for (Cfa& cfa : mSystem) {
+            auto poBegin = llvm::po_begin(cfa.getEntry());
+            auto poEnd = llvm::po_end(cfa.getEntry());
 
-        std::fill(mVC.begin(), mVC.end(), VcCell{mExprBuilder.False()});
+            auto& topoVec = mTopoSortMap[&cfa];
+            topoVec.insert(mTopo.end(), poBegin, poEnd);
+            std::reverse(topoVec.begin(), topoVec.end());
+        }
 
-        // Create the topological sort
-        auto poBegin = llvm::po_begin(mRoot->getEntry());
-        auto poEnd = llvm::po_end(mRoot->getEntry());
-        mTopo.insert(mTopo.end(), poBegin, poEnd);
-        std::reverse(mTopo.begin(), mTopo.end());
+        auto& mainTopo = mTopoSortMap[mRoot];
+        mTopo.insert(mTopo.end(), mainTopo.begin(), mainTopo.end());
 
-        for (size_t i = 0; i < size; ++i) {
+        for (size_t i = 0; i < mTopo.size(); ++i) {
             mLocNumbers[mTopo[i]] = i;
         }
 
@@ -74,7 +122,7 @@ public:
             // If there are no error locations in the main automaton, they might still exist in a called CFA.
             // Create a dummy error location which we will use as a goal.
             mError = mRoot->createErrorLocation();
-            mRoot->createAssignTransition(mTopo.back(), mError, mExprBuilder.False());
+            mRoot->createAssignTransition(mTopo.front(), mError, mExprBuilder.False());
             mLocNumbers[mError] = mTopo.size();
             mTopo.push_back(mError);
         } else if (errors.size() == 1) {
@@ -91,6 +139,10 @@ public:
             mTopo.push_back(mError);
         }
 
+        // Fill the initial VC vector with False
+        mVC.resize(mTopo.size());
+        std::fill(mVC.begin(), mVC.end(), VcCell{mExprBuilder.False()});
+
         // Insert initial call approximations.
         for (auto& edge : mRoot->edges()) {
             if (auto call = llvm::dyn_cast<CallTransition>(edge.get())) {
@@ -100,37 +152,7 @@ public:
         }
     }
 
-    std::unique_ptr<SafetyResult> check();
-
-private:
-    void updateVC(size_t startIdx);
-    void inlineCallIntoRoot(
-        CallTransition* call,
-        llvm::DenseMap<Variable*, Variable*>& vmap,
-        llvm::Twine suffix
-    );
-
-private:
-    AutomataSystem& mSystem;
-    ExprBuilder& mExprBuilder;
-    SolverFactory& mSolverFactory;
-
-    Cfa* mRoot;
-    Location* mError;
-
-    std::vector<VcCell> mVC;
-    std::vector<Location*> mTopo;
-
-    llvm::DenseMap<Location*, size_t> mLocNumbers;
-    llvm::DenseMap<CallTransition*, CallInfo> mCalls;
-    llvm::DenseSet<CallTransition*> mOpenCalls;
-};
-
-}
-
-using namespace gazer;
-
-std::unique_ptr<SafetyResult> BoundedModelChecker::check()
+std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
 {
     // We are using a dynamic programming-based approach.
     // As the CFG is a DAG after unrolling, we can create a topoligcal sort
@@ -145,19 +167,24 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::check()
 
     // Calculate the initial verification condition
     this->updateVC(/*startIdx=*/ 1);
+    auto solver = mSolverFactory.createSolver(mSystem.getContext());
 
     unsigned tmp = 0;
+
+
+
     // Let's do some verification
-    for (size_t bound = 0; bound < MaxBound; ++bound) {
+    for (size_t bound = 1; bound <= MaxBound; ++bound) {
         llvm::outs() << "Iteration " << bound << "\n";
 
         while (true) {
+            unsigned numUnhandledCallSites = 0;
             llvm::outs() << "  Under-approximating.\n";
 
             size_t errIdx = mLocNumbers[mError];
             ExprPtr formula = mVC[errIdx].expr;
 
-            auto solver = mSolverFactory.createSolver(mSystem.getContext());
+            solver->reset();
             llvm::outs() << "    Transforming formula...\n";
             solver->add(formula);
 
@@ -166,6 +193,8 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::check()
 
             if (status == Solver::SAT) {
                 llvm::outs() << "  Under-approximated formula is SAT.\n";
+                LLVM_DEBUG(formula->print(llvm::dbgs()));
+                LLVM_DEBUG(solver->getModel().print(llvm::dbgs()));
                 return SafetyResult::CreateFail(0);
             }
 
@@ -179,8 +208,13 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::check()
                 CallTransition* call = callPair.first;
                 CallInfo& info = callPair.second;
 
-                if (info.cost >= bound) {
+                if (info.cost > bound) {
+                    LLVM_DEBUG(
+                        llvm::dbgs() << "  Skipping " << *call
+                        << ": inline cost is greater than bound (" << info.cost << " > " << bound << ").\n"
+                    );
                     info.overApprox = mExprBuilder.False();
+                    ++numUnhandledCallSites;
                     continue;
                 }
 
@@ -192,33 +226,55 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::check()
                 mOpenCalls.insert(call);
             }
 
-            this->updateVC(first);
+            this->updateVC(1);
             formula = mVC[errIdx].expr;
 
             solver->reset();
             solver->add(formula);
 
+            llvm::outs() << "    Running solver...\n";
             status = solver->run();
             if (status == Solver::SAT) {
                 llvm::outs() << "      Over-approximated formula is SAT.\n";
                 llvm::outs() << "      Checking counterexample....\n";
                 // We have a counterexample, but it may be spurious.
 
-                llvm::outs() << "  Inlining calls...\n";
+                llvm::outs() << "    Inlining calls...\n";
 
                 for (CallTransition* call : mOpenCalls) {
                     llvm::DenseMap<Variable*, Variable*> vmap;
                     inlineCallIntoRoot(call, vmap, "_call" + llvm::Twine(tmp++));
+                    mCalls.erase(call);
+                }
+                mRoot->clearDisconnectedElements();
+
+                if (DumpCfa) {
+                    mRoot->view();
                 }
 
+                this->updateVC(1);
             } else if (status == Solver::UNSAT) {
+                llvm::outs() << "  Over-approximated formula is UNSAT.\n";
+                if (numUnhandledCallSites == 0) {
+                    // If we have no unhandled call sites,
+                    // the program is guaranteed to be safe at this point.
+                    return SafetyResult::CreateSuccess();
+                }  else if (bound == MaxBound) {
+                    // The maximum bound was reached.
+                    return SafetyResult::CreateSuccess();
+                } else {
+                    // Try with an increased bound.
+                    llvm::outs() << "    Open call sites still present. Increasing bound.\n";
+                    break;
+                }
             }
         }
-
     }
+
+    return SafetyResult::CreateSuccess();
 }
 
-void BoundedModelChecker::updateVC(size_t startIdx)
+void BoundedModelCheckerImpl::updateVC(size_t startIdx)
 {
     for (size_t i = startIdx; i < mVC.size(); ++i) {
         Location* loc = mTopo[i];
@@ -234,7 +290,7 @@ void BoundedModelChecker::updateVC(size_t startIdx)
                 && "Predecessors must be before block in a topological sort. "
                 "Maybe there is a loop in the automaton?");
 
-            ExprPtr formula = mVC[predIdx].expr;
+            ExprPtr formula = mExprBuilder.And(mVC[predIdx].expr, edge->getGuard());
 
             if (auto assignEdge = llvm::dyn_cast<AssignTransition>(edge)) {
                 ExprVector assigns;
@@ -242,8 +298,9 @@ void BoundedModelChecker::updateVC(size_t startIdx)
                     return this->mExprBuilder.Eq(varAssign.getVariable()->getRefExpr(), varAssign.getValue());
                 });
 
-                formula = mExprBuilder.Eq(formula, mExprBuilder.And(assigns));
+                formula = mExprBuilder.And(formula, mExprBuilder.And(assigns));
             } else if (auto callEdge = llvm::dyn_cast<CallTransition>(edge)) {
+                LLVM_DEBUG(llvm::dbgs() << "  Over-approximation for edge " << *callEdge << ": " << *mCalls[callEdge].overApprox << "\n");
                 formula = mExprBuilder.And(formula, mCalls[callEdge].overApprox);
             }
 
@@ -256,11 +313,18 @@ void BoundedModelChecker::updateVC(size_t startIdx)
     }
 }
 
-void BoundedModelChecker::inlineCallIntoRoot(
+void BoundedModelCheckerImpl::inlineCallIntoRoot(
     CallTransition* call,
     llvm::DenseMap<Variable*, Variable*>& vmap,
     llvm::Twine suffix
 ) {
+    LLVM_DEBUG(
+        llvm::dbgs() << " Inlining call " << *call
+            << " edge " << call->getSource()->getId()
+            << " --> " << call->getTarget()->getId()
+            << "\n"
+    );
+
     CallInfo& info = mCalls[call];
     auto callee = call->getCalledAutomaton();
 
@@ -271,18 +335,28 @@ void BoundedModelChecker::inlineCallIntoRoot(
 
     // Clone all local variables into the parent
     for (Variable& local : callee->locals()) {
-        auto varname = local.getName() + suffix;
-        auto newLocal = mRoot->createLocal(varname.str(), local.getType());
-        vmap[&local] = newLocal;
-        rewrite[&local] = newLocal->getRefExpr();
+        if (!callee->isOutput(&local)) {
+            auto varname = (local.getName() + suffix).str();
+            auto newLocal = mRoot->createLocal(varname, local.getType());
+            vmap[&local] = newLocal;
+            rewrite[&local] = newLocal->getRefExpr();
+        }
     }
 
     for (size_t i = 0; i < callee->getNumInputs(); ++i) {
-        Variable* input = callee->getInput(i);
+            Variable* input = callee->getInput(i);
+        if (!callee->isOutput(input)) {
 
-        auto varname = input->getName() + suffix;
-        vmap[input] = mRoot->createInput(varname.str(), input->getType());
-        rewrite[input] = call->getInputArgument(i);
+            auto varname = input->getName() + suffix;
+            vmap[input] = mRoot->createInput(varname.str(), input->getType());
+            rewrite[input] = call->getInputArgument(i);
+        }
+    }
+
+    for (size_t i = 0; i < callee->getNumOutputs(); ++i) {
+        Variable* output = callee->getOutput(i);
+        vmap[output] = call->getOutputArgument(i).getVariable();
+        rewrite[output] = call->getOutputArgument(i).getVariable()->getRefExpr();
     }
 
     // Insert the locations
@@ -296,12 +370,19 @@ void BoundedModelChecker::inlineCallIntoRoot(
     }
 
     // Transform the edges
-    for (auto& origEdge : callee->edges()) {
+    auto addr = [](auto& ptr) { return ptr.get(); };
+
+    std::vector<Transition*> edges(
+        llvm::map_iterator(callee->edge_begin(), addr),
+        llvm::map_iterator(callee->edge_end(), addr)
+    );
+
+    for (auto origEdge : edges) {
         Transition* newEdge = nullptr;
         Location* source = locToLocMap[origEdge->getSource()];
         Location* target = locToLocMap[origEdge->getTarget()];
 
-        if (auto assign = llvm::dyn_cast<AssignTransition>(origEdge.get())) {
+        if (auto assign = llvm::dyn_cast<AssignTransition>(origEdge)) {
             // Transform the assignments of this edge to use the new variables.
             std::vector<VariableAssignment> newAssigns;
             std::transform(
@@ -317,7 +398,7 @@ void BoundedModelChecker::inlineCallIntoRoot(
             newEdge = mRoot->createAssignTransition(
                 source, target, rewrite.visit(assign->getGuard()), newAssigns
             );
-        } else if (auto nestedCall = llvm::dyn_cast<CallTransition>(origEdge.get())) {
+        } else if (auto nestedCall = llvm::dyn_cast<CallTransition>(origEdge)) {
             ExprVector newArgs;
             std::vector<VariableAssignment> newOuts;
 
@@ -339,34 +420,70 @@ void BoundedModelChecker::inlineCallIntoRoot(
 
             auto callEdge = mRoot->createCallTransition(
                 source, target,
-                rewrite.visit(call->getGuard()),
+                rewrite.visit(nestedCall->getGuard()),
                 nestedCall->getCalledAutomaton(),
                 newArgs, newOuts
             );
 
             newEdge = callEdge;
-            mCalls[callEdge].cost = mCalls[call].cost + 1;
+            mCalls[callEdge].cost = info.cost + 1;
             mCalls[callEdge].overApprox = mExprBuilder.False();
         } else {
             llvm_unreachable("Unknown transition kind!");
         }
 
-        edgeToEdgeMap[origEdge.get()] = newEdge;
+        edgeToEdgeMap[origEdge] = newEdge;
     }
 
     Location* before = call->getSource();
     Location* after  = call->getTarget();
 
-    mRoot->removeEdge(call);
-    auto newEdge = mRoot->createAssignTransition(
-        before, locToLocMap[callee->getEntry()]
+    mRoot->createAssignTransition(
+        before, locToLocMap[callee->getEntry()], call->getGuard()
     );
 
     // Do the output assignments.
     std::vector<VariableAssignment> outputAssigns;
-    // TODO
+
+    // for (size_t i = 0; i < call->getNumOutputs(); ++i) {
+    //     VariableAssignment output = call->getOutputArgument(i);
+    //     LLVM_DEBUG(llvm::dbgs() << "Transforming output assignment " << i << ": " << output << "\n");
+    //     outputAssigns.emplace_back(output.getVariable(), rewrite.visit(output.getValue()));
+    // }
 
     mRoot->createAssignTransition(
-        locToLocMap[callee->getExit()], after
+        locToLocMap[callee->getExit()], after /*, mExprBuilder.True(), outputAssigns */
     );
+
+    // Add the new locations to the topological sort.
+    // As every inlined location should come between the source and target of the original call transition,
+    // we will insert them there in the topo sort.
+    auto& oldTopo = mTopoSortMap[callee];
+    auto getInlinedLocation = [&locToLocMap](Location* loc) {
+        return locToLocMap[loc];
+    };    
+
+    size_t callIdx = mLocNumbers[call->getTarget()];
+    auto callPos = std::next(mTopo.begin(), callIdx);
+    auto insertPos = mTopo.insert(callPos,
+        llvm::map_iterator(oldTopo.begin(), getInlinedLocation),
+        llvm::map_iterator(oldTopo.end(), getInlinedLocation)
+    );
+
+    mVC.resize(mTopo.size());
+
+    // Update the location numbers
+    for (auto it = insertPos, ie = mTopo.end(); it != ie; ++it) {
+        size_t idx = std::distance(mTopo.begin(), it);
+        mLocNumbers[*it] = idx;
+        mVC[idx].expr = mExprBuilder.False();
+    }
+
+    mRoot->disconnectEdge(call);
+}
+
+void BoundedModelCheckerImpl::clearInfeasiblePaths()
+{
+    for (auto& edge : mRoot->edges()) {
+    }
 }
