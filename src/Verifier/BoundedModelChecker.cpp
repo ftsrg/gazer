@@ -318,12 +318,12 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     llvm::DenseMap<Variable*, Variable*>& vmap,
     llvm::Twine suffix
 ) {
-    LLVM_DEBUG(
-        llvm::dbgs() << " Inlining call " << *call
+    //LLVM_DEBUG(
+        llvm::errs() << " Inlining call " << *call
             << " edge " << call->getSource()->getId()
             << " --> " << call->getTarget()->getId()
-            << "\n"
-    );
+            << "\n";
+    //);
 
     CallInfo& info = mCalls[call];
     auto callee = call->getCalledAutomaton();

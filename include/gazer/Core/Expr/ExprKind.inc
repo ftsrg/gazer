@@ -1,4 +1,10 @@
-#ifdef GAZER_EXPR_KIND
+#ifndef GAZER_EXPR_KIND
+    #error "Including ExprKind.inc without defining GAZER_EXPR_KIND is not allowed!"
+#else
+
+#ifndef GAZER_EXPR_KIND_NON_NULLARY
+    #define GAZER_EXPR_KIND_NON_NULLARY(X) GAZER_EXPR_KIND(X)
+#endif
 
 GAZER_EXPR_KIND(Undef)
 GAZER_EXPR_KIND(Literal)
@@ -47,7 +53,4 @@ GAZER_EXPR_KIND(FLtEq)
 GAZER_EXPR_KIND(Select)
 GAZER_EXPR_KIND(ArrayRead)
 GAZER_EXPR_KIND(ArrayWrite)
-
-#else
-#error "Including ExprKind.inc without defining GAZER_EXPR_KIND is not allowed!"
 #endif
