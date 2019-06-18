@@ -1,14 +1,14 @@
 #include "gazer/Z3Solver/Z3Solver.h"
 #include "gazer/Core/ExprTypes.h"
 #include "gazer/Core/LiteralExpr.h"
-
 #include "gazer/Core/ExprVisitor.h"
+
+#include "gazer/ADT/ScopedCache.h"
 #include "gazer/Support/Float.h"
 
 #include <llvm/Support/raw_os_ostream.h>
 
 #include <z3++.h>
-#include <unordered_map>
 
 using namespace gazer;
 
@@ -28,6 +28,9 @@ public:
     Valuation getModel() override;
     void reset() override;
 
+    void push() override;
+    void pop() override;
+
 protected:
     void addConstraint(ExprPtr expr) override;
 
@@ -40,12 +43,15 @@ protected:
 class CachingZ3Solver final : public Z3Solver
 {
 public:
-    using CacheMapT = std::unordered_map<const Expr*, Z3_ast>;
+    using CacheMapT = ScopedCache<const Expr*, Z3_ast>;
     using Z3Solver::Z3Solver;
 
 protected:
     void addConstraint(ExprPtr expr) override;
     void reset() override;
+
+    void push() override;
+    void pop() override;
 
 private:
     CacheMapT mCache;
@@ -403,15 +409,15 @@ public:
             return ExprVisitor::visit(expr);
         }
 
-        auto result = mCache.find(expr.get());
-        if (result != mCache.end()) {
-            return z3::expr(mZ3Context, result->second);
+        auto result = mCache.get(expr.get());
+        if (result) {
+            return z3::expr(mZ3Context, *result);
         }
 
         //llvm::errs() << *expr << "\n";
         auto z3Expr = ExprVisitor::visit(expr);
 
-        mCache[expr.get()] = (Z3_ast) z3Expr;
+        mCache.insert(expr.get(), static_cast<Z3_ast>(z3Expr));
 
         return z3Expr;
     }
@@ -446,6 +452,16 @@ void Z3Solver::reset()
     mSolver.reset();
 }
 
+void Z3Solver::push()
+{
+    mSolver.push();
+}
+
+void Z3Solver::pop()
+{
+    mSolver.pop();
+}
+
 void Z3Solver::printStats(llvm::raw_ostream& os)
 {    
     std::stringstream ss;
@@ -469,6 +485,16 @@ void CachingZ3Solver::reset()
 {
     mCache.clear();
     Z3Solver::reset();
+}
+
+void CachingZ3Solver::push() {
+    mCache.push();
+    Z3Solver::push();
+}
+
+void CachingZ3Solver::pop() {
+    mCache.pop();
+    Z3Solver::pop();
 }
 
 //---- Support for model extraction ----//

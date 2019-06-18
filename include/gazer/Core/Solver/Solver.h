@@ -51,6 +51,9 @@ public:
 
     virtual void reset() = 0;
 
+    virtual void push() = 0;
+    virtual void pop() = 0;
+
     virtual ~Solver() {}
 
 protected:
