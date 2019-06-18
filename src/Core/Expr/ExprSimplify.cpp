@@ -2,7 +2,6 @@
 #include "gazer/Core/ExprVisitor.h"
 #include "gazer/Core/Expr/Matcher.h"
 #include "gazer/Core/Expr/ConstantFolder.h"
-#include "gazer/ADT/ScopedMap.h"
 #include "gazer/ADT/ScopedVector.h"
 
 #include <llvm/ADT/DenseMap.h>
