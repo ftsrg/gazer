@@ -503,6 +503,27 @@ struct GraphTraits<gazer::Cfa>
 };
 
 template<>
+struct GraphTraits<Inverse<gazer::Cfa>> : public GraphTraits<gazer::Cfa>
+{
+    using NodeRef = gazer::Location*;
+
+    static constexpr auto GetEdgeSource = [](const gazer::Transition* edge) -> NodeRef  {
+        return edge->getSource();
+    };
+
+    using ChildIteratorType = llvm::mapped_iterator<gazer::Location::edge_iterator, decltype(GetEdgeSource)>;
+
+    static ChildIteratorType child_begin(NodeRef loc) {
+        return ChildIteratorType(loc->outgoing_begin(), GetEdgeSource);
+    }
+    static ChildIteratorType child_end(NodeRef loc) {
+        return ChildIteratorType(loc->outgoing_end(), GetEdgeSource);
+    }
+
+    static NodeRef getEntryNode(Inverse<gazer::Cfa>& cfa) { return cfa.Graph.getExit(); }
+};
+
+template<>
 struct GraphTraits<gazer::Location*>
 {
     using NodeRef = gazer::Location*;
@@ -525,7 +546,25 @@ struct GraphTraits<gazer::Location*>
         return ChildIteratorType(loc->outgoing_end(), GetEdgeTarget);
     }
 
-    static NodeRef getEntryNode(gazer::Location* cp) { return cp; }
+    static NodeRef getEntryNode(gazer::Location* loc) { return loc; }
+};
+
+template<>
+struct GraphTraits<Inverse<gazer::Location*>> : public GraphTraits<gazer::Location*>
+{
+    using NodeRef = gazer::Location*;
+
+    using ChildIteratorType = llvm::mapped_iterator<
+        gazer::Location::edge_iterator,
+        decltype(GraphTraits<Inverse<gazer::Cfa>>::GetEdgeSource)
+    >;
+
+    static ChildIteratorType child_begin(NodeRef cp) {
+        return ChildIteratorType(cp->outgoing_begin(), GraphTraits<Inverse<gazer::Cfa>>::GetEdgeSource);
+    }
+    static ChildIteratorType child_end(NodeRef cp) {
+        return ChildIteratorType(cp->outgoing_end(), GraphTraits<Inverse<gazer::Cfa>>::GetEdgeSource);
+    }
 };
 
 } // end namespace llvm

@@ -436,7 +436,7 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
                     std::vector<VariableAssignment> phiAssignments;
                     insertPhiAssignments(bb, succ, phiAssignments);
 
-                    mCfa->createAssignTransition(exit, to, succCondition);
+                    mCfa->createAssignTransition(exit, to, succCondition, phiAssignments);
                 } else if (auto loop = mGenCtx.LoopInfo->getLoopFor(succ)) {
                     // If this is a nested loop, create a call to the corresponding automaton.
                     CfaGenInfo& nestedLoopInfo = mGenCtx.LoopMap[loop];
