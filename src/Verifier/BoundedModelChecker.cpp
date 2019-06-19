@@ -11,20 +11,27 @@
 #include <llvm/ADT/DenseSet.h>
 #include <llvm/Support/Debug.h>
 
+#include <deque>
+
 #define DEBUG_TYPE "BoundedModelChecker"
 
 namespace gazer
 {
 
 llvm::cl::opt<unsigned> MaxBound("bound", llvm::cl::desc("Maximum iterations for the bounded model checker."));
+llvm::cl::opt<unsigned> EagerUnroll("eager-unroll", llvm::cl::desc("Eager unrolling bound."), llvm::cl::init(0));
+
 llvm::cl::opt<bool> VerifierDebug("debug-verif", llvm::cl::desc("Print verifier debug info"));
-llvm::cl::opt<bool> DumpCfa("debug-dump-cfa", llvm::cl::desc("Dump the generated after each inlining step."));
+llvm::cl::opt<bool> ViewCfa("view-cfa", llvm::cl::desc("View the generated CFA."));
+llvm::cl::opt<bool> DumpCfa("debug-dump-cfa", llvm::cl::desc("Dump the generated CFA after each inlining step."));
 
 class BoundedModelCheckerImpl
 {
     struct VcCell
     {
         ExprPtr expr;
+        unsigned numCalls = 0;
+        unsigned callCost = 0;
 
         VcCell(ExprPtr expr = nullptr)
             : expr(expr)
@@ -50,6 +57,9 @@ public:
 
 private:
     void updateVC(size_t startIdx);
+
+    void updateBackwardConditions();
+
     void inlineCallIntoRoot(
         CallTransition* call,
         llvm::DenseMap<Variable*, Variable*>& vmap,
@@ -92,8 +102,33 @@ BoundedModelCheckerImpl::BoundedModelCheckerImpl(
         // TODO: Make this more flexible
         mRoot = mSystem.getAutomatonByName("main");
 
+        // Set the verification goal - a single error location.
+        llvm::SmallVector<Location*, 1> errors;
+        for (auto& loc : mRoot->nodes()) {
+            if (loc->isError()) {
+                errors.push_back(loc.get());
+            }
+        }
 
-        // Create the topological sorts
+        if (errors.size() == 0) {
+            // If there are no error locations in the main automaton, they might still exist in a called CFA.
+            // Create a dummy error location which we will use as a goal.
+            mError = mRoot->createErrorLocation();
+            mRoot->createAssignTransition(mRoot->getEntry(), mError, mExprBuilder.False());
+        } else if (errors.size() == 1) {
+            // We have a single error location, let that be the verification goal.
+            mError = errors[0];
+        } else {
+            // Create an error location which will be directly reachable from each already existing error locations.
+            // This one error location will be used as the goal.
+            mError = mRoot->createErrorLocation();
+            for (Location* err : errors) {
+                mRoot->createAssignTransition(err, mError, mExprBuilder.True());
+            }
+        }
+
+        // Create the topological sorts of the reversed graphs.
+        // This will cause the error location to be at the front for most input programs.
         for (Cfa& cfa : mSystem) {
             auto poBegin = llvm::po_begin(cfa.getEntry());
             auto poEnd = llvm::po_end(cfa.getEntry());
@@ -108,35 +143,6 @@ BoundedModelCheckerImpl::BoundedModelCheckerImpl(
 
         for (size_t i = 0; i < mTopo.size(); ++i) {
             mLocNumbers[mTopo[i]] = i;
-        }
-
-        // Set the verification goal - a single error location.
-        llvm::SmallVector<Location*, 1> errors;
-        for (auto& loc : mRoot->nodes()) {
-            if (loc->isError()) {
-                errors.push_back(loc.get());
-            }
-        }
-        
-        if (errors.size() == 0) {
-            // If there are no error locations in the main automaton, they might still exist in a called CFA.
-            // Create a dummy error location which we will use as a goal.
-            mError = mRoot->createErrorLocation();
-            mRoot->createAssignTransition(mTopo.front(), mError, mExprBuilder.False());
-            mLocNumbers[mError] = mTopo.size();
-            mTopo.push_back(mError);
-        } else if (errors.size() == 1) {
-            // We have a single error location, let that be the verification goal.
-            mError = errors[0];
-        } else {
-            // Create an error location which will be directly reachable from each already existing error locations.
-            // This one error location will be used as the goal.
-            mError = mRoot->createErrorLocation();
-            for (Location* err : errors) {
-                mRoot->createAssignTransition(err, mError, mExprBuilder.True());
-            }
-            mLocNumbers[mError] = mTopo.size();
-            mTopo.push_back(mError);
         }
 
         // Fill the initial VC vector with False
@@ -154,27 +160,53 @@ BoundedModelCheckerImpl::BoundedModelCheckerImpl(
 
 std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
 {
+    if (ViewCfa) {
+        for (Cfa& cfa : mSystem) {
+            cfa.view();
+        }
+    }
+
     // We are using a dynamic programming-based approach.
-    // As the CFG is a DAG after unrolling, we can create a topoligcal sort
-    // of its blocks. Then we create an array with the size of numBB, and
+    // As the CFA is required to be a DAG, we have a topoligcal sort
+    // of its locations. Then we create an array with the size of numLocs, and
     // perform DP as the following:
     //  (0) dp[0] := True (as the entry node is always reachable)
     //  (1) dp[i] := Or(forall p in pred(i): And(dp[p], SMT(p,i)))
     // This way dp[err] will contain the SMT encoding of all bounded error paths.
 
-    // The entry node is always reachable.
+    if (EagerUnroll > MaxBound) {
+        llvm::errs() << "ERROR: Eager unrolling bound is larger than maximum bound.\n";
+        return SafetyResult::CreateUnknown();
+    }
+
+    unsigned tmp = 0;
+    for (size_t bound = 1; bound <= EagerUnroll; ++bound) {
+        mOpenCalls.clear();
+        for (auto& entry : mCalls) {
+            CallTransition* call = entry.first;
+            CallInfo& info = entry.second;
+
+            if (info.cost <= bound) {
+                mOpenCalls.insert(call);
+            }
+        }
+
+        for (CallTransition* call : mOpenCalls) {
+            llvm::DenseMap<Variable*, Variable*> vmap;
+            inlineCallIntoRoot(call, vmap, "_call" + llvm::Twine(tmp++));
+            mCalls.erase(call);
+        }
+    }    
+
+    // The entry is always reachable from itself.
     mVC[0].expr = mExprBuilder.True();
 
     // Calculate the initial verification condition
-    this->updateVC(/*startIdx=*/ 1);
+    this->updateVC(1);
     auto solver = mSolverFactory.createSolver(mSystem.getContext());
 
-    unsigned tmp = 0;
-
-
-
-    // Let's do some verification
-    for (size_t bound = 1; bound <= MaxBound; ++bound) {
+    // Let's do some verification.
+    for (size_t bound = EagerUnroll + 1; bound <= MaxBound; ++bound) {
         llvm::outs() << "Iteration " << bound << "\n";
 
         while (true) {
@@ -274,6 +306,53 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
     return SafetyResult::CreateSuccess();
 }
 
+void BoundedModelCheckerImpl::updateBackwardConditions()
+{
+    for (size_t i = 0; i < mVC.size(); ++i) {
+        Location* loc = mTopo[i];
+        ExprVector exprs;
+
+        unsigned numCalls = 0;
+        unsigned callCost = 0;
+
+        for (Transition* edge : loc->outgoing()) {
+            auto predIt = mLocNumbers.find(edge->getTarget());
+            assert(predIt != mLocNumbers.end()
+                && "All locations must be present in the location map");
+
+            size_t predIdx = predIt->second;
+            assert(predIdx < i
+                && "Successors must be before block in a inverse topological sort. "
+                "Maybe there is a loop in the automaton?");
+
+            numCalls += mVC[predIdx].numCalls;
+            callCost += mVC[predIdx].callCost;
+
+            ExprPtr formula = mExprBuilder.And(mVC[predIdx].expr, edge->getGuard());
+
+            if (auto assignEdge = llvm::dyn_cast<AssignTransition>(edge)) {
+                ExprVector assigns;
+                std::transform(assignEdge->begin(), assignEdge->end(), std::back_inserter(assigns), [this](const VariableAssignment& varAssign) {
+                    return this->mExprBuilder.Eq(varAssign.getVariable()->getRefExpr(), varAssign.getValue());
+                });
+
+                formula = mExprBuilder.And(formula, mExprBuilder.And(assigns));
+            } else if (auto callEdge = llvm::dyn_cast<CallTransition>(edge)) {
+                ++numCalls;
+                callCost += mCalls[callEdge].cost;
+                LLVM_DEBUG(llvm::dbgs() << "  Over-approximation for edge " << *callEdge << ": " << *mCalls[callEdge].overApprox << "\n");
+                formula = mExprBuilder.And(formula, mCalls[callEdge].overApprox);
+            }
+
+            exprs.push_back(formula);
+        }
+
+        mVC[i].expr = exprs.empty() ? mExprBuilder.False() : mExprBuilder.Or(exprs);
+        mVC[i].numCalls = numCalls;
+        mVC[i].callCost = callCost;
+    }
+}
+
 void BoundedModelCheckerImpl::updateVC(size_t startIdx)
 {
     for (size_t i = startIdx; i < mVC.size(); ++i) {
@@ -298,7 +377,9 @@ void BoundedModelCheckerImpl::updateVC(size_t startIdx)
                     return this->mExprBuilder.Eq(varAssign.getVariable()->getRefExpr(), varAssign.getValue());
                 });
 
-                formula = mExprBuilder.And(formula, mExprBuilder.And(assigns));
+                if (!assigns.empty()) {
+                    formula = mExprBuilder.And(formula, mExprBuilder.And(assigns));
+                }
             } else if (auto callEdge = llvm::dyn_cast<CallTransition>(edge)) {
                 LLVM_DEBUG(llvm::dbgs() << "  Over-approximation for edge " << *callEdge << ": " << *mCalls[callEdge].overApprox << "\n");
                 formula = mExprBuilder.And(formula, mCalls[callEdge].overApprox);

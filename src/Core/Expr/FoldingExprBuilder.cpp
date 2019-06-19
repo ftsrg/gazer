@@ -167,7 +167,7 @@ public:
         ExprRef<> x1;
         ExprRef<> e1, e2, e3;
 
-        // And(Eq(E1, E2), NotEq(E1, E2)) --> False            
+        // And(Eq(E1, E2), NotEq(E1, E2)) --> False
         if (unord_match(newOps, m_Eq(m_Expr(e1), m_Expr(e2)), m_NotEq(m_Specific(e1), m_Specific(e2)))) {
             return this->False();
         }
