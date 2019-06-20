@@ -75,6 +75,7 @@ public:
         And,    ///< multiary AND operator for booleans
         Or,     ///< multiary OR operator for booleans
         Xor,    ///< binary XOR operator for booleans
+        Imply,  ///< binary implication for booleans
 
         // Compare
         Eq,

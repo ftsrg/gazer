@@ -278,6 +278,11 @@ public:
         return XorExpr::Create(left, right);
     }
 
+    ExprPtr Imply(const ExprPtr& left, const ExprPtr& right) override
+    {
+        return ImplyExpr::Create(left, right);
+    }
+
     ExprPtr Eq(const ExprPtr& left, const ExprPtr& right) override
     {
         if (left == right) {

@@ -30,7 +30,7 @@ std::size_t gazer::expr_kind_prime(Expr::ExprKind kind)
         956057u, 614531u, 360233u, 621913u, 758041u, 718559u, 930991u, 686201u,
         465977u, 765007u, 388727u, 730819u, 134353u, 819583u, 314953u, 848633u,
         290623u, 241291u, 579499u, 384287u, 125287u, 920273u, 485833u, 326449u,
-        972683u, 485167u, 882599u, 535727u, 383651u, 159833u, 796001u,
+        972683u, 485167u, 882599u, 535727u, 383651u, 159833u, 796001u, 218479u
     };
 
     static_assert(
@@ -170,13 +170,14 @@ auto MultiaryLogicExpr<Kind>::Create(const ExprVector &ops) -> ExprRef<MultiaryL
     return CreateMultiaryExpr<Kind>(ops.begin(), ops.end());
 }
 
-auto XorExpr::Create(const ExprPtr& left, const ExprPtr& right) -> ExprRef<XorExpr>
+template<Expr::ExprKind Kind>
+auto BinaryLogicExpr<Kind>::Create(const ExprPtr& left, const ExprPtr& right) -> ExprRef<BinaryLogicExpr<Kind>>
 {
-    assert(left->getType().isBoolType() && "Can only XOR boolean expressions.");
-    assert(right->getType().isBoolType() && "Can only XOR boolean expressions.");
+    assert(left->getType().isBoolType() && "Can only apply binary logic to boolean expressions.");
+    assert(right->getType().isBoolType() && "Can only apply binary logic to boolean expressions.");
     auto& context = left->getContext();
 
-    return context.pImpl->Exprs.create<XorExpr>(left->getType(), { left, right });
+    return context.pImpl->Exprs.create<BinaryLogicExpr<Kind>>(left->getType(), { left, right });
 }
 
 template<Expr::ExprKind Kind>

@@ -282,7 +282,8 @@ template class MultiaryLogicExpr<Expr::Or>;
 using AndExpr = MultiaryLogicExpr<Expr::And>;
 using OrExpr  = MultiaryLogicExpr<Expr::Or>;
 
-class XorExpr final : public BinaryExpr
+template<Expr::ExprKind Kind>
+class BinaryLogicExpr final : public BinaryExpr
 {
     friend class ExprStorage;
 protected:
@@ -294,16 +295,22 @@ protected:
     }
 
 public:
-    static ExprRef<XorExpr> Create(const ExprPtr& left, const ExprPtr& right);
+    static ExprRef<BinaryLogicExpr<Kind>> Create(const ExprPtr& left, const ExprPtr& right);
 
     static bool classof(const Expr* expr) {
-        return expr->getKind() == Expr::Xor;
+        return expr->getKind() == Kind;
     }
 
     static bool classof(const Expr& expr) {
-        return expr.getKind() == Expr::Xor;
+        return expr.getKind() == Kind;
     }
 };
+
+template class BinaryLogicExpr<Expr::Xor>;
+template class BinaryLogicExpr<Expr::Imply>;
+
+using XorExpr = BinaryLogicExpr<Expr::Xor>;
+using ImplyExpr = BinaryLogicExpr<Expr::Imply>;
 
 template<Expr::ExprKind Kind>
 class FpQueryExpr final : public UnaryExpr

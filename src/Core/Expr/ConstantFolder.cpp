@@ -250,6 +250,11 @@ ExprPtr ConstantFolder::Xor(const ExprPtr& left, const ExprPtr& right)
     return XorExpr::Create(left, right);
 }
 
+ExprPtr ConstantFolder::Imply(const ExprPtr& left, const ExprPtr& right)
+{
+    return ImplyExpr::Create(left, right);
+}
+
 ExprPtr ConstantFolder::Eq(const ExprPtr& left, const ExprPtr& right)
 {
     if (left == right) {

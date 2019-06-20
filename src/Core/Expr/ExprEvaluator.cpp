@@ -141,6 +141,9 @@ ExprRef<LiteralExpr> ExprEvaluatorBase::visitOr(const ExprRef<OrExpr>& expr) {
 ExprRef<LiteralExpr> ExprEvaluatorBase::visitXor(const ExprRef<XorExpr>& expr) {
     return this->visitNonNullary(expr);
 }
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitImply(const ExprRef<ImplyExpr>& expr) {
+    return this->visitNonNullary(expr);
+}
 
 template<Expr::ExprKind Kind>
 static ExprRef<LiteralExpr> EvalCompareExpr(

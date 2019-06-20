@@ -226,6 +226,7 @@ protected:
 
         return z3::mk_and(ops);
     }
+
     z3::expr visitOr(const ExprRef<OrExpr>& expr) override {
         z3::expr_vector ops(mZ3Context);
 
@@ -235,11 +236,17 @@ protected:
 
         return z3::mk_or(ops);
     }
+
     z3::expr visitXor(const ExprRef<XorExpr>& expr) override {
-        if (expr->getType().isBoolType()) {
-            return visit(expr->getLeft()) != visit(expr->getRight());
-        }
-        assert(false && "Can only handle boolean XORs");
+        assert(expr->getType().isBoolType() && "Can only handle boolean XORs");
+
+        return visit(expr->getLeft()) != visit(expr->getRight());
+    }
+
+    z3::expr visitImply(const ExprRef<ImplyExpr>& expr) override {
+        assert(expr->getType().isBoolType() && "Can only handle boolean implications");
+
+        return z3::implies(visit(expr->getLeft()), visit(expr->getRight()));
     }
 
     // Compare
