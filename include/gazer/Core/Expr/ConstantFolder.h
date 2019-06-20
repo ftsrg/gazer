@@ -53,6 +53,7 @@ public:
     }
 
     static ExprPtr Xor(const ExprPtr& left, const ExprPtr& right);
+    static ExprPtr Imply(const ExprPtr& left, const ExprPtr& right);
 
     static ExprPtr Eq(const ExprPtr& left, const ExprPtr& right);
     static ExprPtr NotEq(const ExprPtr& left, const ExprPtr& right);

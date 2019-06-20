@@ -93,6 +93,7 @@ public:
     }
 
     virtual ExprPtr Xor(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr Imply(const ExprPtr& left, const ExprPtr& right) = 0;
 
     //--- Compare ---//
     virtual ExprPtr Eq(const ExprPtr& left, const ExprPtr& right) = 0;

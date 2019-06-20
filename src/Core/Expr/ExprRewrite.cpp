@@ -47,6 +47,7 @@ ExprPtr ExprRewrite::visitNonNullary(const ExprRef<NonNullaryExpr>& expr)
         case Expr::And: return mExprBuilder.And(ops);
         case Expr::Or: return mExprBuilder.Or(ops);
         case Expr::Xor: return mExprBuilder.Xor(ops[0], ops[1]);
+        case Expr::Imply: return mExprBuilder.Imply(ops[0], ops[1]);
         case Expr::Eq: return mExprBuilder.Eq(ops[0], ops[1]);
         case Expr::NotEq: return mExprBuilder.NotEq(ops[0], ops[1]);
         case Expr::SLt: return mExprBuilder.SLt(ops[0], ops[1]);

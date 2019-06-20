@@ -50,6 +50,7 @@ protected:
     ExprRef<LiteralExpr> visitAnd(const ExprRef<AndExpr>& expr) override;
     ExprRef<LiteralExpr> visitOr(const ExprRef<OrExpr>& expr) override;
     ExprRef<LiteralExpr> visitXor(const ExprRef<XorExpr>& expr) override;
+    ExprRef<LiteralExpr> visitImply(const ExprRef<ImplyExpr>& expr) override;
 
     // Compare
     ExprRef<LiteralExpr> visitEq(const ExprRef<EqExpr>& expr) override;

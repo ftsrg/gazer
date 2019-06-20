@@ -122,6 +122,9 @@ protected:
     virtual ReturnT visitXor(const ExprRef<XorExpr>& expr) {
         return this->visitNonNullary(expr);
     }
+    virtual ReturnT visitImply(const ExprRef<ImplyExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
 
     // Compare
     virtual ReturnT visitEq(const ExprRef<EqExpr>& expr) {
