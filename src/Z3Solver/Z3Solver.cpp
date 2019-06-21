@@ -436,6 +436,7 @@ private:
 
 Solver::SolverStatus Z3Solver::run()
 {
+    std::cerr << mSolver << "\n";
     z3::check_result result = mSolver.check();
 
     switch (result) {

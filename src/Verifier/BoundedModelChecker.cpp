@@ -10,6 +10,7 @@
 #include <llvm/Support/CommandLine.h>
 #include <llvm/ADT/DenseSet.h>
 #include <llvm/Support/Debug.h>
+#include <llvm/ADT/DepthFirstIterator.h>
 
 #include <deque>
 
@@ -29,12 +30,13 @@ class BoundedModelCheckerImpl
 {
     struct VcCell
     {
-        ExprPtr expr;
+        ExprPtr forward;
+        ExprPtr backward;
         unsigned numCalls = 0;
         unsigned callCost = 0;
 
         VcCell(ExprPtr expr = nullptr)
-            : expr(expr)
+            : forward(expr), backward(expr)
         {}
 
         VcCell(const VcCell&) = default;
@@ -58,14 +60,17 @@ public:
 private:
     void updateVC(size_t startIdx);
 
-    void updateBackwardConditions();
+    void updateBackwardConditions(size_t endIdx);
 
     void inlineCallIntoRoot(
         CallTransition* call,
         llvm::DenseMap<Variable*, Variable*>& vmap,
         llvm::Twine suffix
     );
-    void clearInfeasiblePaths();
+    
+    ExprPtr forwardReachableCondition(Location* source, Location* target);
+
+    Location* findCommonCallAncestor();
 
 private:
     AutomataSystem& mSystem;
@@ -110,23 +115,6 @@ BoundedModelCheckerImpl::BoundedModelCheckerImpl(
             }
         }
 
-        if (errors.size() == 0) {
-            // If there are no error locations in the main automaton, they might still exist in a called CFA.
-            // Create a dummy error location which we will use as a goal.
-            mError = mRoot->createErrorLocation();
-            mRoot->createAssignTransition(mRoot->getEntry(), mError, mExprBuilder.False());
-        } else if (errors.size() == 1) {
-            // We have a single error location, let that be the verification goal.
-            mError = errors[0];
-        } else {
-            // Create an error location which will be directly reachable from each already existing error locations.
-            // This one error location will be used as the goal.
-            mError = mRoot->createErrorLocation();
-            for (Location* err : errors) {
-                mRoot->createAssignTransition(err, mError, mExprBuilder.True());
-            }
-        }
-
         // Create the topological sorts of the reversed graphs.
         // This will cause the error location to be at the front for most input programs.
         for (Cfa& cfa : mSystem) {
@@ -143,6 +131,27 @@ BoundedModelCheckerImpl::BoundedModelCheckerImpl(
 
         for (size_t i = 0; i < mTopo.size(); ++i) {
             mLocNumbers[mTopo[i]] = i;
+        }
+
+        if (errors.size() == 0) {
+            // If there are no error locations in the main automaton, they might still exist in a called CFA.
+            // Create a dummy error location which we will use as a goal.
+            mError = mRoot->createErrorLocation();
+            mRoot->createAssignTransition(mRoot->getEntry(), mError, mExprBuilder.False());
+            mLocNumbers[mError] = mTopo.size();
+            mTopo.push_back(mError);
+        } else if (errors.size() == 1) {
+            // We have a single error location, let that be the verification goal.
+            mError = errors[0];
+        } else {
+            // Create an error location which will be directly reachable from each already existing error locations.
+            // This one error location will be used as the goal.
+            mError = mRoot->createErrorLocation();
+            for (Location* err : errors) {
+                mRoot->createAssignTransition(err, mError, mExprBuilder.True());
+            }
+            mLocNumbers[mError] = mTopo.size();
+            mTopo.push_back(mError);
         }
 
         // Fill the initial VC vector with False
@@ -180,7 +189,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
     }
 
     unsigned tmp = 0;
-    for (size_t bound = 1; bound <= EagerUnroll; ++bound) {
+    for (size_t bound = 0; bound < EagerUnroll; ++bound) {
         mOpenCalls.clear();
         for (auto& entry : mCalls) {
             CallTransition* call = entry.first;
@@ -199,11 +208,13 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
     }    
 
     // The entry is always reachable from itself.
-    mVC[0].expr = mExprBuilder.True();
+    mVC[0].forward = mExprBuilder.True();
 
     // Calculate the initial verification condition
     this->updateVC(1);
     auto solver = mSolverFactory.createSolver(mSystem.getContext());
+
+    Location* start = mRoot->getEntry();
 
     // Let's do some verification.
     for (size_t bound = EagerUnroll + 1; bound <= MaxBound; ++bound) {
@@ -214,9 +225,10 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
             llvm::outs() << "  Under-approximating.\n";
 
             size_t errIdx = mLocNumbers[mError];
-            ExprPtr formula = mVC[errIdx].expr;
+            ExprPtr formula = this->forwardReachableCondition(start, mError);
 
-            solver->reset();
+            llvm::errs() << "PUSH\n";
+            solver->push();
             llvm::outs() << "    Transforming formula...\n";
             solver->add(formula);
 
@@ -229,6 +241,20 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                 solver->getModel().print(llvm::outs());
                 return SafetyResult::CreateFail(0);
             }
+
+            llvm::errs() << "POP\n";
+            solver->pop();
+
+            // If the under-approximated formula was UNSAT, there is no feasible path from start to the error location
+            // which does not involve a call. Find the lowest common ancestor of all existing calls, and set is as the
+            // start location.
+            // TODO: We should also delete locations which have no reachable call descendants.
+            Location* lca = this->findCommonCallAncestor();
+            //Location* lca = start;
+
+            llvm::errs() << "PUSH\n";
+            solver->push();
+            solver->add(forwardReachableCondition(start, lca));
 
             // Now try to over-approximate.
             llvm::outs() << "  Over-approximating.\n";
@@ -258,10 +284,13 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                 mOpenCalls.insert(call);
             }
 
-            this->updateVC(1);
-            formula = mVC[errIdx].expr;
+            //this->updateVC(1);
+            //formula = mVC[errIdx].forward;
 
-            solver->reset();
+            llvm::errs() << "PUSH\n";
+            solver->push();
+
+            formula = this->forwardReachableCondition(lca, mError);
             solver->add(formula);
 
             llvm::outs() << "    Running solver...\n";
@@ -284,7 +313,9 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                     mRoot->view();
                 }
 
-                this->updateVC(1);
+                llvm::errs() << "POP\n";
+                solver->pop();
+                start = lca;
             } else if (status == Solver::UNSAT) {
                 llvm::outs() << "  Over-approximated formula is UNSAT.\n";
                 if (numUnhandledCallSites == 0) {
@@ -297,8 +328,13 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                 } else {
                     // Try with an increased bound.
                     llvm::outs() << "    Open call sites still present. Increasing bound.\n";
+                    llvm::errs() << "POP\n";
+                    solver->pop();
+                    start = lca;
                     break;
                 }
+            } else {
+                llvm_unreachable("Unknown solver status.");
             }
         }
     }
@@ -306,9 +342,16 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
     return SafetyResult::CreateSuccess();
 }
 
-void BoundedModelCheckerImpl::updateBackwardConditions()
+void BoundedModelCheckerImpl::updateBackwardConditions(size_t endIdx)
 {
-    for (size_t i = 0; i < mVC.size(); ++i) {
+    assert(endIdx < mTopo.size());
+    
+    size_t errorIdx = mLocNumbers[mError];
+    assert(errorIdx > endIdx && "The end index must be before the error index!");
+
+    mVC[errorIdx].backward = mExprBuilder.True();
+
+    for (size_t i = errorIdx; i >= endIdx; --i) {
         Location* loc = mTopo[i];
         ExprVector exprs;
 
@@ -316,19 +359,19 @@ void BoundedModelCheckerImpl::updateBackwardConditions()
         unsigned callCost = 0;
 
         for (Transition* edge : loc->outgoing()) {
-            auto predIt = mLocNumbers.find(edge->getTarget());
-            assert(predIt != mLocNumbers.end()
+            auto succIt = mLocNumbers.find(edge->getTarget());
+            assert(succIt != mLocNumbers.end()
                 && "All locations must be present in the location map");
 
-            size_t predIdx = predIt->second;
-            assert(predIdx < i
+            size_t succIdx = succIt->second;
+            assert(succIdx < i
                 && "Successors must be before block in a inverse topological sort. "
                 "Maybe there is a loop in the automaton?");
 
-            numCalls += mVC[predIdx].numCalls;
-            callCost += mVC[predIdx].callCost;
+            numCalls += mVC[succIdx].numCalls;
+            callCost += mVC[succIdx].callCost;
 
-            ExprPtr formula = mExprBuilder.And(mVC[predIdx].expr, edge->getGuard());
+            ExprPtr formula = mExprBuilder.And(mVC[succIdx].forward, edge->getGuard());
 
             if (auto assignEdge = llvm::dyn_cast<AssignTransition>(edge)) {
                 ExprVector assigns;
@@ -347,7 +390,7 @@ void BoundedModelCheckerImpl::updateBackwardConditions()
             exprs.push_back(formula);
         }
 
-        mVC[i].expr = exprs.empty() ? mExprBuilder.False() : mExprBuilder.Or(exprs);
+        mVC[i].forward = exprs.empty() ? mExprBuilder.False() : mExprBuilder.Or(exprs);
         mVC[i].numCalls = numCalls;
         mVC[i].callCost = callCost;
     }
@@ -369,7 +412,7 @@ void BoundedModelCheckerImpl::updateVC(size_t startIdx)
                 && "Predecessors must be before block in a topological sort. "
                 "Maybe there is a loop in the automaton?");
 
-            ExprPtr formula = mExprBuilder.And(mVC[predIdx].expr, edge->getGuard());
+            ExprPtr formula = mExprBuilder.And(mVC[predIdx].forward, edge->getGuard());
 
             if (auto assignEdge = llvm::dyn_cast<AssignTransition>(edge)) {
                 ExprVector assigns;
@@ -389,7 +432,7 @@ void BoundedModelCheckerImpl::updateVC(size_t startIdx)
         }
 
         if (!exprs.empty()) {
-            mVC[i].expr = mExprBuilder.Or(exprs);
+            mVC[i].forward = mExprBuilder.Or(exprs);
         }
     }
 }
@@ -427,9 +470,8 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     for (size_t i = 0; i < callee->getNumInputs(); ++i) {
             Variable* input = callee->getInput(i);
         if (!callee->isOutput(input)) {
-
-            auto varname = input->getName() + suffix;
-            vmap[input] = mRoot->createInput(varname.str(), input->getType());
+            auto varname = (input->getName() + suffix).str();
+            vmap[input] = mRoot->createInput(varname, input->getType());
             rewrite[input] = call->getInputArgument(i);
         }
     }
@@ -557,14 +599,130 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     for (auto it = insertPos, ie = mTopo.end(); it != ie; ++it) {
         size_t idx = std::distance(mTopo.begin(), it);
         mLocNumbers[*it] = idx;
-        mVC[idx].expr = mExprBuilder.False();
+        mVC[idx].forward = mExprBuilder.False();
     }
 
     mRoot->disconnectEdge(call);
 }
 
-void BoundedModelCheckerImpl::clearInfeasiblePaths()
+Location* BoundedModelCheckerImpl::findCommonCallAncestor()
 {
-    for (auto& edge : mRoot->edges()) {
+    auto start = std::min_element(mCalls.begin(), mCalls.end(), [this](auto& a, auto& b) {
+        return mLocNumbers[a.first->getSource()] < mLocNumbers[b.first->getSource()];
+    });
+
+    size_t firstIdx = mLocNumbers[start->first->getSource()];
+
+    llvm::DenseSet<Location*> candidates;
+    candidates.insert(mTopo.begin(), std::next(mTopo.begin(), firstIdx));
+
+    for (auto& entry : mCalls) {
+        CallTransition* call = entry.first;
+        llvm::df_iterator_default_set<Location*, 32> visited;
+
+        auto begin = llvm::idf_ext_begin(call->getSource(), visited);
+        auto end = llvm::idf_ext_end(call->getSource(), visited);
+
+        // Perform the DFS by iterating through the df_iterator
+        while (begin != end) {
+            ++begin;
+        }
+
+        // Remove ancestors which were not visited by the DFS
+        auto it = candidates.begin(), ie = candidates.end();
+        while (it != ie) {
+            auto j = it++;
+            if (visited.count(*j) == 0) {
+                candidates.erase(j);
+            }
+        }
     }
+
+    assert(candidates.size() > 0 && "There must be at least one valid candidate (the entry node)!");
+
+    return *std::max_element(candidates.begin(), candidates.end(),  [this](Location* a, Location* b) {
+        return mLocNumbers[a] < mLocNumbers[b];
+    });
+}
+
+ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Location* target)
+{
+    if (source == target) {
+        return mExprBuilder.True();
+    }
+
+    size_t startIdx = mLocNumbers[source];
+    size_t targetIdx = mLocNumbers[target];
+    
+    llvm::errs()
+        << "Calculating condition between "
+        << source->getId() << "(topo: " << startIdx << ")"
+        << " and "
+        << target->getId() << "(topo: " << targetIdx << ")"
+        << "\n";
+
+    assert(startIdx < targetIdx && "The source location must be before the target in a topological sort!");
+    assert(targetIdx < mVC.size() && "The target index is out of range in the VC array!");
+
+    std::vector<ExprPtr> dp(targetIdx - startIdx + 1);
+
+    std::fill(dp.begin(), dp.end(), mExprBuilder.False());
+
+    // The first location is always reachable from itself.
+    dp[0] = mExprBuilder.True();
+
+    for (size_t i = 1; i < dp.size(); ++i) {
+        Location* loc = mTopo[i + startIdx];
+        ExprVector exprs;
+        
+        for (Transition* edge : loc->incoming()) {
+            auto predIt = mLocNumbers.find(edge->getSource());
+            assert(predIt != mLocNumbers.end()
+                && "All locations must be present in the location map");
+
+            size_t predIdx = predIt->second;
+            assert(predIdx < i + startIdx
+                && "Predecessors must be before block in a topological sort. "
+                "Maybe there is a loop in the automaton?");
+
+            if (predIdx < startIdx) {
+                /*
+                llvm::errs()
+                    << "Skipping predecessor " << predIt->first->getId()
+                    << " on topo position " << predIdx
+                    << ".\n"; */
+                // This predecessor is outside the region we are interested in.
+                continue;
+            }
+
+            ExprPtr formula = mExprBuilder.And(dp[predIdx - startIdx], edge->getGuard());
+
+            if (auto assignEdge = llvm::dyn_cast<AssignTransition>(edge)) {
+                //llvm::errs() << "is assign\n";
+                ExprVector assigns;
+                std::transform(assignEdge->begin(), assignEdge->end(), std::back_inserter(assigns), [this](const VariableAssignment& varAssign) {
+                    return this->mExprBuilder.Eq(varAssign.getVariable()->getRefExpr(), varAssign.getValue());
+                });
+
+                if (!assigns.empty()) {
+                    //llvm::errs() << "building assigns\n";
+                    formula = mExprBuilder.And(formula, mExprBuilder.And(assigns));
+                }
+            } else if (auto callEdge = llvm::dyn_cast<CallTransition>(edge)) {
+                //llvm::errs() << "is edge\n";
+                LLVM_DEBUG(llvm::dbgs() << "  Over-approximation for edge " << *callEdge << ": " << *mCalls[callEdge].overApprox << "\n");
+                formula = mExprBuilder.And(formula, mCalls[callEdge].overApprox);
+            }
+
+            exprs.push_back(formula);
+        }
+
+        if (!exprs.empty()) {
+            dp[i] = mExprBuilder.Or(exprs);
+        }
+    }
+
+    assert(dp[targetIdx - startIdx] == dp.back());
+
+    return dp.back();
 }
