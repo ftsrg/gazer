@@ -560,11 +560,13 @@ struct GraphTraits<Inverse<gazer::Location*>> : public GraphTraits<gazer::Locati
     >;
 
     static ChildIteratorType child_begin(NodeRef cp) {
-        return ChildIteratorType(cp->outgoing_begin(), GraphTraits<Inverse<gazer::Cfa>>::GetEdgeSource);
+        return ChildIteratorType(cp->incoming_begin(), GraphTraits<Inverse<gazer::Cfa>>::GetEdgeSource);
     }
     static ChildIteratorType child_end(NodeRef cp) {
-        return ChildIteratorType(cp->outgoing_end(), GraphTraits<Inverse<gazer::Cfa>>::GetEdgeSource);
+        return ChildIteratorType(cp->incoming_end(), GraphTraits<Inverse<gazer::Cfa>>::GetEdgeSource);
     }
+
+    static NodeRef getEntryNode(Inverse<gazer::Location*> loc) { return loc.Graph; }
 };
 
 } // end namespace llvm

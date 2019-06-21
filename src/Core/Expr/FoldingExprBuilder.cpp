@@ -189,6 +189,7 @@ public:
         }
 
         // Move the Eq(X, C1) expressions to the front.
+        /*
         auto propStart = std::partition(newOps.begin(), newOps.end(), [](const ExprRef<>& e) {
             return match(e, m_Eq(m_VarRef(), m_Literal()));
         });
@@ -205,7 +206,7 @@ public:
 
         for (auto it = propStart; it != newOps.end(); ++it) {
             *it = PropagateExpression(*it, propTable);
-        }
+        }*/
 
         return AndExpr::Create(newOps);
     }

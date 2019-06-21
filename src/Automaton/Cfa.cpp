@@ -257,12 +257,12 @@ void Location::addOutgoing(Transition *edge)
 
 void Location::removeIncoming(Transition *edge)
 {
-    mIncoming.erase(std::remove(mIncoming.begin(), mIncoming.end(), edge));
+    mIncoming.erase(std::remove(mIncoming.begin(), mIncoming.end(), edge), mIncoming.end());
 }
 
 void Location::removeOutgoing(Transition *edge)
 {
-    mOutgoing.erase(std::remove(mOutgoing.begin(), mOutgoing.end(), edge));
+    mOutgoing.erase(std::remove(mOutgoing.begin(), mOutgoing.end(), edge), mOutgoing.end());
 }
 
 // Transitions
