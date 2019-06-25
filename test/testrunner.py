@@ -120,8 +120,7 @@ if __name__ == '__main__':
             gazer_flags = [
                 gazer_bmc_path,
                 "-inline",
-                "-bmc", "-optimize", "-trace",
-                "-test-harness=harness.bc",
+                "-bmc",
                 bc_file
             ]
             for flag in test.flags:

@@ -43,7 +43,7 @@ protected:
 class CachingZ3Solver final : public Z3Solver
 {
 public:
-    using CacheMapT = ScopedCache<const Expr*, Z3_ast>;
+    using CacheMapT = ScopedCache<ExprPtr, Z3_ast, std::unordered_map<ExprPtr, Z3_ast>>;
     using Z3Solver::Z3Solver;
 
 protected:
@@ -416,15 +416,13 @@ public:
             return ExprVisitor::visit(expr);
         }
 
-        auto result = mCache.get(expr.get());
+        auto result = mCache.get(expr);
         if (result) {
             return z3::expr(mZ3Context, *result);
         }
 
-        //llvm::errs() << *expr << "\n";
         auto z3Expr = ExprVisitor::visit(expr);
-
-        mCache.insert(expr.get(), static_cast<Z3_ast>(z3Expr));
+        mCache.insert(expr, static_cast<Z3_ast>(z3Expr));
 
         return z3Expr;
     }
@@ -436,7 +434,6 @@ private:
 
 Solver::SolverStatus Z3Solver::run()
 {
-    std::cerr << mSolver << "\n";
     z3::check_result result = mSolver.check();
 
     switch (result) {

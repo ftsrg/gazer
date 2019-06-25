@@ -1068,5 +1068,7 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
             << llvm::join(to_string_range(cfa.locals()), "\n")
             << "\n}";
         llvm::errs() << "\n";
-    }    return false; */
+    } */
+
+    return false;
 }
