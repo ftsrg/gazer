@@ -28,7 +28,7 @@ namespace gazer
     );
 
     cl::opt<bool> PrintTrace(
-        "trace",
+        "bmc-old-trace",
         cl::desc("Print counterexample traces to stdout.")
     );
 

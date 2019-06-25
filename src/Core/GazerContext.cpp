@@ -59,6 +59,14 @@ Variable* GazerContext::getVariable(llvm::StringRef name)
     return result->second.get();
 }
 
+void GazerContext::removeVariable(Variable* variable)
+{
+    auto result = pImpl->VariableTable.find(variable->getName());
+    assert(result != pImpl->VariableTable.end() && "Attempting to delete a non-existant variable!");
+
+    pImpl->VariableTable.erase(result);
+}
+
 //------------------------------- Expressions -------------------------------//
 
 void ExprStorage::destroy(Expr *expr)
