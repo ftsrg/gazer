@@ -19,7 +19,7 @@
 namespace gazer
 {
 
-llvm::cl::opt<unsigned> MaxBound("bound", llvm::cl::desc("Maximum iterations for the bounded model checker."));
+llvm::cl::opt<unsigned> MaxBound("bound", llvm::cl::desc("Maximum iterations for the bounded model checker."), llvm::cl::init(1));
 llvm::cl::opt<unsigned> EagerUnroll("eager-unroll", llvm::cl::desc("Eager unrolling bound."), llvm::cl::init(0));
 
 llvm::cl::opt<bool> VerifierDebug("debug-verif", llvm::cl::desc("Print verifier debug info"));
@@ -238,6 +238,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
             if (status == Solver::SAT) {
                 llvm::outs() << "  Under-approximated formula is SAT.\n";
                 //LLVM_DEBUG(formula->print(llvm::dbgs()));
+                //mRoot->view();
                 solver->getModel().print(llvm::outs());
                 return SafetyResult::CreateFail(0);
             }
@@ -250,6 +251,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
             // start location.
             // TODO: We should also delete locations which have no reachable call descendants.
             Location* lca = this->findCommonCallAncestor();
+            llvm::errs() << "Common call ancestor is " << lca->getId() << " on topo position " << mLocNumbers[lca] << "\n";
             //Location* lca = start;
 
             llvm::errs() << "PUSH\n";
@@ -323,6 +325,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                     // the program is guaranteed to be safe at this point.
                     return SafetyResult::CreateSuccess();
                 }  else if (bound == MaxBound) {
+                    llvm::outs() << "Maximum bound is reached.\n";
                     // The maximum bound was reached.
                     return SafetyResult::CreateSuccess();
                 } else {
@@ -686,15 +689,15 @@ ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Loc
                 "Maybe there is a loop in the automaton?");
 
             if (predIdx < startIdx) {
-                /*
-                llvm::errs()
-                    << "Skipping predecessor " << predIt->first->getId()
-                    << " on topo position " << predIdx
-                    << ".\n"; */
-                // This predecessor is outside the region we are interested in.
+                // llvm::errs()
+                //     << "Skipping predecessor " << predIt->first->getId()
+                //     << " on topo position " << predIdx
+                //     << ".\n";
+                // This predecessor is outside of the region we are interested in.
                 continue;
             }
 
+            //llvm::errs() << "  Calculating edge " << edge->getSource()->getId() << " --> " << edge->getTarget()->getId() << " position: " << i << " topo: " << startIdx + i << "\n";
             ExprPtr formula = mExprBuilder.And(dp[predIdx - startIdx], edge->getGuard());
 
             if (auto assignEdge = llvm::dyn_cast<AssignTransition>(edge)) {
@@ -705,12 +708,11 @@ ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Loc
                 });
 
                 if (!assigns.empty()) {
-                    //llvm::errs() << "building assigns\n";
                     formula = mExprBuilder.And(formula, mExprBuilder.And(assigns));
                 }
             } else if (auto callEdge = llvm::dyn_cast<CallTransition>(edge)) {
                 //llvm::errs() << "is edge\n";
-                LLVM_DEBUG(llvm::dbgs() << "  Over-approximation for edge " << *callEdge << ": " << *mCalls[callEdge].overApprox << "\n");
+                llvm::errs() << "  Over-approximation for edge " << *callEdge << ": " << *mCalls[callEdge].overApprox << "\n";
                 formula = mExprBuilder.And(formula, mCalls[callEdge].overApprox);
             }
 
@@ -719,10 +721,10 @@ ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Loc
 
         if (!exprs.empty()) {
             dp[i] = mExprBuilder.Or(exprs);
+        } else {
+            dp[i] = mExprBuilder.False();
         }
     }
-
-    assert(dp[targetIdx - startIdx] == dp.back());
 
     return dp.back();
 }

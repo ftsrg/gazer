@@ -2,7 +2,7 @@ set(SOURCE_FILES
     Analysis/BmcPass.cpp
     Analysis/ProgramDependence.cpp
     Analysis/TopologicalSort.cpp
-    Analysis/VariableRoles.cpp
+    #Analysis/VariableRoles.cpp
     Transform/BoundedUnwindPass.cpp
     Transform/BackwardSlicer.cpp
     Transform/InlineGlobalVariablesPass.cpp

@@ -348,4 +348,17 @@ struct simplify_type<const gazer::ExprRef<T>> {
 
 } // end namespace llvm
 
+namespace std
+{
+
+template<>
+struct hash<gazer::ExprPtr>
+{
+    size_t operator()(const gazer::ExprPtr& expr) const {
+        return std::hash<gazer::Expr*>{}(expr.get());
+    }
+};
+
+} // end namespace std
+
 #endif

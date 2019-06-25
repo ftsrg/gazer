@@ -1,5 +1,5 @@
 //@expect fail
-//@flag -unwind 10
+//@flag -bound 10
 extern void __VERIFIER_error() __attribute__ ((__noreturn__));
 
 extern int __VERIFIER_nondet_int();

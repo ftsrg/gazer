@@ -1,5 +1,5 @@
 //@expect fail
-//@flag -unwind 10
+//@flag -bound 10
 //@flag -inline-globals
 int calculate_output(int);
 extern void __VERIFIER_error(void);
