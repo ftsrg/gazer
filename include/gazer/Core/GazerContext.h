@@ -28,6 +28,8 @@ public:
     Variable *getVariable(llvm::StringRef name);
     Variable *createVariable(std::string name, Type &type);
 
+    void removeVariable(Variable* variable);
+
     void addManagedResouce(ManagedResource* resource);
 
 public:

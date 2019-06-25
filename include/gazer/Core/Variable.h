@@ -62,16 +62,6 @@ private:
     Variable* mVariable;
 };
 
-class VariableContainer
-{
-public:
-    VariableContainer(GazerContext& context);
-protected:
-
-private:
-    llvm::StringMap<Variable*> mVariableNames;
-};
-
 } // end namespace gazer
 
 #endif

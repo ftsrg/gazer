@@ -24,6 +24,8 @@ template<
 class ScopedCache
 {
 public:
+    using scope_iterator = typename MapT::iterator;
+public:
     ScopedCache() {
         // Create the root scope.
         mStorage.emplace_back();
@@ -62,6 +64,9 @@ public:
         assert(mStorage.size() > 1 && "Attempting to pop the root scope of a ScopedCache.");
         mStorage.pop_back();
     }
+
+    scope_iterator current_begin() { return mStorage.back().begin(); }
+    scope_iterator current_end() { return mStorage.back().end(); }
 
 private:
     StorageT mStorage;
