@@ -20,7 +20,7 @@ namespace llvm {
 
 namespace gazer
 {
-
+/*
 class LLVMBmcTraceBuilder : public TraceBuilder
 {
 public:
@@ -53,7 +53,7 @@ private:
     const llvm::DenseMap<llvm::BasicBlock*, ExprPtr>& mPreds;
     const ValueToVariableMap& mValueMap;
     llvm::BasicBlock* mErrorBlock;
-};
+}; */
 
 } // end namespace gazer
 

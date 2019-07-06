@@ -40,8 +40,8 @@ public:
     /// If a given key was not found in the current scope, this method will
     /// traverse all parent scopes. If the requested element was not found
     /// in any of the scopes, returns an empty optional.
-    std::optional<ValueT> get(const KeyT& key) {
-        for (auto it = mStorage.begin(), ie = mStorage.end(); it != ie; ++it) {
+    std::optional<ValueT> get(const KeyT& key) const {
+        for (auto it = mStorage.rbegin(), ie = mStorage.rend(); it != ie; ++it) {
             auto result = it->find(key);
             if (result != it->end()) {
                 return std::make_optional(result->second);

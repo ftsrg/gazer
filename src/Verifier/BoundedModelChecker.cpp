@@ -1,12 +1,9 @@
-#include "gazer/Verifier/BoundedModelChecker.h"
+#include "BoundedModelCheckerImpl.h"
 
-#include "gazer/Core/Expr/ExprBuilder.h"
-#include "gazer/Core/Solver/Solver.h"
-#include "gazer/Automaton/Cfa.h"
-#include "gazer/Trace/SafetyResult.h"
 #include "gazer/Core/Expr/ExprRewrite.h"
+#include "gazer/Core/Expr/ExprEvaluator.h"
 
-#include "gazer/ADT/ScopedCache.h"
+#include "gazer/Support/Stopwatch.h"
 
 #include <llvm/ADT/PostOrderIterator.h>
 #include <llvm/Support/CommandLine.h>
@@ -28,63 +25,6 @@ llvm::cl::opt<bool> DumpCfa("debug-dump-cfa", llvm::cl::desc("Dump the generated
 
 llvm::cl::opt<bool> Trace("trace", llvm::cl::desc("Print counterexample traces to stdout."));
 
-class BoundedModelCheckerImpl
-{
-    struct CallInfo
-    {
-        ExprPtr overApprox = nullptr;
-        unsigned cost = 0;
-    };
-public:
-    BoundedModelCheckerImpl(
-        AutomataSystem& system,
-        ExprBuilder& builder,
-        SolverFactory& solverFactory
-    );
-
-    std::unique_ptr<SafetyResult> check();
-
-private:
-    void inlineCallIntoRoot(
-        CallTransition* call,
-        llvm::DenseMap<Variable*, Variable*>& vmap,
-        llvm::Twine suffix
-    );
-    
-    /// Calculates a the path condition expression between \p source and \p target.
-    ExprPtr forwardReachableCondition(Location* source, Location* target);
-
-    Location* findCommonCallAncestor();
-
-    void push() {
-        mSolver->push();
-        mPredecessors.push();
-    }
-
-    void pop() {
-        mPredecessors.pop();
-        mSolver->pop();
-    }
-
-private:
-    AutomataSystem& mSystem;
-    ExprBuilder& mExprBuilder;
-    std::unique_ptr<Solver> mSolver;
-
-    Cfa* mRoot;
-    Location* mError;
-
-    std::vector<Location*> mTopo;
-
-    llvm::DenseMap<Location*, size_t> mLocNumbers;
-    llvm::DenseMap<CallTransition*, CallInfo> mCalls;
-    llvm::DenseSet<CallTransition*> mOpenCalls;
-    std::unordered_map<Cfa*, std::vector<Location*>> mTopoSortMap;
-
-    ScopedCache<Location*, std::pair<Variable*, ExprPtr>> mPredecessors;
-    size_t mTmp = 0;
-};
-
 } // end namespace gazer
 
 using namespace gazer;
@@ -93,7 +33,12 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::check(AutomataSystem& system)
 {
     auto builder = CreateFoldingExprBuilder(system.getContext());
     BoundedModelCheckerImpl impl{system, *builder, mSolverFactory};
-    return impl.check();
+
+    auto result = impl.check();
+
+    impl.printStats(llvm::outs());
+
+    return result;
 }
 
 BoundedModelCheckerImpl::BoundedModelCheckerImpl(
@@ -111,8 +56,7 @@ BoundedModelCheckerImpl::BoundedModelCheckerImpl(
             }
         }
 
-        // Create the topological sorts of the reversed graphs.
-        // This will cause the error location to be at the front for most input programs.
+        // Create the topological sorts
         for (Cfa& cfa : mSystem) {
             auto poBegin = llvm::po_begin(cfa.getEntry());
             auto poEnd = llvm::po_end(cfa.getEntry());
@@ -193,14 +137,15 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
         }
 
         for (CallTransition* call : mOpenCalls) {
-            llvm::DenseMap<Variable*, Variable*> vmap;
-            inlineCallIntoRoot(call, vmap, "_call" + llvm::Twine(tmp++));
+            inlineCallIntoRoot(call, mInlinedVariables, "_call" + llvm::Twine(tmp++));
             mCalls.erase(call);
         }
     }    
 
 
     Location* start = mRoot->getEntry();
+
+    Stopwatch<> sw;
 
     // Let's do some verification.
     for (size_t bound = EagerUnroll + 1; bound <= MaxBound; ++bound) {
@@ -218,13 +163,102 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
             mSolver->add(formula);
 
             llvm::outs() << "    Running solver...\n";
+
+            sw.start();
             auto status = mSolver->run();
+            sw.stop();
+
+            llvm::outs() << "      Elapsed time: ";
+            sw.format(llvm::outs(), "s");
+            llvm::outs() << "\n";
+            mStats.SolverTime += sw.elapsed();
 
             if (status == Solver::SAT) {
                 llvm::outs() << "  Under-approximated formula is SAT.\n";
                 //LLVM_DEBUG(formula->print(llvm::dbgs()));
                 //mRoot->view();
-                mSolver->getModel().print(llvm::outs());
+                auto model = mSolver->getModel();
+
+                if (Trace) {
+                    // Recover the sequence of transitions leading to the error location.
+                    std::vector<Location*> states;
+                    std::vector<std::vector<VariableAssignment>> actions;
+
+                    bool hasParent = true;
+                    Location* current = mError;
+                    
+                    ExprEvaluator eval{model};
+
+                    while (hasParent) {
+                        states.push_back(current);
+
+                        auto predResult = mPredecessors.get(current);
+                        if (predResult) {
+                            auto predLit = llvm::dyn_cast_or_null<BvLiteralExpr>(
+                                eval.visit(predResult->second).get()
+                            );
+                            
+                            assert((predLit != nullptr)
+                                && "Pred values should be evaluatable as bitvector literals!");
+
+                            size_t predId = predLit->getValue().getLimitedValue();
+                            Location* source = mRoot->findLocationById(predId);
+
+                            assert(source != nullptr && "Locations should be findable by their id!");
+
+                            auto edge = std::find_if(
+                                current->incoming_begin(),
+                                current->incoming_end(),
+                                [source](Transition* e) { return e->getSource() == source; }
+                            );
+
+                            //llvm::errs() << "Current " << current->getId() << " next " << predId << " loc " << source->getId() << "\n";
+
+                            assert(edge != current->incoming_end()
+                                && "There must be an edge between a location and its direct predecessor!");
+
+                            auto assignEdge = llvm::dyn_cast<AssignTransition>(*edge);                            
+                            assert(assignEdge != nullptr
+                                && "BMC traces must contain only assign transitions!"
+                            );
+
+                            std::vector<VariableAssignment> traceAction;
+                            for (const VariableAssignment& assignment : *assignEdge) {
+                                Variable* variable = mInlinedVariables.lookup(assignment.getVariable());
+                                if (variable == nullptr) {
+                                    // This variable was not inlined, just use the original one.
+                                    variable = assignment.getVariable();
+                                }
+
+                                ExprRef<> value = assignment.getValue();
+                                if (!llvm::isa<UndefExpr>(assignment.getValue())) {
+                                    value = eval.visit(assignment.getValue());
+                                }
+
+                                traceAction.emplace_back(variable, value);
+                            }
+                            actions.push_back(traceAction);
+
+                            current = source;
+                        } else {
+                            hasParent = false;
+                        }
+                    }
+
+                    std::reverse(states.begin(), states.end());
+                    std::reverse(actions.begin(), actions.end());
+
+                    assert(states.size() == actions.size() + 1);
+
+                    for (size_t i = 0; i < actions.size(); ++i) {
+                        llvm::outs() << "State " << states[i]->getId() << "\n";
+                        for (VariableAssignment assign : actions[i]) {
+                            llvm::outs() << "   " << assign << "\n";
+                        }
+                    }
+                    llvm::outs() << "State " << states.back()->getId() << "\n";
+                }
+
                 return SafetyResult::CreateFail(0);
             }
 
@@ -269,7 +303,16 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
             mSolver->add(formula);
 
             llvm::outs() << "    Running solver...\n";
+
+            sw.start();
             status = mSolver->run();
+            sw.stop();
+
+            llvm::outs() << "      Elapsed time: ";
+            sw.format(llvm::outs(), "s");
+            llvm::outs() << "\n";
+            mStats.SolverTime += sw.elapsed();
+
             if (status == Solver::SAT) {
                 llvm::outs() << "      Over-approximated formula is SAT.\n";
                 llvm::outs() << "      Checking counterexample....\n";
@@ -278,8 +321,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                 llvm::outs() << "    Inlining calls...\n";
 
                 for (CallTransition* call : mOpenCalls) {
-                    llvm::DenseMap<Variable*, Variable*> vmap;
-                    inlineCallIntoRoot(call, vmap, "_call" + llvm::Twine(tmp++));
+                    inlineCallIntoRoot(call, mInlinedVariables, "_call" + llvm::Twine(tmp++));
                     mCalls.erase(call);
                 }
                 mRoot->clearDisconnectedElements();
@@ -372,7 +414,7 @@ ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Loc
                 predExpr = nullptr;
                 predVar = nullptr;
             } else if (preds.size() == 1) {
-                predExpr = mExprBuilder.BvLit(preds[0].second, 32);
+                predExpr = mExprBuilder.BvLit(preds[0].first->getSource()->getId(), 32);
                 mPredecessors.insert(loc, {predVar, predExpr});
             } else if (preds.size() == 2) {
                 predVar = mSystem.getContext().createVariable(
@@ -380,8 +422,8 @@ ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Loc
                     BoolType::Get(mSystem.getContext())
                 );
 
-                size_t first = preds[0].second;
-                size_t second = preds[1].second;
+                unsigned first =  preds[0].first->getSource()->getId();
+                unsigned second = preds[1].first->getSource()->getId();
                 
                 predExpr = mExprBuilder.Select(
                     predVar->getRefExpr(), mExprBuilder.BvLit(first, 32), mExprBuilder.BvLit(second, 32)
@@ -410,7 +452,7 @@ ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Loc
             } else {
                 predIdentification = mExprBuilder.Eq(
                     predVar->getRefExpr(),
-                    mExprBuilder.BvLit(predIdx, 32)
+                    mExprBuilder.BvLit(preds[j].first->getSource()->getId(), 32)
                 );
             }
 
@@ -502,6 +544,8 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     auto callee = call->getCalledAutomaton();
 
     llvm::DenseMap<Location*, Location*> locToLocMap;
+    llvm::DenseMap<Variable*, Variable*> oldVarToNew;
+
     llvm::DenseMap<Transition*, Transition*> edgeToEdgeMap;
 
     ExprRewrite rewrite(mExprBuilder);
@@ -511,7 +555,8 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
         if (!callee->isOutput(&local)) {
             auto varname = (local.getName() + suffix).str();
             auto newLocal = mRoot->createLocal(varname, local.getType());
-            vmap[&local] = newLocal;
+            oldVarToNew[&local] = newLocal;
+            vmap[newLocal] = &local;
             rewrite[&local] = newLocal->getRefExpr();
         }
     }
@@ -520,14 +565,18 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
             Variable* input = callee->getInput(i);
         if (!callee->isOutput(input)) {
             auto varname = (input->getName() + suffix).str();
-            vmap[input] = mRoot->createInput(varname, input->getType());
+            auto newInput = mRoot->createInput(varname, input->getType());
+            oldVarToNew[input] = newInput;
+            vmap[newInput] = input;
             rewrite[input] = call->getInputArgument(i);
         }
     }
 
     for (size_t i = 0; i < callee->getNumOutputs(); ++i) {
         Variable* output = callee->getOutput(i);
-        vmap[output] = call->getOutputArgument(i).getVariable();
+        auto newOutput = call->getOutputArgument(i).getVariable();
+        oldVarToNew[output] = newOutput;
+        vmap[newOutput] = output;
         rewrite[output] = call->getOutputArgument(i).getVariable()->getRefExpr();
     }
 
@@ -535,6 +584,7 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     for (auto& origLoc : callee->nodes()) {
         auto newLoc = mRoot->createLocation();
         locToLocMap[origLoc.get()] = newLoc;
+        mInlinedLocations[newLoc] = origLoc.get();
 
         if (origLoc->isError()) {
             mRoot->createAssignTransition(newLoc, mError, mExprBuilder.True());
@@ -559,9 +609,9 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
             std::vector<VariableAssignment> newAssigns;
             std::transform(
                 assign->begin(), assign->end(), std::back_inserter(newAssigns),
-                [&vmap, &rewrite] (const VariableAssignment& origAssign) {
+                [&oldVarToNew, &rewrite] (const VariableAssignment& origAssign) {
                     return VariableAssignment {
-                        vmap[origAssign.getVariable()],
+                        oldVarToNew[origAssign.getVariable()],
                         rewrite.visit(origAssign.getValue())
                     };
                 }
@@ -582,9 +632,9 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
             std::transform(
                 nestedCall->output_begin(), nestedCall->output_end(),
                 std::back_inserter(newOuts),
-                [&rewrite, &vmap](const VariableAssignment& origAssign) {
+                [&rewrite, &oldVarToNew](const VariableAssignment& origAssign) {
                     return VariableAssignment{
-                        vmap[origAssign.getVariable()],
+                        oldVarToNew[origAssign.getVariable()],
                         rewrite.visit(origAssign.getValue())
                     };
                 }
@@ -651,3 +701,11 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     mRoot->disconnectEdge(call);
 }
 
+
+void BoundedModelCheckerImpl::printStats(llvm::raw_ostream& os) {
+    llvm::outs() << "--------- Statistics ---------\n";
+    llvm::outs() << "Total solver time: ";
+    llvm::format_provider<std::chrono::milliseconds>::format(mStats.SolverTime, os, "s");
+    llvm::outs() << "\n";
+    llvm::outs() << "------------------------------\n";
+}

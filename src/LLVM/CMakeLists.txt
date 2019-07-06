@@ -12,13 +12,14 @@ set(SOURCE_FILES
     Instrumentation/Check.cpp
     Instrumentation/DefaultChecks.cpp
     Instrumentation/Intrinsics.cpp
-    BMC/BmcTrace.cpp
+    #BMC/BmcTrace.cpp
     BMC/Ir2Expr.cpp
     BMC/BMC.cpp
     TestGenerator/TestGenerator.cpp
     Utils/LLVMType.cpp
     Automaton/ModuleToAutomata.cpp
     Verifier/BmcPass.cpp
+    LLVMTraceBuilder.cpp
 )
 
 llvm_map_components_to_libnames(LLVM_LIBS support core irreader transformutils scalaropts ipo)

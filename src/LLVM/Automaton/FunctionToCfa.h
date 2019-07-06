@@ -74,7 +74,10 @@ public:
         mSystem = std::make_unique<AutomataSystem>(context);
     }
 
-    std::unique_ptr<AutomataSystem> generate();
+    std::unique_ptr<AutomataSystem> generate(
+        llvm::DenseMap<llvm::Value*, Variable*>* variables = nullptr,
+        llvm::DenseMap<Location*, llvm::BasicBlock*>* blockEntries = nullptr
+    );
 
 private:
     llvm::Module& mModule;

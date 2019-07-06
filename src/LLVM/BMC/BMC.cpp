@@ -386,6 +386,7 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::run()
             std::unique_ptr<Trace> trace = nullptr;
     
             if (PrintTrace) {
+                /*
                 LLVMBmcTraceBuilder builder(
                     mContext,
                     mTopo,
@@ -395,7 +396,7 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::run()
                     errorBlock
                 );
 
-                trace = builder.build(model);
+                trace = builder.build(model); */
             }
 
             // Find the error code

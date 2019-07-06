@@ -5,8 +5,10 @@
 
 #include <llvm/Pass.h>
 
-namespace llvm {
+namespace llvm
+{
     class LoopInfo;
+    class Value;
 }
 
 namespace gazer
@@ -33,13 +35,17 @@ public:
 
 private:
     std::unique_ptr<AutomataSystem> mSystem;
+    llvm::DenseMap<llvm::Value*, Variable*> mVariables;
+    llvm::DenseMap<Location*, llvm::BasicBlock*> mBlocks;
     GazerContext& mContext;
 };
 
 std::unique_ptr<AutomataSystem> translateModuleToAutomata(
     llvm::Module& module,
     std::unordered_map<llvm::Function*, llvm::LoopInfo*>& loopInfos,
-    GazerContext& context
+    GazerContext& context,
+    llvm::DenseMap<llvm::Value*, Variable*>* variables = nullptr,
+    llvm::DenseMap<Location*, llvm::BasicBlock*>* blockEntries = nullptr
 );
 
 }

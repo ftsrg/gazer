@@ -345,6 +345,8 @@ public:
     Variable* getInput(size_t i) const { return mInputs[i]; }
     Variable* getOutput(size_t i) const { return mOutputs[i]; }
 
+    Location* findLocationById(unsigned id);
+
     bool isOutput(Variable* variable) const;
 
     /// View the graph representation of this CFA with the
@@ -378,6 +380,8 @@ private:
 
     Location* mEntry;
     Location* mExit;
+
+    llvm::DenseMap<unsigned, Location*> mLocationNumbers;
 
     Cfa* mParentAutomaton = nullptr;
     std::vector<Cfa*> mNestedAutomata;
