@@ -238,7 +238,7 @@ public:
         InputIterator op_begin, InputIterator op_end,
         SubclassData&&... subclassData
     ) {
-        return createIfNotExists<ExprTy>(Kind, type, op_begin, op_end, subclassData...);
+        return createIfNotExists<ExprTy>(Kind, type, op_begin, op_end, std::forward<SubclassData>(subclassData)...);
     }
 
     template<
@@ -246,7 +246,7 @@ public:
         class = std::enable_if<std::is_base_of<LiteralExpr, ExprTy>::value>,
         class... ConstructorArgs
     > ExprRef<ExprTy> create(ConstructorArgs&&... args) {
-        return createIfNotExists<ExprTy>(args...);
+        return createIfNotExists<ExprTy>(std::forward<ConstructorArgs>(args)...);
     }
 
     void destroy(Expr* expr);

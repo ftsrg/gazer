@@ -3,6 +3,7 @@
 
 #include "gazer/Z3Solver/Z3Solver.h"
 
+#include <llvm/IR/Value.h>
 #include <llvm/Support/raw_ostream.h>
 
 using namespace gazer;

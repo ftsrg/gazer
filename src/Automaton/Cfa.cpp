@@ -26,6 +26,7 @@ Location* Cfa::createLocation()
 {
     Location* loc = new Location(mLocationIdx++);
     mLocations.emplace_back(loc);
+    mLocationNumbers[loc->getId()] = loc;
 
     return loc;
 }
@@ -37,6 +38,11 @@ Location* Cfa::createErrorLocation()
     mErrorLocations.emplace_back(loc);
 
     return loc;
+}
+
+Location* Cfa::findLocationById(unsigned id)
+{
+    return mLocationNumbers.lookup(id);
 }
 
 AssignTransition *Cfa::createAssignTransition(Location *source, Location *target, ExprPtr guard,

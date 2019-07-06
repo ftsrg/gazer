@@ -91,8 +91,10 @@ static bool isErrorBlock(llvm::BasicBlock* bb)
     return false;
 }
 
-std::unique_ptr<AutomataSystem> ModuleToCfa::generate()
-{
+std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
+    llvm::DenseMap<llvm::Value*, Variable*>* variables,
+    llvm::DenseMap<Location*, llvm::BasicBlock*>* blockEntries
+) {
     GenerationContext genCtx(*mSystem);
     auto exprBuilder = CreateFoldingExprBuilder(mContext);
 
@@ -1031,10 +1033,12 @@ gazer::Type& typeFromLLVMType(const llvm::Value* value, GazerContext& context)
 std::unique_ptr<AutomataSystem> gazer::translateModuleToAutomata(
     llvm::Module& module,
     std::unordered_map<llvm::Function*, llvm::LoopInfo*>& loopInfos,
-    GazerContext& context)
-{
+    GazerContext& context,
+    llvm::DenseMap<llvm::Value*, Variable*>* variables,
+    llvm::DenseMap<Location*, llvm::BasicBlock*>* blockEntries
+) {
     ModuleToCfa transformer(module, loopInfos, context);
-    return transformer.generate();
+    return transformer.generate(variables, blockEntries);
 }
 
 // LLVM pass implementation
@@ -1057,7 +1061,7 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
         }
     }
 
-    mSystem = translateModuleToAutomata(module, loops, mContext);
+    mSystem = translateModuleToAutomata(module, loops, mContext, &mVariables, &mBlocks);
 /*
     for (Cfa& cfa : *mSystem) {
         llvm::errs() << cfa.getName() << "("

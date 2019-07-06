@@ -54,6 +54,7 @@ private:
 /// a verification algorithm.
 class Trace final
 {
+    template<class State>
     friend class TraceBuilder;
 private:
     Trace(std::vector<std::unique_ptr<TraceEvent>> events)
@@ -77,7 +78,7 @@ private:
     std::vector<std::unique_ptr<TraceEvent>> mEvents;
 };
 
-/// Interface for building traces.
+template<class State>
 class TraceBuilder
 {
 public:
@@ -88,7 +89,9 @@ public:
 
 protected:
     /// Generates a list of events from a model.
-    virtual std::vector<std::unique_ptr<TraceEvent>> buildEvents(Valuation& model) = 0;
+    virtual std::vector<std::unique_ptr<TraceEvent>> buildEvents(
+        Valuation& model, const std::vector<State>& states
+    ) = 0;
 };
 
 /// Indicates an assignment in the original program.
