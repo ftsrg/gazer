@@ -32,6 +32,9 @@ public:
     }
 
     AutomataSystem& getSystem() { return *mSystem; }
+    llvm::DenseMap<llvm::Value*, Variable*>& getVariableMap() {
+        return mVariables;
+    }
 
 private:
     std::unique_ptr<AutomataSystem> mSystem;
@@ -44,8 +47,8 @@ std::unique_ptr<AutomataSystem> translateModuleToAutomata(
     llvm::Module& module,
     std::unordered_map<llvm::Function*, llvm::LoopInfo*>& loopInfos,
     GazerContext& context,
-    llvm::DenseMap<llvm::Value*, Variable*>* variables = nullptr,
-    llvm::DenseMap<Location*, llvm::BasicBlock*>* blockEntries = nullptr
+    llvm::DenseMap<llvm::Value*, Variable*>& variables,
+    llvm::DenseMap<Location*, llvm::BasicBlock*>& blockEntries
 );
 
 }
