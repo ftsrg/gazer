@@ -32,7 +32,7 @@ using namespace gazer;
 std::unique_ptr<SafetyResult> BoundedModelChecker::check(AutomataSystem& system)
 {
     auto builder = CreateFoldingExprBuilder(system.getContext());
-    BoundedModelCheckerImpl impl{system, *builder, mSolverFactory};
+    BoundedModelCheckerImpl impl{system, *builder, mSolverFactory, mTraceBuilder};
 
     auto result = impl.check();
 
@@ -42,9 +42,13 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::check(AutomataSystem& system)
 }
 
 BoundedModelCheckerImpl::BoundedModelCheckerImpl(
-    AutomataSystem& system, ExprBuilder& builder, SolverFactory& solverFactory
-) : mSystem(system), mExprBuilder(builder), mSolver(solverFactory.createSolver(system.getContext()))
-    {
+    AutomataSystem& system, ExprBuilder& builder, SolverFactory& solverFactory,
+    TraceBuilder<Location*>* traceBuilder
+) : mSystem(system),
+    mExprBuilder(builder),
+    mSolver(solverFactory.createSolver(system.getContext())),
+    mTraceBuilder(traceBuilder)
+{
         // TODO: Make this more flexible
         mRoot = mSystem.getAutomatonByName("main");
 
@@ -224,18 +228,22 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
 
                             std::vector<VariableAssignment> traceAction;
                             for (const VariableAssignment& assignment : *assignEdge) {
-                                Variable* variable = mInlinedVariables.lookup(assignment.getVariable());
-                                if (variable == nullptr) {
+                                Variable* variable = assignment.getVariable();
+                                Variable* origVariable = mInlinedVariables.lookup(assignment.getVariable());
+                                if (origVariable == nullptr) {
                                     // This variable was not inlined, just use the original one.
-                                    variable = assignment.getVariable();
+                                    origVariable = variable;
                                 }
 
-                                ExprRef<> value = assignment.getValue();
-                                if (!llvm::isa<UndefExpr>(assignment.getValue())) {
-                                    value = eval.visit(assignment.getValue());
+                                ExprRef<AtomicExpr> value;
+                                
+                                if (model.find(assignment.getVariable()) == model.end()) {
+                                    value = UndefExpr::Get(variable->getType());
+                                } else {
+                                    value = eval.visit(variable->getRefExpr());
                                 }
 
-                                traceAction.emplace_back(variable, value);
+                                traceAction.emplace_back(origVariable, value);
                             }
                             actions.push_back(traceAction);
 

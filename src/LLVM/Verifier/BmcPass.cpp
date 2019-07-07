@@ -1,5 +1,6 @@
 #include "gazer/LLVM/Verifier/BmcPass.h"
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
+#include "gazer/LLVM/LLVMTraceBuilder.h"
 
 #include "gazer/Z3Solver/Z3Solver.h"
 
@@ -21,7 +22,15 @@ bool BoundedModelCheckerPass::runOnModule(llvm::Module& module)
     AutomataSystem& system = getAnalysis<ModuleToAutomataPass>().getSystem();
     Z3SolverFactory solverFactory;
 
-    BoundedModelChecker bmc{solverFactory};
+    LLVMTraceBuilder<Location*> traceBuilder(
+        system.getContext(),
+        [](Location* loc) -> llvm::BasicBlock* {
+            return nullptr;
+        },
+        getAnalysis<ModuleToAutomataPass>().getVariableMap()
+    );
+
+    BoundedModelChecker bmc{solverFactory, &traceBuilder};
     mResult = bmc.check(system);
 
     if (auto fail = llvm::dyn_cast<FailResult>(mResult.get())) {

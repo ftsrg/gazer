@@ -92,8 +92,8 @@ static bool isErrorBlock(llvm::BasicBlock* bb)
 }
 
 std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
-    llvm::DenseMap<llvm::Value*, Variable*>* variables,
-    llvm::DenseMap<Location*, llvm::BasicBlock*>* blockEntries
+    llvm::DenseMap<llvm::Value*, Variable*>& variables,
+    llvm::DenseMap<Location*, llvm::BasicBlock*>& blockEntries
 ) {
     GenerationContext genCtx(*mSystem);
     auto exprBuilder = CreateFoldingExprBuilder(mContext);
@@ -149,6 +149,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
                         // PHI nodes of the entry block should also be inputs.
                         variable = nested->createInput(inst.getName(), typeFromLLVMType(inst.getType(), mContext));
                         loopGenInfo.PhiInputs[&inst] = variable;
+                        variables[&inst] = variable;
                     } else {
                         // Add operands which were defined in the caller as inputs
                         for (auto oi = inst.op_begin(), oe = inst.op_end(); oi != oe; ++oi) {
@@ -174,6 +175,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
                         if (visitedBlocks.count(bb) == 0 || hasUsesInBlockRange(&inst, loopOnlyBlocks)) {
                             variable = nested->createLocal(inst.getName(), typeFromLLVMType(inst.getType(), mContext));
                             loopGenInfo.Locals[&inst] = variable;
+                            variables[&inst] = variable;
 
                             LLVM_DEBUG(llvm::dbgs() << "  Added local variable " << *variable << "\n");
                         } else {
@@ -245,6 +247,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
         for (llvm::Argument& argument : function.args()) {
             Variable* variable = cfa->createInput(argument.getName(), typeFromLLVMType(argument.getType(), mContext));
             genInfo.Inputs[&argument] = variable;
+            variables[&argument] = variable;
         }
 
         // TODO: Maybe add RET_VAL to genInfo outputs in some way?
@@ -273,6 +276,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
                 if (inst.getName() != "") {
                     Variable* variable = cfa->createLocal(inst.getName(), typeFromLLVMType(inst.getType(), mContext));
                     genInfo.Locals[&inst] = variable;
+                    variables[&inst] = variable;
                 }
             }
         }
@@ -1034,8 +1038,8 @@ std::unique_ptr<AutomataSystem> gazer::translateModuleToAutomata(
     llvm::Module& module,
     std::unordered_map<llvm::Function*, llvm::LoopInfo*>& loopInfos,
     GazerContext& context,
-    llvm::DenseMap<llvm::Value*, Variable*>* variables,
-    llvm::DenseMap<Location*, llvm::BasicBlock*>* blockEntries
+    llvm::DenseMap<llvm::Value*, Variable*>& variables,
+    llvm::DenseMap<Location*, llvm::BasicBlock*>& blockEntries
 ) {
     ModuleToCfa transformer(module, loopInfos, context);
     return transformer.generate(variables, blockEntries);
@@ -1061,7 +1065,7 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
         }
     }
 
-    mSystem = translateModuleToAutomata(module, loops, mContext, &mVariables, &mBlocks);
+    mSystem = translateModuleToAutomata(module, loops, mContext, mVariables, mBlocks);
 /*
     for (Cfa& cfa : *mSystem) {
         llvm::errs() << cfa.getName() << "("

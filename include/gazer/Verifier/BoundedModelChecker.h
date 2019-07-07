@@ -6,18 +6,20 @@
 namespace gazer
 {
 
+class Location;
 class SolverFactory;
 
 class BoundedModelChecker : public VerificationAlgorithm
 {
 public:
-    BoundedModelChecker(SolverFactory& solverFactory)
-        : mSolverFactory(solverFactory)
+    BoundedModelChecker(SolverFactory& solverFactory, TraceBuilder<Location*>* traceBuilder = nullptr)
+        : mSolverFactory(solverFactory), mTraceBuilder(traceBuilder)
     {}
 
     std::unique_ptr<SafetyResult> check(AutomataSystem& system) override;
 private:
     SolverFactory& mSolverFactory;
+    TraceBuilder<Location*>* mTraceBuilder;
 };
 
 }

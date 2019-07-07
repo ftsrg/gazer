@@ -75,8 +75,8 @@ public:
     }
 
     std::unique_ptr<AutomataSystem> generate(
-        llvm::DenseMap<llvm::Value*, Variable*>* variables = nullptr,
-        llvm::DenseMap<Location*, llvm::BasicBlock*>* blockEntries = nullptr
+        llvm::DenseMap<llvm::Value*, Variable*>& variables,
+        llvm::DenseMap<Location*, llvm::BasicBlock*>& blockEntries
     );
 
 private:
@@ -89,8 +89,6 @@ private:
     // Generation helpers
     std::unordered_map<llvm::Function*, Cfa*> mFunctionMap;
     std::unordered_map<llvm::Loop*, Cfa*> mLoopMap;
-
-    ValueToVariableMap mVariables;
 };
 
 class BlocksToCfa

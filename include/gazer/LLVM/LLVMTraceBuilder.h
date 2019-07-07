@@ -55,7 +55,7 @@ protected:
         std::vector<llvm::BasicBlock*> blocks;
         blocks.reserve(states.size());
 
-        for (State& state : states) {
+        for (const State& state : states) {
             llvm::BasicBlock* result = mStateToBlock(state);
             assert(result != nullptr && "Each state should map to a BasicBlock!");
 

@@ -98,7 +98,9 @@ loop.end:
 TEST_F(BasicModuleToAutomataTest, CanCreateAllAutomata)
 {
     GazerContext context;
-    auto system = translateModuleToAutomata(*module, loopInfoMap, context);
+    llvm::DenseMap<llvm::Value*, Variable*> vmap;
+    llvm::DenseMap<Location*, llvm::BasicBlock*> blocks;
+    auto system = translateModuleToAutomata(*module, loopInfoMap, context, vmap, blocks);
 
     ASSERT_EQ(system->getNumAutomata(), 3);
 
@@ -185,7 +187,9 @@ loop.end:
 TEST_F(PostTestLoopTest, CanTransformPostTestLoop)
 {
     GazerContext context;
-    auto system = translateModuleToAutomata(*module, loopInfoMap, context);
+    llvm::DenseMap<llvm::Value*, Variable*> vmap;
+    llvm::DenseMap<Location*, llvm::BasicBlock*> blocks;
+    auto system = translateModuleToAutomata(*module, loopInfoMap, context, vmap, blocks);
 
     Cfa* main = system->getAutomatonByName("main");
     ASSERT_TRUE(main != nullptr);
@@ -231,7 +235,9 @@ error:
 TEST_F(LoopWithMultipleExitsTest, CanTransformLoopWithMultipleExits)
 {
     GazerContext context;
-    auto system = translateModuleToAutomata(*module, loopInfoMap, context);
+    llvm::DenseMap<llvm::Value*, Variable*> vmap;
+    llvm::DenseMap<Location*, llvm::BasicBlock*> blocks;
+    auto system = translateModuleToAutomata(*module, loopInfoMap, context, vmap, blocks);
 
     Cfa* main = system->getAutomatonByName("main");
     ASSERT_TRUE(main != nullptr);
@@ -293,7 +299,9 @@ TEST_F(NestedLoopsTest, CanTransformLoopWithNestedLoop)
     NoElimVars.setValue(true);
 
     GazerContext context;
-    auto system = translateModuleToAutomata(*module, loopInfoMap, context);
+    llvm::DenseMap<llvm::Value*, Variable*> vmap;
+    llvm::DenseMap<Location*, llvm::BasicBlock*> blocks;
+    auto system = translateModuleToAutomata(*module, loopInfoMap, context, vmap, blocks);
 
     Cfa* main = system->getAutomatonByName("main");
     ASSERT_TRUE(main != nullptr);

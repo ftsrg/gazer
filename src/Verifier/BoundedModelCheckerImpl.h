@@ -34,7 +34,8 @@ public:
     BoundedModelCheckerImpl(
         AutomataSystem& system,
         ExprBuilder& builder,
-        SolverFactory& solverFactory
+        SolverFactory& solverFactory,
+        TraceBuilder<Location*>* traceBuilder
     );
 
     std::unique_ptr<SafetyResult> check();
@@ -86,6 +87,7 @@ private:
     size_t mTmp = 0;
 
     Stats mStats;
+    TraceBuilder<Location*>* mTraceBuilder;
 };
 
 /// An alternating sequence of {State, Action, ..., State, Action, State }
