@@ -1,9 +1,10 @@
 #ifndef GAZER_SRC_FUNCTIONTOAUTOMATA_H
 #define GAZER_SRC_FUNCTIONTOAUTOMATA_H
 
-#include <gazer/Core/GazerContext.h>
-#include <gazer/Core/Expr/ExprBuilder.h>
-#include <gazer/Automaton/Cfa.h>
+#include "gazer/Core/GazerContext.h"
+#include "gazer/Core/Expr/ExprBuilder.h"
+#include "gazer/Automaton/Cfa.h"
+#include "gazer/LLVM/Analysis/MemoryObject.h"
 
 #include <llvm/IR/Function.h>
 #include <llvm/IR/InstrTypes.h>
@@ -45,10 +46,11 @@ struct GenerationContext
     llvm::LoopInfo* LoopInfo;
 
     AutomataSystem& System;
+    MemoryModel& TheMemoryModel;
 
 public:
-    explicit GenerationContext(AutomataSystem& system)
-        : System(system)
+    explicit GenerationContext(AutomataSystem& system, MemoryModel& memoryModel)
+        : System(system), TheMemoryModel(memoryModel)
     {}
 
     GenerationContext(const GenerationContext&) = delete;
@@ -66,10 +68,12 @@ public:
     ModuleToCfa(
         llvm::Module& module,
         LoopInfoMapTy& loops,
-        GazerContext& context
+        GazerContext& context,
+        MemoryModel& memoryModel
     )
         : mModule(module),
-        mLoops(loops), mContext(context)
+        mLoops(loops), mContext(context),
+        mMemoryModel(memoryModel)
     {
         mSystem = std::make_unique<AutomataSystem>(context);
     }
@@ -85,6 +89,8 @@ private:
 
     GazerContext& mContext;
     std::unique_ptr<AutomataSystem> mSystem;
+
+    MemoryModel& mMemoryModel;
 
     // Generation helpers
     std::unordered_map<llvm::Function*, Cfa*> mFunctionMap;

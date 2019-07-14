@@ -73,9 +73,6 @@ static size_t getNumUsesInBlockRange(const llvm::Instruction* inst, Range&& rang
     return cnt;
 }
 
-static gazer::Type& typeFromLLVMType(const llvm::Type* type, GazerContext& context);
-static gazer::Type& typeFromLLVMType(const llvm::Value* value, GazerContext& context);
-
 static bool isErrorBlock(llvm::BasicBlock* bb)
 {
     auto inst = bb->getFirstInsertionPt();
@@ -95,7 +92,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
     llvm::DenseMap<llvm::Value*, Variable*>& variables,
     llvm::DenseMap<Location*, llvm::BasicBlock*>& blockEntries
 ) {
-    GenerationContext genCtx(*mSystem);
+    GenerationContext genCtx(*mSystem, mMemoryModel);
     auto exprBuilder = CreateFoldingExprBuilder(mContext);
 
     // First, add all global variables
@@ -147,7 +144,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
 
                     if (inst.getOpcode() == Instruction::PHI && bb == loop->getHeader()) {
                         // PHI nodes of the entry block should also be inputs.
-                        variable = nested->createInput(inst.getName(), typeFromLLVMType(inst.getType(), mContext));
+                        variable = nested->createInput(inst.getName(), mMemoryModel.translateType(inst.getType()));
                         loopGenInfo.PhiInputs[&inst] = variable;
                         variables[&inst] = variable;
                     } else {
@@ -157,7 +154,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
                             if (isDefinedInCaller(value, loopBlocks) && loopGenInfo.Inputs.count(value) == 0) {
                                 auto argVariable = nested->createInput(
                                     value->getName(),
-                                    typeFromLLVMType(value->getType(), mContext)
+                                    mMemoryModel.translateType(value->getType())
                                 );
                                 loopGenInfo.Inputs[value] = argVariable;
 
@@ -173,7 +170,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
                         // If the instruction is defined in an already visited block, it is a local of
                         // a subloop rather than this loop.
                         if (visitedBlocks.count(bb) == 0 || hasUsesInBlockRange(&inst, loopOnlyBlocks)) {
-                            variable = nested->createLocal(inst.getName(), typeFromLLVMType(inst.getType(), mContext));
+                            variable = nested->createLocal(inst.getName(), mMemoryModel.translateType(inst.getType()));
                             loopGenInfo.Locals[&inst] = variable;
                             variables[&inst] = variable;
 
@@ -245,14 +242,14 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
 
         // Add function input and output parameters
         for (llvm::Argument& argument : function.args()) {
-            Variable* variable = cfa->createInput(argument.getName(), typeFromLLVMType(argument.getType(), mContext));
+            Variable* variable = cfa->createInput(argument.getName(), mMemoryModel.translateType(argument.getType()));
             genInfo.Inputs[&argument] = variable;
             variables[&argument] = variable;
         }
 
         // TODO: Maybe add RET_VAL to genInfo outputs in some way?
         if (!function.getReturnType()->isVoidTy()) {
-            auto retval = cfa->createLocal(FunctionReturnValueName, typeFromLLVMType(function.getReturnType(), mContext));
+            auto retval = cfa->createLocal(FunctionReturnValueName, mMemoryModel.translateType(function.getReturnType()));
             cfa->addOutput(retval);
         }
 
@@ -274,7 +271,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
 
                 // FIXME: This requires the instnamer pass as a dependency, we should find another way around this.
                 if (inst.getName() != "") {
-                    Variable* variable = cfa->createLocal(inst.getName(), typeFromLLVMType(inst.getType(), mContext));
+                    Variable* variable = cfa->createLocal(inst.getName(), mMemoryModel.translateType(inst.getType()));
                     genInfo.Locals[&inst] = variable;
                     variables[&inst] = variable;
                 }
@@ -860,7 +857,7 @@ ExprPtr BlocksToCfa::integerCast(llvm::CastInst& cast, ExprPtr operand, unsigned
 
 ExprPtr BlocksToCfa::visitCallInst(llvm::CallInst& call)
 {
-    gazer::Type& callTy = typeFromLLVMType(call.getType(), mGenCtx.System.getContext());
+    gazer::Type& callTy = mGenCtx.TheMemoryModel.translateType(call.getType());
 
     const Function* callee = call.getCalledFunction();
     if (callee == nullptr) {
@@ -922,7 +919,7 @@ ExprPtr BlocksToCfa::operand(const Value* value)
 
         return getVariable(value)->getRefExpr();
     } else if (isa<llvm::UndefValue>(value)) {
-        return mExprBuilder.Undef(typeFromLLVMType(value, getContext()));
+        return mExprBuilder.Undef(mGenCtx.TheMemoryModel.translateType(value->getType()));
     } else {
         LLVM_DEBUG(llvm::dbgs() << "  Unhandled value for operand: " << *value << "\n");
         assert(false && "Unhandled value type");
@@ -1000,48 +997,15 @@ ExprPtr BlocksToCfa::castResult(ExprPtr expr, const Type& type)
     } 
 }
 
-gazer::Type& typeFromLLVMType(const llvm::Type* type, GazerContext& context)
-{
-    if (type->isIntegerTy()) {
-        auto width = type->getIntegerBitWidth();
-        if (width == 1) {
-            return BoolType::Get(context);
-        }
-
-        //if (UseMathInt && width <= 64) {
-        //    return IntType::Get(mContext, width);
-        //}
-
-        return BvType::Get(context, width);
-    } else if (type->isHalfTy()) {
-        return FloatType::Get(context, FloatType::Half);
-    } else if (type->isFloatTy()) {
-        return FloatType::Get(context, FloatType::Single);
-    } else if (type->isDoubleTy()) {
-        return FloatType::Get(context, FloatType::Double);
-    } else if (type->isFP128Ty()) {
-        return FloatType::Get(context, FloatType::Quad);
-    } else if (type->isPointerTy()) {
-        //return mMemoryModel.getTypeFromPointerType(llvm::cast<llvm::PointerType>(type));
-    }
-
-    llvm::errs() << "Unsupported LLVM Type: " << *type << "\n";
-    assert(false && "Unsupported LLVM type.");
-}
-
-gazer::Type& typeFromLLVMType(const llvm::Value* value, GazerContext& context)
-{
-    return typeFromLLVMType(value->getType(), context);
-}
-
 std::unique_ptr<AutomataSystem> gazer::translateModuleToAutomata(
     llvm::Module& module,
     std::unordered_map<llvm::Function*, llvm::LoopInfo*>& loopInfos,
     GazerContext& context,
+    MemoryModel& memoryModel,
     llvm::DenseMap<llvm::Value*, Variable*>& variables,
     llvm::DenseMap<Location*, llvm::BasicBlock*>& blockEntries
 ) {
-    ModuleToCfa transformer(module, loopInfos, context);
+    ModuleToCfa transformer(module, loopInfos, context, memoryModel);
     return transformer.generate(variables, blockEntries);
 }
 
@@ -1065,7 +1029,9 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
         }
     }
 
-    mSystem = translateModuleToAutomata(module, loops, mContext, mVariables, mBlocks);
+    DummyMemoryModel memoryModel(mContext);
+
+    mSystem = translateModuleToAutomata(module, loops, mContext, memoryModel, mVariables, mBlocks);
 /*
     for (Cfa& cfa : *mSystem) {
         llvm::errs() << cfa.getName() << "("

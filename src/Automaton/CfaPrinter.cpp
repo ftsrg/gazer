@@ -1,11 +1,11 @@
 /// \file Printing utilities for control flow automata.
 #include "gazer/Automaton/Cfa.h"
+#include "gazer/Core/LiteralExpr.h"
 
 #include <llvm/Support/DOTGraphTraits.h>
 #include <llvm/Support/GraphWriter.h>
 #include <llvm/Support/Format.h>
 #include <llvm/ADT/StringExtras.h>
-#include <gazer/Core/LiteralExpr.h>
 
 using namespace gazer;
 
@@ -135,8 +135,4 @@ void Transition::print(llvm::raw_ostream &os) const
     llvm_unreachable("Unknown edge kind in Transition::print()!");
 }
 
-void VariableAssignment::print(llvm::raw_ostream &os) const
-{
-    os << mVariable->getName() << " := " << *mValue;
-}
 

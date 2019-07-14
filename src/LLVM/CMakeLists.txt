@@ -2,6 +2,8 @@ set(SOURCE_FILES
     Analysis/BmcPass.cpp
     Analysis/ProgramDependence.cpp
     Analysis/TopologicalSort.cpp
+    Analysis/MemoryObject.cpp
+    Analysis/DummyMemoryModel.cpp
     #Analysis/VariableRoles.cpp
     Transform/BoundedUnwindPass.cpp
     Transform/BackwardSlicer.cpp
@@ -20,6 +22,7 @@ set(SOURCE_FILES
     Automaton/ModuleToAutomata.cpp
     Verifier/BmcPass.cpp
     LLVMTraceBuilder.cpp
+    TypeTranslator.cpp
 )
 
 llvm_map_components_to_libnames(LLVM_LIBS support core irreader transformutils scalaropts ipo)

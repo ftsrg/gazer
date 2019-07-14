@@ -43,6 +43,22 @@ llvm::iterator_range<ResultIterator> to_string_range(Range&& range)
     return llvm::make_range(begin, end);
 }
 
+template<
+    class StreamT,
+    class Iterator
+>
+void join_print(StreamT& os, Iterator begin, Iterator end, llvm::StringRef separator)
+{
+    if (begin != end) {
+        os << *begin++;
+    }
+
+    while (++begin != end) {
+        os << separator;
+        os << (*begin);
+    }
+}
+
 }
 
 #endif

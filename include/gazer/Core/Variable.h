@@ -40,8 +40,6 @@ private:
     ExprRef<VarRefExpr> mExpr;
 };
 
-llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Variable& variable);
-
 class VarRefExpr final : public Expr
 {
     friend class Variable;
@@ -61,6 +59,30 @@ public:
 private:
     Variable* mVariable;
 };
+
+/// Convenience class for representing assignments to variables.
+class VariableAssignment final
+{
+public:
+    VariableAssignment(Variable *variable, ExprPtr value)
+        : mVariable(variable), mValue(value)
+    {
+        assert(variable->getType() == value->getType());
+    }
+
+    Variable* getVariable() const { return mVariable; }
+    ExprPtr getValue() const { return mValue; }
+
+    void print(llvm::raw_ostream& os) const;
+
+private:
+    Variable* mVariable;
+    ExprPtr mValue;
+};
+
+
+llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Variable& variable);
+llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const VariableAssignment& va);
 
 } // end namespace gazer
 
