@@ -11,8 +11,6 @@
 
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
 
-#include "gazer/Analysis/MemoryObject.h"
-
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Verifier.h>
@@ -127,7 +125,7 @@ int main(int argc, char* argv[])
     pm->add(new BasicAAWrapperPass());
     pm->add(new GlobalsAAWrapperPass());
     pm->add(new MemorySSAWrapperPass());
-    pm->add(new MemoryObjectPass());
+    //pm->add(new MemoryObjectPass());
 
     if (RunBmc) {
         pm->add(llvm::createCFGSimplificationPass());

@@ -1,4 +1,5 @@
 SET(TEST_SOURCES
+    Analysis/MemoryObjectTest.cpp
     Automaton/ModuleToAutomataTest.cpp
 )
 

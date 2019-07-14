@@ -131,25 +131,6 @@ private:
     EdgeKind mEdgeKind;
 };
 
-class VariableAssignment final
-{
-public:
-    VariableAssignment(Variable *variable, ExprPtr value)
-        : mVariable(variable), mValue(value)
-    {
-        assert(variable->getType() == value->getType());
-    }
-
-    Variable* getVariable() const { return mVariable; }
-    ExprPtr getValue() const { return mValue; }
-
-    void print(llvm::raw_ostream& os) const;
-
-private:
-    Variable* mVariable;
-    ExprPtr mValue;
-};
-
 /// Represents a (potentially guared) transition with variable assignments.
 class AssignTransition final : public Transition
 {
@@ -428,12 +409,6 @@ private:
 inline llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Transition& transition)
 {
     transition.print(os);
-    return os;
-}
-
-inline llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const VariableAssignment& va)
-{
-    va.print(os);
     return os;
 }
 

@@ -14,6 +14,8 @@ namespace llvm
 namespace gazer
 {
 
+class MemoryModel;
+
 class ModuleToAutomataPass : public llvm::ModulePass
 {
 public:
@@ -47,6 +49,7 @@ std::unique_ptr<AutomataSystem> translateModuleToAutomata(
     llvm::Module& module,
     std::unordered_map<llvm::Function*, llvm::LoopInfo*>& loopInfos,
     GazerContext& context,
+    MemoryModel& memoryModel,
     llvm::DenseMap<llvm::Value*, Variable*>& variables,
     llvm::DenseMap<Location*, llvm::BasicBlock*>& blockEntries
 );

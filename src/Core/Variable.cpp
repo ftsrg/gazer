@@ -34,3 +34,16 @@ llvm::raw_ostream& gazer::operator<<(llvm::raw_ostream& os, const Variable& vari
     os << variable.getType() << " " << variable.getName();
     return os;
 }
+
+llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const VariableAssignment& va)
+{
+    va.print(os);
+    return os;
+}
+
+void VariableAssignment::print(llvm::raw_ostream &os) const
+{
+    os << mVariable->getName() << " := " << *mValue;
+}
+
+

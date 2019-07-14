@@ -1,5 +1,6 @@
 
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
+#include "gazer/LLVM/Analysis/MemoryObject.h"
 
 #include <llvm/AsmParser/Parser.h>
 #include <llvm/Support/SourceMgr.h>
@@ -46,10 +47,21 @@ protected:
     std::vector<std::unique_ptr<llvm::DominatorTree>> dominators;
     std::vector<std::unique_ptr<llvm::LoopInfo>> loops;
     std::unordered_map<llvm::Function*, llvm::LoopInfo*> loopInfoMap;
+
+    GazerContext context;
+    std::unique_ptr<MemoryModel> memoryModel = nullptr;
+
+    llvm::DenseMap<llvm::Value*, Variable*> vmap;
+    llvm::DenseMap<Location*, llvm::BasicBlock*> blocks;
 public:
-    ModuleToAutomataTest(const char* moduleStr)
-        : module(llvm::parseAssemblyString(moduleStr, error, llvmContext))
-    {
+    ModuleToAutomataTest()
+        : module(nullptr)
+    {}
+
+    std::unique_ptr<AutomataSystem> createSystemFromModule(
+        const char* moduleStr, MemoryModel* memoryModel = nullptr
+    ) {
+        module = llvm::parseAssemblyString(moduleStr, error, llvmContext);
         assert(module != nullptr && "Failed to construct LLVM module.");
 
         for (llvm::Function& function : *module) {
@@ -60,14 +72,20 @@ public:
                 loopInfoMap[&function] = loop.get();
             }
         }
+
+        if (memoryModel == nullptr) {
+            this->memoryModel.reset(new DummyMemoryModel(context));
+        } else {
+            this->memoryModel.reset(memoryModel);
+        }
+
+        return translateModuleToAutomata(*module, loopInfoMap, context, *this->memoryModel, vmap, blocks);
     }
 };
 
-class BasicModuleToAutomataTest : public ModuleToAutomataTest
+TEST_F(ModuleToAutomataTest, CanCreateAllAutomata)
 {
-public:
-    BasicModuleToAutomataTest()
-        : ModuleToAutomataTest(R"ASM(
+    auto system = createSystemFromModule(R"ASM(
 declare i32 @__VERIFIER_nondet_int()
 
 define i32 @calculate(i32 %x, i32 %y) {
@@ -92,15 +110,7 @@ loop.body:
 loop.end:
     ret i32 %sum
 }
-)ASM") {}
-};
-
-TEST_F(BasicModuleToAutomataTest, CanCreateAllAutomata)
-{
-    GazerContext context;
-    llvm::DenseMap<llvm::Value*, Variable*> vmap;
-    llvm::DenseMap<Location*, llvm::BasicBlock*> blocks;
-    auto system = translateModuleToAutomata(*module, loopInfoMap, context, vmap, blocks);
+)ASM");
 
     ASSERT_EQ(system->getNumAutomata(), 3);
 
@@ -162,11 +172,9 @@ TEST_F(BasicModuleToAutomataTest, CanCreateAllAutomata)
     }));
 }
 
-class PostTestLoopTest : public ModuleToAutomataTest
+TEST_F(ModuleToAutomataTest, CanTransformPostTestLoop)
 {
-public:
-    PostTestLoopTest()
-        : ModuleToAutomataTest(R"ASM(
+    auto system = createSystemFromModule(R"ASM(
 declare i32 @__VERIFIER_nondet_int()
 
 define i32 @main() {
@@ -181,15 +189,7 @@ loop.header:
 loop.end:
     ret i32 0
 }
-)ASM") {}
-};
-
-TEST_F(PostTestLoopTest, CanTransformPostTestLoop)
-{
-    GazerContext context;
-    llvm::DenseMap<llvm::Value*, Variable*> vmap;
-    llvm::DenseMap<Location*, llvm::BasicBlock*> blocks;
-    auto system = translateModuleToAutomata(*module, loopInfoMap, context, vmap, blocks);
+)ASM");
 
     Cfa* main = system->getAutomatonByName("main");
     ASSERT_TRUE(main != nullptr);
@@ -198,11 +198,10 @@ TEST_F(PostTestLoopTest, CanTransformPostTestLoop)
     ASSERT_TRUE(loop != nullptr);
 }
 
-class LoopWithMultipleExitsTest : public ModuleToAutomataTest
+
+TEST_F(ModuleToAutomataTest, CanTransformLoopWithMultipleExits)
 {
-public:
-    LoopWithMultipleExitsTest()
-        : ModuleToAutomataTest(R"ASM(
+    auto system = createSystemFromModule(R"ASM(
 declare i32 @__VERIFIER_nondet_int()
 
 define i32 @main() {
@@ -229,15 +228,7 @@ loop.end:
 error:
     ret i32 1
 }
-)ASM") {}
-};
-
-TEST_F(LoopWithMultipleExitsTest, CanTransformLoopWithMultipleExits)
-{
-    GazerContext context;
-    llvm::DenseMap<llvm::Value*, Variable*> vmap;
-    llvm::DenseMap<Location*, llvm::BasicBlock*> blocks;
-    auto system = translateModuleToAutomata(*module, loopInfoMap, context, vmap, blocks);
+)ASM");
 
     Cfa* main = system->getAutomatonByName("main");
     ASSERT_TRUE(main != nullptr);
@@ -246,12 +237,12 @@ TEST_F(LoopWithMultipleExitsTest, CanTransformLoopWithMultipleExits)
     ASSERT_TRUE(loop != nullptr);
 }
 
-class NestedLoopsTest : public ModuleToAutomataTest
+TEST_F(ModuleToAutomataTest, CanTransformLoopWithNestedLoop)
 {
+    // Turn off variable elimination
+    NoElimVars.setValue(true);
 
-public:
-    NestedLoopsTest()
-        : ModuleToAutomataTest(R"ASM(
+    auto system = createSystemFromModule(R"ASM(
 declare i32 @__VERIFIER_nondet_int()
 
 define i32 @main() {
@@ -290,18 +281,7 @@ loop.latch:
 exit:
     ret i32 %result
 }
-)ASM") {}
-};
-
-TEST_F(NestedLoopsTest, CanTransformLoopWithNestedLoop)
-{
-    // Turn off variable elimination
-    NoElimVars.setValue(true);
-
-    GazerContext context;
-    llvm::DenseMap<llvm::Value*, Variable*> vmap;
-    llvm::DenseMap<Location*, llvm::BasicBlock*> blocks;
-    auto system = translateModuleToAutomata(*module, loopInfoMap, context, vmap, blocks);
+)ASM");
 
     Cfa* main = system->getAutomatonByName("main");
     ASSERT_TRUE(main != nullptr);
