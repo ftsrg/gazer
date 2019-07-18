@@ -6,12 +6,11 @@
 namespace gazer
 {
 
-class AutomataSystem;
-
+template<class InputFormalism>
 class VerificationAlgorithm
 {
 public:
-    virtual std::unique_ptr<SafetyResult> check(AutomataSystem& system) = 0;
+    virtual std::unique_ptr<SafetyResult> check(InputFormalism& system) = 0;
 
     virtual ~VerificationAlgorithm() = default;
 };
