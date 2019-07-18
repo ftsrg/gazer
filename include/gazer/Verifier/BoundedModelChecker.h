@@ -8,8 +8,9 @@ namespace gazer
 
 class Location;
 class SolverFactory;
+class AutomataSystem;
 
-class BoundedModelChecker : public VerificationAlgorithm
+class BoundedModelChecker : public VerificationAlgorithm<AutomataSystem>
 {
 public:
     BoundedModelChecker(SolverFactory& solverFactory, TraceBuilder<Location*>* traceBuilder = nullptr)
