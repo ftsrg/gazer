@@ -424,6 +424,26 @@ public:
         return ConstantFolder::FIsInf(op);
     }
     
+    ExprPtr FCast(const ExprPtr& op, FloatType& type, llvm::APFloat::roundingMode rm) override {
+        return FCastExpr::Create(op, type, rm);
+    }
+
+    ExprPtr SignedToFp(const ExprPtr& op, FloatType& type, llvm::APFloat::roundingMode rm) override {
+        return SignedToFpExpr::Create(op, type, rm);
+    }
+
+    ExprPtr UnsignedToFp(const ExprPtr& op, FloatType& type, llvm::APFloat::roundingMode rm) override {
+        return UnsignedToFpExpr::Create(op, type, rm);
+    }
+
+    ExprPtr FpToSigned(const ExprPtr& op, BvType& type, llvm::APFloat::roundingMode rm) override {
+        return FpToSignedExpr::Create(op, type, rm);
+    }
+
+    ExprPtr FpToUnsigned(const ExprPtr& op, BvType& type, llvm::APFloat::roundingMode rm) override {
+        return FpToUnsignedExpr::Create(op, type, rm);
+    }
+    
     ExprPtr FAdd(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) override {
         return ConstantFolder::FAdd(left, right, rm);
     }

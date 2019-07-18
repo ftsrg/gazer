@@ -291,6 +291,52 @@ protected:
         return z3::expr(mZ3Context, Z3_mk_fpa_is_infinite(mZ3Context, visit(expr->getOperand())));
     }
 
+    // Floating-point casts
+    z3::expr visitFCast(const ExprRef<FCastExpr>& expr) override {
+        return z3::expr(mZ3Context, Z3_mk_fpa_to_fp_float(
+            mZ3Context,
+            transformRoundingMode(expr->getRoundingMode()),
+            visit(expr->getOperand()),
+            typeToSort(&expr->getType())            
+        ));
+    }
+
+    z3::expr visitSignedToFp(const ExprRef<SignedToFpExpr>& expr) override {
+        return z3::expr(mZ3Context, Z3_mk_fpa_to_fp_signed(
+            mZ3Context,
+            transformRoundingMode(expr->getRoundingMode()),
+            visit(expr->getOperand()),
+            typeToSort(&expr->getType())
+        ));
+    }
+
+    z3::expr visitUnsignedToFp(const ExprRef<UnsignedToFpExpr>& expr) override {
+        return z3::expr(mZ3Context, Z3_mk_fpa_to_fp_unsigned(
+            mZ3Context,
+            transformRoundingMode(expr->getRoundingMode()),
+            visit(expr->getOperand()),
+            typeToSort(&expr->getType())
+        ));
+    }
+
+    z3::expr visitFpToSigned(const ExprRef<FpToSignedExpr>& expr) override {
+        return z3::expr(mZ3Context, Z3_mk_fpa_to_sbv(
+            mZ3Context,
+            transformRoundingMode(expr->getRoundingMode()),
+            visit(expr->getOperand()),
+            llvm::cast<BvType>(&expr->getType())->getWidth()
+        ));
+    }
+
+    z3::expr visitFpToUnsigned(const ExprRef<FpToUnsignedExpr>& expr) override {
+        return z3::expr(mZ3Context, Z3_mk_fpa_to_ubv(
+            mZ3Context,
+            transformRoundingMode(expr->getRoundingMode()),
+            visit(expr->getOperand()),
+            llvm::cast<BvType>(&expr->getType())->getWidth()
+        ));
+    }
+
     // Floating-point arithmetic
     z3::expr visitFAdd(const ExprRef<FAddExpr>& expr) override {
         return z3::expr(mZ3Context, Z3_mk_fpa_add(

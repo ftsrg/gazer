@@ -88,7 +88,7 @@ BoundedModelCheckerImpl::BoundedModelCheckerImpl(
             // We have a single error location, let that be the verification goal.
             mError = errors[0];
         } else {
-            // Create an error location which will be directly reachable from each already existing error locations.
+            // Create an error location which will be directly reachable from already existing error locations.
             // This one error location will be used as the goal.
             mError = mRoot->createErrorLocation();
             for (Location* err : errors) {
@@ -146,7 +146,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
         }
     }    
 
-
+    mStats.NumBeginLocs = mRoot->getNumLocations();
     Location* start = mRoot->getEntry();
 
     Stopwatch<> sw;
@@ -329,11 +329,13 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                 llvm::outs() << "    Inlining calls...\n";
 
                 for (CallTransition* call : mOpenCalls) {
+                    mStats.NumInlined++;
                     inlineCallIntoRoot(call, mInlinedVariables, "_call" + llvm::Twine(tmp++));
                     mCalls.erase(call);
                 }
                 mRoot->clearDisconnectedElements();
 
+                mStats.NumEndLocs = mRoot->getNumLocations();
                 if (DumpCfa) {
                     mRoot->view();
                 }
@@ -345,6 +347,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                 if (numUnhandledCallSites == 0) {
                     // If we have no unhandled call sites,
                     // the program is guaranteed to be safe at this point.
+
                     return SafetyResult::CreateSuccess();
                 }  else if (bound == MaxBound) {
                     llvm::outs() << "Maximum bound is reached.\n";
@@ -711,9 +714,12 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
 
 
 void BoundedModelCheckerImpl::printStats(llvm::raw_ostream& os) {
-    llvm::outs() << "--------- Statistics ---------\n";
-    llvm::outs() << "Total solver time: ";
+    os << "--------- Statistics ---------\n";
+    os << "Total solver time: ";
     llvm::format_provider<std::chrono::milliseconds>::format(mStats.SolverTime, os, "s");
-    llvm::outs() << "\n";
-    llvm::outs() << "------------------------------\n";
+    os << "\n";
+    os << "Number of inlined procedures: " << mStats.NumInlined << "\n";
+    os << "Number of locations on start: " << mStats.NumBeginLocs << "\n";
+    os << "Number of locations on finish: " << mStats.NumEndLocs << "\n";
+    os << "------------------------------\n";
 }

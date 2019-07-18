@@ -110,9 +110,16 @@ public:
     virtual ExprPtr UGtEq(const ExprPtr& left, const ExprPtr& right) = 0;
 
     //--- Floating point ---//
+    virtual ExprPtr FCast(const ExprPtr& op, FloatType& type, llvm::APFloat::roundingMode rm) = 0;
+
     virtual ExprPtr FIsNan(const ExprPtr& op) = 0;
     virtual ExprPtr FIsInf(const ExprPtr& op) = 0;
     
+    virtual ExprPtr SignedToFp(const ExprPtr& op, FloatType& type, llvm::APFloat::roundingMode rm) = 0;
+    virtual ExprPtr UnsignedToFp(const ExprPtr& op, FloatType& type, llvm::APFloat::roundingMode rm) = 0;
+    virtual ExprPtr FpToSigned(const ExprPtr& op, BvType& type, llvm::APFloat::roundingMode rm) = 0;
+    virtual ExprPtr FpToUnsigned(const ExprPtr& op, BvType& type, llvm::APFloat::roundingMode rm) = 0;
+
     virtual ExprPtr FAdd(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) = 0;
     virtual ExprPtr FSub(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) = 0;
     virtual ExprPtr FMul(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) = 0;

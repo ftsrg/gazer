@@ -39,6 +39,16 @@ class Expr
     friend class ExprStorage;
     friend class GazerContextImpl;
 public:
+    // If you wish to add a new expression type, make sure to do the following:
+    //      (1) Update ExprKind.inc with the new kind.
+    //      (2) Update ExprKindPrimes in Expr.cpp with a new unique prime number.
+    //      (3) If your implementation class is atomic or a non-trivial descendant of 
+    //          NonNullaryExpr, update expr_hasher in GazerContextImpl.h with a specialization
+    //          for your implementation.
+    //      (4) Update the ExprVisitor interface. Note that this also means the possible
+    //          update of their implementations (such as solvers).
+    //  Things will work without the following changes, but they are highly recommended:
+    //      (5) Add a corresponding method to ExprBuilder and ConstantFolder.
     enum ExprKind
     {
         // Nullary
@@ -94,12 +104,11 @@ public:
         FIsInf,
 
         // Floating point cast
-        // FpExt,
-        // FpTrunc,
-        // SignedToFp,
-        // UnsignedToFp,
-        // FpToSigned,
-        // FpToUnsigned,
+        FCast,
+        SignedToFp,
+        UnsignedToFp,
+        FpToSigned,
+        FpToUnsigned,
 
         // Floating point binary
         FAdd,
@@ -136,7 +145,7 @@ public:
     static constexpr int FirstCompare = Eq;
     static constexpr int LastCompare = UGtEq;
     static constexpr int FirstFpUnary = FIsNan;
-    static constexpr int LastFpUnary = FIsInf;
+    static constexpr int LastFpUnary = FpToUnsigned;
     static constexpr int FirstFpArithmetic = FAdd;
     static constexpr int LastFpArithmetic = FDiv;
     static constexpr int FirstFpCompare = FEq;
