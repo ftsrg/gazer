@@ -168,6 +168,24 @@ protected:
         return this->visitNonNullary(expr);
     }
 
+    // Floating-point casts
+    virtual ReturnT visitFCast(const ExprRef<FCastExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+
+    virtual ReturnT visitSignedToFp(const ExprRef<SignedToFpExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitUnsignedToFp(const ExprRef<UnsignedToFpExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitFpToSigned(const ExprRef<FpToSignedExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+    virtual ReturnT visitFpToUnsigned(const ExprRef<FpToUnsignedExpr>& expr) {
+        return this->visitNonNullary(expr);
+    }
+
     // Floating-point arithmetic
     virtual ReturnT visitFAdd(const ExprRef<FAddExpr>& expr) {
         return this->visitNonNullary(expr);

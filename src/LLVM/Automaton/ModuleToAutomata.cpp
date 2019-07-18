@@ -492,10 +492,14 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
                 }
             }
         } else if (auto ret = llvm::dyn_cast<ReturnInst>(terminator)) {
-            Variable* retval = mCfa->findOutputByName(ModuleToCfa::FunctionReturnValueName);
-            mCfa->createAssignTransition(exit, mCfa->getExit(), mExprBuilder.True(), {
-                VariableAssignment{ retval, operand(ret->getReturnValue()) }
-            });
+            if (ret->getReturnValue() == nullptr) {
+                mCfa->createAssignTransition(exit, mCfa->getExit(), mExprBuilder.True());
+            } else {
+                Variable* retval = mCfa->findOutputByName(ModuleToCfa::FunctionReturnValueName);
+                mCfa->createAssignTransition(exit, mCfa->getExit(), mExprBuilder.True(), {
+                    VariableAssignment{ retval, operand(ret->getReturnValue()) }
+                });
+            }
         } else if (terminator->getOpcode() == Instruction::Unreachable) {
             // Do nothing.
         } else {
@@ -876,7 +880,32 @@ ExprPtr BlocksToCfa::visitCastInst(llvm::CastInst& cast)
     //    return mMemoryModel.handlePointerCast(cast, castOp);
     //}
 
-    if (castOp->getType().isBoolType()) {
+    llvm::errs() << cast << "\n";
+    
+    if (cast.getType()->isFloatingPointTy()) {
+        auto& fltTy = *llvm::dyn_cast<FloatType>(&mGenCtx.TheMemoryModel.translateType(cast.getType()));
+
+        switch (cast.getOpcode()) {
+            case Instruction::FPExt:
+            case Instruction::FPTrunc:
+                llvm::errs() << castOp->getType() << " " << *castOp << "\n";
+                return mExprBuilder.FCast(castOp, fltTy, llvm::APFloat::rmNearestTiesToEven);
+            case Instruction::SIToFP:
+                return mExprBuilder.SignedToFp(castOp, fltTy, llvm::APFloat::rmNearestTiesToEven);
+            case Instruction::UIToFP:
+                return mExprBuilder.UnsignedToFp(castOp, fltTy, llvm::APFloat::rmNearestTiesToEven);
+            default:
+                break;
+        }
+    }
+
+    if (cast.getOpcode() == Instruction::FPToSI) {
+        auto& bvTy = *llvm::dyn_cast<BvType>(&mGenCtx.TheMemoryModel.translateType(cast.getType()));
+        return mExprBuilder.FpToSigned(castOp, bvTy, llvm::APFloat::rmNearestTiesToEven);
+    } else if (cast.getOpcode() == Instruction::UIToFP) {
+        auto& bvTy = *llvm::dyn_cast<BvType>(&mGenCtx.TheMemoryModel.translateType(cast.getType()));
+        return mExprBuilder.FpToUnsigned(castOp, bvTy, llvm::APFloat::rmNearestTiesToEven);
+    } else if (castOp->getType().isBoolType()) {
         return integerCast(cast, castOp, 1);
     } else if (castOp->getType().isBvType()) {
         if (cast.getType()->isIntegerTy(1)

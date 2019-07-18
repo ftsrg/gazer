@@ -316,7 +316,7 @@ template<Expr::ExprKind Kind>
 class FpQueryExpr final : public UnaryExpr
 {
     static_assert(Kind == Expr::FIsNan || Kind == Expr::FIsInf,
-        "A floating point query expression must be FIsNan or FIsInf");
+        "A floating point query expression must be FIsNan or FIsInf.");
     friend class ExprStorage;
 protected:
     using UnaryExpr::UnaryExpr;
@@ -334,8 +334,62 @@ template class FpQueryExpr<Expr::FIsInf>;
 using FIsNanExpr = FpQueryExpr<Expr::FIsNan>;
 using FIsInfExpr = FpQueryExpr<Expr::FIsInf>;
 
+namespace detail
+{
+    /// Helper class to deal with all floating-point expressions which store a rounding mode.
+    class FpExprWithRoundingMode
+    {
+    public:
+        FpExprWithRoundingMode(const llvm::APFloat::roundingMode& rm) : mRoundingMode(rm) {}
+        llvm::APFloat::roundingMode getRoundingMode() const { return mRoundingMode; }
+    protected:
+        llvm::APFloat::roundingMode mRoundingMode;
+    };
+
+} // end namespace detail
+
 template<Expr::ExprKind Kind>
-class FpArithmeticExpr final : public BinaryExpr
+class BvFpCastExpr final : public UnaryExpr, public detail::FpExprWithRoundingMode
+{
+    static_assert(Kind >= Expr::FCast && Kind <= Expr::FpToUnsigned, "A BvFpCastExpr must have a Bv-to-Fp or Fp-to-Bv cast kind.");
+    friend class ExprStorage;
+private:
+    template<class InputIterator>
+    BvFpCastExpr(Expr::ExprKind kind, Type& type, InputIterator begin, InputIterator end, const llvm::APFloat::roundingMode& rm)
+        : UnaryExpr(kind, type, begin, end), FpExprWithRoundingMode(rm)
+    {}
+
+protected:
+    ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
+        return Create(ops[0], getType(), getRoundingMode());
+    }
+
+public:
+    static ExprRef<BvFpCastExpr<Kind>> Create(const ExprPtr& operand, Type& type, const llvm::APFloat::roundingMode& rm);
+
+    static bool classof(const Expr* expr) {
+        return expr->getKind() == Kind;
+    }
+
+    static bool classof(const Expr& expr) {
+        return expr.getKind() == Kind;
+    }
+};
+
+template class BvFpCastExpr<Expr::FCast>;
+template class BvFpCastExpr<Expr::SignedToFp>;
+template class BvFpCastExpr<Expr::UnsignedToFp>;
+template class BvFpCastExpr<Expr::FpToSigned>;
+template class BvFpCastExpr<Expr::FpToUnsigned>;
+
+using FCastExpr        = BvFpCastExpr<Expr::FCast>;
+using SignedToFpExpr   = BvFpCastExpr<Expr::SignedToFp>;
+using UnsignedToFpExpr = BvFpCastExpr<Expr::UnsignedToFp>;
+using FpToSignedExpr   = BvFpCastExpr<Expr::FpToSigned>;
+using FpToUnsignedExpr = BvFpCastExpr<Expr::FpToUnsigned>;
+
+template<Expr::ExprKind Kind>
+class FpArithmeticExpr final : public BinaryExpr, public detail::FpExprWithRoundingMode
 {
     static_assert(Expr::FirstFpArithmetic <= Kind && Kind <= Expr::LastFpArithmetic,
         "An arithmetic expression must have an floating-point arithmetic expression kind.");
@@ -345,7 +399,7 @@ class FpArithmeticExpr final : public BinaryExpr
 protected:
     template<class InputIterator>
     FpArithmeticExpr(Expr::ExprKind kind, Type& type, InputIterator begin, InputIterator end, const llvm::APFloat::roundingMode& rm)
-        : BinaryExpr(kind, type, begin, end), mRoundingMode(rm)
+        : BinaryExpr(kind, type, begin, end), FpExprWithRoundingMode(rm)
     {}
 
     ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
@@ -354,21 +408,12 @@ protected:
 public:
     static ExprRef<FpArithmeticExpr<Kind>> Create(const ExprPtr& left, const ExprPtr& right, const llvm::APFloat::roundingMode& rm);
 
-    llvm::APFloat::roundingMode getRoundingMode() const {
-        return mRoundingMode;
-    }
-
-    /**
-     * Type inquiry support.
-     */
     static bool classof(const Expr* expr) {
         return expr->getKind() == Kind;
     }
     static bool classof(const Expr& expr) {
         return expr.getKind() == Kind;
     }
-private:
-    llvm::APFloat::roundingMode mRoundingMode;
 };
 
 template class FpArithmeticExpr<Expr::FAdd>;

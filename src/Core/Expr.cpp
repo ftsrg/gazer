@@ -30,7 +30,8 @@ std::size_t gazer::expr_kind_prime(Expr::ExprKind kind)
         956057u, 614531u, 360233u, 621913u, 758041u, 718559u, 930991u, 686201u,
         465977u, 765007u, 388727u, 730819u, 134353u, 819583u, 314953u, 848633u,
         290623u, 241291u, 579499u, 384287u, 125287u, 920273u, 485833u, 326449u,
-        972683u, 485167u, 882599u, 535727u, 383651u, 159833u, 796001u, 218479u
+        972683u, 485167u, 882599u, 535727u, 383651u, 159833u, 796001u, 218479u,
+        163993u, 622561u, 938881u, 692467u, 851971u,
     };
 
     static_assert(
@@ -187,6 +188,33 @@ auto FpQueryExpr<Kind>::Create(const ExprPtr& operand) -> ExprRef<FpQueryExpr<Ki
     auto& context = operand->getContext();
 
     return context.pImpl->Exprs.create<FpQueryExpr<Kind>>(BoolType::Get(context), { operand });
+}
+
+static constexpr bool is_bv_to_fp(Expr::ExprKind Kind) { return Kind == Expr::UnsignedToFp || Kind == Expr::SignedToFp; }
+static constexpr bool is_fp_to_bv(Expr::ExprKind Kind) { return Kind == Expr::FpToUnsigned || Kind == Expr::FpToSigned; }
+
+template<Expr::ExprKind Kind>
+auto BvFpCastExpr<Kind>::Create(const ExprPtr& operand, Type& type, const llvm::APFloat::roundingMode& rm) -> ExprRef<BvFpCastExpr<Kind>>
+{
+    if constexpr (is_bv_to_fp(Kind)) {
+        assert(operand->getType().isBvType() && "Can only do BvToFp cast on bitvector inputs!");
+        assert(type.isFloatType() && "Can only do BvToFp casts to floating-point targets!");
+    } else if constexpr (is_fp_to_bv(Kind)) {
+        assert(operand->getType().isFloatType() && "Can only do FpToBv cast on floating-point inputs!");
+        assert(type.isBvType() && "Can only do FpToBv casts to bitvector targets!");
+    } else if constexpr (Kind == Expr::FCast) {
+        assert(operand->getType().isFloatType() && "Can only do FCast cast on float inputs!");
+        assert(type.isFloatType() && "Can only do FCast casts to floating-point targets!");
+
+        auto& fltTy = *llvm::cast<FloatType>(&operand->getType());
+        auto& targetTy = *llvm::cast<FloatType>(&type);
+
+        assert((fltTy != targetTy) && "FCast casts must change the target type!");
+    }
+
+    auto& context = operand->getContext();
+
+    return context.pImpl->Exprs.create<BvFpCastExpr<Kind>>(type, { operand }, rm);
 }
 
 template<Expr::ExprKind Kind>

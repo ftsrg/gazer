@@ -28,7 +28,9 @@ public:
     struct Stats
     {
         std::chrono::milliseconds SolverTime{0};
-        int NumInlined = 0;
+        unsigned NumInlined = 0;
+        unsigned NumBeginLocs = 0;
+        unsigned NumEndLocs = 0;
     };
 
     BoundedModelCheckerImpl(

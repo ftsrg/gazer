@@ -50,8 +50,13 @@ inline std::size_t expr_ops_hash(Expr::ExprKind kind, InputIterator begin, Input
 // These templates contain functionality which is used to compare expressions
 // without having access to an expression instance.
 
-template<class ExprTy, class = std::enable_if<std::is_base_of<NonNullaryExpr, ExprTy>::value>>
-struct expr_hasher {
+template<class ExprTy, class T = void> struct expr_hasher;
+
+template<class ExprTy>
+struct expr_hasher<ExprTy, std::enable_if_t<
+    std::is_base_of<NonNullaryExpr, ExprTy>::value
+    && !(std::is_base_of<detail::FpExprWithRoundingMode, ExprTy>::value)
+>> {
     template<class InputIterator>
     static std::size_t hash_value(Expr::ExprKind kind, Type& type, InputIterator begin, InputIterator end) {
         return expr_ops_hash(kind, begin, end);
@@ -84,7 +89,7 @@ const ExprTy* literal_equals(const Expr* expr, Type& type)
     return llvm::cast<ExprTy>(expr);
 };
 
-template<> struct expr_hasher<BvLiteralExpr> {
+template<> struct expr_hasher<BvLiteralExpr, void> {
     static std::size_t hash_value(Type& type, llvm::APInt value) {
         return llvm::hash_value(value);
     }
@@ -126,10 +131,12 @@ template<> struct expr_hasher<VarRefExpr> {
     }
 };
 
-template<Expr::ExprKind Kind> struct expr_hasher<FpArithmeticExpr<Kind>> {
+template<class ExprTy>
+struct expr_hasher<ExprTy, std::enable_if_t<std::is_base_of<detail::FpExprWithRoundingMode, ExprTy>::value>>
+{
     template<class InputIterator>
     static std::size_t hash_value(Expr::ExprKind kind, Type& type, InputIterator begin, InputIterator end, llvm::APFloat::roundingMode rm) {
-        return llvm::hash_combine(rm, expr_ops_hash(Kind, begin, end));
+        return llvm::hash_combine(rm, expr_ops_hash(kind, begin, end));
     }
 
     template<class InputIterator>
@@ -145,7 +152,7 @@ template<Expr::ExprKind Kind> struct expr_hasher<FpArithmeticExpr<Kind>> {
 
         // If the previous equals call returned true,
         // the expression must be of the right type.
-        auto fp = llvm::cast<FpArithmeticExpr<Kind>>(other);
+        auto fp = llvm::cast<ExprTy>(other);
         return fp->getRoundingMode() == rm;
     }
 };
