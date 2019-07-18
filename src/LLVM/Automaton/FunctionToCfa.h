@@ -123,6 +123,8 @@ public:
     ExprPtr visitFCmpInst(llvm::FCmpInst& fcmp);
     ExprPtr visitCastInst(llvm::CastInst& cast);
     ExprPtr visitCallInst(llvm::CallInst& call);
+    ExprPtr visitLoadInst(llvm::LoadInst& load);
+    ExprPtr visitGEPOperator(llvm::GEPOperator& gep);
 
 private:
     GazerContext& getContext() const { return mGenCtx.System.getContext(); }

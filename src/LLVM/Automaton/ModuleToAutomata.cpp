@@ -95,11 +95,6 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
     GenerationContext genCtx(*mSystem, mMemoryModel);
     auto exprBuilder = CreateFoldingExprBuilder(mContext);
 
-    // First, add all global variables
-    for (llvm::GlobalVariable& gv : mModule.globals()) {
-        // TODO...
-    }
-
     // Create an automaton for each function definition
     // and set the interfaces.
     for (llvm::Function& function : mModule.functions()) {
@@ -370,6 +365,16 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
                     // Do not generate an assignment for this call.
                     continue;
                 }
+            } else if (auto store = llvm::dyn_cast<StoreInst>(&inst)) {
+                auto storeValue = this->operand(store->getValueOperand());
+                auto ptr = this->operand(store->getPointerOperand());
+
+                auto storeRes = mGenCtx.TheMemoryModel.handleStore(*store, ptr, storeValue);
+                if (storeRes.has_value()) {
+                    assignments.push_back(*storeRes);
+                }
+
+                continue;
             }
 
             if (inst.getType()->isVoidTy()) {
@@ -545,11 +550,14 @@ ExprPtr BlocksToCfa::transform(llvm::Instruction& inst)
         return visitBinaryOperator(*dyn_cast<llvm::BinaryOperator>(&inst));
     } else if (inst.isCast()) {
         return visitCastInst(*dyn_cast<llvm::CastInst>(&inst));
+    } else if (auto gep = llvm::dyn_cast<llvm::GEPOperator>(&inst)) {
+        return visitGEPOperator(*gep);
     }
     HANDLE_INST(Instruction::ICmp, ICmpInst)
     HANDLE_INST(Instruction::Call, CallInst)
     HANDLE_INST(Instruction::FCmp, FCmpInst)
     HANDLE_INST(Instruction::Select, SelectInst)
+    HANDLE_INST(Instruction::Load, LoadInst)
 
 #undef HANDLE_INST
 
@@ -867,6 +875,16 @@ ExprPtr BlocksToCfa::visitCallInst(llvm::CallInst& call)
     }
 
     return UndefExpr::Get(callTy);
+}
+
+ExprPtr BlocksToCfa::visitLoadInst(llvm::LoadInst& load)
+{
+    return mGenCtx.TheMemoryModel.handleLoad(load);
+}
+
+ExprPtr BlocksToCfa::visitGEPOperator(llvm::GEPOperator& gep)
+{
+    return mGenCtx.TheMemoryModel.handleGetElementPtr(gep);
 }
 
 ExprPtr BlocksToCfa::visitCastInst(llvm::CastInst& cast)

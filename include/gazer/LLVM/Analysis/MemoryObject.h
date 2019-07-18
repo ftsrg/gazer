@@ -2,9 +2,11 @@
 #define GAZER_LLVM_ANALYSIS_MEMORYOBJECT_H
 
 #include "gazer/Core/Expr.h"
+#include "gazer/Core/Variable.h"
 #include "gazer/LLVM/TypeTranslator.h"
 
 #include <llvm/IR/Instructions.h>
+#include <llvm/IR/Operator.h>
 #include <llvm/Pass.h>
 
 namespace gazer
@@ -126,9 +128,13 @@ public:
     ) = 0;
 
     /// Translates the given LoadInst into an assignable expression.
-    virtual ExprRef<> handleLoad(llvm::LoadInst& load) = 0;
+    virtual ExprRef<> handleLoad(llvm::LoadInst& load) = 0;  
 
-    virtual ExprRef<> handleGetElementPtr(llvm::GetElementPtrInst& gep) = 0;
+    virtual ExprRef<> handleGetElementPtr(llvm::GEPOperator& gep) = 0;
+
+    virtual std::optional<VariableAssignment> handleStore(
+        llvm::StoreInst& store, ExprPtr pointer, ExprPtr value
+    ) = 0;
 
     virtual gazer::Type& handlePointerType(const llvm::PointerType* type) = 0;
     virtual gazer::Type& handleArrayType(const llvm::ArrayType* type) = 0;
@@ -158,7 +164,11 @@ public:
 
     ExprRef<> handleLoad(llvm::LoadInst& load) override;
 
-    ExprRef<> handleGetElementPtr(llvm::GetElementPtrInst& gep) override;
+    ExprRef<> handleGetElementPtr(llvm::GEPOperator& gep) override;
+
+    std::optional<VariableAssignment> handleStore(
+        llvm::StoreInst& store, ExprPtr pointer, ExprPtr value
+    ) override;
     
     gazer::Type& handlePointerType(const llvm::PointerType* type) override;
     gazer::Type& handleArrayType(const llvm::ArrayType* type) override;

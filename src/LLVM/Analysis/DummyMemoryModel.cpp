@@ -16,9 +16,15 @@ ExprRef<> DummyMemoryModel::handleLoad(llvm::LoadInst& load)
     return UndefExpr::Get(mTypes.get(load.getType()));
 }
 
-ExprRef<> DummyMemoryModel::handleGetElementPtr(llvm::GetElementPtrInst& gep)
+ExprRef<> DummyMemoryModel::handleGetElementPtr(llvm::GEPOperator& gep)
 {
     return UndefExpr::Get(BvType::Get(mContext, 32));
+}
+
+std::optional<VariableAssignment> DummyMemoryModel::handleStore(
+    llvm::StoreInst& store, ExprPtr pointer, ExprPtr value
+) {
+    return std::nullopt;
 }
 
 gazer::Type& DummyMemoryModel::handlePointerType(const llvm::PointerType* type)
