@@ -61,9 +61,9 @@ ExprPtr ExprRewrite::visitNonNullary(const ExprRef<NonNullaryExpr>& expr)
         case Expr::FIsNan: return mExprBuilder.FIsNan(ops[0]);
         case Expr::FIsInf: return mExprBuilder.FIsInf(ops[0]);
         case Expr::FAdd: return mExprBuilder.FAdd(ops[0], ops[1], llvm::cast<FAddExpr>(expr.get())->getRoundingMode());
-        case Expr::FSub: return mExprBuilder.FSub(ops[0], ops[1], llvm::cast<FAddExpr>(expr.get())->getRoundingMode());
-        case Expr::FMul: return mExprBuilder.FMul(ops[0], ops[1], llvm::cast<FAddExpr>(expr.get())->getRoundingMode());
-        case Expr::FDiv: return mExprBuilder.FDiv(ops[0], ops[1], llvm::cast<FAddExpr>(expr.get())->getRoundingMode());
+        case Expr::FSub: return mExprBuilder.FSub(ops[0], ops[1], llvm::cast<FSubExpr>(expr.get())->getRoundingMode());
+        case Expr::FMul: return mExprBuilder.FMul(ops[0], ops[1], llvm::cast<FMulExpr>(expr.get())->getRoundingMode());
+        case Expr::FDiv: return mExprBuilder.FDiv(ops[0], ops[1], llvm::cast<FDivExpr>(expr.get())->getRoundingMode());
         case Expr::FEq: return mExprBuilder.FEq(ops[0], ops[1]);
         case Expr::FGt: return mExprBuilder.FGt(ops[0], ops[1]);
         case Expr::FGtEq: return mExprBuilder.FGtEq(ops[0], ops[1]);
