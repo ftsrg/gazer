@@ -1,6 +1,9 @@
 
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
 #include "gazer/LLVM/Analysis/MemoryObject.h"
+#include "gazer/ADT/StringUtils.h"
+#include "gazer/Core/LiteralExpr.h"
+#include "gazer/Core/ExprTypes.h"
 
 #include <llvm/AsmParser/Parser.h>
 #include <llvm/Support/SourceMgr.h>
@@ -36,6 +39,37 @@ namespace
     }
 
     return ::testing::AssertionSuccess();
+}
+
+::testing::AssertionResult HasAssignEdgeTo(
+    Location* source, Location*& target, ExprPtr condition = nullptr, std::initializer_list<VariableAssignment> assigns = {}
+) {
+    for (auto it = source->outgoing_begin(); it != source->outgoing_end(); ++it) {
+        AssignTransition* edge = llvm::dyn_cast<AssignTransition>(*it);
+        if (edge == nullptr) {
+            continue;
+        }
+
+        if (condition != nullptr && edge->getGuard() != condition) {
+            continue;
+        }
+
+        if (std::equal(edge->begin(), edge->end(), assigns.begin())) {
+            target = edge->getTarget();
+            return ::testing::AssertionSuccess();
+        }
+    }
+
+    std::string str;
+    llvm::raw_string_ostream rso{str};
+    rso << "Expected edge from " << source->getId() << " with guard " << *condition
+    << " and assignment list ";
+    //join_print(rso, assigns.begin(), assigns.end(), ",");
+
+    rso.flush();
+
+    target = nullptr;
+    return ::testing::AssertionFailure() << rso.str();
 }
 
 class ModuleToAutomataTest : public ::testing::Test
@@ -82,6 +116,49 @@ public:
         return translateModuleToAutomata(*module, loopInfoMap, context, *this->memoryModel, vmap, blocks);
     }
 };
+
+TEST_F(ModuleToAutomataTest, CanCreateAutomataFromSimpleFunction)
+{
+    auto system = createSystemFromModule(R"ASM(
+define i32 @calculate(i32 %x, i32 %y) {
+    %sum = add nsw i32 %x, %y
+    ret i32 %sum
+}
+)ASM");
+
+    ASSERT_EQ(system->getNumAutomata(), 1);
+
+    Cfa* calculate = system->getAutomatonByName("calculate");
+    ASSERT_TRUE(calculate != nullptr);
+
+    EXPECT_EQ(calculate->getNumInputs(), 2); // x, y
+    EXPECT_EQ(calculate->getNumLocals(), 2); // sum, RET_VAL
+    EXPECT_EQ(calculate->getNumOutputs(), 1); // RET_VAL
+
+    EXPECT_EQ(calculate->getNumLocations(), 4);
+    ASSERT_EQ(calculate->getEntry()->getNumOutgoing(), 1);
+
+    Location *first, *second;
+    EXPECT_TRUE(HasAssignEdgeTo(calculate->getEntry(), first));
+
+    Variable* x = calculate->findInputByName("x");
+    Variable* y = calculate->findInputByName("y");
+    Variable* s = calculate->findLocalByName("sum");
+
+    EXPECT_TRUE(HasAssignEdgeTo(
+        first, second,
+        BoolLiteralExpr::False(context),
+        {
+            VariableAssignment{ s, AddExpr::Create(x->getRefExpr(), y->getRefExpr()) }
+        }
+    ));
+    EXPECT_TRUE(HasAssignEdgeTo(
+        first, second,
+        BoolLiteralExpr::True(context),
+        {
+        }
+    ));
+}
 
 TEST_F(ModuleToAutomataTest, CanCreateAllAutomata)
 {

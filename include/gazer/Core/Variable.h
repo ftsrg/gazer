@@ -70,6 +70,12 @@ public:
         assert(variable->getType() == value->getType());
     }
 
+    bool operator==(const VariableAssignment& other) const {
+        return mVariable == other.mVariable && mValue == other.mValue;
+    }
+
+    bool operator!=(const VariableAssignment& other) const { return !operator==(other); }
+
     Variable* getVariable() const { return mVariable; }
     ExprPtr getValue() const { return mValue; }
 

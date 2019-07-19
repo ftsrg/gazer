@@ -11,6 +11,10 @@
 #include <llvm/Support/Debug.h>
 #include <llvm/ADT/DepthFirstIterator.h>
 
+#include <boost/dynamic_bitset.hpp>
+
+#include <sstream>
+
 #define DEBUG_TYPE "BoundedModelChecker"
 
 namespace gazer
@@ -277,7 +281,9 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
             // start location.
             // TODO: We should also delete locations which have no reachable call descendants.
             Location* lca = this->findCommonCallAncestor();
-            //llvm::errs() << "Common call ancestor is " << lca->getId() << " on topo position " << mLocNumbers[lca] << "\n";
+            llvm::errs() << "Common call ancestor is " << lca->getId() << " on topo position " << mLocNumbers[lca] << "\n";
+
+            this->clearLocationsWithoutCallDescendants(mError);
             //Location* lca = start;
 
             this->push();
@@ -537,6 +543,96 @@ Location* BoundedModelCheckerImpl::findCommonCallAncestor()
     return *std::max_element(candidates.begin(), candidates.end(),  [this](Location* a, Location* b) {
         return mLocNumbers[a] < mLocNumbers[b];
     });
+}
+
+void BoundedModelCheckerImpl::clearLocationsWithoutCallDescendants(Location* target)
+{
+    size_t targetIdx = mLocNumbers[target];
+    size_t siz = targetIdx + 1;
+
+    // We are doing two passes: one forward and one backward.
+    boost::dynamic_bitset<> fwd(siz);
+    boost::dynamic_bitset<> bwd(siz);
+
+    for (size_t i = 0; i < fwd.size(); ++i) {
+        Location* loc = mTopo[i];
+
+        for (Transition* edge : loc->incoming()) {
+            auto predIt = mLocNumbers.find(edge->getSource());
+            assert(predIt != mLocNumbers.end()
+                && "All locations must be present in the location map");
+
+            size_t predIdx = predIt->second;
+            assert(predIdx < i
+                && "Predecessors must be before block in a topological sort. "
+                "Maybe there is a loop in the automaton?");
+
+            fwd[i] = fwd[predIdx] || edge->isCall();
+        }
+    }
+
+    llvm::errs() << "Doing backward " << bwd.size() << "\n";
+
+    for (size_t i = bwd.size(); i-- > 0;) {
+        Location* loc = mTopo[i];
+
+        llvm::errs() << "[" << i << "] " << loc->getId() << "\n";
+        for (Transition* edge : loc->outgoing()) {
+            auto descIt = mLocNumbers.find(edge->getTarget());
+            assert(descIt != mLocNumbers.end()
+                && "All locations must be present in the location map");
+
+            size_t descIdx = descIt->second;
+            assert(descIdx > i
+                && "Descendants must be after block in a topological sort. "
+                "Maybe there is a loop in the automaton?");
+
+            if (descIdx > targetIdx) {
+                // We are skipping the descendants which are outside the region we are interested in.
+                continue;
+            }
+
+            bwd[i] = bwd[descIdx] || edge->isCall();
+        }
+    }
+
+    std::stringstream ss;
+    ss << fwd << "\n" << bwd << "\n";
+    for (size_t i = 0; i < mTopo.size(); ++i) {
+        ss << mTopo[i]->getId() << ", ";
+    }
+    ss << "\n";
+
+    llvm::DenseSet<Location*> toRemove;
+    for (size_t i = 0; i < siz; ++i) {
+        Location* loc = mTopo[i];
+        if (!fwd[i] && !bwd[i]) {
+            llvm::errs() << "I is " << i << " removing " << loc->getId() << "\n";
+            toRemove.insert(loc);
+        }
+    }
+
+    llvm::errs() << mTopo.size() << ": ";
+    mTopo.erase(std::remove_if(mTopo.begin(), mTopo.end(), [&toRemove](Location* l) {
+        return toRemove.count(l) != 0;
+    }), mTopo.end());
+    llvm::errs() << mTopo.size() << "\n";
+
+    mLocNumbers.clear();
+    for (size_t i = 0; i < mTopo.size(); ++i) {
+        mLocNumbers[mTopo[i]] = i;
+    }
+
+    for (size_t i = 0; i < mTopo.size(); ++i) {
+        ss << mTopo[i]->getId() << ", ";
+    }
+    ss << "\n";
+
+    llvm::errs() << ss.str();
+    for (Location* loc : toRemove) {
+        mRoot->disconnectLocation(loc);
+    }
+    mRoot->clearDisconnectedElements();
 }
 
 void BoundedModelCheckerImpl::inlineCallIntoRoot(

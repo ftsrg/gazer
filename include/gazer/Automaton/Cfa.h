@@ -143,6 +143,8 @@ public:
     iterator begin() const { return mAssignments.begin(); }
     iterator end() const { return mAssignments.end(); }
 
+    size_t getNumAssignments() const { return mAssignments.size(); }
+
     static bool classof(const Transition* edge) {
         return edge->getKind() == Edge_Assign;
     }
