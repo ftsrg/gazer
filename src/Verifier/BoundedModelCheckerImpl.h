@@ -54,6 +54,10 @@ private:
     /// Calculates a the path condition expression between \p source and \p target.
     ExprPtr forwardReachableCondition(Location* source, Location* target);
 
+    /// Removes all locations starting from \p source which do not have a path to \p target that contains a call.
+    /// If source == target, this method will do nothing.
+    void clearLocationsWithoutCallDescendants(Location* target);
+
     Location* findCommonCallAncestor();
 
     void push() {
