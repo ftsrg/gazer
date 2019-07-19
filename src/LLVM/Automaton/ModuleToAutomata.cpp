@@ -880,15 +880,12 @@ ExprPtr BlocksToCfa::visitCastInst(llvm::CastInst& cast)
     //    return mMemoryModel.handlePointerCast(cast, castOp);
     //}
 
-    llvm::errs() << cast << "\n";
-    
     if (cast.getType()->isFloatingPointTy()) {
         auto& fltTy = *llvm::dyn_cast<FloatType>(&mGenCtx.TheMemoryModel.translateType(cast.getType()));
 
         switch (cast.getOpcode()) {
             case Instruction::FPExt:
             case Instruction::FPTrunc:
-                llvm::errs() << castOp->getType() << " " << *castOp << "\n";
                 return mExprBuilder.FCast(castOp, fltTy, llvm::APFloat::rmNearestTiesToEven);
             case Instruction::SIToFP:
                 return mExprBuilder.SignedToFp(castOp, fltTy, llvm::APFloat::rmNearestTiesToEven);
