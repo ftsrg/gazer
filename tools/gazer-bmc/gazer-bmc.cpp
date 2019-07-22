@@ -73,6 +73,7 @@ int main(int argc, char* argv[])
     GazerContext context;
     auto pm = std::make_unique<llvm::legacy::PassManager>();
 
+    // Do the requested inlining early on.
     if (InlineFunctions) {
         // Mark all functions but the main as 'always inline'
         for (auto &func : module->functions()) {
@@ -92,34 +93,48 @@ int main(int argc, char* argv[])
         pm->add(llvm::createAlwaysInlinerLegacyPass());
 
         if (InlineGlobals) {
-            // If -inline-globals is also requested...
             pm->add(createInlineGlobalVariablesPass());
         }
         pm->add(llvm::createGlobalDCEPass());
     }
-
-    pm->add(gazer::createInsertLastAddressPass());
-
     pm->add(llvm::createPromoteMemoryToRegisterPass());
     pm->add(llvm::createInstructionNamerPass());
-
-    if (Optimize) {
-        pm->add(llvm::createLoopRotatePass());
-        pm->add(llvm::createIndVarSimplifyPass());
-        pm->add(llvm::createLICMPass());
-        pm->add(llvm::createInstructionCombiningPass(true));
-        pm->add(llvm::createReassociatePass());
-        pm->add(llvm::createConstantPropagationPass());
-        pm->add(llvm::createDeadCodeEliminationPass());
-        pm->add(llvm::createCFGSimplificationPass());
-        pm->add(llvm::createStructurizeCFGPass());
-    }
 
     // Perform error instrumentation
     auto& checks = CheckRegistry::GetInstance();
     checks.add(checks::CreateAssertionFailCheck());
     checks.add(checks::CreateDivisionByZeroCheck());
     checks.registerPasses(*pm);
+
+    // Some reduction transformations before we begin
+
+    //pm->add(llvm::createEarlyCSEPass());
+    //pm->add(llvm::createGVNHoistPass());
+    //pm->add(llvm::createGVNSinkPass());
+    pm->add(llvm::createCFGSimplificationPass());
+    pm->add(llvm::createReassociatePass());
+
+    //pm->add(llvm::createLoopSimplifyPass());
+    //pm->add(llvm::createLoopRotatePass());
+    //pm->add(llvm::createLICMPass());
+    //pm->add(llvm::createCFGSimplificationPass());
+    //pm->add(llvm::createInstructionCombiningPass());
+
+    //pm->add(llvm::createIndVarSimplifyPass());
+    // TODO: Loop idiom pass here?
+    //pm->add(llvm::createLoopDeletionPass());
+
+    //pm->add(llvm::createNewGVNPass());
+
+    //pm->add(llvm::createSCCPPass());
+    //pm->add(llvm::createBitTrackingDCEPass());
+    pm->add(llvm::createInstructionCombiningPass(true));
+
+    //pm->add(llvm::createDeadStoreEliminationPass());
+    //pm->add(llvm::createLowerSwitchPass());
+    pm->add(llvm::createAggressiveDCEPass());
+    pm->add(llvm::createCFGSimplificationPass());
+    pm->add(llvm::createStructurizeCFGPass());
 
     // Perform memory object analysis
     pm->add(new BasicAAWrapperPass());
@@ -134,7 +149,7 @@ int main(int argc, char* argv[])
         pm->add(llvm::createLoopRotatePass());
         //pm->add(llvm::createIndVarSimplifyPass());
         pm->add(llvm::createLoopSimplifyPass());
-        
+
         pm->add(new llvm::DominatorTreeWrapperPass());
         pm->add(new llvm::LoopInfoWrapperPass());
         pm->add(new llvm::ScalarEvolutionWrapperPass());

@@ -406,95 +406,7 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
                 BasicBlock* succ = br->getSuccessor(succIdx);
                 ExprPtr succCondition = succIdx == 0 ? condition : mExprBuilder.Not(condition);
 
-                if (succ == entryBlock) {
-                    // If the target is the loop header (entry block), create a call to this same automaton.
-                    auto loc = mCfa->createLocation();
-
-                    mCfa->createAssignTransition(exit, loc, succCondition);
-
-                    // Add possible calls arguments.
-                    // Due to the SSA-formed LLVM IR, regular inputs are not modified by loop iterations.
-                    // For PHI inputs, we need to determine which parent block to use for expression translation.
-                    ExprVector loopArgs(mCfa->getNumInputs());
-                    for (auto entry : mGenInfo.PhiInputs) {
-                        auto incoming = llvm::cast<PHINode>(entry.first)->getIncomingValueForBlock(bb);
-                        size_t idx = mCfa->getInputNumber(entry.second);
-
-                        loopArgs[idx] = operand(incoming);
-                    }
-
-                    for (auto entry : mGenInfo.Inputs) {
-                        size_t idx = mCfa->getInputNumber(entry.second);
-                        loopArgs[idx] = entry.second->getRefExpr();
-                    }
-
-                    Variable* exitSelector = nullptr;
-                    std::vector<VariableAssignment> outputArgs;                    
-                    this->insertOutputAssignments(mGenInfo, outputArgs);
-
-                    if (mGenInfo.ExitVariable != nullptr) {
-                        outputArgs.emplace_back(mGenInfo.ExitVariable, mGenInfo.ExitVariable->getRefExpr());
-                    }
-
-                    mCfa->createCallTransition(loc, mCfa->getExit(), mCfa, loopArgs, outputArgs);
-                } else if (std::find(mBlocks.begin(), mBlocks.end(), succ) != mBlocks.end()) {
-                    // Else if the target is is inside the block region, just create a simple edge.
-                    Location* to = mGenInfo.Blocks[succ].first;
-
-                    std::vector<VariableAssignment> phiAssignments;
-                    insertPhiAssignments(bb, succ, phiAssignments);
-
-                    mCfa->createAssignTransition(exit, to, succCondition, phiAssignments);
-                } else if (auto loop = mGenCtx.LoopInfo->getLoopFor(succ)) {
-                    // If this is a nested loop, create a call to the corresponding automaton.
-                    CfaGenInfo& nestedLoopInfo = mGenCtx.LoopMap[loop];
-                    auto nestedCfa = nestedLoopInfo.Automaton;
-
-                    ExprVector loopArgs(nestedCfa->getNumInputs());
-                    for (auto entry : nestedLoopInfo.PhiInputs) {
-                        auto incoming = llvm::cast<PHINode>(entry.first)->getIncomingValueForBlock(bb);
-                        size_t idx = nestedCfa->getInputNumber(entry.second);
-
-                        loopArgs[idx] = operand(incoming);
-                    }
-
-                    for (auto entry : nestedLoopInfo.Inputs) {
-                        // Whatever variable is used as an input, it should be present here as well in some form.
-                        Variable* variable = getVariable(entry.first);
-                        size_t idx = nestedCfa->getInputNumber(entry.second);
-
-                        loopArgs[idx] = variable->getRefExpr();
-                    }
-
-                    std::vector<VariableAssignment> outputArgs;
-                    this->insertOutputAssignments(nestedLoopInfo, outputArgs);
-
-                    Variable* exitSelector = nullptr;
-                    if (nestedLoopInfo.ExitVariable != nullptr) {
-                        exitSelector = mCfa->createLocal(
-                            Twine(ModuleToCfa::LoopOutputSelectorName).concat(Twine(mCounter++)).str(),
-                            BvType::Get(mGenCtx.System.getContext(), 8)
-                        );
-                        outputArgs.emplace_back(exitSelector, nestedLoopInfo.ExitVariable->getRefExpr());
-                    }
-
-                    auto loc = mCfa->createLocation();
-                    mCfa->createCallTransition(exit, loc, succCondition, nestedCfa, loopArgs, outputArgs);
-
-                    llvm::SmallVector<BasicBlock*, 4> exitBlocks;
-                    loop->getUniqueExitBlocks(exitBlocks);
-
-                    for (BasicBlock* exitBlock : exitBlocks) {
-                        auto result = mGenInfo.Blocks.find(exitBlock);
-                        if (result != mGenInfo.Blocks.end()) {
-                            mCfa->createAssignTransition(loc, result->second.first, getExitCondition(exitBlock, exitSelector, nestedLoopInfo));
-                        } else {
-                            this->createExitTransition(succ, exit, succCondition);
-                        }
-                    }
-                } else {
-                    this->createExitTransition(succ, exit, succCondition);
-                }
+                handleSuccessor(succ, succCondition, bb, entryBlock, exit);
             }
         } else if (auto ret = llvm::dyn_cast<ReturnInst>(terminator)) {
             if (ret->getReturnValue() == nullptr) {
@@ -540,6 +452,101 @@ ExprPtr BlocksToCfa::getExitCondition(llvm::BasicBlock* target, Variable* exitSe
     assert(exitVal != nullptr && "An exit block must be present in the exit blocks map!");
 
     return mExprBuilder.Eq(exitSelector->getRefExpr(), exitVal);
+}
+
+void BlocksToCfa::handleSuccessor(BasicBlock* succ, ExprPtr& succCondition, BasicBlock* parent,
+    BasicBlock* entryBlock, Location* exit)
+{
+    if (succ == entryBlock) {
+        // If the target is the loop header (entry block), create a call to this same automaton.
+        auto loc = mCfa->createLocation();
+
+        mCfa->createAssignTransition(exit, loc, succCondition);
+
+        // Add possible calls arguments.
+        // Due to the SSA-formed LLVM IR, regular inputs are not modified by loop iterations.
+        // For PHI inputs, we need to determine which parent block to use for expression translation.
+        ExprVector loopArgs(mCfa->getNumInputs());
+        for (auto entry : mGenInfo.PhiInputs) {
+            auto incoming = cast<PHINode>(entry.first)->getIncomingValueForBlock(parent);
+            size_t idx = mCfa->getInputNumber(entry.second);
+
+            loopArgs[idx] = operand(incoming);
+        }
+
+        for (auto entry : mGenInfo.Inputs) {
+            size_t idx = mCfa->getInputNumber(entry.second);
+            loopArgs[idx] = entry.second->getRefExpr();
+        }
+
+        Variable* exitSelector = nullptr;
+        std::vector<VariableAssignment> outputArgs;
+        insertOutputAssignments(mGenInfo, outputArgs);
+
+        if (mGenInfo.ExitVariable != nullptr) {
+            outputArgs.emplace_back(mGenInfo.ExitVariable, mGenInfo.ExitVariable->getRefExpr());
+        }
+
+        mCfa->createCallTransition(loc, mCfa->getExit(), mCfa, loopArgs, outputArgs);
+    } else if (std::find(mBlocks.begin(), mBlocks.end(), succ) != mBlocks.end()) {
+        // Else if the target is is inside the block region, just create a simple edge.
+        Location* to = mGenInfo.Blocks[succ].first;
+
+        std::vector<VariableAssignment> phiAssignments;
+        insertPhiAssignments(parent, succ, phiAssignments);
+
+        mCfa->createAssignTransition(exit, to, succCondition, phiAssignments);
+    } else if (auto loop = mGenCtx.LoopInfo->getLoopFor(succ)) {
+        // If this is a nested loop, create a call to the corresponding automaton.
+        CfaGenInfo& nestedLoopInfo = mGenCtx.LoopMap[loop];
+        auto nestedCfa = nestedLoopInfo.Automaton;
+
+        ExprVector loopArgs(nestedCfa->getNumInputs());
+        for (auto entry : nestedLoopInfo.PhiInputs) {
+            auto incoming = cast<PHINode>(entry.first)->getIncomingValueForBlock(parent);
+            size_t idx = nestedCfa->getInputNumber(entry.second);
+
+            loopArgs[idx] = operand(incoming);
+        }
+
+        for (auto entry : nestedLoopInfo.Inputs) {
+            // Whatever variable is used as an input, it should be present here as well in some form.
+            Variable* variable = getVariable(entry.first);
+            size_t idx = nestedCfa->getInputNumber(entry.second);
+
+            loopArgs[idx] = variable->getRefExpr();
+        }
+
+        std::vector<VariableAssignment> outputArgs;
+        insertOutputAssignments(nestedLoopInfo, outputArgs);
+
+        Variable* exitSelector = nullptr;
+        if (nestedLoopInfo.ExitVariable != nullptr) {
+            exitSelector = mCfa->createLocal(
+                Twine(ModuleToCfa::LoopOutputSelectorName).concat(Twine(mCounter++)).str(),
+                BvType::Get(mGenCtx.System.getContext(), 8)
+            );
+            outputArgs.emplace_back(exitSelector, nestedLoopInfo.ExitVariable->getRefExpr());
+        }
+
+        auto loc = mCfa->createLocation();
+        mCfa->createCallTransition(exit, loc, succCondition, nestedCfa, loopArgs, outputArgs);
+
+        SmallVector<BasicBlock*, 4> exitBlocks;
+        loop->getUniqueExitBlocks(exitBlocks);
+
+        for (BasicBlock* exitBlock : exitBlocks) {
+            auto result = mGenInfo.Blocks.find(exitBlock);
+            if (result != mGenInfo.Blocks.end()) {
+                mCfa->createAssignTransition(loc, result->second.first,
+                                             getExitCondition(exitBlock, exitSelector, nestedLoopInfo));
+            } else {
+                createExitTransition(succ, exit, succCondition);
+            }
+        }
+    } else {
+        createExitTransition(succ, exit, succCondition);
+    }
 }
 
 ExprPtr BlocksToCfa::transform(llvm::Instruction& inst)
@@ -1075,6 +1082,7 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
 
     DummyMemoryModel memoryModel(mContext);
 
+    llvm::outs() << "Translating module.\n";
     mSystem = translateModuleToAutomata(module, loops, mContext, memoryModel, mVariables, mBlocks);
 /*
     for (Cfa& cfa : *mSystem) {

@@ -23,9 +23,13 @@ namespace gazer
 llvm::cl::opt<unsigned> MaxBound("bound", llvm::cl::desc("Maximum iterations for the bounded model checker."), llvm::cl::init(1));
 llvm::cl::opt<unsigned> EagerUnroll("eager-unroll", llvm::cl::desc("Eager unrolling bound."), llvm::cl::init(0));
 
+llvm::cl::opt<bool> NoClearLocs("no-clear-locs", llvm::cl::desc("Do not clear unfeasable locations during verification. Use only for measuerments and debugging."));
+
 llvm::cl::opt<bool> VerifierDebug("debug-verif", llvm::cl::desc("Print verifier debug info"));
 llvm::cl::opt<bool> ViewCfa("view-cfa", llvm::cl::desc("View the generated CFA."));
 llvm::cl::opt<bool> DumpCfa("debug-dump-cfa", llvm::cl::desc("Dump the generated CFA after each inlining step."));
+
+llvm::cl::opt<bool> PrintSolverStats("print-solver-stats", llvm::cl::desc("Print solver statistics information."));
 
 llvm::cl::opt<bool> Trace("trace", llvm::cl::desc("Print counterexample traces to stdout."));
 
@@ -280,10 +284,10 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
             // which does not involve a call. Find the lowest common ancestor of all existing calls, and set is as the
             // start location.
             // TODO: We should also delete locations which have no reachable call descendants.
-            Location* lca = this->findCommonCallAncestor();
-            llvm::errs() << "Common call ancestor is " << lca->getId() << " on topo position " << mLocNumbers[lca] << "\n";
 
-            this->clearLocationsWithoutCallDescendants(mError);
+            Location* lca = this->findCommonCallAncestor();
+            //llvm::errs() << "Common call ancestor is " << lca->getId() << " on topo position " << mLocNumbers[lca] << "\n";
+
             //Location* lca = start;
 
             this->push();
@@ -513,7 +517,7 @@ Location* BoundedModelCheckerImpl::findCommonCallAncestor()
 
     size_t firstIdx = mLocNumbers[start->first->getSource()];
 
-    llvm::DenseSet<Location*> candidates;
+    std::set<Location*> candidates;
     candidates.insert(mTopo.begin(), std::next(mTopo.begin(), firstIdx));
 
     for (auto& entry : mCalls) {
@@ -545,9 +549,10 @@ Location* BoundedModelCheckerImpl::findCommonCallAncestor()
     });
 }
 
-void BoundedModelCheckerImpl::clearLocationsWithoutCallDescendants(Location* target)
+void BoundedModelCheckerImpl::clearLocationsWithoutCallDescendants(Location* lca, Location* target)
 {
     size_t targetIdx = mLocNumbers[target];
+    size_t lcaIdx = mLocNumbers[lca];
     size_t siz = targetIdx + 1;
 
     // We are doing two passes: one forward and one backward.
@@ -566,17 +571,16 @@ void BoundedModelCheckerImpl::clearLocationsWithoutCallDescendants(Location* tar
             assert(predIdx < i
                 && "Predecessors must be before block in a topological sort. "
                 "Maybe there is a loop in the automaton?");
-
-            fwd[i] = fwd[predIdx] || edge->isCall();
+            
+            llvm::errs() << "    " << i << " : " <<  fwd[i] << "  " << fwd[predIdx] << "  " << edge->isCall() << "\n";
+            fwd[i] = fwd[i] || fwd[predIdx] || edge->isCall();
         }
+        llvm::errs() << i << ":  " << loc->getId() << "  " << fwd[i] << "\n";
     }
 
-    llvm::errs() << "Doing backward " << bwd.size() << "\n";
-
-    for (size_t i = bwd.size(); i-- > 0;) {
+    for (size_t i = targetIdx; i-- > 0;) {
         Location* loc = mTopo[i];
-
-        llvm::errs() << "[" << i << "] " << loc->getId() << "\n";
+        
         for (Transition* edge : loc->outgoing()) {
             auto descIt = mLocNumbers.find(edge->getTarget());
             assert(descIt != mLocNumbers.end()
@@ -592,43 +596,44 @@ void BoundedModelCheckerImpl::clearLocationsWithoutCallDescendants(Location* tar
                 continue;
             }
 
-            bwd[i] = bwd[descIdx] || edge->isCall();
-        }
-    }
+            llvm::errs() << "    " << i << " : " <<  bwd[i] << "  " << bwd[descIdx] << "  " << edge->isCall() << "\n";
 
-    std::stringstream ss;
-    ss << fwd << "\n" << bwd << "\n";
-    for (size_t i = 0; i < mTopo.size(); ++i) {
-        ss << mTopo[i]->getId() << ", ";
+            bwd[i] = bwd[i] || bwd[descIdx] || edge->isCall();
+        }
+        llvm::errs() << i << ":  " << loc->getId() << "  " << bwd[i] << "\n";
     }
-    ss << "\n";
 
     llvm::DenseSet<Location*> toRemove;
     for (size_t i = 0; i < siz; ++i) {
         Location* loc = mTopo[i];
         if (!fwd[i] && !bwd[i]) {
-            llvm::errs() << "I is " << i << " removing " << loc->getId() << "\n";
             toRemove.insert(loc);
         }
     }
 
-    llvm::errs() << mTopo.size() << ": ";
+    std::stringstream ss;
+    ss << fwd << "\n";
+    ss << bwd << "\n";
+    std::for_each(mTopo.begin(), mTopo.end(), [&ss](auto l) {
+        ss << l->getId() << ", ";
+    });
+    ss << "\n";
+
+    llvm::errs() << ss.str();
+
+    if (toRemove.empty()) {
+        return;
+    }
+
     mTopo.erase(std::remove_if(mTopo.begin(), mTopo.end(), [&toRemove](Location* l) {
         return toRemove.count(l) != 0;
     }), mTopo.end());
-    llvm::errs() << mTopo.size() << "\n";
 
     mLocNumbers.clear();
     for (size_t i = 0; i < mTopo.size(); ++i) {
         mLocNumbers[mTopo[i]] = i;
     }
 
-    for (size_t i = 0; i < mTopo.size(); ++i) {
-        ss << mTopo[i]->getId() << ", ";
-    }
-    ss << "\n";
-
-    llvm::errs() << ss.str();
     for (Location* loc : toRemove) {
         mRoot->disconnectLocation(loc);
     }
