@@ -140,7 +140,11 @@ private:
 
     void insertOutputAssignments(CfaGenInfo& callee, std::vector<VariableAssignment>& outputArgs);
     void insertPhiAssignments(llvm::BasicBlock* source, llvm::BasicBlock* target, std::vector<VariableAssignment>& phiAssignments);
-    
+
+    void handleSuccessor(
+        llvm::BasicBlock* succ, ExprPtr& succCondition, llvm::BasicBlock* parent,
+        llvm::BasicBlock* entryBlock, Location* exit
+    );
     void createExitTransition(llvm::BasicBlock* target, Location* pred, ExprPtr succCondition);
     ExprPtr getExitCondition(llvm::BasicBlock* target, Variable* exitSelector, CfaGenInfo& nestedInfo);
 private:
