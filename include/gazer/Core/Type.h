@@ -159,6 +159,16 @@ public:
         Quad = 128
     };
 
+    static constexpr unsigned SignificandBitsInHalfTy   = 11;
+    static constexpr unsigned SignificandBitsInSingleTy = 24;
+    static constexpr unsigned SignificandBitsInDoubleTy = 53;
+    static constexpr unsigned SignificandBitsInQuadTy   = 113;
+
+    static constexpr unsigned ExpBitsInHalfTy   = 5;
+    static constexpr unsigned ExpBitsInSingleTy = 8;
+    static constexpr unsigned ExpBitsInDoubleTy = 11;
+    static constexpr unsigned ExpBitsInQuadTy   = 15;
+
 protected:
     FloatType(GazerContext& context, FloatPrecision precision)
         : Type(context, FloatTypeID), mPrecision(precision)
