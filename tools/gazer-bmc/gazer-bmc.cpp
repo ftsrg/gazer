@@ -41,7 +41,7 @@ namespace {
     cl::opt<unsigned> BmcUnwind("unwind", cl::desc("Unwind limit for BMC"), cl::init(0));
     cl::opt<bool> PrintCFA("print-cfa", cl::desc("Print the resulting CFA"));
     cl::opt<bool> SimplifyLoops("loop-simplify", cl::desc("Run loop transformation passes"));
-    cl::opt<bool> Optimize("optimize", cl::desc("Run optimization passes"));
+    cl::opt<bool> NoOptimize("no-optimize", cl::desc("Run optimization passes"));
     cl::opt<bool> InlineFunctions("inline", cl::desc("Inline function calls."));
     cl::opt<bool> InlineGlobals("inline-globals", cl::desc("Inline global variables"));
     cl::opt<bool> PrintPDG("print-pdg", cl::desc("Print the Program Dependence Graph (PDG)"));
@@ -73,6 +73,22 @@ int main(int argc, char* argv[])
     GazerContext context;
     auto pm = std::make_unique<llvm::legacy::PassManager>();
 
+    pm->add(llvm::createPromoteMemoryToRegisterPass());
+
+    // Perform error instrumentation
+    auto& checks = CheckRegistry::GetInstance();
+    checks.add(checks::CreateAssertionFailCheck());
+    checks.add(checks::CreateDivisionByZeroCheck());
+    checks.registerPasses(*pm);
+
+    if (!NoOptimize) {
+        pm->add(llvm::createIPSCCPPass());
+        pm->add(llvm::createGlobalOptimizerPass());
+        pm->add(llvm::createDeadArgEliminationPass());
+        pm->add(llvm::createInstructionCombiningPass(true));
+        pm->add(llvm::createCFGSimplificationPass());
+    }
+
     // Do the requested inlining early on.
     if (InlineFunctions) {
         // Mark all functions but the main as 'always inline'
@@ -97,44 +113,41 @@ int main(int argc, char* argv[])
         }
         pm->add(llvm::createGlobalDCEPass());
     }
+
     pm->add(llvm::createPromoteMemoryToRegisterPass());
-    pm->add(llvm::createInstructionNamerPass());
 
-    // Perform error instrumentation
-    auto& checks = CheckRegistry::GetInstance();
-    checks.add(checks::CreateAssertionFailCheck());
-    checks.add(checks::CreateDivisionByZeroCheck());
-    checks.registerPasses(*pm);
+    if (!NoOptimize) {
+        pm->add(llvm::createSROAPass());
+        pm->add(llvm::createEarlyCSEPass());
+        //pm->add(llvm::createLoopRotatePass());
+        //pm->add(llvm::createIndVarSimplifyPass());
+        //pm->add(llvm::createLoopSimplifyPass());
 
-    // Some reduction transformations before we begin
+        pm->add(llvm::createFloat2IntPass());
+        //pm->add(llvm::createGVNHoistPass());
+        //pm->add(llvm::createGVNSinkPass());
+        pm->add(llvm::createInstructionCombiningPass(true));
+        //pm->add(llvm::createCFGSimplificationPass());
 
-    //pm->add(llvm::createEarlyCSEPass());
-    //pm->add(llvm::createGVNHoistPass());
-    //pm->add(llvm::createGVNSinkPass());
+        pm->add(llvm::createReassociatePass());
+
+        // Loops
+        pm->add(llvm::createLoopSimplifyPass());
+        pm->add(llvm::createLoopRotatePass());
+        pm->add(llvm::createLICMPass());
+        pm->add(llvm::createCFGSimplificationPass());
+        pm->add(llvm::createInstructionCombiningPass(true));
+        pm->add(llvm::createIndVarSimplifyPass());
+         pm->add(llvm::createLoopDeletionPass());
+
+        pm->add(llvm::createNewGVNPass());
+        pm->add(llvm::createBitTrackingDCEPass());
+        pm->add(llvm::createInstructionCombiningPass(true));
+        pm->add(llvm::createAggressiveDCEPass());
+    }
+
     pm->add(llvm::createCFGSimplificationPass());
-    pm->add(llvm::createReassociatePass());
-
-    //pm->add(llvm::createLoopSimplifyPass());
-    //pm->add(llvm::createLoopRotatePass());
-    //pm->add(llvm::createLICMPass());
-    //pm->add(llvm::createCFGSimplificationPass());
-    //pm->add(llvm::createInstructionCombiningPass());
-
-    //pm->add(llvm::createIndVarSimplifyPass());
-    // TODO: Loop idiom pass here?
-    //pm->add(llvm::createLoopDeletionPass());
-
-    //pm->add(llvm::createNewGVNPass());
-
-    //pm->add(llvm::createSCCPPass());
-    //pm->add(llvm::createBitTrackingDCEPass());
-    pm->add(llvm::createInstructionCombiningPass(true));
-
-    //pm->add(llvm::createDeadStoreEliminationPass());
-    //pm->add(llvm::createLowerSwitchPass());
-    pm->add(llvm::createAggressiveDCEPass());
-    pm->add(llvm::createCFGSimplificationPass());
-    pm->add(llvm::createStructurizeCFGPass());
+    pm->add(llvm::createLoopSimplifyPass());
 
     // Perform memory object analysis
     pm->add(new BasicAAWrapperPass());
@@ -143,17 +156,11 @@ int main(int argc, char* argv[])
     //pm->add(new MemoryObjectPass());
 
     if (RunBmc) {
-        pm->add(llvm::createCFGSimplificationPass());
-        pm->add(llvm::createLowerSwitchPass());
-        pm->add(llvm::createLoopSimplifyPass());
-        pm->add(llvm::createLoopRotatePass());
-        //pm->add(llvm::createIndVarSimplifyPass());
-        pm->add(llvm::createLoopSimplifyPass());
 
-        pm->add(new llvm::DominatorTreeWrapperPass());
-        pm->add(new llvm::LoopInfoWrapperPass());
-        pm->add(new llvm::ScalarEvolutionWrapperPass());
-        pm->add(new llvm::AssumptionCacheTracker());
+        // pm->add(new llvm::DominatorTreeWrapperPass());
+        // pm->add(new llvm::LoopInfoWrapperPass());
+        // pm->add(new llvm::ScalarEvolutionWrapperPass());
+        // pm->add(new llvm::AssumptionCacheTracker());
         
         //pm->add(new gazer::BoundedUnwindPass(bound));
         pm->add(llvm::createInstructionNamerPass());
@@ -180,7 +187,7 @@ int main(int argc, char* argv[])
         // TODO: CFG Simplifcation seems to introduce some semantic changes, breaking verification.
         //pm->add(llvm::createCFGSimplificationPass());
         pm->add(createCombineErrorCallsPass());
-        pm->add(createTopologicalSortPass());
+        //pm->add(createTopologicalSortPass());
 
         if (ShowUnrolledCFG) {
             pm->add(llvm::createCFGPrinterLegacyPassPass());

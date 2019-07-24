@@ -289,17 +289,25 @@ public:
         return llvm::make_range(mNestedAutomata.begin(), mNestedAutomata.end());
     }
 
+    // Variable iterators
     using var_iterator = boost::indirect_iterator<std::vector<Variable*>::iterator>;
+
+    var_iterator input_begin() { return mInputs.begin(); }
+    var_iterator input_end() { return mInputs.end(); }
     llvm::iterator_range<var_iterator> inputs() {
-        return llvm::make_range(mInputs.begin(), mInputs.end());
+        return llvm::make_range(input_begin(), input_end());
     }
 
+    var_iterator output_begin() { return mOutputs.begin(); }
+    var_iterator output_end() { return mOutputs.end(); }
     llvm::iterator_range<var_iterator> outputs() {
-        return llvm::make_range(mOutputs.begin(), mOutputs.end());
+        return llvm::make_range(output_begin(), output_end());
     }
 
+    var_iterator local_begin() { return mLocals.begin(); }
+    var_iterator local_end() { return mLocals.end(); }
     llvm::iterator_range<var_iterator> locals() {
-        return llvm::make_range(mLocals.begin(), mLocals.end());
+        return llvm::make_range(local_begin(), local_end());
     }
 
     //------------------------------- Others --------------------------------//
@@ -336,12 +344,21 @@ public:
     /// system's default GraphViz viewer.
     void view() const;
 
+    //------------------------------ Deletion -------------------------------//
     void removeUnreachableLocations();
 
     void disconnectLocation(Location* location);
     void disconnectEdge(Transition* edge);
 
     void clearDisconnectedElements();
+
+    template<class Predicate>
+    void removeLocalsIf(Predicate p) {
+        mLocals.erase(
+            std::remove_if(mLocals.begin(), mLocals.end(), p),
+            mLocals.end()
+        );
+    }
 
 private:
     Variable* createMemberVariable(llvm::Twine name, Type& type);

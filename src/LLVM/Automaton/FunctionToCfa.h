@@ -16,14 +16,38 @@ namespace gazer
 
 using ValueToVariableMap = llvm::DenseMap<llvm::Value*, Variable*>;
 
+class CfaVariableInfo
+{
+public:
+    enum VariableKind {
+        Input, PhiInput, Local
+    };
+
+    CfaVariableInfo(VariableKind kind, Variable* variable)
+        : mKind(kind), mVariable(variable)
+    {}
+
+    VariableKind getKind() const { return mKind; }
+    Variable* getVariable() const { return mVariable; }
+
+private:
+    VariableKind mKind;
+    Variable* mVariable = nullptr;
+    llvm::Value* mLlvmValue = nullptr;
+};
+
 /// Stores information about loops which were transformed to automata.
 struct CfaGenInfo
 {
     llvm::SmallDenseMap<llvm::Value*, Variable*, 4> Inputs;
     llvm::SmallDenseMap<llvm::Value*, Variable*, 4> Outputs;
     llvm::SmallDenseMap<llvm::Value*, Variable*, 4> PhiInputs;
+    llvm::SmallDenseMap<llvm::Value*, VariableAssignment, 4> LoopOutputs;
+
     llvm::DenseMap<llvm::Value*, Variable*> Locals;
     llvm::DenseMap<llvm::BasicBlock*, std::pair<Location*, Location*>> Blocks;
+
+    llvm::DenseMap<llvm::Value*, CfaVariableInfo> Variables;
 
     Cfa* Automaton;
 
@@ -36,6 +60,48 @@ struct CfaGenInfo
 
     CfaGenInfo(const CfaGenInfo&) = delete;
     CfaGenInfo& operator=(const CfaGenInfo&) = delete;
+
+    void addInput(llvm::Value* value, Variable* variable) {
+        Inputs[value] = variable;
+        //return addVariable(value, variable, CfaVariableInfo::Input);
+    }
+    void addPhiInput(llvm::Value* value, Variable* variable) {
+        PhiInputs[value] = variable;
+        //return addVariable(value, variable, CfaVariableInfo::PhiInput);
+    }
+    void addLocal(llvm::Value* value, Variable* variable) {
+        Locals[value] = variable;
+        //return addVariable(value, variable, CfaVariableInfo::Local);
+    }
+
+    Variable* findVariable(const llvm::Value* value) {
+        Variable* result = Inputs.lookup(value);
+        if (result != nullptr) { return result; }
+
+        result = PhiInputs.lookup(value);
+        if (result != nullptr) { return result; }
+
+        result = Locals.lookup(value);
+        if (result != nullptr) { return result; }
+
+        return nullptr;
+    }
+
+    Variable* findLocal(const llvm::Value* value) {
+        return Locals.lookup(value);   
+    }
+
+    bool hasInput(const llvm::Value* value) {
+        return Inputs.count(value) != 0;
+    }
+    bool hasLocal(const llvm::Value* value) {
+        return Locals.count(value) != 0;
+    }
+
+private:
+    CfaVariableInfo& addVariable(llvm::Value* value, Variable* variable, CfaVariableInfo::VariableKind kind) {
+        return (Variables.try_emplace(value, kind, variable).first)->second;
+    }
 };
 
 /// Helper structure for CFA generation information.
@@ -129,6 +195,9 @@ public:
 private:
     GazerContext& getContext() const { return mGenCtx.System.getContext(); }
 private:
+
+    bool tryToEliminate(llvm::Instruction& inst, ExprPtr expr);
+
     ExprPtr integerCast(llvm::CastInst& cast, ExprPtr operand, unsigned int width);
     ExprPtr operand(const llvm::Value* value);
 
@@ -154,7 +223,8 @@ private:
     Cfa* mCfa;
     ExprBuilder& mExprBuilder;
     unsigned mCounter = 0;
-    llvm::DenseMap<llvm::Value*, ExprPtr> mEliminatedVars;
+    llvm::DenseMap<llvm::Value*, ExprPtr> mInlinedVars;
+    llvm::DenseSet<Variable*> mEliminatedVarsSet;
 };
 
 } // end namespace gazer

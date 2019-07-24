@@ -18,7 +18,11 @@
 using namespace gazer;
 
 namespace gazer {
-    extern llvm::cl::opt<bool> NoElimVars;
+    enum ElimVarsLevels {
+        Off, Normal, Aggressive
+    };
+
+    extern llvm::cl::opt<ElimVarsLevels> ElimVarsLevel;
 }
 
 namespace
@@ -70,6 +74,15 @@ namespace
 
     target = nullptr;
     return ::testing::AssertionFailure() << rso.str();
+}
+
+void checkAutomataEquals(Cfa* reference, Cfa* actual)
+{
+    ASSERT_EQ(actual->getNumInputs(), reference->getNumInputs());
+    ASSERT_EQ(actual->getNumLocals(), reference->getNumLocals());
+    ASSERT_EQ(actual->getNumOutputs(), reference->getNumOutputs());
+
+
 }
 
 class ModuleToAutomataTest : public ::testing::Test
@@ -317,7 +330,7 @@ error:
 TEST_F(ModuleToAutomataTest, CanTransformLoopWithNestedLoop)
 {
     // Turn off variable elimination
-    NoElimVars.setValue(true);
+    ElimVarsLevel.setValue(ElimVarsLevels::Off);
 
     auto system = createSystemFromModule(R"ASM(
 declare i32 @__VERIFIER_nondet_int()

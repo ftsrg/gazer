@@ -3,6 +3,7 @@
 #include "gazer/Core/Expr/ExprBuilder.h"
 #include "gazer/ADT/StringUtils.h"
 #include "gazer/LLVM/Instrumentation/Check.h"
+#include "gazer/Core/Expr/ExprUtils.h"
 
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Instructions.h>
@@ -22,8 +23,18 @@ using namespace gazer;
 using namespace llvm;
 
 namespace gazer {
-    cl::opt<bool> NoElimVars("no-elim-vars",
-        cl::desc("Do not eliminate temporary variables"));
+    enum ElimVarsLevels {
+        Off, Normal, Aggressive
+    };
+
+    cl::opt<ElimVarsLevels> ElimVarsLevel ("elim-vars", cl::desc("Level for variable elimination:"),
+        cl::values(
+            clEnumVal(Off, "Do not eliminate variables"),
+            clEnumVal(Normal, "Eliminate variables with only one use"),
+            clEnumVal(Aggressive, "Eliminate all eligible variables")
+        ),
+        cl::init(ElimVarsLevels::Normal)
+    );
 }
 
 static bool isDefinedInCaller(llvm::Value* value, llvm::ArrayRef<llvm::BasicBlock*> blocks)
@@ -140,18 +151,18 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
                     if (inst.getOpcode() == Instruction::PHI && bb == loop->getHeader()) {
                         // PHI nodes of the entry block should also be inputs.
                         variable = nested->createInput(inst.getName(), mMemoryModel.translateType(inst.getType()));
-                        loopGenInfo.PhiInputs[&inst] = variable;
+                        loopGenInfo.addPhiInput(&inst, variable);
                         variables[&inst] = variable;
                     } else {
                         // Add operands which were defined in the caller as inputs
                         for (auto oi = inst.op_begin(), oe = inst.op_end(); oi != oe; ++oi) {
                             llvm::Value* value = *oi;
-                            if (isDefinedInCaller(value, loopBlocks) && loopGenInfo.Inputs.count(value) == 0) {
+                            if (isDefinedInCaller(value, loopBlocks) && !loopGenInfo.hasInput(value)) {
                                 auto argVariable = nested->createInput(
                                     value->getName(),
                                     mMemoryModel.translateType(value->getType())
                                 );
-                                loopGenInfo.Inputs[value] = argVariable;
+                                loopGenInfo.addInput(value, argVariable);
 
                                 LLVM_DEBUG(llvm::dbgs() << "  Added input variable " << *argVariable << "\n");
                             }
@@ -166,7 +177,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
                         // a subloop rather than this loop.
                         if (visitedBlocks.count(bb) == 0 || hasUsesInBlockRange(&inst, loopOnlyBlocks)) {
                             variable = nested->createLocal(inst.getName(), mMemoryModel.translateType(inst.getType()));
-                            loopGenInfo.Locals[&inst] = variable;
+                            loopGenInfo.addLocal(&inst, variable);
                             variables[&inst] = variable;
 
                             LLVM_DEBUG(llvm::dbgs() << "  Added local variable " << *variable << "\n");
@@ -176,13 +187,15 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
                         }
                     }
 
-
                     for (auto user : inst.users()) {
                         if (auto i = llvm::dyn_cast<Instruction>(user)) {
-                            if (std::find(loopBlocks.begin(), loopBlocks.end(), i->getParent()) ==
-                                loopBlocks.end()) {
-                                nested->addOutput(variable);
-                                loopGenInfo.Outputs[&inst] = variable;
+                            if (std::find(loopBlocks.begin(), loopBlocks.end(), i->getParent()) == loopBlocks.end()) {
+                                std::string name = Twine(variable->getName(), "_out").str();
+                                auto copyOfVar = nested->createLocal(name, variable->getType());
+
+                                nested->addOutput(copyOfVar);
+                                loopGenInfo.Outputs[&inst] = copyOfVar;
+                                loopGenInfo.LoopOutputs.try_emplace(&inst, copyOfVar, variable->getRefExpr());
 
                                 LLVM_DEBUG(llvm::dbgs() << "  Added output variable " << *variable << "\n");
                                 break;
@@ -238,7 +251,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
         // Add function input and output parameters
         for (llvm::Argument& argument : function.args()) {
             Variable* variable = cfa->createInput(argument.getName(), mMemoryModel.translateType(argument.getType()));
-            genInfo.Inputs[&argument] = variable;
+            genInfo.addInput(&argument, variable);
             variables[&argument] = variable;
         }
 
@@ -267,7 +280,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
                 // FIXME: This requires the instnamer pass as a dependency, we should find another way around this.
                 if (inst.getName() != "") {
                     Variable* variable = cfa->createLocal(inst.getName(), mMemoryModel.translateType(inst.getType()));
-                    genInfo.Locals[&inst] = variable;
+                    genInfo.addLocal(&inst, variable);
                     variables[&inst] = variable;
                 }
             }
@@ -384,13 +397,10 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
             Variable* variable = getVariable(&inst);
             ExprPtr expr = this->transform(inst);
 
-            if (!NoElimVars
-                && inst.getOpcode() != Instruction::Call
-                && getNumUsesInBlockRange(&inst, mBlocks) == 1
-            ) {
-                mEliminatedVars[&*it] = expr;
-            } else {
+            if (!tryToEliminate(inst, expr)) {
                 assignments.emplace_back(variable, expr);
+            } else {
+                mEliminatedVarsSet.insert(variable);
             }
         }
 
@@ -408,6 +418,24 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
 
                 handleSuccessor(succ, succCondition, bb, entryBlock, exit);
             }
+        } else if (auto swi = llvm::dyn_cast<SwitchInst>(terminator)) {
+            ExprPtr condition = operand(swi->getCondition());
+
+            ExprPtr prevConds = mExprBuilder.True();
+            for (auto ci = swi->case_begin(); ci != swi->case_end(); ++ci) {
+                ExprPtr val = operand(ci->getCaseValue());
+                BasicBlock* succ = ci->getCaseSuccessor();
+
+                ExprPtr succCondition = mExprBuilder.And(
+                    prevConds,
+                    mExprBuilder.Eq(condition, val)
+                );
+                prevConds = mExprBuilder.And(prevConds, mExprBuilder.NotEq(condition, val));
+
+                handleSuccessor(succ, succCondition, bb, entryBlock, exit);
+            }
+
+            handleSuccessor(swi->getDefaultDest(), prevConds, bb, entryBlock, exit);
         } else if (auto ret = llvm::dyn_cast<ReturnInst>(terminator)) {
             if (ret->getReturnValue() == nullptr) {
                 mCfa->createAssignTransition(exit, mCfa->getExit(), mExprBuilder.True());
@@ -424,6 +452,39 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
             llvm_unreachable("Unknown terminator instruction.");
         }
     }
+
+    // Do a clean-up, remove eliminated variables from the CFA.
+    mCfa->removeLocalsIf([this](Variable* v) {
+        return mEliminatedVarsSet.count(v) != 0;
+    });
+}
+
+bool BlocksToCfa::tryToEliminate(Instruction& inst, ExprPtr expr)
+{
+    if (ElimVarsLevel == ElimVarsLevels::Off) {
+        return false;
+    }
+
+    // Never eliminate variables obtained from call instructions,
+    // as they might be needed to obtain a counterexample.
+    if (inst.getOpcode() == Instruction::Call) {
+        return false;
+    }
+
+    // We do not want to inline expressions which have multiple uses and have already inlined operands on 'Normal' level.
+    if (
+        ElimVarsLevel != ElimVarsLevels::Aggressive &&
+        getNumUsesInBlockRange(&inst, mBlocks) > 1 &&
+        std::any_of(inst.op_begin(), inst.op_end(), [this](llvm::Use& op) {
+            llvm::Value* v = &*op;
+            return llvm::isa<Instruction>(v) && mInlinedVars.count(llvm::cast<Instruction>(v)) != 0;
+        })
+    ) {
+        return false;
+    }
+
+    mInlinedVars[&inst] = expr;
+    return true;
 }
 
 void BlocksToCfa::createExitTransition(BasicBlock* target, Location* pred, ExprPtr succCondition)
@@ -437,6 +498,12 @@ void BlocksToCfa::createExitTransition(BasicBlock* target, Location* pred, ExprP
         assert(exitVal != nullptr && "An exit block must be present in the exit blocks map!");
 
         exitAssigns.emplace_back(mGenInfo.ExitVariable, exitVal);
+    }
+
+    // Add the possible loop exit assignments
+    for (auto& entry : mGenInfo.LoopOutputs) {
+        VariableAssignment& assign = entry.second;
+        exitAssigns.push_back(assign);
     }
 
     mCfa->createAssignTransition(pred, mCfa->getExit(), succCondition, exitAssigns);
@@ -538,8 +605,10 @@ void BlocksToCfa::handleSuccessor(BasicBlock* succ, ExprPtr& succCondition, Basi
         for (BasicBlock* exitBlock : exitBlocks) {
             auto result = mGenInfo.Blocks.find(exitBlock);
             if (result != mGenInfo.Blocks.end()) {
-                mCfa->createAssignTransition(loc, result->second.first,
-                                             getExitCondition(exitBlock, exitSelector, nestedLoopInfo));
+                mCfa->createAssignTransition(
+                    loc, result->second.first,
+                    getExitCondition(exitBlock, exitSelector, nestedLoopInfo)
+                );
             } else {
                 createExitTransition(succ, exit, succCondition);
             }
@@ -572,6 +641,7 @@ ExprPtr BlocksToCfa::transform(llvm::Instruction& inst)
 
 #undef HANDLE_INST
 
+    llvm::errs() << inst << "\n";
     llvm_unreachable("Unsupported instruction kind");
 }
 
@@ -588,17 +658,10 @@ void BlocksToCfa::insertOutputAssignments(CfaGenInfo& callee, std::vector<Variab
         );
 
         // It is either a local or input in parent.
-        auto result = mGenInfo.Locals.find(value);
-        if (result == mGenInfo.Locals.end()) {
-            result = mGenInfo.Inputs.find(value);
-            if (result == mGenInfo.Inputs.end()) {
-                result = mGenInfo.PhiInputs.find(value);
-                assert(result != mGenInfo.PhiInputs.end()
-                       && "Nested output variable should be present in parent as an input or local!");
-            }
-        }
+        auto result = mGenInfo.findVariable(value);
+        assert(result != nullptr && "Nested output variable should be present in parent as an input or local!");
 
-        Variable* parentVar = result->second;
+        Variable* parentVar = result;
         outputArgs.emplace_back(parentVar, nestedOutputVar->getRefExpr());
     }
 }
@@ -963,8 +1026,8 @@ ExprPtr BlocksToCfa::operand(const Value* value)
     } /*else if (const llvm::ConstantPointerNull* ptr = dyn_cast<llvm::ConstantPointerNull>(value)) {
         return mMemoryModel.getNullPointer();
     } */ else if (isNonConstValue(value)) {
-        auto result = mEliminatedVars.find(value);
-        if (result != mEliminatedVars.end()) {
+        auto result = mInlinedVars.find(value);
+        if (result != mInlinedVars.end()) {
             return result->second;
         }
 
@@ -981,27 +1044,10 @@ Variable* BlocksToCfa::getVariable(const Value* value)
 {
     LLVM_DEBUG(llvm::dbgs() << "Getting variable for value " << *value << "\n");
 
-    auto result = mGenInfo.Inputs.find(value);
-    if (result != mGenInfo.Inputs.end()) {
-        return result->second;
-    }
+    auto result = mGenInfo.findVariable(value);
+    assert(result != nullptr && "Variables should be present in one of the variable maps!");
 
-    result = mGenInfo.PhiInputs.find(value);
-    if (result != mGenInfo.PhiInputs.end()) {
-        return result->second;
-    }
-
-    result = mGenInfo.Outputs.find(value);
-    if (result != mGenInfo.Outputs.end()) {
-        return result->second;
-    }
-
-    result = mGenInfo.Locals.find(value);
-    if (result != mGenInfo.Locals.end()) {
-        return result->second;
-    }
-
-    llvm_unreachable("Variables should be present in one of the variable maps!");
+    return result;
 }
 
 ExprPtr BlocksToCfa::asBool(ExprPtr operand)

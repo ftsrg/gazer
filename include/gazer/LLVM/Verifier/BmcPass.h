@@ -21,7 +21,7 @@ public:
     bool runOnModule(llvm::Module& module) override;
 
     llvm::StringRef getPassName() const override {
-        return "Bounded model cheking";
+        return "Bounded model checking";
     }
 private:
     std::unique_ptr<SafetyResult> mResult;
