@@ -466,6 +466,13 @@ ExprPtr ConstantFolder::FDiv(const ExprPtr& left, const ExprPtr& right, llvm::AP
 
 ExprPtr ConstantFolder::FEq(const ExprPtr& left, const ExprPtr& right)
 {
+    if (left->getKind() == Expr::Literal && right->getKind() == Expr::Literal) {
+        auto fltLeft  = llvm::cast<FloatLiteralExpr>(left.get());
+        auto fltRight = llvm::cast<FloatLiteralExpr>(right.get());
+
+        return BoolLiteralExpr::Get(left->getContext(), fltLeft->getValue().compare(fltRight->getValue()) == llvm::APFloat::cmpEqual);
+    }
+
     return FEqExpr::Create(left, right);
 }
 

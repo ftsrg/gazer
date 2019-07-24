@@ -2,6 +2,7 @@
 
 #include "gazer/Core/Expr/ExprRewrite.h"
 #include "gazer/Core/Expr/ExprEvaluator.h"
+#include "gazer/Core/Expr/ExprUtils.h"
 
 #include "gazer/Support/Stopwatch.h"
 
@@ -28,6 +29,7 @@ llvm::cl::opt<bool> NoClearLocs("no-clear-locs", llvm::cl::desc("Do not clear un
 llvm::cl::opt<bool> VerifierDebug("debug-verif", llvm::cl::desc("Print verifier debug info"));
 llvm::cl::opt<bool> ViewCfa("view-cfa", llvm::cl::desc("View the generated CFA."));
 llvm::cl::opt<bool> DumpCfa("debug-dump-cfa", llvm::cl::desc("Dump the generated CFA after each inlining step."));
+llvm::cl::opt<bool> DumpFormula("dump-formula", llvm::cl::desc("Dump the solver formula to stderr."));
 
 llvm::cl::opt<bool> PrintSolverStats("print-solver-stats", llvm::cl::desc("Print solver statistics information."));
 
@@ -155,6 +157,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
     }    
 
     mStats.NumBeginLocs = mRoot->getNumLocations();
+    mStats.NumBeginLocals = mRoot->getNumLocals();
     Location* start = mRoot->getEntry();
 
     Stopwatch<> sw;
@@ -172,6 +175,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
 
             this->push();
             llvm::outs() << "    Transforming formula...\n";
+            if (DumpFormula) { FormatPrintExpr(formula, llvm::errs()); }
             mSolver->add(formula);
 
             llvm::outs() << "    Running solver...\n";
@@ -317,6 +321,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
 
             this->push();
 
+            llvm::outs() << "    Transforming formula...\n";
             formula = this->forwardReachableCondition(lca, mError);
             mSolver->add(formula);
 
@@ -346,6 +351,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                 mRoot->clearDisconnectedElements();
 
                 mStats.NumEndLocs = mRoot->getNumLocations();
+                mStats.NumEndLocals = mRoot->getNumLocals();
                 if (DumpCfa) {
                     mRoot->view();
                 }
@@ -357,11 +363,17 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                 if (numUnhandledCallSites == 0) {
                     // If we have no unhandled call sites,
                     // the program is guaranteed to be safe at this point.
+                    mStats.NumEndLocs = mRoot->getNumLocations();
+                    mStats.NumEndLocals = mRoot->getNumLocals();
 
                     return SafetyResult::CreateSuccess();
                 }  else if (bound == MaxBound) {
-                    llvm::outs() << "Maximum bound is reached.\n";
                     // The maximum bound was reached.
+                    llvm::outs() << "Maximum bound is reached.\n";
+                    
+                    mStats.NumEndLocs = mRoot->getNumLocations();
+                    mStats.NumEndLocals = mRoot->getNumLocals();
+
                     return SafetyResult::CreateSuccess();
                 } else {
                     // Try with an increased bound.
@@ -674,7 +686,7 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     }
 
     for (size_t i = 0; i < callee->getNumInputs(); ++i) {
-            Variable* input = callee->getInput(i);
+        Variable* input = callee->getInput(i);
         if (!callee->isOutput(input)) {
             auto varname = (input->getName() + suffix).str();
             auto newInput = mRoot->createInput(varname, input->getType());
@@ -745,9 +757,15 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
                 nestedCall->output_begin(), nestedCall->output_end(),
                 std::back_inserter(newOuts),
                 [&rewrite, &oldVarToNew](const VariableAssignment& origAssign) {
+                    llvm::errs() << origAssign.getVariable()->getName() << "\n";
+
+                    Variable* newVar = oldVarToNew.lookup(origAssign.getVariable());
+                    assert(newVar != nullptr && "All variables should be present in the variable map!");
+
                     return VariableAssignment{
-                        oldVarToNew[origAssign.getVariable()],
-                        rewrite.visit(origAssign.getValue())
+                        newVar,
+                        //rewrite.visit(origAssign.getValue())
+                        origAssign.getValue()
                     };
                 }
             );
@@ -779,14 +797,14 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     // Do the output assignments.
     std::vector<VariableAssignment> outputAssigns;
 
-    // for (size_t i = 0; i < call->getNumOutputs(); ++i) {
-    //     VariableAssignment output = call->getOutputArgument(i);
-    //     LLVM_DEBUG(llvm::dbgs() << "Transforming output assignment " << i << ": " << output << "\n");
-    //     outputAssigns.emplace_back(output.getVariable(), rewrite.visit(output.getValue()));
-    // }
+    //for (size_t i = 0; i < call->getNumOutputs(); ++i) {
+    //    VariableAssignment output = call->getOutputArgument(i);
+    //    LLVM_DEBUG(llvm::dbgs() << "Transforming output assignment " << i << ": " << output << "\n");
+    //    outputAssigns.emplace_back(output.getVariable(), rewrite.visit(output.getValue()));
+    //}
 
     mRoot->createAssignTransition(
-        locToLocMap[callee->getExit()], after /*, mExprBuilder.True(), outputAssigns */
+        locToLocMap[callee->getExit()], after , mExprBuilder.True(), outputAssigns
     );
 
     // Add the new locations to the topological sort.
@@ -822,5 +840,9 @@ void BoundedModelCheckerImpl::printStats(llvm::raw_ostream& os) {
     os << "Number of inlined procedures: " << mStats.NumInlined << "\n";
     os << "Number of locations on start: " << mStats.NumBeginLocs << "\n";
     os << "Number of locations on finish: " << mStats.NumEndLocs << "\n";
+    os << "Number of variables on start: " << mStats.NumBeginLocals << "\n";
+    os << "Number of variables on finish: " << mStats.NumEndLocals << "\n";
     os << "------------------------------\n";
+    mSolver->printStats(os);
+    os << "\n";
 }

@@ -245,7 +245,6 @@ void Cfa::clearDisconnectedElements()
     }), mTransitions.end());
 }
 
-
 // Support code for locations
 //-----------------------------------------------------------------------------
 

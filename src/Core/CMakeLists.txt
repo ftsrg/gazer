@@ -12,7 +12,9 @@ set(SOURCE_FILES
     Expr/ExprSimplify.cpp
     Expr/ConstantFolder.cpp
     Expr/ExpressionPropagator.cpp
-    Expr/ExprRewrite.cpp)
+    Expr/ExprRewrite.cpp
+    Expr/ExprUtils.cpp    
+)
 
 add_library(GazerCore ${SOURCE_FILES})
 target_link_libraries(GazerCore ${LLVM_LIBS})

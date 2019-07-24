@@ -5,6 +5,8 @@
 #include "gazer/Core/Symbol.h"
 #include "gazer/Core/GazerContext.h"
 
+#include <llvm/Support/raw_ostream.h>
+
 #include <string>
 #include <memory>
 
@@ -67,6 +69,7 @@ public:
     VariableAssignment(Variable *variable, ExprPtr value)
         : mVariable(variable), mValue(value)
     {
+        llvm::errs() << variable->getName() << "  " << variable->getType() << " " << value->getType() << "  "  << *value << "\n";
         assert(variable->getType() == value->getType());
     }
 

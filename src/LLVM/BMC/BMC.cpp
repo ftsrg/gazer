@@ -1,5 +1,5 @@
 #include "gazer/LLVM/BMC/BMC.h"
-#include "gazer/Core/Utils/ExprUtils.h"
+#include "gazer/Core/Expr/ExprUtils.h"
 #include "gazer/Support/Stopwatch.h"
 #include "gazer/Core/Expr/ExprSimplify.h"
 #include "gazer/Analysis/LegacyMemoryModel.h"

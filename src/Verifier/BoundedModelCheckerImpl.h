@@ -31,6 +31,8 @@ public:
         unsigned NumInlined = 0;
         unsigned NumBeginLocs = 0;
         unsigned NumEndLocs = 0;
+        unsigned NumBeginLocals = 0;
+        unsigned NumEndLocals = 0;
     };
 
     BoundedModelCheckerImpl(
