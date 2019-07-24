@@ -556,13 +556,13 @@ static FloatType::FloatPrecision precFromSort(z3::context& context, z3::sort sor
     unsigned ebits = Z3_fpa_get_ebits(context, sort);
     unsigned sbits = Z3_fpa_get_sbits(context, sort);
 
-    if (ebits == 8 && sbits == 24) {
+    if (ebits == FloatType::ExpBitsInSingleTy && sbits == FloatType::SignificandBitsInSingleTy) {
         return FloatType::Single;
-    } else if (ebits == 11 && sbits == 53) {
+    } else if (ebits == FloatType::ExpBitsInDoubleTy && sbits == FloatType::SignificandBitsInDoubleTy) {
         return FloatType::Double;
-    } else if (ebits == 5 && sbits == 11) {
+    } else if (ebits == FloatType::ExpBitsInHalfTy && sbits == FloatType::SignificandBitsInHalfTy) {
         return FloatType::Half;
-    } else if (ebits == 15 && sbits == 113) {
+    } else if (ebits == FloatType::ExpBitsInQuadTy && sbits == FloatType::SignificandBitsInQuadTy) {
         return FloatType::Quad;
     }
 
@@ -574,22 +574,22 @@ llvm::APInt z3_bv_to_apint(z3::context& context, z3::model& model, const z3::exp
     assert(bv.is_bv() && "Bitvector conversion requires a bitvector");
     unsigned int width = Z3_get_bv_sort_size(context, bv.get_sort());
 
-    if (width <= 64) {
+    if (width <= 64) { //NOLINT(readability-magic-numbers)
         uint64_t value;
         Z3_get_numeral_uint64(context, bv, &value);
 
         return llvm::APInt(width, value);
-    } else {
-        llvm::SmallVector<uint64_t, 2> bits;
-        for (size_t i = 0; i < width; i += 64) {
-            uint64_t value;
-            Z3_get_numeral_uint64(context, model.eval(bv.extract(i, 64)), &value);
-
-            bits.push_back(value);
-        }
-
-        return llvm::APInt(width, bits);
     }
+    
+    llvm::SmallVector<uint64_t, 2> bits;
+    for (size_t i = 0; i < width; i += 64) { //NOLINT(readability-magic-numbers)
+        uint64_t value;
+        Z3_get_numeral_uint64(context, model.eval(bv.extract(i, 64)), &value);
+
+        bits.push_back(value);
+    }
+
+    return llvm::APInt(width, bits);
 }
 
 Valuation Z3Solver::getModel()
