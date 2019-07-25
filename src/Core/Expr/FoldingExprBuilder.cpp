@@ -313,6 +313,14 @@ public:
             return this->Not(c1);
         }
 
+
+        llvm::APInt i1, i2;
+
+        // Eq(Add(E1, C1), C2) --> Eq(E1, C2 - C1)
+        if (unord_match(left, right, m_Add(m_Expr(e1), m_Bv(&i1)), m_Bv(&i2))) {
+            return ConstantFolder::Eq(e1, this->BvLit(i2 - i1));
+        }
+
         return ConstantFolder::Eq(left, right);
     }
 

@@ -10,6 +10,7 @@
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/Analysis/LoopInfo.h>
+#include <llvm/ADT/MapVector.h>
 
 namespace gazer
 {
@@ -39,10 +40,10 @@ private:
 /// Stores information about loops which were transformed to automata.
 struct CfaGenInfo
 {
-    llvm::SmallDenseMap<llvm::Value*, Variable*, 4> Inputs;
-    llvm::SmallDenseMap<llvm::Value*, Variable*, 4> Outputs;
-    llvm::SmallDenseMap<llvm::Value*, Variable*, 4> PhiInputs;
-    llvm::SmallDenseMap<llvm::Value*, VariableAssignment, 4> LoopOutputs;
+    llvm::MapVector<const llvm::Value*, Variable*> Inputs;
+    llvm::MapVector<const llvm::Value*, Variable*> Outputs;
+    llvm::MapVector<const llvm::Value*, Variable*> PhiInputs;
+    llvm::MapVector<const llvm::Value*, VariableAssignment> LoopOutputs;
 
     llvm::DenseMap<llvm::Value*, Variable*> Locals;
     llvm::DenseMap<llvm::BasicBlock*, std::pair<Location*, Location*>> Blocks;
@@ -91,8 +92,8 @@ struct CfaGenInfo
         return Locals.lookup(value);   
     }
 
-    bool hasInput(const llvm::Value* value) {
-        return Inputs.count(value) != 0;
+    bool hasInput(llvm::Value* value) {
+        return Inputs.find(value) != Inputs.end();
     }
     bool hasLocal(const llvm::Value* value) {
         return Locals.count(value) != 0;

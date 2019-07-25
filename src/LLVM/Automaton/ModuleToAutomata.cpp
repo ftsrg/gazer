@@ -153,6 +153,8 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
                         variable = nested->createInput(inst.getName(), mMemoryModel.translateType(inst.getType()));
                         loopGenInfo.addPhiInput(&inst, variable);
                         variables[&inst] = variable;
+                        
+                        LLVM_DEBUG(llvm::dbgs() << "  Added PHI input variable " << *variable << "\n");
                     } else {
                         // Add operands which were defined in the caller as inputs
                         for (auto oi = inst.op_begin(), oe = inst.op_end(); oi != oe; ++oi) {
@@ -195,9 +197,9 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
 
                                 nested->addOutput(copyOfVar);
                                 loopGenInfo.Outputs[&inst] = copyOfVar;
-                                loopGenInfo.LoopOutputs.try_emplace(&inst, copyOfVar, variable->getRefExpr());
+                                loopGenInfo.LoopOutputs[&inst] = VariableAssignment{ copyOfVar, variable->getRefExpr() };
 
-                                LLVM_DEBUG(llvm::dbgs() << "  Added output variable " << *variable << "\n");
+                                LLVM_DEBUG(llvm::dbgs() << "  Added output variable " << *copyOfVar << "\n");
                                 break;
                             }
                         }
@@ -454,9 +456,11 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
     }
 
     // Do a clean-up, remove eliminated variables from the CFA.
-    mCfa->removeLocalsIf([this](Variable* v) {
-        return mEliminatedVarsSet.count(v) != 0;
-    });
+    if (ElimVarsLevel != ElimVarsLevels::Off) {
+        mCfa->removeLocalsIf([this](Variable* v) {
+            return mEliminatedVarsSet.count(v) != 0;
+        });
+    }
 }
 
 bool BlocksToCfa::tryToEliminate(Instruction& inst, ExprPtr expr)
@@ -468,6 +472,12 @@ bool BlocksToCfa::tryToEliminate(Instruction& inst, ExprPtr expr)
     // Never eliminate variables obtained from call instructions,
     // as they might be needed to obtain a counterexample.
     if (inst.getOpcode() == Instruction::Call) {
+        return false;
+    }
+
+    // Do not eliminate variables which are loop outputs, as these will be needed
+    // for the output assignments.
+    if (mGenInfo.LoopOutputs.count(&inst) != 0) {
         return false;
     }
 
@@ -649,8 +659,9 @@ void BlocksToCfa::insertOutputAssignments(CfaGenInfo& callee, std::vector<Variab
 {
     // For the outputs, find the corresponding variables in the parent and create the assignments.
     for (auto& pair : callee.Outputs) {
-        llvm::Value* value = pair.first;
+        const llvm::Value* value = pair.first;
         Variable* nestedOutputVar = pair.second;
+
 
         LLVM_DEBUG(
             llvm::dbgs() << "  Inserting output assignment for " << *value
@@ -658,10 +669,18 @@ void BlocksToCfa::insertOutputAssignments(CfaGenInfo& callee, std::vector<Variab
         );
 
         // It is either a local or input in parent.
-        auto result = mGenInfo.findVariable(value);
-        assert(result != nullptr && "Nested output variable should be present in parent as an input or local!");
+        Variable* parentVar;
 
-        Variable* parentVar = result;
+        // If the value is a loop output, we must use its "_out" variable.
+        auto loopVar = mGenInfo.LoopOutputs.find(value);
+        if (loopVar != mGenInfo.LoopOutputs.end()) {
+            parentVar = loopVar->second.getVariable();
+        } else {
+            parentVar = mGenInfo.findVariable(value);
+        }
+
+        assert(parentVar != nullptr && "Nested output variable should be present in parent as an input or local!");
+
         outputArgs.emplace_back(parentVar, nestedOutputVar->getRefExpr());
     }
 }
@@ -1130,17 +1149,17 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
 
     llvm::outs() << "Translating module.\n";
     mSystem = translateModuleToAutomata(module, loops, mContext, memoryModel, mVariables, mBlocks);
-/*
-    for (Cfa& cfa : *mSystem) {
-        llvm::errs() << cfa.getName() << "("
-            << llvm::join(to_string_range(cfa.inputs()), ",")
-            << ")\n -> "
-            << llvm::join(to_string_range(cfa.outputs()), ", ")
-            << " {\n"
-            << llvm::join(to_string_range(cfa.locals()), "\n")
-            << "\n}";
-        llvm::errs() << "\n";
-    } */
+
+    // for (Cfa& cfa : *mSystem) {
+    //     llvm::errs() << cfa.getName() << "("
+    //         << llvm::join(to_string_range(cfa.inputs()), ",")
+    //         << ")\n -> "
+    //         << llvm::join(to_string_range(cfa.outputs()), ", ")
+    //         << " {\n"
+    //         << llvm::join(to_string_range(cfa.locals()), "\n")
+    //         << "\n}";
+    //     llvm::errs() << "\n";
+    // }
 
     return false;
 }
