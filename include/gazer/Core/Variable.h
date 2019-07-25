@@ -66,10 +66,14 @@ private:
 class VariableAssignment final
 {
 public:
+    VariableAssignment()
+        : mVariable(nullptr), mValue(nullptr)
+    {}
+
     VariableAssignment(Variable *variable, ExprPtr value)
         : mVariable(variable), mValue(value)
     {
-        llvm::errs() << variable->getName() << "  " << variable->getType() << " " << value->getType() << "  "  << *value << "\n";
+        //llvm::errs() << variable->getName() << "  " << variable->getType() << " " << value->getType() << "  "  << *value << "\n";
         assert(variable->getType() == value->getType());
     }
 

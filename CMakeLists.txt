@@ -12,7 +12,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 #set(CMAKE_CXX_CPPCHECK "cppcheck")
 #list(APPEND CMAKE_CXX_CPPCHECK "--enable=all")
 
-set(CMAKE_CXX_CLANG_TIDY clang-tidy -checks=-*,readability-*,-header-filter='${CMAKE_SOURCE_DIR}/include')
+#set(CMAKE_CXX_CLANG_TIDY clang-tidy -checks=-*,readability-*,-header-filter='${CMAKE_SOURCE_DIR}/include')
 
 # Compile dependencies
 #add_subdirectory(vendor/mstch)

@@ -30,6 +30,8 @@ llvm::cl::opt<bool> VerifierDebug("debug-verif", llvm::cl::desc("Print verifier 
 llvm::cl::opt<bool> ViewCfa("view-cfa", llvm::cl::desc("View the generated CFA."));
 llvm::cl::opt<bool> DumpCfa("debug-dump-cfa", llvm::cl::desc("Dump the generated CFA after each inlining step."));
 llvm::cl::opt<bool> DumpFormula("dump-formula", llvm::cl::desc("Dump the solver formula to stderr."));
+llvm::cl::opt<bool> DumpSolver("dump-solver", llvm::cl::desc("Dump the solver instance to stderr."));
+
 
 llvm::cl::opt<bool> PrintSolverStats("print-solver-stats", llvm::cl::desc("Print solver statistics information."));
 
@@ -178,6 +180,10 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
             if (DumpFormula) { FormatPrintExpr(formula, llvm::errs()); }
             mSolver->add(formula);
 
+            if (DumpSolver) {
+                mSolver->dump(llvm::errs());
+            }
+
             llvm::outs() << "    Running solver...\n";
 
             sw.start();
@@ -325,6 +331,9 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
             formula = this->forwardReachableCondition(lca, mError);
             mSolver->add(formula);
 
+            if (DumpSolver) {
+                mSolver->dump(llvm::errs());
+            }
             llvm::outs() << "    Running solver...\n";
 
             sw.start();
@@ -676,6 +685,7 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
 
     // Clone all local variables into the parent
     for (Variable& local : callee->locals()) {
+        LLVM_DEBUG(llvm::dbgs() << "Callee local " << local.getName() << "\n"); 
         if (!callee->isOutput(&local)) {
             auto varname = (local.getName() + suffix).str();
             auto newLocal = mRoot->createLocal(varname, local.getType());
@@ -687,6 +697,7 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
 
     for (size_t i = 0; i < callee->getNumInputs(); ++i) {
         Variable* input = callee->getInput(i);
+        LLVM_DEBUG(llvm::dbgs() << "Callee input " << input->getName() << "\n"); 
         if (!callee->isOutput(input)) {
             auto varname = (input->getName() + suffix).str();
             auto newInput = mRoot->createInput(varname, input->getType());
@@ -757,7 +768,7 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
                 nestedCall->output_begin(), nestedCall->output_end(),
                 std::back_inserter(newOuts),
                 [&rewrite, &oldVarToNew](const VariableAssignment& origAssign) {
-                    llvm::errs() << origAssign.getVariable()->getName() << "\n";
+                    //llvm::errs() << origAssign.getVariable()->getName() << "\n";
 
                     Variable* newVar = oldVarToNew.lookup(origAssign.getVariable());
                     assert(newVar != nullptr && "All variables should be present in the variable map!");

@@ -9,7 +9,7 @@ set(SOURCE_FILES
     Expr/FoldingExprBuilder.cpp
     Expr/ExprPrinter.cpp
     Expr/ExprEvaluator.cpp
-    Expr/ExprSimplify.cpp
+    #Expr/ExprSimplify.cpp
     Expr/ConstantFolder.cpp
     Expr/ExpressionPropagator.cpp
     Expr/ExprRewrite.cpp

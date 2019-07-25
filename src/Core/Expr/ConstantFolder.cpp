@@ -56,11 +56,19 @@ ExprPtr ConstantFolder::Extract(const ExprPtr& op, unsigned offset, unsigned wid
 ExprPtr ConstantFolder::Add(const ExprPtr& left, const ExprPtr& right)
 {
     if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
+        if (lhsLit->getValue() == llvm::APInt(lhsLit->getType().getWidth(), 0)) {
+            return right;
+        }
+
         if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
             return BvLiteralExpr::Get(
                 lhsLit->getType(),
                 lhsLit->getValue() + rhsLit->getValue()
             );
+        }
+    } else if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
+        if (rhsLit->getValue() == llvm::APInt(rhsLit->getType().getWidth(), 0)) {
+            return left;
         }
     }
 
