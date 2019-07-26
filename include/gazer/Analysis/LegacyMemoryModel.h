@@ -2,7 +2,6 @@
 #define GAZER_ANALYSIS_LEGACYMEMORYMODEL_H
 
 #include "gazer/Core/Expr.h"
-#include "gazer/LLVM/Ir2Expr.h"
 
 namespace llvm {
     class Instruction;

@@ -7,7 +7,7 @@
 namespace gazer
 {
 
-/// Base interface for all solvers
+/// Base interface for all solvers.
 class Solver
 {
 public:

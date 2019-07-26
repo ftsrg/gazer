@@ -251,6 +251,9 @@ public:
     /// Mark an already existing variable as an output.
     void addOutput(Variable* variable);
 
+    void addErrorCode(Location* location, ExprPtr errorCodeExpr);
+    ExprPtr getErrorFieldExpr(Location* location);
+
     //-------------------------- Iterator support ---------------------------//
     using node_iterator = std::vector<std::unique_ptr<Location>>::iterator;
     using const_node_iterator = std::vector<std::unique_ptr<Location>>::const_iterator;
@@ -373,6 +376,8 @@ private:
     std::vector<std::unique_ptr<Location>> mLocations;
     std::vector<std::unique_ptr<Transition>> mTransitions;
     llvm::SmallVector<Location*, 1> mErrorLocations;
+
+    llvm::SmallDenseMap<Location*, ExprPtr, 1> mErrorFieldExprs;
 
     std::vector<Variable*> mInputs;
     std::vector<Variable*> mOutputs;

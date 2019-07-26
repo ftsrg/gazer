@@ -96,6 +96,7 @@ private:
 
     Stats mStats;
     TraceBuilder<Location*>* mTraceBuilder;
+    Variable* mErrorFieldVariable = nullptr;
 };
 
 /// An alternating sequence of {State, Action, ..., State, Action, State }

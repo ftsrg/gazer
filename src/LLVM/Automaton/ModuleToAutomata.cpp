@@ -91,7 +91,7 @@ static bool isErrorBlock(llvm::BasicBlock* bb)
 
     if (auto call = llvm::dyn_cast<CallInst>(inst)) {
         Function* function = call->getCalledFunction();
-        if (function != nullptr && function->getName() == "gazer.error_code") {
+        if (function != nullptr && function->getName() == CheckRegistry::ErrorFunctionName) {
             return true;
         } 
     }
@@ -338,7 +338,10 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
 
             if (auto call = llvm::dyn_cast<CallInst>(&inst)) {
                 Function* callee = call->getCalledFunction();
-                if (callee != nullptr && !callee->isDeclaration()) {
+                if (callee == nullptr) {
+                    // We do not support indirect calls yet.
+                    continue;
+                } else if (!callee->isDeclaration()) {
                     auto it = mGenCtx.FunctionMap.find(callee);
                     assert(it != mGenCtx.FunctionMap.end()
                         && "Function definitions must be present in the FunctionMap of the CFA generator!");
@@ -379,6 +382,11 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
 
                     // Do not generate an assignment for this call.
                     continue;
+                } else if (callee->getName() == CheckRegistry::ErrorFunctionName) {
+                    assert(exit->isError() && "The target location of a 'gazer.error_code' call must be an error location!");
+                    llvm::Value* arg = call->getArgOperand(0);
+
+                    mCfa->addErrorCode(exit, operand(arg));
                 }
             } else if (auto store = llvm::dyn_cast<StoreInst>(&inst)) {
                 auto storeValue = this->operand(store->getValueOperand());

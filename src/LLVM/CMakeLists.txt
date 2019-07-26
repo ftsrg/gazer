@@ -1,11 +1,8 @@
 set(SOURCE_FILES
-    Analysis/BmcPass.cpp
     Analysis/ProgramDependence.cpp
     Analysis/TopologicalSort.cpp
     Analysis/MemoryObject.cpp
     Analysis/DummyMemoryModel.cpp
-    #Analysis/VariableRoles.cpp
-    Transform/BoundedUnwindPass.cpp
     Transform/BackwardSlicer.cpp
     Transform/InlineGlobalVariablesPass.cpp
     Transform/CombineErrorCalls.cpp
@@ -14,9 +11,6 @@ set(SOURCE_FILES
     Instrumentation/Check.cpp
     Instrumentation/DefaultChecks.cpp
     Instrumentation/Intrinsics.cpp
-    #BMC/BmcTrace.cpp
-    BMC/Ir2Expr.cpp
-    BMC/BMC.cpp
     TestGenerator/TestGenerator.cpp
     Utils/LLVMType.cpp
     Automaton/ModuleToAutomata.cpp

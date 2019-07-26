@@ -76,7 +76,7 @@ bool CombineErrorCallsPass::runOnModule(llvm::Module& module)
                     auto call = llvm::dyn_cast<llvm::CallInst>(&*it);
                     llvm::Function* callee = call->getCalledFunction();
 
-                    if (callee->getName() == "gazer.error_code") {
+                    if (callee->getName() == CheckRegistry::ErrorFunctionName) {
                         llvm::Value* code = call->getArgOperand(0);
                         phi->addIncoming(code, &bb);
 

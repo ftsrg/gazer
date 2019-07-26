@@ -2,7 +2,6 @@
 #define _GAZER_CORE_VARIABLE_H
 
 #include "gazer/Core/Expr.h"
-#include "gazer/Core/Symbol.h"
 #include "gazer/Core/GazerContext.h"
 
 #include <llvm/Support/raw_ostream.h>

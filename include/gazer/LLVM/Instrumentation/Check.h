@@ -71,6 +71,8 @@ class CheckRegistry
     CheckRegistry(const CheckRegistry&) = delete;
     CheckRegistry& operator=(const CheckRegistry&) = delete;
 public:
+    static constexpr char ErrorFunctionName[] = "gazer.error_code";
+
     static llvm::FunctionCallee GetErrorFunction(llvm::Module& module);
     static llvm::FunctionCallee GetErrorFunction(llvm::Module* module) {
         return GetErrorFunction(*module);
