@@ -61,7 +61,7 @@ llvm::FunctionType* CheckRegistry::GetErrorFunctionType(llvm::LLVMContext& conte
 llvm::FunctionCallee CheckRegistry::GetErrorFunction(llvm::Module& module)
 {
     return module.getOrInsertFunction(
-        "gazer.error_code",
+        ErrorFunctionName,
         GetErrorFunctionType(module.getContext())
     );
 }
@@ -97,7 +97,7 @@ void CheckRegistry::registerPasses(llvm::legacy::PassManager& pm)
 std::string CheckRegistry::messageForCode(unsigned ec)
 {
     auto result = mCheckMap.find(ec);
-    assert(result != mCheckMap.end() && "Error code should be present in the check map");
+    assert(result != mCheckMap.end() && "Error code should be present in the check map!");
 
     return result->second->getErrorDescription();
 }

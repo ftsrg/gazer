@@ -32,7 +32,6 @@ llvm::cl::opt<bool> DumpCfa("debug-dump-cfa", llvm::cl::desc("Dump the generated
 llvm::cl::opt<bool> DumpFormula("dump-formula", llvm::cl::desc("Dump the solver formula to stderr."));
 llvm::cl::opt<bool> DumpSolver("dump-solver", llvm::cl::desc("Dump the solver instance to stderr."));
 
-
 llvm::cl::opt<bool> PrintSolverStats("print-solver-stats", llvm::cl::desc("Print solver statistics information."));
 
 llvm::cl::opt<bool> Trace("trace", llvm::cl::desc("Print counterexample traces to stdout."));
@@ -89,22 +88,25 @@ BoundedModelCheckerImpl::BoundedModelCheckerImpl(
             mLocNumbers[mTopo[i]] = i;
         }
 
+        mErrorFieldVariable = mRoot->createLocal("__error_field", BvType::Get(mSystem.getContext(), 16));
+
         if (errors.size() == 0) {
             // If there are no error locations in the main automaton, they might still exist in a called CFA.
             // Create a dummy error location which we will use as a goal.
             mError = mRoot->createErrorLocation();
-            mRoot->createAssignTransition(mRoot->getEntry(), mError, mExprBuilder.False());
+            mRoot->createAssignTransition(mRoot->getEntry(), mError, mExprBuilder.False(), {
+                VariableAssignment{ mErrorFieldVariable, mExprBuilder.BvLit(0, 16) }
+            });
             mLocNumbers[mError] = mTopo.size();
             mTopo.push_back(mError);
-        } else if (errors.size() == 1) {
-            // We have a single error location, let that be the verification goal.
-            mError = errors[0];
         } else {
             // Create an error location which will be directly reachable from already existing error locations.
             // This one error location will be used as the goal.
             mError = mRoot->createErrorLocation();
             for (Location* err : errors) {
-                mRoot->createAssignTransition(err, mError, mExprBuilder.True());
+                mRoot->createAssignTransition(err, mError, mExprBuilder.True(), {
+                    VariableAssignment { mErrorFieldVariable, mRoot->getErrorFieldExpr(err) }
+                });
             }
             mLocNumbers[mError] = mTopo.size();
             mTopo.push_back(mError);
@@ -285,7 +287,10 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                     llvm::outs() << "State " << states.back()->getId() << "\n";
                 }
 
-                return SafetyResult::CreateFail(0);
+                ExprRef<BvLiteralExpr> errorExpr = llvm::dyn_cast_or_null<BvLiteralExpr>(model[mErrorFieldVariable]);
+                assert(errorExpr != nullptr && "The error field must be present in the model as a BvLiteral!");
+
+                return SafetyResult::CreateFail(errorExpr->getValue().getLimitedValue());
             }
 
             this->pop();
@@ -722,7 +727,9 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
         mInlinedLocations[newLoc] = origLoc.get();
 
         if (origLoc->isError()) {
-            mRoot->createAssignTransition(newLoc, mError, mExprBuilder.True());
+            mRoot->createAssignTransition(newLoc, mError, mExprBuilder.True(), {
+                { mErrorFieldVariable, callee->getErrorFieldExpr(origLoc.get()) }
+            });
         }
     }
 
@@ -854,6 +861,8 @@ void BoundedModelCheckerImpl::printStats(llvm::raw_ostream& os) {
     os << "Number of variables on start: " << mStats.NumBeginLocals << "\n";
     os << "Number of variables on finish: " << mStats.NumEndLocals << "\n";
     os << "------------------------------\n";
-    mSolver->printStats(os);
+    if (PrintSolverStats) {
+        mSolver->printStats(os);
+    }
     os << "\n";
 }

@@ -2,16 +2,13 @@
 #define _GAZER_CORE_VALUATION_H
 
 #include "gazer/Core/Variable.h"
-#include "gazer/Core/SymbolTable.h"
 
 #include <llvm/ADT/DenseMap.h>
 
 namespace gazer
 {
 
-/**
- * Represents a simple mapping between variables and literal expressions.
- */
+/// Represents a simple mapping between variables and literal expressions.
 class Valuation
 {
     using ValuationMapT = llvm::DenseMap<Variable*, ExprRef<LiteralExpr>>;

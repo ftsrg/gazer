@@ -24,7 +24,8 @@ template<
 class ScopedCache
 {
 public:
-    using scope_iterator = typename MapT::iterator;
+    using iterator = typename MapT::iterator;
+    using scope_iterator = typename StorageT::iterator;
 public:
     ScopedCache() {
         // Create the root scope.
@@ -65,8 +66,12 @@ public:
         mStorage.pop_back();
     }
 
-    scope_iterator current_begin() { return mStorage.back().begin(); }
-    scope_iterator current_end() { return mStorage.back().end(); }
+    iterator current_begin() { return mStorage.back().begin(); }
+    iterator current_end() { return mStorage.back().end(); }
+
+    scope_iterator scope_begin() { return mStorage.begin(); }
+    scope_iterator scope_end() { return mStorage.end(); }
+    llvm::iterator_range<scope_iterator> scopes() { return llvm::make_range(scope_begin(), scope_end()); }
 
 private:
     StorageT mStorage;

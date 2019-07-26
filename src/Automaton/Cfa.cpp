@@ -94,6 +94,21 @@ CallTransition *Cfa::createCallTransition(
     return createCallTransition(source, target, BoolLiteralExpr::True(mContext), callee, inputArgs, outputArgs);
 }
 
+void Cfa::addErrorCode(Location* location, ExprPtr errorCodeExpr)
+{
+    assert(location->isError());
+    mErrorFieldExprs[location] = errorCodeExpr;
+}
+
+ExprPtr Cfa::getErrorFieldExpr(Location* location)
+{
+    assert(location->isError());
+    auto expr = mErrorFieldExprs.lookup(location);
+
+    assert(expr != nullptr);
+    return expr;
+}
+
 // Member variables
 //-----------------------------------------------------------------------------
 

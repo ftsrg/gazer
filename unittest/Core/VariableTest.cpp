@@ -1,11 +1,10 @@
 #include "gazer/Core/Variable.h"
-#include "gazer/Core/SymbolTable.h"
 
 #include <gtest/gtest.h>
 
 using namespace gazer;
 
-TEST(SymbolTable, CanCreateVariables)
+TEST(Variable, CanCreateVariables)
 {
     GazerContext context;
     Variable* x = context.createVariable("x", BvType::Get(context, 32));
