@@ -16,7 +16,7 @@ namespace
             : TraceWriter(os), mPrintBv(printBv), mFuncEntries(0)
         {}
 
-        static constexpr char INDENT[] = "  ";
+        static constexpr auto INDENT = "  ";
 
         void visit(AssignTraceEvent& event) override
         {
@@ -107,13 +107,10 @@ namespace
     };
 } // end anonymous namespace
 
-namespace gazer
+namespace gazer::trace
 {
-    namespace trace
+    std::unique_ptr<TraceWriter> CreateTextWriter(llvm::raw_ostream& os, bool printBv)
     {
-        std::unique_ptr<TraceWriter> CreateTextWriter(llvm::raw_ostream& os, bool printBv)
-        {
-            return std::unique_ptr<TextTraceWriter>(new TextTraceWriter(os, printBv));
-        }
-    } // end namespace trace
-} // end namespace gazer
+        return std::make_unique<TextTraceWriter>(os, printBv);
+    }
+} // end namespace gazer::trace

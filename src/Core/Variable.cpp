@@ -1,4 +1,3 @@
-#include "gazer/Core/Variable.h"
 #include "GazerContextImpl.h"
 
 #include <llvm/Support/raw_ostream.h>

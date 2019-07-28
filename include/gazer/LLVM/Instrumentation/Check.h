@@ -5,10 +5,8 @@
 namespace gazer
 {
 
-/**
- * A check is a special kind of an LLVM pass, which marks instrunctions 
- * with pre- or postconditions which must be always true.
- */
+/// A check is a special kind of an LLVM pass, which marks instrunctions 
+/// with pre- or postconditions which must be always true.
 class Check : public llvm::ModulePass
 {
     friend class CheckRegistry;
@@ -31,31 +29,23 @@ public:
 
     virtual bool runOnModule(llvm::Module& module) final;
 
-    /**
-     * Returns this check's name. Names should be descriptive,
-     * but must not contain whitespaces,
-     * e.g.: "assert-fail", "div-by-zero", "int-overflow"
-     */
+    /// Returns this check's name. Names should be descriptive,
+    /// but must not contain whitespaces,
+    /// e.g.: "assert-fail", "div-by-zero", "int-overflow"
     virtual llvm::StringRef getCheckName() const = 0;
 
-    /**
-     * Returns a user-friendly error description on why this particular
-     * check failed. Such descriptions should be short and simple, e.g.
-     * "Assertion failure", "Division by zero", or "Integer overflow".
-     */
+    /// Returns a user-friendly error description on why this particular
+    /// check failed. Such descriptions should be short and simple, e.g.
+    /// "Assertion failure", "Division by zero", or "Integer overflow".
     virtual llvm::StringRef getErrorDescription() const = 0;
 
-    /**
-     * Marks the given function's instructions with required
-     * pre- and postconditions.
-     */
+    /// Marks the given function's instructions with required
+    /// pre- and postconditions.
     virtual bool mark(llvm::Function& function) = 0;
 
 protected:
 
-    /**
-     * Creates an error block with a gazer.error() call and a terminating unreachable instruction.
-     */
+    /// Creates an error block with a gazer.error_code(i16 code) call and a terminating unreachable instruction.
     llvm::BasicBlock* createErrorBlock(
         llvm::Function& function, llvm::Value* errorCode,
         const llvm::Twine& name = "", llvm::Instruction* location = nullptr);

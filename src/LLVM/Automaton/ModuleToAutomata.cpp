@@ -564,7 +564,6 @@ void BlocksToCfa::handleSuccessor(BasicBlock* succ, ExprPtr& succCondition, Basi
             loopArgs[idx] = entry.second->getRefExpr();
         }
 
-        Variable* exitSelector = nullptr;
         std::vector<VariableAssignment> outputArgs;
         insertOutputAssignments(mGenInfo, outputArgs);
 
@@ -837,7 +836,6 @@ ExprPtr BlocksToCfa::visitICmpInst(llvm::ICmpInst& icmp)
 {
     using llvm::CmpInst;
 
-    auto icmpVar = getVariable(&icmp);
     auto lhs = operand(icmp.getOperand(0));
     auto rhs = operand(icmp.getOperand(1));
 
@@ -870,7 +868,6 @@ ExprPtr BlocksToCfa::visitFCmpInst(llvm::FCmpInst& fcmp)
 {
     using llvm::CmpInst;
 
-    auto fcmpVar = getVariable(&fcmp);
     auto left = operand(fcmp.getOperand(0));
     auto right = operand(fcmp.getOperand(1));
 

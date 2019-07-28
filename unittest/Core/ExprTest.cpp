@@ -1,6 +1,5 @@
 #include "gazer/Core/Expr.h"
 #include "gazer/Core/GazerContext.h"
-#include "gazer/Core/Variable.h"
 #include "gazer/Core/ExprTypes.h"
 
 #include <gtest/gtest.h>

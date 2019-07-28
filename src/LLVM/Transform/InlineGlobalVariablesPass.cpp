@@ -1,13 +1,14 @@
 #include "gazer/LLVM/Transform/Passes.h"
 #include "gazer/LLVM/Instrumentation/Intrinsics.h"
 
-#include <llvm/Pass.h>
+#include <llvm/IR/DIBuilder.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/IntrinsicInst.h>
-#include <llvm/IR/DIBuilder.h>
+
+#include <llvm/Pass.h>
 
 using namespace llvm;
 using namespace gazer;
@@ -23,7 +24,7 @@ struct InlineGlobalVariablesPass final : public ModulePass
         : ModulePass(ID)
     {}
 
-    virtual bool runOnModule(Module& module) override;
+    bool runOnModule(Module& module) override;
 };
 
 char InlineGlobalVariablesPass::ID = 0;
@@ -43,7 +44,8 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
 
     auto mark = GazerIntrinsic::GetOrInsertInlinedGlobalWrite(module);
 
-    Function* dbgDecl = Intrinsic::getDeclaration(&module, Intrinsic::dbg_declare);
+    // Create a dbg declaration if it does not exist yet.
+    Intrinsic::getDeclaration(&module, Intrinsic::dbg_declare);
 
     IRBuilder<> builder(module.getContext());
     builder.SetInsertPoint(&main->getEntryBlock(), main->getEntryBlock().begin());
@@ -61,7 +63,7 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
         AllocaInst* alloc = builder.CreateAlloca(type, nullptr, gv.getName());
 
         Value* init = gv.hasInitializer() ? gv.getInitializer() : UndefValue::get(type);
-        StoreInst* store = builder.CreateStore(init, alloc);
+        builder.CreateStore(init, alloc);
 
         // Add some metadata stuff
         // FIXME: There should be a more intelligent way for finding
@@ -110,4 +112,4 @@ llvm::Pass* createInlineGlobalVariablesPass() {
     return new InlineGlobalVariablesPass();
 }
 
-}
+} // end namespace gazer

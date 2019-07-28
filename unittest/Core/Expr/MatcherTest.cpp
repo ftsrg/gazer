@@ -1,6 +1,5 @@
 #include "gazer/Core/Expr/Matcher.h"
 #include "gazer/Core/Expr/ExprBuilder.h"
-#include "gazer/Core/Variable.h"
 
 #include <gtest/gtest.h>
 

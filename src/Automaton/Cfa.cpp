@@ -1,4 +1,4 @@
-#include <gazer/Core/LiteralExpr.h>
+#include "gazer/Core/LiteralExpr.h"
 #include "gazer/Automaton/Cfa.h"
 
 #include <llvm/ADT/Twine.h>
@@ -10,7 +10,7 @@
 using namespace gazer;
 
 Cfa::Cfa(GazerContext &context, std::string name, AutomataSystem* parent)
-    : mName(name), mContext(context)
+    : mName(std::move(name)), mContext(context)
 {
     // Create an entry and exit location
     Location* entry = this->createLocation();
@@ -24,7 +24,7 @@ Cfa::Cfa(GazerContext &context, std::string name, AutomataSystem* parent)
 //-------------------------------------------------------------------------
 Location* Cfa::createLocation()
 {
-    Location* loc = new Location(mLocationIdx++);
+    auto loc = new Location(mLocationIdx++);
     mLocations.emplace_back(loc);
     mLocationNumbers[loc->getId()] = loc;
 
@@ -33,9 +33,10 @@ Location* Cfa::createLocation()
 
 Location* Cfa::createErrorLocation()
 {
-    Location* loc = new Location(mLocationIdx++, Location::Error);
+    auto loc = new Location(mLocationIdx++, Location::Error);
     mLocations.emplace_back(loc);
     mErrorLocations.emplace_back(loc);
+    mLocationNumbers[loc->getId()] = loc;
 
     return loc;
 }
@@ -133,11 +134,11 @@ Variable *Cfa::createLocal(llvm::StringRef name, Type& type)
     return variable;
 }
 
-Variable *Cfa::createMemberVariable(llvm::Twine name, Type &type)
+Variable *Cfa::createMemberVariable(llvm::StringRef name, Type &type)
 {
-    llvm::Twine variableName = llvm::Twine(mName, "/") + name;
+    auto variableName = (llvm::Twine(mName, "/") + name).str();
 
-    return mContext.createVariable(variableName.str(), type);
+    return mContext.createVariable(variableName, type);
 }
 
 void Cfa::addNestedAutomaton(Cfa* cfa)
@@ -172,8 +173,8 @@ bool Cfa::isOutput(Variable* variable) const
 
 Variable* Cfa::findVariableByName(const std::vector<Variable*>& vec, llvm::StringRef name) const
 {
-    auto variableName = llvm::Twine(mName, "/") + name;
-    Variable* variable = mContext.getVariable(variableName.str());
+    auto variableName = (llvm::Twine(mName, "/") + name).str();
+    Variable* variable = mContext.getVariable(variableName);
     if (variable == nullptr) {
         return nullptr;
     }

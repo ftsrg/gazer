@@ -1,7 +1,7 @@
 #ifndef _GAZER_CORE_VALUATION_H
 #define _GAZER_CORE_VALUATION_H
 
-#include "gazer/Core/Variable.h"
+#include "gazer/Core/Expr.h"
 
 #include <llvm/ADT/DenseMap.h>
 

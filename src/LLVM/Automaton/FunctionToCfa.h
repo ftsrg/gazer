@@ -17,26 +17,6 @@ namespace gazer
 
 using ValueToVariableMap = llvm::DenseMap<llvm::Value*, Variable*>;
 
-class CfaVariableInfo
-{
-public:
-    enum VariableKind {
-        Input, PhiInput, Local
-    };
-
-    CfaVariableInfo(VariableKind kind, Variable* variable)
-        : mKind(kind), mVariable(variable)
-    {}
-
-    VariableKind getKind() const { return mKind; }
-    Variable* getVariable() const { return mVariable; }
-
-private:
-    VariableKind mKind;
-    Variable* mVariable = nullptr;
-    llvm::Value* mLlvmValue = nullptr;
-};
-
 /// Stores information about loops which were transformed to automata.
 struct CfaGenInfo
 {
@@ -47,8 +27,6 @@ struct CfaGenInfo
 
     llvm::DenseMap<llvm::Value*, Variable*> Locals;
     llvm::DenseMap<llvm::BasicBlock*, std::pair<Location*, Location*>> Blocks;
-
-    llvm::DenseMap<llvm::Value*, CfaVariableInfo> Variables;
 
     Cfa* Automaton;
 
@@ -64,15 +42,12 @@ struct CfaGenInfo
 
     void addInput(llvm::Value* value, Variable* variable) {
         Inputs[value] = variable;
-        //return addVariable(value, variable, CfaVariableInfo::Input);
     }
     void addPhiInput(llvm::Value* value, Variable* variable) {
         PhiInputs[value] = variable;
-        //return addVariable(value, variable, CfaVariableInfo::PhiInput);
     }
     void addLocal(llvm::Value* value, Variable* variable) {
         Locals[value] = variable;
-        //return addVariable(value, variable, CfaVariableInfo::Local);
     }
 
     Variable* findVariable(const llvm::Value* value) {
@@ -97,11 +72,6 @@ struct CfaGenInfo
     }
     bool hasLocal(const llvm::Value* value) {
         return Locals.count(value) != 0;
-    }
-
-private:
-    CfaVariableInfo& addVariable(llvm::Value* value, Variable* variable, CfaVariableInfo::VariableKind kind) {
-        return (Variables.try_emplace(value, kind, variable).first)->second;
     }
 };
 

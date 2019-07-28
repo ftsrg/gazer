@@ -2,7 +2,6 @@
 #define GAZER_LLVM_ANALYSIS_MEMORYOBJECT_H
 
 #include "gazer/Core/Expr.h"
-#include "gazer/Core/Variable.h"
 #include "gazer/LLVM/TypeTranslator.h"
 
 #include <llvm/IR/Instructions.h>

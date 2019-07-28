@@ -19,10 +19,6 @@ public:
 
     std::unique_ptr<SafetyResult> check(AutomataSystem& system) override;
 
-    ~BoundedModelChecker() {
-        llvm::errs() << "BoundedModelChecker dtor\n";
-    }
-
 private:
     SolverFactory& mSolverFactory;
     TraceBuilder<Location*>* mTraceBuilder;

@@ -1,13 +1,13 @@
 set(SOURCE_FILES
-    Analysis/ProgramDependence.cpp
-    Analysis/TopologicalSort.cpp
+    #Analysis/ProgramDependence.cpp
+    #Analysis/TopologicalSort.cpp
     Analysis/MemoryObject.cpp
     Analysis/DummyMemoryModel.cpp
-    Transform/BackwardSlicer.cpp
+    #Transform/BackwardSlicer.cpp
     Transform/InlineGlobalVariablesPass.cpp
     Transform/CombineErrorCalls.cpp
     Instrumentation/MarkFunctionEntries.cpp
-    Instrumentation/InsertLastAddress.cpp
+    #Instrumentation/InsertLastAddress.cpp
     Instrumentation/Check.cpp
     Instrumentation/DefaultChecks.cpp
     Instrumentation/Intrinsics.cpp

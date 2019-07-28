@@ -2,7 +2,6 @@
 #define _GAZER_CORE_EXPRTYPES_H
 
 #include "gazer/Core/Expr.h"
-#include "gazer/Core/Variable.h"
 
 #include <llvm/ADT/APInt.h>
 #include <llvm/ADT/APFloat.h>
@@ -50,7 +49,8 @@ public:
     }
 };
 
-//===== Casts =====//
+// Casts
+//-----------------------------------------------------------------------------
 
 template<Expr::ExprKind Kind>
 class ExtCastExpr final : public UnaryExpr
@@ -131,6 +131,7 @@ private:
     unsigned mWidth;
 };
 
+/// Base class for all binary expressions.
 class BinaryExpr : public NonNullaryExpr
 {
 protected:
@@ -140,6 +141,7 @@ public:
     ExprPtr getRight() const { return getOperand(1); }
 };
 
+/// Base template for all binary arithmetic expressions.
 template<Expr::ExprKind Kind>
 class ArithmeticExpr final : public BinaryExpr
 {
@@ -211,7 +213,7 @@ protected:
     }
 
 public:
-    static ExprRef<CompareExpr<Kind>> Create(ExprPtr left, ExprPtr right);
+    static ExprRef<CompareExpr<Kind>> Create(const ExprPtr& left, const ExprPtr& right);
     
     /**
      * Type inquiry support.
@@ -311,6 +313,9 @@ template class BinaryLogicExpr<Expr::Imply>;
 
 using XorExpr = BinaryLogicExpr<Expr::Xor>;
 using ImplyExpr = BinaryLogicExpr<Expr::Imply>;
+
+// Floating-point
+//-----------------------------------------------------------------------------
 
 template<Expr::ExprKind Kind>
 class FpQueryExpr final : public UnaryExpr

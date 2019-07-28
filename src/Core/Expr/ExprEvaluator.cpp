@@ -33,7 +33,7 @@ ExprRef<LiteralExpr> ExprEvaluatorBase::visitNot(const ExprRef<NotExpr>& expr)
 ExprRef<LiteralExpr> ExprEvaluatorBase::visitZExt(const ExprRef<ZExtExpr>& expr)
 {
     auto bvLit = dyn_cast<BvLiteralExpr>(visit(expr->getOperand()).get());
-    BvType& type = llvm::cast<BvType>(expr->getType());
+    auto& type = llvm::cast<BvType>(expr->getType());
 
     return BvLiteralExpr::Get(type, bvLit->getValue().zext(expr->getExtendedWidth()));
 }
@@ -41,7 +41,7 @@ ExprRef<LiteralExpr> ExprEvaluatorBase::visitZExt(const ExprRef<ZExtExpr>& expr)
 ExprRef<LiteralExpr> ExprEvaluatorBase::visitSExt(const ExprRef<SExtExpr>& expr)
 {
     auto bvLit = dyn_cast<BvLiteralExpr>(visit(expr->getOperand()).get());
-    BvType& type = llvm::cast<BvType>(expr->getType());
+    auto& type = llvm::cast<BvType>(expr->getType());
 
     return BvLiteralExpr::Get(type, bvLit->getValue().sext(expr->getExtendedWidth()));
 }
@@ -69,7 +69,7 @@ static ExprRef<LiteralExpr> EvalBinaryArithmetic(
 
     // TODO: Add support for Int types as well...
 
-    BvType& type = llvm::cast<BvType>(expr->getType());
+    auto& type = llvm::cast<BvType>(expr->getType());
 
     switch (Kind) {
         case Expr::Add: return BvLiteralExpr::Get(type, left + right);

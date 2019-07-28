@@ -2,7 +2,7 @@
 #define _GAZER_AUTOMATON_CFA_H
 
 #include "gazer/Core/Expr.h"
-#include "gazer/Core/Variable.h"
+
 
 #include <llvm/ADT/GraphTraits.h>
 #include <llvm/ADT/DenseMap.h>
@@ -79,10 +79,10 @@ private:
     void removeOutgoing(Transition* edge);
 
 private:
+    unsigned mID;
     LocationKind mKind;
     EdgeVectorTy mIncoming;
     EdgeVectorTy mOutgoing;
-    unsigned mID;
     Cfa* mCfa;
 };
 
@@ -364,7 +364,7 @@ public:
     }
 
 private:
-    Variable* createMemberVariable(llvm::Twine name, Type& type);
+    Variable* createMemberVariable(llvm::StringRef name, Type& type);
     Variable* findVariableByName(const std::vector<Variable*>& vec, llvm::StringRef name) const;
 
     /// Inserts the given automaton into this object as nested automaton.

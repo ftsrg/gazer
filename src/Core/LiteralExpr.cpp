@@ -3,9 +3,10 @@
 
 #include "GazerContextImpl.h"
 
-#include <llvm/Support/raw_ostream.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/ADT/DenseMap.h>
+
+#include <llvm/Support/raw_ostream.h>
 
 #include <map>
 
@@ -29,7 +30,7 @@ ExprRef<IntLiteralExpr> IntLiteralExpr::Get(IntType& type, int64_t value)
     llvm_unreachable("Int literals are not supported yet.");
 }
 
-ExprRef<BvLiteralExpr> BvLiteralExpr::Get(BvType& type, llvm::APInt value)
+ExprRef<BvLiteralExpr> BvLiteralExpr::Get(BvType& type, const llvm::APInt& value)
 {
     assert(type.getWidth() == value.getBitWidth() && "Bit width of type and value must match!");
 
