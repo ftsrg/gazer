@@ -73,7 +73,7 @@ bb:
   %tmp1 = load i32, i32* @a, align 4        ; b = a + 1
   %tmp2 = add nsw i32 %tmp1, 1
   store i32 %tmp2, i32* @b, align 4
-  %tmp3 = load i32, i32* @a, align 4        ; if (a == b) { fail(); }
+  %tmp3 = load i32, i32* @a, align 4        ; if (a == b) { __VERIFIER_error(); }
   %tmp4 = load i32, i32* @b, align 4
   %tmp5 = icmp ne i32 %tmp3, %tmp4
   br i1 %tmp5, label %bb6, label %bb7

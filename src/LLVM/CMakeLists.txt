@@ -6,6 +6,7 @@ set(SOURCE_FILES
     #Transform/BackwardSlicer.cpp
     Transform/InlineGlobalVariablesPass.cpp
     Transform/CombineErrorCalls.cpp
+    Transform/LiftErrorsPass.cpp
     Instrumentation/MarkFunctionEntries.cpp
     #Instrumentation/InsertLastAddress.cpp
     Instrumentation/Check.cpp

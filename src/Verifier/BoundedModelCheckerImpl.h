@@ -2,12 +2,14 @@
 #define GAZER_SRC_VERIFIER_BOUNDEDMODELCHECKERIMPL_H
 
 #include "gazer/Verifier/BoundedModelChecker.h"
+#include "gazer/Core/Expr/ExprEvaluator.h"
 #include "gazer/Core/Expr/ExprBuilder.h"
 #include "gazer/Core/Solver/Solver.h"
 #include "gazer/Automaton/Cfa.h"
 
 #include "gazer/ADT/ScopedCache.h"
 
+#include <llvm/ADT/iterator.h>
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/DenseSet.h>
 
@@ -18,10 +20,81 @@ namespace gazer
 
 class BoundedModelCheckerImpl
 {
+    using PredecessorMapT = ScopedCache<Location*, std::pair<Variable*, ExprPtr>>;
+
     struct CallInfo
     {
         ExprPtr overApprox = nullptr;
         unsigned cost = 0;
+    };
+
+    class CexState
+    {
+    public:
+        CexState(Location* location, Transition* incoming)
+            : mLocation(location), mOutgoing(incoming)
+        {}
+
+        bool operator==(const CexState& rhs) const {
+            return mLocation == rhs.mLocation && mOutgoing == rhs.mOutgoing;
+        }
+
+        Location* getLocation() const { return mLocation; }
+        Transition* getOutgoingTransition() const { return mOutgoing; }
+
+    private:
+        Location* mLocation;
+        Transition* mOutgoing;
+    };
+
+    class BmcCex;
+
+    class cex_iterator :
+        public llvm::iterator_facade_base<cex_iterator, std::forward_iterator_tag, CexState>
+    {
+    public:
+        cex_iterator(BmcCex& cex, CexState state)
+            : mCex(cex), mState(state)
+        {}
+
+        bool operator==(const cex_iterator& rhs) const {
+            return mState == rhs.mState;
+        }
+
+        const CexState& operator*() const { return mState; }
+        CexState& operator*() { return mState; }
+
+        cex_iterator &operator++() {
+            this->advance();
+            return *this;
+        }
+
+    private:
+        void advance();
+
+    private:
+        BmcCex& mCex;
+        CexState mState;
+    };
+
+    class BmcCex
+    {
+        friend class cex_iterator;
+    public:
+        BmcCex(Location* start, Cfa& cfa, ExprEvaluator& eval, PredecessorMapT& preds)
+            : mStart(start), mCfa(cfa), mEval(eval), mPredecessors(preds)
+        {
+            assert(start != nullptr);
+        }
+
+        cex_iterator begin() { return cex_iterator(*this, {mStart, nullptr});  }
+        cex_iterator end()   { return cex_iterator(*this, {nullptr, nullptr}); }
+
+    private:
+        Cfa& mCfa;
+        PredecessorMapT& mPredecessors;
+        ExprEvaluator mEval;
+        Location* mStart;
     };
 
 public:
@@ -60,7 +133,11 @@ private:
     /// If source == target, this method will do nothing.
     void clearLocationsWithoutCallDescendants(Location* lca, Location* target);
 
+    /// Finds the closest common ancestor node for all call transitions.
+    /// If no call transitions are present in the CFA, this function returns nullptr.
     Location* findCommonCallAncestor();
+
+    void findOpenCallsInCex(Valuation& model, llvm::SmallVectorImpl<CallTransition*>& callsInCex);
 
     void push() {
         mSolver->push();
@@ -87,7 +164,7 @@ private:
     llvm::DenseSet<CallTransition*> mOpenCalls;
     std::unordered_map<Cfa*, std::vector<Location*>> mTopoSortMap;
 
-    ScopedCache<Location*, std::pair<Variable*, ExprPtr>> mPredecessors;
+    PredecessorMapT mPredecessors;
 
     llvm::DenseMap<Location*, Location*> mInlinedLocations;
     llvm::DenseMap<Variable*, Variable*> mInlinedVariables;

@@ -11,7 +11,7 @@ namespace gazer
 class SafetyResult
 {
 public:
-    enum Status { Success, Fail, Unknown };
+    enum Status { Success, Fail, Unknown, BoundReached, InternalError };
 protected:
     SafetyResult(Status status)
         : mStatus(status)

@@ -1,7 +1,6 @@
 #include "BoundedModelCheckerImpl.h"
 
 #include "gazer/Core/Expr/ExprRewrite.h"
-#include "gazer/Core/Expr/ExprEvaluator.h"
 #include "gazer/Core/Expr/ExprUtils.h"
 
 #include "gazer/Support/Stopwatch.h"
@@ -203,73 +202,44 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                 auto model = mSolver->getModel();
 
                 if (Trace) {
-                    // Recover the sequence of transitions leading to the error location.
                     std::vector<Location*> states;
                     std::vector<std::vector<VariableAssignment>> actions;
 
-                    bool hasParent = true;
-                    Location* current = mError;
-                    
                     ExprEvaluator eval{model};
 
-                    while (hasParent) {
-                        states.push_back(current);
+                    BmcCex cex{mError, *mRoot, eval, mPredecessors};
+                    for (auto it = cex.begin(), ie = cex.end(); it != ie; ++it) {
+                        Location* state  = it->getLocation();
+                        Transition* edge = it->getOutgoingTransition();
 
-                        auto predResult = mPredecessors.get(current);
-                        if (predResult) {
-                            auto predLit = llvm::dyn_cast_or_null<BvLiteralExpr>(
-                                eval.visit(predResult->second).get()
-                            );
-                            
-                            assert((predLit != nullptr)
-                                && "Pred values should be evaluatable as bitvector literals!");
-
-                            size_t predId = predLit->getValue().getLimitedValue();
-                            Location* source = mRoot->findLocationById(predId);
-
-                            assert(source != nullptr && "Locations should be findable by their id!");
-
-                            auto edge = std::find_if(
-                                current->incoming_begin(),
-                                current->incoming_end(),
-                                [source](Transition* e) { return e->getSource() == source; }
-                            );
-
-                            //llvm::errs() << "Current " << current->getId() << " next " << predId << " loc " << source->getId() << "\n";
-
-                            assert(edge != current->incoming_end()
-                                && "There must be an edge between a location and its direct predecessor!");
-
-                            auto assignEdge = llvm::dyn_cast<AssignTransition>(*edge);                            
-                            assert(assignEdge != nullptr
-                                && "BMC traces must contain only assign transitions!"
-                            );
-
-                            std::vector<VariableAssignment> traceAction;
-                            for (const VariableAssignment& assignment : *assignEdge) {
-                                Variable* variable = assignment.getVariable();
-                                Variable* origVariable = mInlinedVariables.lookup(assignment.getVariable());
-                                if (origVariable == nullptr) {
-                                    // This variable was not inlined, just use the original one.
-                                    origVariable = variable;
-                                }
-
-                                ExprRef<AtomicExpr> value;
-                                
-                                if (model.find(assignment.getVariable()) == model.end()) {
-                                    value = UndefExpr::Get(variable->getType());
-                                } else {
-                                    value = eval.visit(variable->getRefExpr());
-                                }
-
-                                traceAction.emplace_back(origVariable, value);
-                            }
-                            actions.push_back(traceAction);
-
-                            current = source;
-                        } else {
-                            hasParent = false;
+                        states.push_back(state);
+                        if (edge == nullptr) {
+                            continue;
                         }
+
+                        auto assignEdge = llvm::dyn_cast<AssignTransition>(edge);
+                        assert(assignEdge != nullptr && "BMC traces must contain only assign transitions!");
+
+                        std::vector<VariableAssignment> traceAction;
+                        for (const VariableAssignment& assignment : *assignEdge) {
+                            Variable* variable = assignment.getVariable();
+                            Variable* origVariable = mInlinedVariables.lookup(assignment.getVariable());
+                            if (origVariable == nullptr) {
+                                // This variable was not inlined, just use the original one.
+                                origVariable = variable;
+                            }
+
+                            ExprRef<AtomicExpr> value;
+                            if (model.find(assignment.getVariable()) == model.end()) {
+                                value = UndefExpr::Get(variable->getType());
+                            } else {
+                                value = eval.visit(variable->getRefExpr());
+                            }
+
+                            traceAction.emplace_back(origVariable, value);
+                        }
+
+                        actions.push_back(traceAction);
                     }
 
                     std::reverse(states.begin(), states.end());
@@ -353,14 +323,19 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
             if (status == Solver::SAT) {
                 llvm::outs() << "      Over-approximated formula is SAT.\n";
                 llvm::outs() << "      Checking counterexample....\n";
+
                 // We have a counterexample, but it may be spurious.
+                auto model = mSolver->getModel();
+
+                llvm::SmallVector<CallTransition*, 16> callsInCex;
+                this->findOpenCallsInCex(model, callsInCex);
 
                 llvm::outs() << "    Inlining calls...\n";
-
-                for (CallTransition* call : mOpenCalls) {
+                for (CallTransition* call : callsInCex) {
                     mStats.NumInlined++;
-                    inlineCallIntoRoot(call, mInlinedVariables, "_call" + llvm::Twine(tmp++));
+                    this->inlineCallIntoRoot(call, mInlinedVariables, "_call" + llvm::Twine(tmp++));
                     mCalls.erase(call);
+                    mOpenCalls.erase(call);
                 }
                 mRoot->clearDisconnectedElements();
 
@@ -456,34 +431,33 @@ ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Loc
         ExprPtr predExpr = nullptr;
         Variable* predVar = nullptr;
 
-        if (Trace) {
-            if (preds.empty()) {
-                predExpr = nullptr;
-                predVar = nullptr;
-            } else if (preds.size() == 1) {
-                predExpr = mExprBuilder.BvLit(preds[0].first->getSource()->getId(), 32);
-                mPredecessors.insert(loc, {predVar, predExpr});
-            } else if (preds.size() == 2) {
-                predVar = mSystem.getContext().createVariable(
-                    "__gazer_pred_" + std::to_string(mTmp++),
-                    BoolType::Get(mSystem.getContext())
-                );
+        // Add predecessor identifications.
+        if (preds.empty()) {
+            predExpr = nullptr;
+            predVar = nullptr;
+        } else if (preds.size() == 1) {
+            predExpr = mExprBuilder.BvLit(preds[0].first->getSource()->getId(), 32);
+            mPredecessors.insert(loc, {predVar, predExpr});
+        } else if (preds.size() == 2) {
+            predVar = mSystem.getContext().createVariable(
+                "__gazer_pred_" + std::to_string(mTmp++),
+                BoolType::Get(mSystem.getContext())
+            );
 
-                unsigned first =  preds[0].first->getSource()->getId();
-                unsigned second = preds[1].first->getSource()->getId();
-                
-                predExpr = mExprBuilder.Select(
-                    predVar->getRefExpr(), mExprBuilder.BvLit(first, 32), mExprBuilder.BvLit(second, 32)
-                );
-                mPredecessors.insert(loc, {predVar, predExpr});
-            } else {
-                predVar = mSystem.getContext().createVariable(
-                    "__gazer_pred_" + std::to_string(mTmp++),
-                    BvType::Get(mSystem.getContext(), 32)
-                );
-                predExpr = predVar->getRefExpr();
-                mPredecessors.insert(loc, {predVar, predExpr});
-            }
+            unsigned first =  preds[0].first->getSource()->getId();
+            unsigned second = preds[1].first->getSource()->getId();
+            
+            predExpr = mExprBuilder.Select(
+                predVar->getRefExpr(), mExprBuilder.BvLit(first, 32), mExprBuilder.BvLit(second, 32)
+            );
+            mPredecessors.insert(loc, {predVar, predExpr});
+        } else {
+            predVar = mSystem.getContext().createVariable(
+                "__gazer_pred_" + std::to_string(mTmp++),
+                BvType::Get(mSystem.getContext(), 32)
+            );
+            predExpr = predVar->getRefExpr();
+            mPredecessors.insert(loc, {predVar, predExpr});
         }
         
         for (size_t j = 0; j < preds.size(); ++j) {
@@ -491,7 +465,7 @@ ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Loc
             size_t predIdx = preds[j].second;
 
             ExprPtr predIdentification;
-            if (!Trace || predVar == nullptr) {
+            if (predVar == nullptr) {
                 predIdentification = mExprBuilder.True();
             } else if (predVar->getType().isBoolType()) {
                 predIdentification =
@@ -580,99 +554,22 @@ Location* BoundedModelCheckerImpl::findCommonCallAncestor()
     });
 }
 
-#if 0
-void BoundedModelCheckerImpl::clearLocationsWithoutCallDescendants(Location* lca, Location* target)
+void BoundedModelCheckerImpl::findOpenCallsInCex(Valuation& model, llvm::SmallVectorImpl<CallTransition*>& callsInCex)
 {
-    size_t targetIdx = mLocNumbers[target];
-    size_t lcaIdx = mLocNumbers[lca];
-    size_t siz = targetIdx + 1;
+    ExprEvaluator eval{model};
+    auto cex = BmcCex{mError, *mRoot, eval, mPredecessors};
 
-    // We are doing two passes: one forward and one backward.
-    boost::dynamic_bitset<> fwd(siz);
-    boost::dynamic_bitset<> bwd(siz);
-
-    for (size_t i = 0; i < fwd.size(); ++i) {
-        Location* loc = mTopo[i];
-
-        for (Transition* edge : loc->incoming()) {
-            auto predIt = mLocNumbers.find(edge->getSource());
-            assert(predIt != mLocNumbers.end()
-                && "All locations must be present in the location map");
-
-            size_t predIdx = predIt->second;
-            assert(predIdx < i
-                && "Predecessors must be before block in a topological sort. "
-                "Maybe there is a loop in the automaton?");
-            
-            llvm::errs() << "    " << i << " : " <<  fwd[i] << "  " << fwd[predIdx] << "  " << edge->isCall() << "\n";
-            fwd[i] = fwd[i] || fwd[predIdx] || edge->isCall();
-        }
-        llvm::errs() << i << ":  " << loc->getId() << "  " << fwd[i] << "\n";
-    }
-
-    for (size_t i = targetIdx; i-- > 0;) {
-        Location* loc = mTopo[i];
-        
-        for (Transition* edge : loc->outgoing()) {
-            auto descIt = mLocNumbers.find(edge->getTarget());
-            assert(descIt != mLocNumbers.end()
-                && "All locations must be present in the location map");
-
-            size_t descIdx = descIt->second;
-            assert(descIdx > i
-                && "Descendants must be after block in a topological sort. "
-                "Maybe there is a loop in the automaton?");
-
-            if (descIdx > targetIdx) {
-                // We are skipping the descendants which are outside the region we are interested in.
-                continue;
+    for (auto it = cex.begin(), ie = cex.end(); it != ie; ++it) {
+        auto call = llvm::dyn_cast_or_null<CallTransition>(it->getOutgoingTransition());
+        if (call != nullptr && mOpenCalls.count(call) != 0) {
+            callsInCex.push_back(call);
+            if (callsInCex.size() == mOpenCalls.size()) {
+                // All possible calls were encountered, no point in iterating further.
+                break;
             }
-
-            llvm::errs() << "    " << i << " : " <<  bwd[i] << "  " << bwd[descIdx] << "  " << edge->isCall() << "\n";
-
-            bwd[i] = bwd[i] || bwd[descIdx] || edge->isCall();
-        }
-        llvm::errs() << i << ":  " << loc->getId() << "  " << bwd[i] << "\n";
-    }
-
-    llvm::DenseSet<Location*> toRemove;
-    for (size_t i = 0; i < siz; ++i) {
-        Location* loc = mTopo[i];
-        if (!fwd[i] && !bwd[i]) {
-            toRemove.insert(loc);
         }
     }
-
-    std::stringstream ss;
-    ss << fwd << "\n";
-    ss << bwd << "\n";
-    std::for_each(mTopo.begin(), mTopo.end(), [&ss](auto l) {
-        ss << l->getId() << ", ";
-    });
-    ss << "\n";
-
-    llvm::errs() << ss.str();
-
-    if (toRemove.empty()) {
-        return;
-    }
-
-    mTopo.erase(std::remove_if(mTopo.begin(), mTopo.end(), [&toRemove](Location* l) {
-        return toRemove.count(l) != 0;
-    }), mTopo.end());
-
-    mLocNumbers.clear();
-    for (size_t i = 0; i < mTopo.size(); ++i) {
-        mLocNumbers[mTopo[i]] = i;
-    }
-
-    for (Location* loc : toRemove) {
-        mRoot->disconnectLocation(loc);
-    }
-    mRoot->clearDisconnectedElements();
 }
-
-#endif
 
 void BoundedModelCheckerImpl::inlineCallIntoRoot(
     CallTransition* call,
@@ -857,7 +754,6 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     mRoot->disconnectEdge(call);
 }
 
-
 void BoundedModelCheckerImpl::printStats(llvm::raw_ostream& os) {
     os << "--------- Statistics ---------\n";
     os << "Total solver time: ";
@@ -873,4 +769,37 @@ void BoundedModelCheckerImpl::printStats(llvm::raw_ostream& os) {
         mSolver->printStats(os);
     }
     os << "\n";
+}
+
+void BoundedModelCheckerImpl::cex_iterator::advance()
+{
+    auto pred = mCex.mPredecessors.get(mState.getLocation());
+    if (!pred) {
+        // No predcessor information is available, this was the end of the counterexample trace.
+        mState = { nullptr, nullptr };
+        return;
+    }
+
+    Location* current = mState.getLocation();
+    auto predLit = llvm::dyn_cast_or_null<BvLiteralExpr>(
+        mCex.mEval.visit(pred->second).get()
+    );
+                            
+    assert((predLit != nullptr) && "Pred values should be evaluatable as bitvector literals!");
+    
+    size_t predId = predLit->getValue().getLimitedValue();
+    Location* source = mCex.mCfa.findLocationById(predId);
+
+    assert(source != nullptr && "Locations should be findable by their id!");
+
+    auto edge = std::find_if(
+        current->incoming_begin(),
+        current->incoming_end(),
+        [source](Transition* e) { return e->getSource() == source; }
+    );
+
+    assert(edge != current->incoming_end()
+        && "There must be an edge between a location and its direct predecessor!");
+
+    mState = { source, *edge };
 }
