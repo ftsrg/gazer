@@ -1,8 +1,5 @@
 #include "gazer/LLVM/Analysis/BmcPass.h"
-#include "gazer/LLVM/Analysis/ProgramDependence.h"
 #include "gazer/LLVM/Transform/Passes.h"
-#include "gazer/LLVM/Analysis/ProgramDependence.h"
-#include "gazer/LLVM/Analysis/TopologicalSort.h"
 #include "gazer/LLVM/Instrumentation/DefaultChecks.h"
 
 #include "gazer/LLVM/InstrumentationPasses.h"
@@ -66,6 +63,12 @@ int main(int argc, char* argv[])
     
     if (!module) {
         err.print("gazer-bmc", llvm::errs());
+        return 1;
+    }
+
+    // TODO: This should be more flexible.
+    if (module->getFunction("main") == nullptr) {
+        llvm::errs() << "No 'main' function found.\n";
         return 1;
     }
 
@@ -164,22 +167,22 @@ int main(int argc, char* argv[])
         //pm->add(new gazer::BoundedUnwindPass(bound));
         pm->add(llvm::createInstructionNamerPass());
 
-        bool NeedsPDG = BackwardSlice || PrintPDG;
+        // bool NeedsPDG = BackwardSlice || PrintPDG;
 
-        if (NeedsPDG) {
-            pm->add(llvm::createPostDomTree());
-            pm->add(gazer::createProgramDependenceWrapperPass());
-        }
-        if (PrintPDG) {
-            pm->add(gazer::createProgramDependencePrinterPass());
-        }
-        if (BackwardSlice) {
-            pm->add(gazer::createBackwardSlicerPass());
-            pm->add(llvm::createVerifierPass());
-            pm->add(llvm::createConstantPropagationPass());
-            pm->add(llvm::createDeadCodeEliminationPass());
-            pm->add(llvm::createCFGSimplificationPass());
-        }
+        // if (NeedsPDG) {
+        //     pm->add(llvm::createPostDomTree());
+        //     pm->add(gazer::createProgramDependenceWrapperPass());
+        // }
+        // if (PrintPDG) {
+        //     pm->add(gazer::createProgramDependencePrinterPass());
+        // }
+        // if (BackwardSlice) {
+        //     pm->add(gazer::createBackwardSlicerPass());
+        //     pm->add(llvm::createVerifierPass());
+        //     pm->add(llvm::createConstantPropagationPass());
+        //     pm->add(llvm::createDeadCodeEliminationPass());
+        //     pm->add(llvm::createCFGSimplificationPass());
+        // }
 
         //pm->add(gazer::createPromoteUndefsPass());
 

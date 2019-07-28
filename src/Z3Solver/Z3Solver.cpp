@@ -1,6 +1,5 @@
 #include "gazer/Z3Solver/Z3Solver.h"
-#include "gazer/Core/ExprTypes.h"
-#include "gazer/Core/LiteralExpr.h"
+
 #include "gazer/Core/ExprVisitor.h"
 
 #include "gazer/ADT/ScopedCache.h"
@@ -554,7 +553,7 @@ void CachingZ3Solver::pop() {
 
 //---- Support for model extraction ----//
 
-static FloatType::FloatPrecision precFromSort(z3::context& context, z3::sort sort)
+static FloatType::FloatPrecision precFromSort(z3::context& context, const z3::sort& sort)
 {
     assert(sort.sort_kind() == Z3_sort_kind::Z3_FLOATING_POINT_SORT);
     unsigned ebits = Z3_fpa_get_ebits(context, sort);
@@ -628,8 +627,6 @@ Valuation Z3Solver::getModel()
             const Type* varTy = &variable.getType();
             assert(varTy->isIntType() && "An IntType should only be contained in an IntType variable.");
         
-            auto intTy = llvm::cast<gazer::IntType>(varTy);
-
             expr = IntLiteralExpr::Get(IntType::Get(getContext()), value);
         } else if (z3Expr.is_bv()) {
             unsigned int width = Z3_get_bv_sort_size(mZ3Context, z3Expr.get_sort());

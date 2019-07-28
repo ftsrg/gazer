@@ -1,6 +1,8 @@
 #ifndef _GAZER_CORE_TYPE_H
 #define _GAZER_CORE_TYPE_H
 
+#include "gazer/Core/GazerContext.h"
+
 #include <llvm/Support/Casting.h>
 #include <llvm/ADT/iterator.h>
 

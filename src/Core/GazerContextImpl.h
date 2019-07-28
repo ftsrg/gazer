@@ -3,7 +3,6 @@
 
 #include "gazer/Core/GazerContext.h"
 #include "gazer/Core/Type.h"
-#include "gazer/Core/Variable.h"
 #include "gazer/Core/LiteralExpr.h"
 #include "gazer/Core/ExprTypes.h"
 #include "gazer/Support/DenseMapKeyInfo.h"

@@ -110,7 +110,7 @@ public:
     virtual void print(llvm::raw_ostream& os) const override;
 
 public:
-    static ExprRef<BvLiteralExpr> Get(BvType& type, llvm::APInt value);
+    static ExprRef<BvLiteralExpr> Get(BvType& type, const llvm::APInt& value);
 
     llvm::APInt getValue() const { return mValue; }
 

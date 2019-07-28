@@ -24,7 +24,7 @@ ExprPtr ExprRewrite::visitVarRef(const ExprRef<VarRefExpr>& expr)
 ExprPtr ExprRewrite::visitNonNullary(const ExprRef<NonNullaryExpr>& expr)
 {
     ExprVector ops;
-    for (ExprPtr operand : expr->operands()) {
+    for (const ExprPtr& operand : expr->operands()) {
         ops.push_back(this->visit(operand));
     }
 

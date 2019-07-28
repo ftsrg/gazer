@@ -113,7 +113,7 @@ BvType& BvType::Get(GazerContext& context, unsigned width)
 
     auto result = pImpl->BvTypes.find(width);
     if (result == pImpl->BvTypes.end()) {
-        BvType* ptr = new BvType(context, width);
+        auto ptr = new BvType(context, width);
         pImpl->BvTypes.emplace(width, ptr);
 
         return *ptr;

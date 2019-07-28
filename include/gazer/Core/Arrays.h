@@ -2,7 +2,6 @@
 #define _GAZER_CORE_ARRAYS_H
 
 #include "gazer/Core/Expr.h"
-#include "gazer/Core/Variable.h"
 
 #include <llvm/ADT/SmallVector.h>
 

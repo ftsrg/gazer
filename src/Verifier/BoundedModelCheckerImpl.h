@@ -50,7 +50,7 @@ private:
     void inlineCallIntoRoot(
         CallTransition* call,
         llvm::DenseMap<Variable*, Variable*>& vmap,
-        llvm::Twine suffix
+        const llvm::Twine& suffix
     );
     
     /// Calculates a the path condition expression between \p source and \p target.

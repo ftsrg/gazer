@@ -6,13 +6,12 @@
 
 #include "gazer/Support/Stopwatch.h"
 
-#include <llvm/ADT/PostOrderIterator.h>
-#include <llvm/Support/CommandLine.h>
 #include <llvm/ADT/DenseSet.h>
-#include <llvm/Support/Debug.h>
+#include <llvm/ADT/PostOrderIterator.h>
 #include <llvm/ADT/DepthFirstIterator.h>
 
-#include <boost/dynamic_bitset.hpp>
+#include <llvm/Support/CommandLine.h>
+#include <llvm/Support/Debug.h>
 
 #include <sstream>
 
@@ -62,6 +61,7 @@ BoundedModelCheckerImpl::BoundedModelCheckerImpl(
 {
         // TODO: Make this more flexible
         mRoot = mSystem.getAutomatonByName("main");
+        assert(mRoot != nullptr && "The main automaton must exist!");
 
         // Set the verification goal - a single error location.
         llvm::SmallVector<Location*, 1> errors;
@@ -174,7 +174,6 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
             unsigned numUnhandledCallSites = 0;
             llvm::outs() << "  Under-approximating.\n";
 
-            size_t errIdx = mLocNumbers[mError];
             ExprPtr formula = this->forwardReachableCondition(start, mError);
 
             this->push();
@@ -301,12 +300,13 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
             // TODO: We should also delete locations which have no reachable call descendants.
 
             Location* lca = this->findCommonCallAncestor();
-            //llvm::errs() << "Common call ancestor is " << lca->getId() << " on topo position " << mLocNumbers[lca] << "\n";
-
-            //Location* lca = start;
 
             this->push();
-            mSolver->add(forwardReachableCondition(start, lca));
+            if (lca != nullptr) {
+                mSolver->add(forwardReachableCondition(start, lca));
+            } else {
+                lca = start;
+            }
 
             // Now try to over-approximate.
             llvm::outs() << "  Over-approximating.\n";
@@ -537,6 +537,11 @@ ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Loc
 
 Location* BoundedModelCheckerImpl::findCommonCallAncestor()
 {
+    if (mCalls.empty()) {
+        // There is no common call ancestor as no calls are present in the graph.
+        return nullptr;
+    }
+
     auto start = std::min_element(mCalls.begin(), mCalls.end(), [this](auto& a, auto& b) {
         return mLocNumbers[a.first->getSource()] < mLocNumbers[b.first->getSource()];
     });
@@ -575,6 +580,7 @@ Location* BoundedModelCheckerImpl::findCommonCallAncestor()
     });
 }
 
+#if 0
 void BoundedModelCheckerImpl::clearLocationsWithoutCallDescendants(Location* lca, Location* target)
 {
     size_t targetIdx = mLocNumbers[target];
@@ -666,10 +672,12 @@ void BoundedModelCheckerImpl::clearLocationsWithoutCallDescendants(Location* lca
     mRoot->clearDisconnectedElements();
 }
 
+#endif
+
 void BoundedModelCheckerImpl::inlineCallIntoRoot(
     CallTransition* call,
     llvm::DenseMap<Variable*, Variable*>& vmap,
-    llvm::Twine suffix
+    const llvm::Twine& suffix
 ) {
     LLVM_DEBUG(
         llvm::dbgs() << " Inlining call " << *call

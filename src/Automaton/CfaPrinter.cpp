@@ -2,10 +2,11 @@
 #include "gazer/Automaton/Cfa.h"
 #include "gazer/Core/LiteralExpr.h"
 
+#include <llvm/ADT/StringExtras.h>
+
 #include <llvm/Support/DOTGraphTraits.h>
 #include <llvm/Support/GraphWriter.h>
 #include <llvm/Support/Format.h>
-#include <llvm/ADT/StringExtras.h>
 
 using namespace gazer;
 
@@ -97,7 +98,7 @@ void Transition::print(llvm::raw_ostream &os) const
         case Edge_Assign:
         {
             auto assign = llvm::cast<AssignTransition>(this);
-            for (VariableAssignment varAssignment : *assign) {
+            for (const VariableAssignment& varAssignment : *assign) {
                 os
                     << varAssignment.getVariable()->getName()
                     << " := ";
@@ -114,12 +115,12 @@ void Transition::print(llvm::raw_ostream &os) const
                 << "Call "
                 << call->getCalledAutomaton()->getName()
                 << "(";
-            for (ExprPtr expr : call->inputs()) {
+            for (const ExprPtr& expr : call->inputs()) {
                 expr->print(os);
                 os << ", ";
             }
             os << ") -> {";
-            for (VariableAssignment varAssignment : call->outputs()) {
+            for (const VariableAssignment& varAssignment : call->outputs()) {
                 os
                     << varAssignment.getVariable()->getName()
                     << " <= ";

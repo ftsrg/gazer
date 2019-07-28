@@ -3,7 +3,6 @@
 
 #include "gazer/Trace/Location.h"
 #include "gazer/Core/Expr.h"
-#include "gazer/Core/Variable.h"
 
 #include <llvm/Support/ErrorHandling.h>
 

@@ -2,7 +2,6 @@
 #define GAZER_CORE_EXPR_EXPRPROPAGATOR_H
 
 #include "gazer/Core/Expr.h"
-#include "gazer/Core/Variable.h"
 
 #include <llvm/ADT/DenseMap.h>
 

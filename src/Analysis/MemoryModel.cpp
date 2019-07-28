@@ -1,6 +1,5 @@
 #include "gazer/Analysis/LegacyMemoryModel.h"
 #include "gazer/Core/LiteralExpr.h"
-#include "gazer/Core/Variable.h"
 #include "gazer/LLVM/Ir2Expr.h"
 
 #include <llvm/IR/Operator.h>

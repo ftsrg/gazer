@@ -15,7 +15,7 @@ using namespace gazer;
 #define GAZER_EXPR_KIND(KIND) #KIND,
 
 /// This array contains the name of every Gazer expression kind.
-static const char* const ExprNames[] = {
+static constexpr std::array ExprNames = {
     #include "gazer/Core/Expr/ExprKind.inc"
 };
 
@@ -24,7 +24,7 @@ static const char* const ExprNames[] = {
 std::size_t gazer::expr_kind_prime(Expr::ExprKind kind)
 {
     // Unique prime numbers for each expression kind, used for hashing.
-    static const std::size_t ExprKindPrimes[] = {
+    static constexpr std::array ExprKindPrimes = {
         472127u, 167159u, 682183u, 616243u, 644431u, 978647u, 788959u, 200891u,
         938939u, 537679u, 757711u, 132697u, 195203u, 511193u, 286249u, 178481u,
         956057u, 614531u, 360233u, 621913u, 758041u, 718559u, 930991u, 686201u,
@@ -35,7 +35,7 @@ std::size_t gazer::expr_kind_prime(Expr::ExprKind kind)
     };
 
     static_assert(
-        (sizeof(ExprKindPrimes) / sizeof(ExprKindPrimes[0])) == Expr::LastExprKind + 1,
+        ExprKindPrimes.size() == Expr::LastExprKind + 1,
         "Missing ExprKind in GetExprKindPrime!"
     );
 
@@ -136,7 +136,7 @@ auto ArithmeticExpr<Kind>::Create(const ExprPtr& left, const ExprPtr& right) -> 
 }
 
 template<Expr::ExprKind Kind>
-auto CompareExpr<Kind>::Create(ExprPtr left, ExprPtr right) -> ExprRef<CompareExpr<Kind>>
+auto CompareExpr<Kind>::Create(const ExprPtr& left, const ExprPtr& right) -> ExprRef<CompareExpr<Kind>>
 {
     assert(left->getType() == right->getType() && "Compare expresison operand types must match!");
     auto& context = left->getContext();

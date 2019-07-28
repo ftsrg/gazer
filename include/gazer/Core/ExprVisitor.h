@@ -4,7 +4,6 @@
 #include "gazer/Core/Expr.h"
 #include "gazer/Core/ExprTypes.h"
 #include "gazer/Core/LiteralExpr.h"
-#include "gazer/Core/Variable.h"
 
 namespace gazer
 {

@@ -1,12 +1,11 @@
 #include "gazer/LLVM/InstrumentationPasses.h"
 #include "gazer/LLVM/Instrumentation/Intrinsics.h"
 
-#include <llvm/Pass.h>
-#include <llvm/IR/Module.h>
-#include <llvm/IR/Function.h>
 #include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/InstIterator.h>
+
+#include <llvm/Pass.h>
 
 using namespace gazer;
 using namespace llvm;
@@ -79,7 +78,6 @@ public:
                         returnValueMarks[retValueTy] = retMark;
                     }
 
-                    auto md = ValueAsMetadata::get(retValue);
                     builder.CreateCall(retMark, {
                         MetadataAsValue::get(context, dsp),
                         retValue
@@ -107,7 +105,6 @@ public:
             }
 
             for (CallInst* call : calls) {
-                auto md = ValueAsMetadata::get(call);
                 builder.SetInsertPoint(call->getNextNode());
                 builder.CreateCall(callReturnedMark, {
                     MetadataAsValue::get(context, dsp)
@@ -120,7 +117,7 @@ public:
 
 };
 
-}
+} // end anonymous namespace
 
 char MarkFunctionEntriesPass::ID = 0;
 
@@ -128,4 +125,4 @@ namespace gazer {
     llvm::Pass* createMarkFunctionEntriesPass() {
         return new MarkFunctionEntriesPass();
     }
-}
+} // end namespace gazer

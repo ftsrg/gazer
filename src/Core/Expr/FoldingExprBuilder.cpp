@@ -1,7 +1,6 @@
 #include "gazer/Core/Expr/ExprBuilder.h"
 #include "gazer/Core/ExprTypes.h"
 #include "gazer/Core/LiteralExpr.h"
-#include "gazer/Core/Variable.h"
 #include "gazer/Core/Expr/Matcher.h"
 #include "gazer/Core/Expr/ConstantFolder.h"
 #include "gazer/Core/Expr/ExprPropagator.h"

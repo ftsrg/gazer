@@ -23,11 +23,8 @@ public:
     static constexpr char InlinedGlobalWriteName[] = "llvm.gazer.inlined_global.write";
 
 public:
-    //static llvm::Function* getDeclaration(IntrinsicKind kind, llvm::Module& module);
-
     static llvm::CallInst* CreateInlinedGlobalWrite(llvm::Value* value, llvm::DIGlobalVariable* gv);
     static llvm::CallInst* CreateFunctionEntry(llvm::Module& module, llvm::DISubprogram* dsp = nullptr);
-
 
 public:
     /// Returns a 'gazer.function.entry(metadata fn_name, i8 num_args)' intrinsic.
