@@ -30,10 +30,6 @@ public:
     void push() override;
     void pop() override;
 
-    ~Z3Solver() {
-        llvm::errs() << "Z3Solver dtor\n";
-    }
-
 protected:
     void addConstraint(ExprPtr expr) override;
 

@@ -173,6 +173,10 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
             unsigned numUnhandledCallSites = 0;
             llvm::outs() << "  Under-approximating.\n";
 
+            for (auto& entry : mCalls) {
+                entry.second.overApprox = mExprBuilder.False();
+            }
+
             ExprPtr formula = this->forwardReachableCondition(start, mError);
 
             this->push();
@@ -269,6 +273,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
             // start location.
             // TODO: We should also delete locations which have no reachable call descendants.
 
+            llvm::errs() << "  Attempting to set a new starting point...\n";
             Location* lca = this->findCommonCallAncestor();
 
             this->push();
@@ -493,6 +498,7 @@ ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Loc
                     formula = mExprBuilder.And(formula, mExprBuilder.And(assigns));
                 }
             } else if (auto callEdge = llvm::dyn_cast<CallTransition>(edge)) {
+                //llvm::errs() << "Over-approximating edge with " << *mCalls[callEdge].overApprox << " edge " << *edge << "\n";
                 formula = mExprBuilder.And(formula, mCalls[callEdge].overApprox);
             }
 
