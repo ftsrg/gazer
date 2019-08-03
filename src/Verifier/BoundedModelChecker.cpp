@@ -89,7 +89,7 @@ BoundedModelCheckerImpl::BoundedModelCheckerImpl(
 
         mErrorFieldVariable = mRoot->createLocal("__error_field", BvType::Get(mSystem.getContext(), 16));
 
-        if (errors.size() == 0) {
+        if (errors.empty()) {
             // If there are no error locations in the main automaton, they might still exist in a called CFA.
             // Create a dummy error location which we will use as a goal.
             mError = mRoot->createErrorLocation();
@@ -252,7 +252,15 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                     assert(states.size() == actions.size() + 1);
 
                     for (size_t i = 0; i < actions.size(); ++i) {
-                        llvm::outs() << "State " << states[i]->getId() << "\n";
+                        Location* state = states[i];
+                        Location* origState = mInlinedLocations.lookup(state);
+
+                        llvm::outs() << "State " << state->getId();
+                        if (origState != nullptr) {
+                            llvm::outs() << " (" << origState->getId() << " in " << origState->getAutomaton()->getName() << ")";
+                        }
+                        llvm::outs() << "\n";
+
                         for (VariableAssignment assign : actions[i]) {
                             llvm::outs() << "   " << assign << "\n";
                         }
@@ -553,7 +561,7 @@ Location* BoundedModelCheckerImpl::findCommonCallAncestor()
         }
     }
 
-    assert(candidates.size() > 0 && "There must be at least one valid candidate (the entry node)!");
+    assert(!candidates.empty() && "There must be at least one valid candidate (the entry node)!");
 
     return *std::max_element(candidates.begin(), candidates.end(),  [this](Location* a, Location* b) {
         return mLocNumbers[a] < mLocNumbers[b];
@@ -685,7 +693,7 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
             std::transform(
                 nestedCall->output_begin(), nestedCall->output_end(),
                 std::back_inserter(newOuts),
-                [&rewrite, &oldVarToNew](const VariableAssignment& origAssign) {
+                [&oldVarToNew](const VariableAssignment& origAssign) {
                     //llvm::errs() << origAssign.getVariable()->getName() << "\n";
 
                     Variable* newVar = oldVarToNew.lookup(origAssign.getVariable());

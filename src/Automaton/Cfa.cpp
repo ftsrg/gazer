@@ -24,7 +24,7 @@ Cfa::Cfa(GazerContext &context, std::string name, AutomataSystem* parent)
 //-------------------------------------------------------------------------
 Location* Cfa::createLocation()
 {
-    auto loc = new Location(mLocationIdx++);
+    auto loc = new Location(mLocationIdx++, this);
     mLocations.emplace_back(loc);
     mLocationNumbers[loc->getId()] = loc;
 
@@ -33,7 +33,7 @@ Location* Cfa::createLocation()
 
 Location* Cfa::createErrorLocation()
 {
-    auto loc = new Location(mLocationIdx++, Location::Error);
+    auto loc = new Location(mLocationIdx++, this, Location::Error);
     mLocations.emplace_back(loc);
     mErrorLocations.emplace_back(loc);
     mLocationNumbers[loc->getId()] = loc;
@@ -323,8 +323,8 @@ Cfa *AutomataSystem::createCfa(std::string name)
 
 Cfa* AutomataSystem::createNestedCfa(Cfa* parent, std::string name)
 {
-    auto fullName = parent->getName() + "/" + name;
-    Cfa* cfa = new Cfa(mContext, fullName.str(), this);
+    auto fullName = (parent->getName() + "/" + name).str();
+    Cfa* cfa = new Cfa(mContext, fullName, this);
     mAutomata.emplace_back(cfa);
 
     parent->addNestedAutomaton(cfa);

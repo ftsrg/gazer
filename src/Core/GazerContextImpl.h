@@ -70,7 +70,8 @@ struct expr_hasher<ExprTy, std::enable_if_t<
             return false;
         }
 
-        return std::equal(begin, end, llvm::cast<NonNullaryExpr>(other)->op_begin());
+        auto nn = llvm::cast<NonNullaryExpr>(other);
+        return std::equal(begin, end, nn->op_begin(), nn->op_end());
     }
 };
 
@@ -230,7 +231,7 @@ public:
         class... SubclassData
     > ExprRef<ExprTy> create(Type &type, std::initializer_list<ExprPtr> init, SubclassData&&... data)
     {
-        return createRange<ExprTy>(type, init.begin(), init.end(), data...);
+        return createRange<ExprTy>(type, init.begin(), init.end(), std::forward<SubclassData>(data)...);
     }
 
     template<
@@ -309,6 +310,8 @@ private:
     bool needsRehash(size_t entries) const {
         return entries * 4 >= mBucketCount * 3;
     }
+
+    void removeFromList(Expr* expr);
 
 private:
     Bucket* mStorage;

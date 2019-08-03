@@ -9,10 +9,16 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti -Wall -Wno-missing-braces -Wmi
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 
-#set(CMAKE_CXX_CPPCHECK "cppcheck")
-#list(APPEND CMAKE_CXX_CPPCHECK "--enable=all")
+option(GAZER_ENABLE_SANITIZER "Enable sanitizer flags for debug builds" OFF)
 
-#set(CMAKE_CXX_CLANG_TIDY clang-tidy -checks=-*,llvm-*,modernize-*,performance-*,clang-analyzer-*,bugprone-*,-header-filter='${CMAKE_SOURCE_DIR}/include')
+if(GAZER_ENABLE_SANITIZER)
+    if (CMAKE_BUILD_TYPE MATCHES Debug AND ((CMAKE_CXX_COMPILER_ID STREQUAL "Clang") OR (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")))
+        message(STATUS "Adding sanitizer flags")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -fsanitize=address -fsanitize=undefined")
+    else()
+        message(STATUS "Sanitizer flags are only available with clang/gcc and only for debug builds")
+    endif()
+endif()
 
 # Compile dependencies
 #add_subdirectory(vendor/mstch)
@@ -62,4 +68,22 @@ if (GAZER_ENABLE_UNIT_TESTS)
     add_subdirectory(${GOOGLETEST_SOURCE_DIR})
 
     add_subdirectory(unittest)
+endif()
+
+find_program(CLANG_TIDY NAMES "clang-tidy")
+if(NOT CLANG_TIDY)
+	message("clang-tidy was not found")
+else()
+	message("Found clang-tidy: ${CLANG_TIDY}")
+    file(GLOB_RECURSE ALL_SOURCE_FILES src/*.cpp include/*.h)
+    get_property(INCLUDE_DIRS DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+    add_custom_target(
+        clang-tidy
+        ${CLANG_TIDY}
+        ${ALL_SOURCE_FILES}
+        -config=''
+        --
+        -std=c++17
+        ${INCLUDE_DIRS}
+    )
 endif()

@@ -1,0 +1,14 @@
+Checks: '
+    llvm-*,
+    modernize-*,
+    performance-*,
+    clang-analyzer-*,
+    bugprone-*,
+    readability-*,
+    -readability-magic-numbers,
+    -readability-uppercase-literal-suffix,
+    -llvm-include-order'
+
+HeaderFilterRegex: 'include/*.h'
+AnalyzeTemporaryDtors: false
+FormatStyle: none
