@@ -69,14 +69,8 @@ void GazerContext::removeVariable(Variable* variable)
 
 //------------------------------- Expressions -------------------------------//
 
-void ExprStorage::destroy(Expr *expr)
+void ExprStorage::removeFromList(Expr* expr)
 {
-    GAZER_DEBUG(llvm::errs()
-        << "[ExprStorage] Removing "
-        << Expr::getKindName(expr->getKind())
-        << " address " << expr
-        << "\n"
-    )
     Bucket& bucket = getBucketForHash(expr->getHashCode());
 
     // If this was the first element in the bucket
@@ -94,8 +88,82 @@ void ExprStorage::destroy(Expr *expr)
         prev->mNextPtr = current->mNextPtr;
     }
 
+    expr->mNextPtr = nullptr;
+}
+
+void ExprStorage::destroy(Expr *expr)
+{
+    GAZER_DEBUG(llvm::errs()
+        << "[ExprStorage] Removing "
+        << Expr::getKindName(expr->getKind())
+        << " address " << expr
+        << " content " << *expr
+        << "\n"
+    )
+
+    this->removeFromList(expr);
     --mEntryCount;
-    delete expr;
+
+    if (!llvm::isa<NonNullaryExpr>(expr)) {
+        delete expr;
+        return;
+    }
+
+    // For really large and deep expression trees the chain of
+    // delete -> destroy -> delete calls may cause a stack oveflow error.
+    // Here we overcome this issue by traversing the expression and all its
+    // operands and pushing all would-be deleted expressions onto a list and
+    // deleting them afterwards.
+    // The list is built by reusing the available expression nodes
+    // (through the mNextPtr's) to form a singly linked list,
+    // thus no heap allocation is needed.
+    auto tail = llvm::cast<NonNullaryExpr>(expr);
+    auto last = tail;
+
+    while (last != nullptr) {
+        for (size_t i = 0; i < last->mOperands.size(); ++i) {
+            Expr* child = last->getOperand(i).get();
+            if (child->mRefCount == 1) {
+                // If this is the only pointer pointing at the expression, remove it.
+                this->removeFromList(child);
+                --mEntryCount;
+
+                GAZER_DEBUG(llvm::errs()
+                    << "[ExprStorage] Adding for deletion "
+                    << Expr::getKindName(child->getKind())
+                    << " address " << child
+                    << "\n"
+                )
+
+                if (auto nn = llvm::dyn_cast<NonNullaryExpr>(child)) {
+                    // Append non-nullaries to the end of the list.
+                    tail->mNextPtr = nn;
+                    tail = nn;
+                } else {
+                    // If it is a leaf node, just delete it.
+                    delete child;
+                }
+            } else {
+                last->mOperands[i]->mRefCount--;
+            }
+
+            last->mOperands[i].detach();
+        }
+
+        last = llvm::cast_or_null<NonNullaryExpr>(last->mNextPtr);
+    }
+
+    Expr* current = expr;
+    while (current != nullptr) {
+        GAZER_DEBUG(llvm::errs()
+            << "[ExprStorage] Deleted "
+            << " address " << current
+            << "\n"
+        )
+        Expr* next = current->mNextPtr;
+        delete current;
+        current = next;
+    }
 }
 
 void ExprStorage::rehashTable(size_t newSize)

@@ -26,8 +26,8 @@ public:
     };
 
 private:
-    explicit Location(unsigned id, LocationKind kind = State)
-        : mID(id), mKind(kind)
+    explicit Location(unsigned id, Cfa* parent, LocationKind kind = State)
+        : mID(id), mCfa(parent), mKind(kind)
     {}
     
 public:
