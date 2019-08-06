@@ -121,6 +121,7 @@ if __name__ == '__main__':
                 gazer_bmc_path,
                 "-inline",
                 "-bmc",
+                "-no-optimize",
                 bc_file
             ]
             for flag in test.flags:

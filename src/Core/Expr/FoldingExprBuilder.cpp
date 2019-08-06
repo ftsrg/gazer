@@ -361,63 +361,75 @@ public:
             }
         }
 
+        llvm::APInt l1;
+
+        // NotEq(ZExt(X1), 0) --> NotEq(X1, 0)
+        if (unord_match(left, right, m_ZExt(m_Expr(x1)), m_Bv(&l1)) && l1 == 0) {
+            auto& bvTy = *llvm::cast<BvType>(&x1->getType());
+            return ConstantFolder::NotEq(x1, this->BvLit(0, bvTy.getWidth()));
+        }
+
         return ConstantFolder::NotEq(left, right);
     }
 
-    #define COMPARE_ARITHMETIC_SIMPLIFY(OPCODE)                             \
-        ExprRef<> x;                                                        \
-        llvm::APInt c1, c2;                                                 \
-                                                                            \
-        /* CMP(Add(X, C1), C2) --> CMP(X, C2 - C1) */                       \
-        if (unord_match(left, right, m_Add(m_Bv(&c1), m_Expr(x)), m_Bv(&c2))) {   \
-            return ConstantFolder::OPCODE(x, this->BvLit(c2 - c1));         \
-        }                                                                   \
+    // Define a little helper for comparison operators.
+    // Note that this simplification does not work for unsigned integers.
+    // As an example, a + b u> c --> a u> a - b is not a valid transformation
+    // if (a - b) underflows.
+    #define COMPARE_ARITHMETIC_SIMPLIFY(OPCODE)                                     \
+        ExprRef<> x;                                                                \
+        llvm::APInt c1, c2;                                                         \
+                                                                                    \
+        /* CMP(Add(X, C1), C2) --> CMP(X, C2 - C1) */                               \
+        if (unord_match(left, right, m_Add(m_Bv(&c1), m_Expr(x)), m_Bv(&c2))) {     \
+            return ConstantFolder::OPCODE(x, this->BvLit(c2 - c1));                 \
+        }                                                                           \
 
     ExprPtr SLt(const ExprPtr& left, const ExprPtr& right) override
     {
+        COMPARE_ARITHMETIC_SIMPLIFY(SLt)
+
         return ConstantFolder::SLt(left, right);
     }
 
     ExprPtr SLtEq(const ExprPtr& left, const ExprPtr& right) override
     {
+        COMPARE_ARITHMETIC_SIMPLIFY(SLtEq)
+
         return ConstantFolder::SLtEq(left, right);
     }
 
     ExprPtr SGt(const ExprPtr& left, const ExprPtr& right) override
     {
+        COMPARE_ARITHMETIC_SIMPLIFY(SGt)
+    
         return ConstantFolder::SGt(left, right);
     }
 
     ExprPtr SGtEq(const ExprPtr& left, const ExprPtr& right) override
     {
+        COMPARE_ARITHMETIC_SIMPLIFY(SGtEq)
+
         return ConstantFolder::SGtEq(left, right);
     }
 
     ExprPtr ULt(const ExprPtr& left, const ExprPtr& right) override
     {
-        COMPARE_ARITHMETIC_SIMPLIFY(ULt)
-
         return ConstantFolder::ULt(left, right);
     }
 
     ExprPtr ULtEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        COMPARE_ARITHMETIC_SIMPLIFY(ULtEq)
-
         return ConstantFolder::ULtEq(left, right);
     }
 
     ExprPtr UGt(const ExprPtr& left, const ExprPtr& right) override
     {
-        COMPARE_ARITHMETIC_SIMPLIFY(UGt)
-
         return ConstantFolder::UGt(left, right);
     }
 
     ExprPtr UGtEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        COMPARE_ARITHMETIC_SIMPLIFY(UGtEq)
-
         return ConstantFolder::UGtEq(left, right);
     }
 

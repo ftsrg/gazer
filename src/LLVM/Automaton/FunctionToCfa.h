@@ -63,6 +63,10 @@ struct CfaGenInfo
         return nullptr;
     }
 
+    Variable* findOutput(const llvm::Value* value) {
+        return Outputs.lookup(value);
+    }
+
     Variable* findLocal(const llvm::Value* value) {
         return Locals.lookup(value);   
     }

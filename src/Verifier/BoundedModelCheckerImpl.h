@@ -82,7 +82,7 @@ class BoundedModelCheckerImpl
         friend class cex_iterator;
     public:
         BmcCex(Location* start, Cfa& cfa, ExprEvaluator& eval, PredecessorMapT& preds)
-            : mStart(start), mCfa(cfa), mEval(eval), mPredecessors(preds)
+            : mCfa(cfa), mStart(start), mEval(eval), mPredecessors(preds)
         {
             assert(start != nullptr);
         }
@@ -92,9 +92,9 @@ class BoundedModelCheckerImpl
 
     private:
         Cfa& mCfa;
-        PredecessorMapT& mPredecessors;
-        ExprEvaluator mEval;
         Location* mStart;
+        ExprEvaluator mEval;
+        PredecessorMapT& mPredecessors;
     };
 
 public:
@@ -160,8 +160,8 @@ private:
     std::vector<Location*> mTopo;
 
     llvm::DenseMap<Location*, size_t> mLocNumbers;
-    llvm::DenseMap<CallTransition*, CallInfo> mCalls;
     llvm::DenseSet<CallTransition*> mOpenCalls;
+    std::unordered_map<CallTransition*, CallInfo> mCalls;
     std::unordered_map<Cfa*, std::vector<Location*>> mTopoSortMap;
 
     PredecessorMapT mPredecessors;
