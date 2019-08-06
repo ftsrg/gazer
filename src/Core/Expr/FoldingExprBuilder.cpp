@@ -58,13 +58,32 @@ public:
     ExprPtr ZExt(const ExprPtr& op, BvType& type) override {
         return ConstantFolder::ZExt(op, type);
     }
+    
     ExprPtr SExt(const ExprPtr& op, BvType& type) override {
         return ConstantFolder::SExt(op, type);
     }
+
     ExprPtr Trunc(const ExprPtr& op, BvType& type) override {
-        return ConstantFolder::Extract(op, 0, type.getWidth());
+        return this->Extract(op, 0, type.getWidth());
     }
-    ExprPtr Extract(const ExprPtr& op, unsigned offset, unsigned width) override {
+
+    ExprPtr Extract(const ExprPtr& op, unsigned offset, unsigned width) override
+    {
+        ExprRef<> x1, x2;
+
+        if (offset == 0) {
+            // Extract(SRem(SExt(X1), SExt(X2)), 0, w) --> SRem(X1, X2) if width(X1) == width(X2) == w
+            if (match(op, m_SRem(m_SExt(m_Expr(x1)), m_SExt(m_Expr(x2))))) {
+                assert(x1->getType().isBvType());
+                assert(x1->getType() == x2->getType());
+                auto& bvTy = *llvm::cast<BvType>(&x1->getType());
+
+                if (bvTy.getWidth() == width) {
+                    return ConstantFolder::SRem(x1, x2);
+                }
+            }
+        }
+
         return ConstantFolder::Extract(op, offset, width);
     }
 
