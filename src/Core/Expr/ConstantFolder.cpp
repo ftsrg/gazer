@@ -20,7 +20,7 @@ ExprPtr ConstantFolder::Not(const ExprPtr& op)
 
 ExprPtr ConstantFolder::ZExt(const ExprPtr& op, BvType& type)
 {
-    if (auto bvLit = dyn_cast<BvLiteralExpr>(op)) {
+    if (auto bvLit = dyn_cast<BvLiteralExpr>(op.get())) {
         return BvLiteralExpr::Get(type, bvLit->getValue().zext(type.getWidth()));
     }
 
@@ -29,7 +29,7 @@ ExprPtr ConstantFolder::ZExt(const ExprPtr& op, BvType& type)
 
 ExprPtr ConstantFolder::SExt(const ExprPtr& op, BvType& type)
 {
-    if (auto bvLit = dyn_cast<BvLiteralExpr>(op)) {
+    if (auto bvLit = dyn_cast<BvLiteralExpr>(op.get())) {
         return BvLiteralExpr::Get(type, bvLit->getValue().sext(type.getWidth()));
     }
 

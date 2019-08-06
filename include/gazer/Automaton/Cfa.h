@@ -80,10 +80,10 @@ private:
 
 private:
     unsigned mID;
+    Cfa* mCfa;
     LocationKind mKind;
     EdgeVectorTy mIncoming;
     EdgeVectorTy mOutgoing;
-    Cfa* mCfa;
 };
 
 /// A simple transition with a guard or summary expression.

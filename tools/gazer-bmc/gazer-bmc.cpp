@@ -55,7 +55,6 @@ int main(int argc, char* argv[])
     llvm::EnableDebugBuffering = true;
 
     std::string input = InputFilename;
-    unsigned bound = BmcUnwind;
 
     llvm::LLVMContext llvmContext;
     llvm::SMDiagnostic err;

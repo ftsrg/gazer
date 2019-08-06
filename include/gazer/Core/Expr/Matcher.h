@@ -82,7 +82,7 @@ namespace detail
     {
         if constexpr (Current < sizeof...(Patterns)) {
             auto& pattern = std::get<Current>(tuple);
-            for (int i = 0; i < unmatched.size(); ++i) {
+            for (size_t i = 0; i < unmatched.size(); ++i) {
                 if (pattern.match(unmatched[i])) {
                     // We have a match here, remove the unmatched element from the array and try more patterns.
                     unmatched.erase(unmatched.begin() + i);
@@ -396,7 +396,7 @@ struct multiary_match_precise
             // we set the corresponding bit in the bitset, so further
             // patterns will not match on this one.
             bool matched = false;
-            for (int i = 0; i < NumOps; ++i) {
+            for (size_t i = 0; i < NumOps; ++i) {
                 if (!bs[i] && pattern.match(expr->getOperand(i))) {
                     matched = true;
                     bs.set(i);
@@ -474,7 +474,7 @@ struct multiary_match
             auto& pattern = std::get<N>(patterns);
 
             bool matched = false;
-            for (int i = 0; i < NumPatterns; ++i) {
+            for (size_t i = 0; i < NumPatterns; ++i) {
                 if (!bs[i] && pattern.match(expr->getOperand(i))) {
                     matched = true;
                     bs[i] = true;
@@ -510,7 +510,7 @@ struct multiary_match
         bool matched = subpattern_match_unordered<0>(e, bs);
 
         // Collect all the unmatched operands
-        for (int i = 0; i < bs.size(); ++i) {
+        for (size_t i = 0; i < bs.size(); ++i) {
             unmatched.push_back(e->getOperand(i));
         }
 

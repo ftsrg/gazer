@@ -274,9 +274,13 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
         // For the local variables, we only need to add the values not present in any of the loops.
         for (BasicBlock& bb : function) {
             for (Instruction& inst : bb) {
-                if (loopInfo->getLoopFor(&bb) != nullptr && !hasUsesInBlockRange(&inst, functionBlocks)) {
-                    LLVM_DEBUG(llvm::dbgs() << "Skipped " << inst << "\n");
-                    continue;
+                if (auto loop = loopInfo->getLoopFor(&bb)) {
+                    // If the variable is an output of a loop, add it here as a local variable
+                    Variable* output = genCtx.LoopMap[loop].findOutput(&inst);
+                    if (output == nullptr && !hasUsesInBlockRange(&inst, functionBlocks)) {
+                        LLVM_DEBUG(llvm::dbgs() << "Skipped " << inst << "\n");
+                        continue;
+                    }
                 }
 
                 // FIXME: This requires the instnamer pass as a dependency, we should find another way around this.
@@ -422,7 +426,7 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
         if (auto br = llvm::dyn_cast<BranchInst>(terminator)) {
             ExprPtr condition = br->isConditional() ? operand(br->getCondition()) : mExprBuilder.True();
 
-            for (int succIdx = 0; succIdx < br->getNumSuccessors(); ++succIdx) {
+            for (unsigned succIdx = 0; succIdx < br->getNumSuccessors(); ++succIdx) {
                 BasicBlock* succ = br->getSuccessor(succIdx);
                 ExprPtr succCondition = succIdx == 0 ? condition : mExprBuilder.Not(condition);
 
@@ -664,6 +668,7 @@ ExprPtr BlocksToCfa::transform(llvm::Instruction& inst)
 
 void BlocksToCfa::insertOutputAssignments(CfaGenInfo& callee, std::vector<VariableAssignment>& outputArgs)
 {
+    llvm::errs() << "Loop assignments for " << callee.Automaton->getName() << " in " << mGenInfo.Automaton->getName() << "\n";
     // For the outputs, find the corresponding variables in the parent and create the assignments.
     for (auto& pair : callee.Outputs) {
         const llvm::Value* value = pair.first;
@@ -686,6 +691,7 @@ void BlocksToCfa::insertOutputAssignments(CfaGenInfo& callee, std::vector<Variab
             parentVar = mGenInfo.findVariable(value);
         }
 
+        llvm::errs() << *value << "  " << *nestedOutputVar << "\n";
         assert(parentVar != nullptr && "Nested output variable should be present in parent as an input or local!");
 
         outputArgs.emplace_back(parentVar, nestedOutputVar->getRefExpr());

@@ -315,8 +315,10 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
 
             this->push();
 
-            llvm::outs() << "    Transforming formula...\n";
+            llvm::outs() << "    Calculating verification condition...\n";
             formula = this->forwardReachableCondition(lca, mError);
+
+            llvm::outs() << "    Transforming formula...\n";
             mSolver->add(formula);
 
             if (DumpSolver) {
