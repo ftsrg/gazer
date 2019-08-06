@@ -1,4 +1,4 @@
-//@expect fail
+//@expect success
 //@flag -bound 10
 extern void __VERIFIER_error() __attribute__ ((__noreturn__));
 
