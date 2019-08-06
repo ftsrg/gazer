@@ -34,13 +34,21 @@ llvm::cl::opt<bool> PrintSolverStats("print-solver-stats", llvm::cl::desc("Print
 
 llvm::cl::opt<bool> Trace("trace", llvm::cl::desc("Print counterexample traces to stdout."));
 
+extern llvm::cl::opt<bool> NoSimplifyExpr;
+
 } // end namespace gazer
 
 using namespace gazer;
 
 std::unique_ptr<SafetyResult> BoundedModelChecker::check(AutomataSystem& system)
 {
-    auto builder = CreateFoldingExprBuilder(system.getContext());
+    std::unique_ptr<ExprBuilder> builder;
+
+    if (!NoSimplifyExpr) {
+        builder = CreateFoldingExprBuilder(system.getContext());
+    } else {
+        builder =CreateExprBuilder(system.getContext());
+    }
     BoundedModelCheckerImpl impl{system, *builder, mSolverFactory, mTraceBuilder};
 
     auto result = impl.check();

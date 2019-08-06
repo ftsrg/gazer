@@ -63,6 +63,13 @@ struct CfaGenInfo
         return nullptr;
     }
 
+    Variable* findInput(const llvm::Value* value) {
+        Variable* result = Inputs.lookup(value);
+        if (result != nullptr) { return result; }
+
+        return PhiInputs.lookup(value);
+    }
+
     Variable* findOutput(const llvm::Value* value) {
         return Outputs.lookup(value);
     }

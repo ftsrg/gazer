@@ -35,6 +35,8 @@ namespace gazer {
         ),
         cl::init(ElimVarsLevels::Normal)
     );
+
+    cl::opt<bool> NoSimplifyExpr("no-simplify-expr", cl::desc("Do not simplify expessions."));
 }
 
 static bool isDefinedInCaller(llvm::Value* value, llvm::ArrayRef<llvm::BasicBlock*> blocks)
@@ -104,7 +106,13 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
     llvm::DenseMap<Location*, llvm::BasicBlock*>& blockEntries
 ) {
     GenerationContext genCtx(*mSystem, mMemoryModel);
-    auto exprBuilder = CreateFoldingExprBuilder(mContext);
+    std::unique_ptr<ExprBuilder> exprBuilder;
+
+    if (!NoSimplifyExpr) {
+        exprBuilder = CreateFoldingExprBuilder(mContext);
+    } else {
+        exprBuilder = CreateExprBuilder(mContext);
+    }
 
     // Create an automaton for each function definition
     // and set the interfaces.
@@ -493,7 +501,7 @@ bool BlocksToCfa::tryToEliminate(Instruction& inst, ExprPtr expr)
         return false;
     }
 
-    // We do not want to inline expressions which have multiple uses and have already inlined operands on 'Normal' level.
+    // On 'Normal' level, we do not want to inline expressions which have multiple uses and have already inlined operands.
     if (
         ElimVarsLevel != ElimVarsLevels::Aggressive &&
         getNumUsesInBlockRange(&inst, mBlocks) > 1 &&
@@ -599,10 +607,9 @@ void BlocksToCfa::handleSuccessor(BasicBlock* succ, ExprPtr& succCondition, Basi
 
         for (auto entry : nestedLoopInfo.Inputs) {
             // Whatever variable is used as an input, it should be present here as well in some form.
-            Variable* variable = getVariable(entry.first);
             size_t idx = nestedCfa->getInputNumber(entry.second);
 
-            loopArgs[idx] = variable->getRefExpr();
+            loopArgs[idx] = operand(entry.first);
         }
 
         std::vector<VariableAssignment> outputArgs;
@@ -1145,6 +1152,7 @@ void ModuleToAutomataPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
 {
     au.addRequired<llvm::LoopInfoWrapperPass>();
     au.addRequired<llvm::DominatorTreeWrapperPass>();
+    au.setPreservesAll();
 }
 
 bool ModuleToAutomataPass::runOnModule(llvm::Module& module)

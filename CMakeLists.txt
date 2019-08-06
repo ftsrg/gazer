@@ -72,18 +72,15 @@ endif()
 
 find_program(CLANG_TIDY NAMES "clang-tidy")
 if(NOT CLANG_TIDY)
-	message("clang-tidy was not found")
+	message(STATUS "clang-tidy was not found")
 else()
-	message("Found clang-tidy: ${CLANG_TIDY}")
-    file(GLOB_RECURSE ALL_SOURCE_FILES src/*.cpp include/*.h)
+	message(STATUS "Found clang-tidy: ${CLANG_TIDY}")
+    file(GLOB_RECURSE ALL_SOURCE_FILES ${CMAKE_SOURCE_DIR}/src/*.cpp)
     get_property(INCLUDE_DIRS DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
     add_custom_target(
         clang-tidy
-        ${CLANG_TIDY}
+        COMMAND ${CLANG_TIDY}
+        -p ${CMAKE_BINARY_DIR}/compile_commands.json
         ${ALL_SOURCE_FILES}
-        -config=''
-        --
-        -std=c++17
-        ${INCLUDE_DIRS}
     )
 endif()
