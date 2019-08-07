@@ -5,20 +5,13 @@
 namespace gazer
 {
 
+class CheckRegistry;
+
 /// A check is a special kind of an LLVM pass, which marks instrunctions 
 /// with pre- or postconditions which must be always true.
 class Check : public llvm::ModulePass
 {
     friend class CheckRegistry;
-
-    enum ConditionType { Precondition, Postcondition, Fail };
-
-    struct Mark
-    {
-        llvm::Instruction* instruction;
-        ConditionType type;
-        std::vector<llvm::Value*> conditions;
-    };
 public:
     Check(char& id)
         : ModulePass(id)
@@ -48,20 +41,28 @@ protected:
     /// Creates an error block with a gazer.error_code(i16 code) call and a terminating unreachable instruction.
     llvm::BasicBlock* createErrorBlock(
         llvm::Function& function, llvm::Value* errorCode,
-        const llvm::Twine& name = "", llvm::Instruction* location = nullptr);
+        const llvm::Twine& name = "", llvm::Instruction* location = nullptr
+    );
+
+    CheckRegistry& getRegistry() const;
+
+private:
+    void setCheckRegistry(CheckRegistry* registry);
 
 private:
     unsigned mErrorCode = 0;
+    CheckRegistry* mRegistry;
 };
 
 class CheckRegistry
 {
+public:
+    static constexpr char ErrorFunctionName[] = "gazer.error_code";
+public:
     CheckRegistry() = default;
 
     CheckRegistry(const CheckRegistry&) = delete;
     CheckRegistry& operator=(const CheckRegistry&) = delete;
-public:
-    static constexpr char ErrorFunctionName[] = "gazer.error_code";
 
     static llvm::FunctionCallee GetErrorFunction(llvm::Module& module);
     static llvm::FunctionCallee GetErrorFunction(llvm::Module* module) {
@@ -69,7 +70,6 @@ public:
     }
 
     static llvm::FunctionType* GetErrorFunctionType(llvm::LLVMContext& context);
-    static CheckRegistry& GetInstance() { return Instance; }
 
 public:
     void add(Check* check);
@@ -108,8 +108,6 @@ private:
 
     // Start with 1, zero stands for unknown errors.
     unsigned mErrorCodeCnt = 1;
-
-    static CheckRegistry Instance;
 };
 
 } // end namespace gazer

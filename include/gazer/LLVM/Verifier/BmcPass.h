@@ -8,13 +8,15 @@
 namespace gazer
 {
 
+class CheckRegistry;
+
 class BoundedModelCheckerPass final : public llvm::ModulePass
 {
 public:
     static char ID;
 
-    BoundedModelCheckerPass()
-        : ModulePass(ID)
+    BoundedModelCheckerPass(CheckRegistry& checks)
+        : ModulePass(ID), mChecks(checks)
     {}
 
     void getAnalysisUsage(llvm::AnalysisUsage& au) const override;
@@ -23,7 +25,9 @@ public:
     llvm::StringRef getPassName() const override {
         return "Bounded model checking";
     }
+
 private:
+    CheckRegistry& mChecks;
     std::unique_ptr<SafetyResult> mResult;
 };
 

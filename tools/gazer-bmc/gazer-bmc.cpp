@@ -77,7 +77,7 @@ int main(int argc, char* argv[])
     pm->add(llvm::createPromoteMemoryToRegisterPass());
 
     // Perform error instrumentation
-    auto& checks = CheckRegistry::GetInstance();
+    CheckRegistry checks;
     checks.add(checks::CreateAssertionFailCheck());
     checks.add(checks::CreateDivisionByZeroCheck());
     checks.registerPasses(*pm);
@@ -139,7 +139,7 @@ int main(int argc, char* argv[])
         pm->add(llvm::createCFGSimplificationPass());
         pm->add(llvm::createInstructionCombiningPass(true));
         pm->add(llvm::createIndVarSimplifyPass());
-         pm->add(llvm::createLoopDeletionPass());
+        pm->add(llvm::createLoopDeletionPass());
 
         pm->add(llvm::createNewGVNPass());
         pm->add(llvm::createBitTrackingDCEPass());
@@ -202,7 +202,7 @@ int main(int argc, char* argv[])
         //pm->add(new gazer::BmcPass());
 
         pm->add(new gazer::ModuleToAutomataPass(context));
-        pm->add(new gazer::BoundedModelCheckerPass());
+        pm->add(new gazer::BoundedModelCheckerPass(checks));
     }
 
     //pm->add(llvm::createCFGPrinterLegacyPassPass());
