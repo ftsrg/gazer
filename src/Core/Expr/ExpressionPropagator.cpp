@@ -1,6 +1,5 @@
 /// \file This file defines the ExpressionPropagator class.
 #include "gazer/Core/ExprVisitor.h"
-#include "gazer/Core/Expr/ExprSimplify.h"
 #include "gazer/Core/Expr/Matcher.h"
 #include "gazer/Core/Expr/ExprPropagator.h"
 

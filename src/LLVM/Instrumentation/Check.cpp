@@ -10,6 +10,10 @@ using namespace llvm;
 
 bool Check::runOnModule(llvm::Module& module)
 {
+    assert(mRegistry != nullptr
+        && "The check registry was not set before check execution was initiated."
+        "Did you forget to add the check to the CheckRegistry?");
+
     bool changed = false;
 
     for (llvm::Function& function : module) {
@@ -48,7 +52,12 @@ llvm::BasicBlock* Check::createErrorBlock(
     return errorBB;
 }
 
-CheckRegistry CheckRegistry::Instance;
+CheckRegistry& Check::getRegistry() const { return *mRegistry; }
+
+void Check::setCheckRegistry(CheckRegistry* registry) {
+    assert(registry != nullptr);
+    this->mRegistry = registry;
+}
 
 llvm::FunctionType* CheckRegistry::GetErrorFunctionType(llvm::LLVMContext& context)
 {
@@ -84,6 +93,8 @@ void CheckRegistry::add(Check* check)
     mErrorCodes[pID] = ec;
     mCheckMap[ec] = check;
     mCheckNames[check->getCheckName()] = check;
+
+    check->setCheckRegistry(this);
     mChecks.push_back(check);
 }
 

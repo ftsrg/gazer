@@ -18,9 +18,7 @@ bool isErrorFunctionName(llvm::StringRef name)
         || name == "__gazer_error";
 }
 
-/**
- * This check ensures that no assertion failure instructions are reachable.
- */
+/// This check ensures that no assertion failure instructions are reachable.
 class AssertionFailCheck final : public Check
 {
 public:
@@ -50,7 +48,7 @@ public:
                     if (isErrorFunctionName(callee->getName())) {
                         BasicBlock* errorBB = this->createErrorBlock(
                             function,
-                            CheckRegistry::GetInstance().getErrorCodeValue(context, ID),
+                            this->getRegistry().getErrorCodeValue(context, ID),
                             "error.assert_fail",
                             call
                         );
@@ -81,9 +79,7 @@ bool isDiv(unsigned opcode) {
     return opcode == Instruction::SDiv || opcode == Instruction::UDiv;
 }
 
-/**
- * Checks for division by zero errors.
- */
+/// Checks for division by zero errors.
 class DivisionByZeroCheck final : public Check
 {
 public:
@@ -113,7 +109,7 @@ public:
         for (llvm::Instruction* inst : divs) {
             BasicBlock* errorBB = this->createErrorBlock(
                 function,
-                CheckRegistry::GetInstance().getErrorCodeValue(context, ID),
+                this->getRegistry().getErrorCodeValue(context, ID),
                 "error.divzero" + std::to_string(divCnt++),
                 inst
             );

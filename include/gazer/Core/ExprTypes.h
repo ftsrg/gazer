@@ -93,6 +93,11 @@ template class ExtCastExpr<Expr::SExt>;
 using ZExtExpr = ExtCastExpr<Expr::ZExt>;
 using SExtExpr = ExtCastExpr<Expr::SExt>;
 
+/// Represents an Extract expression.
+/// The parameter \p offset marks the lowest order bit of the return value,
+/// whereas \p offset+width-1 is the highest order bit.
+/// 
+/// As an example Extract(2#1111011, 0, 1) == 1, Extract(2#1111010, 0, 1) == 0.
 class ExtractExpr final : public UnaryExpr
 {
     // Needed for ExprStorage to call this constructor.
