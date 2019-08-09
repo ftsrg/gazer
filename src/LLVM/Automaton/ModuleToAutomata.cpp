@@ -220,6 +220,8 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
                     Location* exit = isErrorBlock(bb) ? nested->createErrorLocation() : nested->createLocation();
 
                     loopGenInfo.Blocks[bb] = std::make_pair(entry, exit);
+                    loopGenInfo.addReverseBlockIfTraceEnabled(bb, entry);
+                    loopGenInfo.addReverseBlockIfTraceEnabled(bb, exit);
                 }
             }
 
@@ -305,6 +307,8 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
             Location* exit = isErrorBlock(bb) ? cfa->createErrorLocation() : cfa->createLocation();
 
             genInfo.Blocks[bb] = std::make_pair(entry, exit);
+            genInfo.addReverseBlockIfTraceEnabled(bb, entry);
+            genInfo.addReverseBlockIfTraceEnabled(bb, exit);
         }
 
         BlocksToCfa blocksToCfa(
