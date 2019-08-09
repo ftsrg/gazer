@@ -15,6 +15,8 @@
 namespace gazer
 {
 
+extern llvm::cl::opt<bool> Trace;
+
 using ValueToVariableMap = llvm::DenseMap<llvm::Value*, Variable*>;
 
 /// Stores information about loops which were transformed to automata.
@@ -27,6 +29,7 @@ struct CfaGenInfo
 
     llvm::DenseMap<llvm::Value*, Variable*> Locals;
     llvm::DenseMap<llvm::BasicBlock*, std::pair<Location*, Location*>> Blocks;
+    llvm::DenseMap<Location*, llvm::BasicBlock*> ReverseBlockMap;
 
     Cfa* Automaton;
 
@@ -48,6 +51,12 @@ struct CfaGenInfo
     }
     void addLocal(llvm::Value* value, Variable* variable) {
         Locals[value] = variable;
+    }
+
+    void addReverseBlockIfTraceEnabled(llvm::BasicBlock* bb, Location* loc) {
+        if (Trace) {
+            this->ReverseBlockMap[loc] = bb;
+        }
     }
 
     Variable* findVariable(const llvm::Value* value) {
@@ -207,6 +216,17 @@ private:
     unsigned mCounter = 0;
     llvm::DenseMap<llvm::Value*, ExprPtr> mInlinedVars;
     llvm::DenseSet<Variable*> mEliminatedVarsSet;
+};
+
+class TraceFromCfaToLLVM
+{
+public:
+    llvm::BasicBlock* getBasicBlock(Location* loc);
+    llvm::Value* getValueFromVariable(Variable* variable);
+
+private:
+    Cfa* mCfa;
+
 };
 
 } // end namespace gazer

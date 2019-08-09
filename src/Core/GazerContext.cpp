@@ -28,7 +28,7 @@ GazerContext::GazerContext()
     : pImpl(new GazerContextImpl(*this))
 {}
 
-GazerContext::~GazerContext() {}
+GazerContext::~GazerContext() = default;
 
 //-------------------------------- Variables --------------------------------//
 
@@ -236,7 +236,4 @@ GazerContextImpl::GazerContextImpl(GazerContext& ctx)
     FalseLit->mHashCode = llvm::hash_value(FalseLit.get());
 }
 
-GazerContextImpl::~GazerContextImpl()
-{
-
-}
+GazerContextImpl::~GazerContextImpl() = default;
