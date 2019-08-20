@@ -179,30 +179,32 @@ public:
 template class ArithmeticExpr<Expr::Add>;
 template class ArithmeticExpr<Expr::Sub>;
 template class ArithmeticExpr<Expr::Mul>;
-template class ArithmeticExpr<Expr::SDiv>;
-template class ArithmeticExpr<Expr::UDiv>;
-template class ArithmeticExpr<Expr::SRem>;
-template class ArithmeticExpr<Expr::URem>;
+template class ArithmeticExpr<Expr::Div>;
+template class ArithmeticExpr<Expr::BvSDiv>;
+template class ArithmeticExpr<Expr::BvUDiv>;
+template class ArithmeticExpr<Expr::BvSRem>;
+template class ArithmeticExpr<Expr::BvURem>;
 template class ArithmeticExpr<Expr::Shl>;
 template class ArithmeticExpr<Expr::LShr>;
 template class ArithmeticExpr<Expr::AShr>;
-template class ArithmeticExpr<Expr::BAnd>;
-template class ArithmeticExpr<Expr::BOr>;
-template class ArithmeticExpr<Expr::BXor>;
+template class ArithmeticExpr<Expr::BvAnd>;
+template class ArithmeticExpr<Expr::BvOr>;
+template class ArithmeticExpr<Expr::BvXor>;
 
 using AddExpr = ArithmeticExpr<Expr::Add>;
 using SubExpr = ArithmeticExpr<Expr::Sub>;
 using MulExpr = ArithmeticExpr<Expr::Mul>;
-using SDivExpr = ArithmeticExpr<Expr::SDiv>;
-using UDivExpr = ArithmeticExpr<Expr::UDiv>;
-using SRemExpr = ArithmeticExpr<Expr::SRem>;
-using URemExpr = ArithmeticExpr<Expr::URem>;
+using DivExpr = ArithmeticExpr<Expr::Div>;
+using BvSDivExpr = ArithmeticExpr<Expr::BvSDiv>;
+using BvUDivExpr = ArithmeticExpr<Expr::BvUDiv>;
+using BvSRemExpr = ArithmeticExpr<Expr::BvSRem>;
+using BvURemExpr = ArithmeticExpr<Expr::BvURem>;
 using ShlExpr = ArithmeticExpr<Expr::Shl>;
 using LShrExpr = ArithmeticExpr<Expr::LShr>;
 using AShrExpr = ArithmeticExpr<Expr::AShr>;
-using BAndExpr = ArithmeticExpr<Expr::BAnd>;
-using BOrExpr = ArithmeticExpr<Expr::BOr>;
-using BXorExpr = ArithmeticExpr<Expr::BXor>;
+using BvAndExpr = ArithmeticExpr<Expr::BvAnd>;
+using BvOrExpr = ArithmeticExpr<Expr::BvOr>;
+using BvXorExpr = ArithmeticExpr<Expr::BvXor>;
 
 template<Expr::ExprKind Kind>
 class CompareExpr final : public BinaryExpr

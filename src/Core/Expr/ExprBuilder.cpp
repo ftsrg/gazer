@@ -41,17 +41,17 @@ public:
     ExprPtr Mul(const ExprPtr& left, const ExprPtr& right) override {
         return MulExpr::Create(left, right);
     }
-    ExprPtr SDiv(const ExprPtr& left, const ExprPtr& right) override {
-        return SDivExpr::Create(left, right);
+    ExprPtr BvSDiv(const ExprPtr& left, const ExprPtr& right) override {
+        return BvSDivExpr::Create(left, right);
     }
-    ExprPtr UDiv(const ExprPtr& left, const ExprPtr& right) override {
-        return UDivExpr::Create(left, right);
+    ExprPtr BvUDiv(const ExprPtr& left, const ExprPtr& right) override {
+        return BvUDivExpr::Create(left, right);
     }
-    ExprPtr SRem(const ExprPtr& left, const ExprPtr& right) override {
-        return SRemExpr::Create(left, right);
+    ExprPtr BvSRem(const ExprPtr& left, const ExprPtr& right) override {
+        return BvSRemExpr::Create(left, right);
     }
-    ExprPtr URem(const ExprPtr& left, const ExprPtr& right) override {
-        return URemExpr::Create(left, right);
+    ExprPtr BvURem(const ExprPtr& left, const ExprPtr& right) override {
+        return BvURemExpr::Create(left, right);
     }
     ExprPtr Shl(const ExprPtr& left, const ExprPtr& right) override {
         return ShlExpr::Create(left, right);
@@ -62,14 +62,14 @@ public:
     ExprPtr AShr(const ExprPtr& left, const ExprPtr& right) override {
         return AShrExpr::Create(left, right);
     }
-    ExprPtr BAnd(const ExprPtr& left, const ExprPtr& right) override {
-        return BAndExpr::Create(left, right);
+    ExprPtr BvAnd(const ExprPtr& left, const ExprPtr& right) override {
+        return BvAndExpr::Create(left, right);
     }
-    ExprPtr BOr(const ExprPtr& left, const ExprPtr& right) override {
-        return BOrExpr::Create(left, right);
+    ExprPtr BvOr(const ExprPtr& left, const ExprPtr& right) override {
+        return BvOrExpr::Create(left, right);
     }
-    ExprPtr BXor(const ExprPtr& left, const ExprPtr& right) override {
-        return BXorExpr::Create(left, right);
+    ExprPtr BvXor(const ExprPtr& left, const ExprPtr& right) override {
+        return BvXorExpr::Create(left, right);
     }
 
     ExprPtr And(const ExprVector& vector) override {
@@ -88,9 +88,10 @@ public:
     ExprPtr Eq(const ExprPtr& left, const ExprPtr& right) override {
         return EqExpr::Create(left, right);
     }
-    ExprPtr NotEq(const ExprPtr& left, const ExprPtr& right) override {
-        return NotEqExpr::Create(left, right);
-    }
+    
+    //ExprPtr NotEq(const ExprPtr& left, const ExprPtr& right) override {
+    //    return NotEqExpr::Create(left, right);
+    //}
 
     ExprPtr SLt(const ExprPtr& left, const ExprPtr& right) override {
         return SLtExpr::Create(left, right);

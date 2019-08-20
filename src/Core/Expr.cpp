@@ -31,7 +31,7 @@ std::size_t gazer::expr_kind_prime(Expr::ExprKind kind)
         465977u, 765007u, 388727u, 730819u, 134353u, 819583u, 314953u, 848633u,
         290623u, 241291u, 579499u, 384287u, 125287u, 920273u, 485833u, 326449u,
         972683u, 485167u, 882599u, 535727u, 383651u, 159833u, 796001u, 218479u,
-        163993u, 622561u, 938881u, 692467u, 851971u,
+        163993u, 622561u, 938881u, 692467u, 851971u, 478427u
     };
 
     static_assert(
@@ -125,11 +125,29 @@ auto ExtractExpr::Create(const ExprPtr& operand, unsigned offset, unsigned width
     );
 }
 
+static constexpr bool is_arithmetic_only(Expr::ExprKind kind) {
+    return kind == Expr::Div;
+}
+
+static constexpr bool is_bv_only(Expr::ExprKind kind) {
+    return Expr::BvSDiv <= kind && kind <= Expr::BvXor;
+}
+
 template<Expr::ExprKind Kind>
 auto ArithmeticExpr<Kind>::Create(const ExprPtr& left, const ExprPtr& right) -> ExprRef<ArithmeticExpr<Kind>>
 {
-    assert(left->getType().isBvType() && "Can only perform arithmetic operations on integral types!");
-    assert(left->getType() == right->getType() && "Arithmetic expresison operand types must match!");
+    auto& leftTy = left->getType();
+    assert(leftTy == right->getType() && "Arithmetic expression operand types must match!");
+    if constexpr (is_bv_only(Kind)) {
+        assert(leftTy.isBvType() && "Can only perform bitvector arithmetic on Bv types!");
+    } else if constexpr (is_arithmetic_only(Kind)) {
+        assert(leftTy.isArithmetic() && "Can only perform bitvector arithmetic on Bv types!");
+    } else {
+        assert(
+            (leftTy.isBvType() || leftTy.isIntType() || leftTy.isRealType())
+            && "Can only perform arithmetic operations on Bv, Int or Real types!"
+        );
+    }
     auto& context = left->getContext();
 
     return context.pImpl->Exprs.create<ArithmeticExpr<Kind>>(left->getType(), { left, right });

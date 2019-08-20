@@ -33,6 +33,7 @@ public:
         IntTypeID,
         BvTypeID,
         FloatTypeID,
+        RealTypeID,
 
         // Composite types
         //PointerTypeID,
@@ -69,7 +70,10 @@ public:
     bool isIntType() const { return getTypeID() == IntTypeID; }
     bool isBvType() const { return getTypeID() == BvTypeID; }
     bool isFloatType() const { return getTypeID() == FloatTypeID; }
+    bool isRealType() const { return getTypeID() == RealTypeID; }
     bool isArrayType() const { return getTypeID() == ArrayTypeID; }
+
+    bool isArithmetic() const { return isIntType() || isRealType(); }
 
     //bool isPointerType() const { return getTypeID() == PointerTypeID; }
 
@@ -146,6 +150,25 @@ public:
         return type.getTypeID() == IntTypeID;
     }
 private:
+};
+
+class RealType final : public Type
+{
+    friend class GazerContextImpl;
+protected:
+    RealType(GazerContext& context)
+        : Type(context, RealTypeID)
+    {}
+public:
+    static RealType& Get(GazerContext& context);
+
+    static bool classof(const Type* type) {
+        return type->getTypeID() == RealTypeID;
+    }
+
+    static bool classof(const Type& type) {
+        return type.getTypeID() == RealTypeID;
+    }
 };
 
 /// Represents an IEEE-754 floating point type.

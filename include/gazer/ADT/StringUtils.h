@@ -50,12 +50,25 @@ template<
 void join_print(StreamT& os, Iterator begin, Iterator end, llvm::StringRef separator)
 {
     if (begin != end) {
-        os << *begin++;
+        os << *begin;
     }
 
     while (++begin != end) {
         os << separator;
         os << (*begin);
+    }
+}
+
+template<class StreamT, class Iterator, class Function>
+void join_print_as(StreamT& os, Iterator begin, Iterator end, llvm::StringRef separator, Function func)
+{
+    if (begin != end) {
+        func(os, *begin);
+    }
+
+    while (++begin != end) {
+        os << separator;
+        func(os, *begin);
     }
 }
 

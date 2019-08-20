@@ -27,7 +27,12 @@ ExprRef<BoolLiteralExpr> BoolLiteralExpr::False(BoolType& type) {
 
 ExprRef<IntLiteralExpr> IntLiteralExpr::Get(IntType& type, int64_t value)
 {
-    llvm_unreachable("Int literals are not supported yet.");
+    return type.getContext().pImpl->Exprs.create<IntLiteralExpr>(type, value);
+}
+
+ExprRef<RealLiteralExpr> RealLiteralExpr::Get(RealType& type, boost::rational<int64_t> value)
+{
+    return type.getContext().pImpl->Exprs.create<RealLiteralExpr>(type, value);
 }
 
 ExprRef<BvLiteralExpr> BvLiteralExpr::Get(BvType& type, const llvm::APInt& value)
@@ -56,6 +61,10 @@ void BoolLiteralExpr::print(llvm::raw_ostream& os) const {
 
 void IntLiteralExpr::print(llvm::raw_ostream& os) const {
     os << mValue;
+}
+
+void RealLiteralExpr::print(llvm::raw_ostream& os) const {
+    os << mValue.numerator() << "/" << mValue.denominator();
 }
 
 void BvLiteralExpr::print(llvm::raw_ostream& os) const {

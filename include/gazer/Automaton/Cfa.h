@@ -347,6 +347,8 @@ public:
     /// system's default GraphViz viewer.
     void view() const;
 
+    void print(llvm::raw_ostream& os) const;
+
     //------------------------------ Deletion -------------------------------//
     void removeUnreachableLocations();
 
@@ -382,6 +384,8 @@ private:
     std::vector<Variable*> mInputs;
     std::vector<Variable*> mOutputs;
     std::vector<Variable*> mLocals;
+
+    llvm::DenseMap<Variable*, std::string> mSymbolNames;
 
     Location* mEntry;
     Location* mExit;

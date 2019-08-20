@@ -34,17 +34,17 @@ protected:
     ExprRef<LiteralExpr> visitSub(const ExprRef<SubExpr>& expr) override;
     ExprRef<LiteralExpr> visitMul(const ExprRef<MulExpr>& expr) override;
 
-    ExprRef<LiteralExpr> visitSDiv(const ExprRef<SDivExpr>& expr) override;
-    ExprRef<LiteralExpr> visitUDiv(const ExprRef<UDivExpr>& expr) override;
-    ExprRef<LiteralExpr> visitSRem(const ExprRef<SRemExpr>& expr) override;
-    ExprRef<LiteralExpr> visitURem(const ExprRef<URemExpr>& expr) override;
+    ExprRef<LiteralExpr> visitBvSDiv(const ExprRef<BvSDivExpr>& expr) override;
+    ExprRef<LiteralExpr> visitBvUDiv(const ExprRef<BvUDivExpr>& expr) override;
+    ExprRef<LiteralExpr> visitBvSRem(const ExprRef<BvSRemExpr>& expr) override;
+    ExprRef<LiteralExpr> visitBvURem(const ExprRef<BvURemExpr>& expr) override;
 
     ExprRef<LiteralExpr> visitShl(const ExprRef<ShlExpr>& expr) override;
     ExprRef<LiteralExpr> visitLShr(const ExprRef<LShrExpr>& expr) override;
     ExprRef<LiteralExpr> visitAShr(const ExprRef<AShrExpr>& expr) override;
-    ExprRef<LiteralExpr> visitBAnd(const ExprRef<BAndExpr>& expr) override;
-    ExprRef<LiteralExpr> visitBOr(const ExprRef<BOrExpr>& expr) override;
-    ExprRef<LiteralExpr> visitBXor(const ExprRef<BXorExpr>& expr) override;
+    ExprRef<LiteralExpr> visitBvAnd(const ExprRef<BvAndExpr>& expr) override;
+    ExprRef<LiteralExpr> visitBvOr(const ExprRef<BvOrExpr>& expr) override;
+    ExprRef<LiteralExpr> visitBvXor(const ExprRef<BvXorExpr>& expr) override;
 
     // Logic
     ExprRef<LiteralExpr> visitAnd(const ExprRef<AndExpr>& expr) override;
@@ -97,8 +97,8 @@ protected:
 class ExprEvaluator : public ExprEvaluatorBase
 {
 public:
-    ExprEvaluator(Valuation& valuation)
-        : mValuation(valuation)
+    ExprEvaluator(Valuation valuation)
+        : mValuation(std::move(valuation))
     {}
 
 protected:
@@ -107,7 +107,7 @@ protected:
     }
 
 private:
-    Valuation& mValuation;
+    Valuation mValuation;
 };
 
 }

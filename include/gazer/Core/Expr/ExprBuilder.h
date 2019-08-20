@@ -60,34 +60,41 @@ public:
     virtual ExprPtr Add(const ExprPtr& left, const ExprPtr& right) = 0;
     virtual ExprPtr Sub(const ExprPtr& left, const ExprPtr& right) = 0;
     virtual ExprPtr Mul(const ExprPtr& left, const ExprPtr& right) = 0;
-    virtual ExprPtr SDiv(const ExprPtr& left, const ExprPtr& right) = 0;
-    virtual ExprPtr UDiv(const ExprPtr& left, const ExprPtr& right) = 0;
-    virtual ExprPtr SRem(const ExprPtr& left, const ExprPtr& right) = 0;
-    virtual ExprPtr URem(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr BvSDiv(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr BvUDiv(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr BvSRem(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr BvURem(const ExprPtr& left, const ExprPtr& right) = 0;
 
     virtual ExprPtr Shl(const ExprPtr& left, const ExprPtr& right) = 0;
     virtual ExprPtr LShr(const ExprPtr& left, const ExprPtr& right) = 0;    
     virtual ExprPtr AShr(const ExprPtr& left, const ExprPtr& right) = 0;    
-    virtual ExprPtr BAnd(const ExprPtr& left, const ExprPtr& right) = 0;    
-    virtual ExprPtr BOr(const ExprPtr& left, const ExprPtr& right) = 0;
-    virtual ExprPtr BXor(const ExprPtr& left, const ExprPtr& right) = 0;    
+    virtual ExprPtr BvAnd(const ExprPtr& left, const ExprPtr& right) = 0;    
+    virtual ExprPtr BvOr(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr BvXor(const ExprPtr& left, const ExprPtr& right) = 0;    
 
     //--- Logic ---//
     virtual ExprPtr And(const ExprVector& vector) = 0;
     virtual ExprPtr Or(const ExprVector& vector) = 0;
 
-    ExprPtr And(const ExprPtr& left, const ExprPtr& right) {
+    template<class Left, class Right>
+    ExprPtr And(const ExprRef<Left>& left, const ExprRef<Right>& right) {
         return this->And({left, right});
     }
-    ExprPtr Or(const ExprPtr& left, const ExprPtr& right) {
+
+    template<class Left, class Right>
+    ExprPtr Or(const ExprRef<Left>& left, const ExprRef<Right>& right) {
         return this->Or({left, right});
     }
 
-    template<class InputIterator>
+    // The declarations above and below may clash in certain cases,
+    // we use SFINAE to enable the iterator-based overloads only if
+    // the type has iterator_traits.
+
+    template<class InputIterator, class = typename std::iterator_traits<InputIterator>::value_type>
     ExprPtr And(InputIterator begin, InputIterator end) {
         return this->And(ExprVector(begin, end));
     }
-    template<class InputIterator>
+    template<class InputIterator, class = typename std::iterator_traits<InputIterator>::value_type>
     ExprPtr Or(InputIterator begin, InputIterator end) {
         return this->Or(ExprVector(begin, end));
     }
@@ -96,8 +103,11 @@ public:
     virtual ExprPtr Imply(const ExprPtr& left, const ExprPtr& right) = 0;
 
     //--- Compare ---//
+    virtual ExprPtr NotEq(const ExprPtr& left, const ExprPtr& right) {
+        return this->Not(this->Eq(left, right));
+    }
+
     virtual ExprPtr Eq(const ExprPtr& left, const ExprPtr& right) = 0;
-    virtual ExprPtr NotEq(const ExprPtr& left, const ExprPtr& right) = 0;
 
     virtual ExprPtr SLt(const ExprPtr& left, const ExprPtr& right) = 0;
     virtual ExprPtr SLtEq(const ExprPtr& left, const ExprPtr& right) = 0;

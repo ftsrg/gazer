@@ -108,6 +108,7 @@ public:
     std::unique_ptr<AutomataSystem> createSystemFromModule(
         const char* moduleStr, MemoryModel* memoryModel = nullptr
     ) {
+        ElimVarsLevel.setValue(ElimVarsLevels::Off);
         module = llvm::parseAssemblyString(moduleStr, error, llvmContext);
         assert(module != nullptr && "Failed to construct LLVM module.");
 
@@ -126,7 +127,11 @@ public:
             this->memoryModel.reset(memoryModel);
         }
 
-        return translateModuleToAutomata(*module, loopInfoMap, context, *this->memoryModel, vmap, blocks);
+        ModuleToAutomataSettings settings;
+
+        return translateModuleToAutomata(
+            *module, settings, loopInfoMap, context, *this->memoryModel, vmap, blocks
+        );
     }
 };
 
@@ -150,27 +155,6 @@ define i32 @calculate(i32 %x, i32 %y) {
 
     EXPECT_EQ(calculate->getNumLocations(), 4);
     ASSERT_EQ(calculate->getEntry()->getNumOutgoing(), 1);
-
-    Location *first, *second;
-    EXPECT_TRUE(HasAssignEdgeTo(calculate->getEntry(), first));
-
-    Variable* x = calculate->findInputByName("x");
-    Variable* y = calculate->findInputByName("y");
-    Variable* s = calculate->findLocalByName("sum");
-
-    EXPECT_TRUE(HasAssignEdgeTo(
-        first, second,
-        BoolLiteralExpr::False(context),
-        {
-            VariableAssignment{ s, AddExpr::Create(x->getRefExpr(), y->getRefExpr()) }
-        }
-    ));
-    EXPECT_TRUE(HasAssignEdgeTo(
-        first, second,
-        BoolLiteralExpr::True(context),
-        {
-        }
-    ));
 }
 
 TEST_F(ModuleToAutomataTest, CanCreateAllAutomata)
@@ -237,6 +221,10 @@ loop.end:
     EXPECT_EQ(loop->getNumInputs(), 3); // i, sum, limit
     EXPECT_EQ(loop->getNumLocals(), 4); // cond, a, s, i1
     EXPECT_EQ(loop->getNumOutputs(), 1); // sum
+
+    for (Variable& v : loop->locals()) {
+        llvm::errs() << v << "\n";
+    }
 
     EXPECT_TRUE(VariableListContains(loop->inputs(), {
         { "main/loop.header/i", &BvType::Get(context, 32) },

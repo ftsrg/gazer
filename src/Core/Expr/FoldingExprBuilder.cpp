@@ -73,13 +73,13 @@ public:
 
         if (offset == 0) {
             // Extract(SRem(SExt(X1), SExt(X2)), 0, w) --> SRem(X1, X2) if width(X1) == width(X2) == w
-            if (match(op, m_SRem(m_SExt(m_Expr(x1)), m_SExt(m_Expr(x2))))) {
+            if (match(op, m_BvSRem(m_SExt(m_Expr(x1)), m_SExt(m_Expr(x2))))) {
                 assert(x1->getType().isBvType());
                 assert(x1->getType() == x2->getType());
                 auto& bvTy = *llvm::cast<BvType>(&x1->getType());
 
                 if (bvTy.getWidth() == width) {
-                    return ConstantFolder::SRem(x1, x2);
+                    return ConstantFolder::BvSRem(x1, x2);
                 }
             }
         }
@@ -102,24 +102,24 @@ public:
         return ConstantFolder::Mul(left, right);
     }
 
-    ExprPtr SDiv(const ExprPtr& left, const ExprPtr& right) override
+    ExprPtr BvSDiv(const ExprPtr& left, const ExprPtr& right) override
     {
-        return ConstantFolder::SDiv(left, right);
+        return ConstantFolder::BvSDiv(left, right);
     }
 
-    ExprPtr UDiv(const ExprPtr& left, const ExprPtr& right) override
+    ExprPtr BvUDiv(const ExprPtr& left, const ExprPtr& right) override
     {
-        return ConstantFolder::UDiv(left, right);
+        return ConstantFolder::BvUDiv(left, right);
     }
 
-    ExprPtr SRem(const ExprPtr& left, const ExprPtr& right) override
+    ExprPtr BvSRem(const ExprPtr& left, const ExprPtr& right) override
     {
-        return ConstantFolder::SRem(left, right);
+        return ConstantFolder::BvSRem(left, right);
     }
 
-    ExprPtr URem(const ExprPtr& left, const ExprPtr& right) override
+    ExprPtr BvURem(const ExprPtr& left, const ExprPtr& right) override
     {
-        return ConstantFolder::URem(left, right);
+        return ConstantFolder::BvURem(left, right);
     }
 
     ExprPtr Shl(const ExprPtr& left, const ExprPtr& right) override
@@ -137,19 +137,19 @@ public:
         return ConstantFolder::AShr(left, right);
     }
 
-    ExprPtr BAnd(const ExprPtr& left, const ExprPtr& right) override
+    ExprPtr BvAnd(const ExprPtr& left, const ExprPtr& right) override
     {
-        return ConstantFolder::BAnd(left, right);
+        return ConstantFolder::BvAnd(left, right);
     }
 
-    ExprPtr BOr(const ExprPtr& left, const ExprPtr& right) override
+    ExprPtr BvOr(const ExprPtr& left, const ExprPtr& right) override
     {
-        return ConstantFolder::BOr(left, right);
+        return ConstantFolder::BvOr(left, right);
     }
 
-    ExprPtr BXor(const ExprPtr& left, const ExprPtr& right) override
+    ExprPtr BvXor(const ExprPtr& left, const ExprPtr& right) override
     {
-        return ConstantFolder::BXor(left, right);
+        return ConstantFolder::BvXor(left, right);
     }
 
     ExprPtr And(const ExprVector& vector) override

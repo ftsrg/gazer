@@ -18,6 +18,13 @@
 #include <unordered_set>
 #include <unordered_map>
 
+namespace llvm {
+    template<class IntTy>
+    llvm::hash_code hash_value(const boost::rational<IntTy>& arg) {
+        return llvm::hash_value(std::make_pair(arg.numerator(), arg.denominator()));
+    }
+}
+
 namespace gazer
 {
 
@@ -89,21 +96,28 @@ const ExprTy* literal_equals(const Expr* expr, Type& type)
     return llvm::cast<ExprTy>(expr);
 };
 
-template<> struct expr_hasher<BvLiteralExpr, void> {
-    static std::size_t hash_value(Type& type, llvm::APInt value) {
+// Expression hashing template for most literals.
+template<class ExprTy>
+struct expr_hasher<ExprTy, std::enable_if_t<std::is_base_of_v<LiteralExpr, ExprTy>>>
+{
+    using ValT = decltype(std::declval<ExprTy>().getValue());
+
+    static std::size_t hash_value(Type& type, ValT value) {
         return llvm::hash_value(value);
     }
 
-    static bool equals(const Expr* other, Type& type, llvm::APInt value) {
-        if (auto bv = literal_equals<BvLiteralExpr>(other, type)) {
-            return bv->getValue() == value;
+    static bool equals(const Expr* other, Type& type, ValT value) {
+        if (auto i = literal_equals<ExprTy>(other, type)) {
+            return i->getValue() == value;
         }
 
         return false;
     }
 };
 
-template<> struct expr_hasher<FloatLiteralExpr> {
+// Specialization for float literals, as operator==() cannot be used with APFloats.
+template<>
+struct expr_hasher<FloatLiteralExpr> {
     static std::size_t hash_value(Type& type, llvm::APFloat value) {
         return llvm::hash_value(value);
     }
@@ -331,20 +345,19 @@ public:
     //---------------------- Types ----------------------//
     BoolType BoolTy;
     IntType IntTy;
+    RealType RealTy;
     BvType Bv1Ty, Bv8Ty, Bv16Ty, Bv32Ty, Bv64Ty;
     std::unordered_map<unsigned, std::unique_ptr<BvType>> BvTypes;
     FloatType FpHalfTy, FpSingleTy, FpDoubleTy, FpQuadTy;
 
     //------------------- Expressions -------------------//
     ExprStorage Exprs;
-    llvm::StringMap<std::unique_ptr<Variable>> VariableTable;
     ExprRef<BoolLiteralExpr> TrueLit, FalseLit;
+    llvm::StringMap<std::unique_ptr<Variable>> VariableTable;
 
 private:
     //---------------------- Others ----------------------//
     std::vector<std::unique_ptr<ManagedResource>> ManagedResources;
-
-    // This set will contain all expressions created by this context.
 };
 
 } // end namespace gazer

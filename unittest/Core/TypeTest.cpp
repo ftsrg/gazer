@@ -6,7 +6,6 @@
 
 using namespace gazer;
 
-
 TEST(TypeTest, PrintType)
 {
     GazerContext context;
@@ -14,17 +13,26 @@ TEST(TypeTest, PrintType)
     BoolType& boolTy = BoolType::Get(context);
     EXPECT_EQ(boolTy.getName(), "Bool");
     
-    BvType& intTy = BvType::Get(context, 32);
-    EXPECT_EQ(intTy.getName(), "Bv32");
+    BvType& bvTy32 = BvType::Get(context, 32);
+    EXPECT_EQ(bvTy32.getName(), "Bv32");
 
-    BvType& bvTy2 = BvType::Get(context, 57);
-    EXPECT_EQ(bvTy2.getName(), "Bv57");
+    BvType& bvTy57 = BvType::Get(context, 57);
+    EXPECT_EQ(bvTy57.getName(), "Bv57");
 
-    //ArrayType& arrTy = ArrayType::Get(intTy, intTy);
-    //EXPECT_EQ(arrTy.getName(), "[Bv32 -> Bv32]");
+    FloatType& halfTy = FloatType::Get(context, FloatType::Half);
+    EXPECT_EQ(halfTy.getName(), "Float16");
 
-    //ArrayType& arr2Ty = ArrayType::Get(intTy, boolTy);
-    //EXPECT_EQ(arr2Ty.getName(), "[Bv32 -> Bool]");
+    FloatType& floatTy = FloatType::Get(context, FloatType::Single);
+    EXPECT_EQ(floatTy.getName(), "Float32");
+
+    FloatType& doubleTy = FloatType::Get(context, FloatType::Double);
+    EXPECT_EQ(doubleTy.getName(), "Float64");
+
+    IntType& intTy = IntType::Get(context);
+    EXPECT_EQ(intTy.getName(), "Int");
+
+    RealType& realTy = RealType::Get(context);
+    EXPECT_EQ(realTy.getName(), "Real");
 }
 
 TEST(TypeTest, TypeEquals)
@@ -32,35 +40,45 @@ TEST(TypeTest, TypeEquals)
     GazerContext context;
 
     BoolType& boolTy = BoolType::Get(context);
-    BvType& intTy = BvType::Get(context, 32);
+    BvType& bvTy32 = BvType::Get(context, 32);
+    BvType& bvTy57 = BvType::Get(context, 57);
+    FloatType& floatTy = FloatType::Get(context, FloatType::Single);
+    FloatType& doubleTy = FloatType::Get(context, FloatType::Double);
     
     EXPECT_TRUE(boolTy == boolTy);
-    EXPECT_TRUE(intTy == intTy);
+    EXPECT_TRUE(bvTy32 == bvTy32);
+    EXPECT_TRUE(floatTy == floatTy);
 
-    EXPECT_FALSE(boolTy == intTy);
-    EXPECT_FALSE(intTy == boolTy);
+    EXPECT_FALSE(boolTy == bvTy32);
+    EXPECT_FALSE(bvTy32 == boolTy);
+    EXPECT_FALSE(bvTy32 == bvTy57);
+    EXPECT_FALSE(floatTy == doubleTy);
+}
 
-/*
-    ArrayType& arrTy = ArrayType::Get(intTy, intTy);
-    ArrayType& arr2Ty = ArrayType::Get(intTy, boolTy);
+TEST(TypeTest, FloatPrecision)
+{
+    GazerContext context;
 
-    EXPECT_TRUE(arrTy == arrTy);
-    EXPECT_FALSE(arr2Ty == arrTy);
-    EXPECT_FALSE(arr2Ty == intTy);
+    FloatType& halfTy = FloatType::Get(context, FloatType::Half);
+    FloatType& floatTy = FloatType::Get(context, FloatType::Single);
+    FloatType& doubleTy = FloatType::Get(context, FloatType::Double);
+    FloatType& quadTy = FloatType::Get(context, FloatType::Quad);
 
-    ArrayType& arr3Ty = ArrayType::Get(intTy, intTy);
-    
-    EXPECT_TRUE(arr3Ty == arrTy);
-    FunctionType& funcType = FunctionType::Get(boolTy, {intTy, intTy});
-    EXPECT_TRUE(funcType == funcType);
+    EXPECT_EQ(halfTy.getWidth(), 16);
+    EXPECT_EQ(floatTy.getWidth(), 32);
+    EXPECT_EQ(doubleTy.getWidth(), 64);
+    EXPECT_EQ(quadTy.getWidth(), 128);
+}
 
-    FunctionType& funcType2 = FunctionType::Get(intTy, {intTy, intTy});
-    EXPECT_FALSE(funcType == funcType2);
+TEST(TypeTest, BvPrecision)
+{
+    GazerContext context;
 
-    FunctionType& funcType3 = FunctionType::Get(boolTy, {boolTy});
-    EXPECT_FALSE(funcType == funcType3);
+    BvType& bvTy1  = BvType::Get(context, 1);
+    BvType& bvTy32 = BvType::Get(context, 32);
+    BvType& bvTy57 = BvType::Get(context, 57);
 
-    FunctionType& funcType4 = FunctionType::Get(boolTy, {intTy, intTy});
-    EXPECT_TRUE(funcType == funcType4);
-*/
+    EXPECT_EQ(bvTy1.getWidth(), 1);
+    EXPECT_EQ(bvTy32.getWidth(), 32);
+    EXPECT_EQ(bvTy57.getWidth(), 57);
 }
