@@ -1,6 +1,7 @@
 SET(TEST_SOURCES
     Analysis/MemoryObjectTest.cpp
     Automaton/ModuleToAutomataTest.cpp
+    InstToExprTest.cpp
 )
 
 add_executable(GazerLLVMTest ${TEST_SOURCES})

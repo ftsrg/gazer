@@ -1,0 +1,19 @@
+# see https://clang.llvm.org/docs/ClangFormatStyleOptions.html
+BasedOnStyle:  LLVM
+Language: Cpp
+IndentWidth: 4
+AllowShortFunctionsOnASingleLine: Inline
+BreakBeforeBraces: Mozilla
+NamespaceIndentation: Inner
+PointerAlignment: Left
+FixNamespaceComments: true
+ColumnLimit: 90
+AlwaysBreakBeforeMultilineStrings: true
+AlwaysBreakTemplateDeclarations: true
+SpaceAfterTemplateKeyword: false
+UseTab:          Never
+MaxEmptyLinesToKeep: 1
+AlignAfterOpenBracket: AlwaysBreak
+AccessModifierOffset: -4
+BreakStringLiterals: false
+KeepEmptyLinesAtTheStartOfBlocks: false

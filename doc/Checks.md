@@ -7,10 +7,10 @@ Checks are managed through the `CheckRegistry` class, which defines an error cod
 
 ### Registering checks
 
-`CheckRegistry` is used to register new checks into the verification workflow, and used in conjunction with LLVM's `PassManager`. To register a check, simply add it to the `CheckRegistry` instance:
+`CheckRegistry` is used to register new checks into the verification workflow, and used in conjunction with LLVM's `PassManager`. To register a check, simply add it to a `CheckRegistry` instance:
 
 ```cpp
-gazer::CheckRegistry& checks = CheckRegistry::GetInstance();
+gazer::CheckRegistry checks;
 
 // Create a check for assertion fails
 checks.add(gazer::checks::CreateAssertionFailCheck());
@@ -59,7 +59,7 @@ A check's error code value can be retrieved through the CheckRegistry:
 
 ```cpp
 llvm::LLVMContext& context = function.getContext();
-llvm::Value* ec = CheckRegistry::GetInstance().getErrorCodeValue(context, ID);
+llvm::Value* ec = getRegistry().getErrorCodeValue(context, ID);
 ```
 
 With the error code, you can implement your check and place the pre- or postconditions and error calls.
@@ -96,7 +96,7 @@ bool DivisionByZeroCheck::mark(llvm::Function& function)
         // an UnreachableInst is used to terminate these error blocks.
         BasicBlock* errorBB = this->createErrorBlock(
             function,
-            CheckRegistry::GetInstance().getErrorCodeValue(context, ID),
+            getRegistry().getErrorCodeValue(context, ID),
             "error.divzero" + std::to_string(divCnt++)
         );
 
@@ -112,8 +112,7 @@ bool DivisionByZeroCheck::mark(llvm::Function& function)
         );
 
         // Split the basic block to insert a jump based on the precondition check.
-        // If the check is successful, control will jump to the division instruction.
-        // If not, it jumps to the error call.
+        // If the check is successful, control will jump to the division instruction. If not, it jumps to the error call.
         llvm::BasicBlock* newBB = bb->splitBasicBlock(inst);
         
         builder.ClearInsertionPoint();
@@ -128,4 +127,4 @@ bool DivisionByZeroCheck::mark(llvm::Function& function)
 }
 ```
 
-**NOTE:** Verification algorithms are not required to find a solution for each registered check seperately. They often combine all error calls (usually with a `CombineErrorCalls` pass) into a single one, which makes them to stop after finding the first violated check.
+**NOTE:** Verification algorithms are not required to find a solution for each registered check seperately. They often combine all error calls (for example with an `CombineErrorCalls` pass) into a single one, which makes them stop after finding the first violated check.

@@ -38,6 +38,8 @@ private:
 public:
     Valuation(const Valuation&) = default;
     Valuation& operator=(const Valuation&) = default;
+    Valuation(Valuation&&) = default;
+    Valuation& operator=(Valuation&&) = default;
 public:
     ExprRef<LiteralExpr> eval(const ExprPtr& expr);
     ExprRef<LiteralExpr> operator[](const Variable& variable) const;

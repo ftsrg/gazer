@@ -22,18 +22,15 @@
 using namespace gazer;
 using namespace llvm;
 
-namespace gazer {
-    enum ElimVarsLevels {
-        Off, Normal, Aggressive
-    };
-
-    cl::opt<ElimVarsLevels> ElimVarsLevel ("elim-vars", cl::desc("Level for variable elimination:"),
+namespace gazer
+{
+    cl::opt<ModuleToAutomataSettings::ElimVarsLevel> ElimVarsLevel("elim-vars", cl::desc("Level for variable elimination:"),
         cl::values(
-            clEnumVal(Off, "Do not eliminate variables"),
-            clEnumVal(Normal, "Eliminate variables with only one use"),
-            clEnumVal(Aggressive, "Eliminate all eligible variables")
+            clEnumValN(ModuleToAutomataSettings::ElimVars_Off, "off", "Do not eliminate variables"),
+            clEnumValN(ModuleToAutomataSettings::ElimVars_Normal, "normal", "Eliminate variables with only one use"),
+            clEnumValN(ModuleToAutomataSettings::ElimVars_Aggressive, "aggressive", "Eliminate all eligible variables")
         ),
-        cl::init(ElimVarsLevels::Normal)
+        cl::init(ModuleToAutomataSettings::ElimVars_Normal)
     );
 
     cl::opt<bool> NoSimplifyExpr("no-simplify-expr", cl::desc("Do not simplify expessions."));
@@ -106,6 +103,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
     llvm::DenseMap<Location*, llvm::BasicBlock*>& blockEntries
 ) {
     GenerationContext genCtx(*mSystem, mMemoryModel);
+    genCtx.Settings = mSettings;
     std::unique_ptr<ExprBuilder> exprBuilder;
 
     if (!NoSimplifyExpr) {
@@ -480,7 +478,7 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
     }
 
     // Do a clean-up, remove eliminated variables from the CFA.
-    if (ElimVarsLevel != ElimVarsLevels::Off) {
+    if (!mGenCtx.Settings.isElimVarsOff()) {
         mCfa->removeLocalsIf([this](Variable* v) {
             return mEliminatedVarsSet.count(v) != 0;
         });
@@ -489,7 +487,7 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
 
 bool BlocksToCfa::tryToEliminate(Instruction& inst, ExprPtr expr)
 {
-    if (ElimVarsLevel == ElimVarsLevels::Off) {
+    if (mGenCtx.Settings.isElimVarsOff()) {
         return false;
     }
 
@@ -507,7 +505,7 @@ bool BlocksToCfa::tryToEliminate(Instruction& inst, ExprPtr expr)
 
     // On 'Normal' level, we do not want to inline expressions which have multiple uses and have already inlined operands.
     if (
-        ElimVarsLevel != ElimVarsLevels::Aggressive &&
+        !mGenCtx.Settings.isElimVarsAggressive() &&
         getNumUsesInBlockRange(&inst, mBlocks) > 1 &&
         std::any_of(inst.op_begin(), inst.op_end(), [this](llvm::Use& op) {
             llvm::Value* v = &*op;
@@ -650,41 +648,12 @@ void BlocksToCfa::handleSuccessor(BasicBlock* succ, ExprPtr& succCondition, Basi
     }
 }
 
-ExprPtr BlocksToCfa::transform(llvm::Instruction& inst)
-{
-    LLVM_DEBUG(llvm::dbgs() << "  Transforming instruction " << inst << "\n");
-#define HANDLE_INST(OPCODE, NAME)                                       \
-        else if (inst.getOpcode() == (OPCODE)) {                        \
-            return visit##NAME(*llvm::cast<llvm::NAME>(&inst));         \
-        }                                                               \
-
-    if (inst.isBinaryOp()) {
-        return visitBinaryOperator(*dyn_cast<llvm::BinaryOperator>(&inst));
-    } else if (inst.isCast()) {
-        return visitCastInst(*dyn_cast<llvm::CastInst>(&inst));
-    } else if (auto gep = llvm::dyn_cast<llvm::GEPOperator>(&inst)) {
-        return visitGEPOperator(*gep);
-    }
-    HANDLE_INST(Instruction::ICmp, ICmpInst)
-    HANDLE_INST(Instruction::Call, CallInst)
-    HANDLE_INST(Instruction::FCmp, FCmpInst)
-    HANDLE_INST(Instruction::Select, SelectInst)
-    HANDLE_INST(Instruction::Load, LoadInst)
-
-#undef HANDLE_INST
-
-    llvm::errs() << inst << "\n";
-    llvm_unreachable("Unsupported instruction kind");
-}
-
 void BlocksToCfa::insertOutputAssignments(CfaGenInfo& callee, std::vector<VariableAssignment>& outputArgs)
 {
-    llvm::errs() << "Loop assignments for " << callee.Automaton->getName() << " in " << mGenInfo.Automaton->getName() << "\n";
     // For the outputs, find the corresponding variables in the parent and create the assignments.
     for (auto& pair : callee.Outputs) {
         const llvm::Value* value = pair.first;
         Variable* nestedOutputVar = pair.second;
-
 
         LLVM_DEBUG(
             llvm::dbgs() << "  Inserting output assignment for " << *value
@@ -702,7 +671,6 @@ void BlocksToCfa::insertOutputAssignments(CfaGenInfo& callee, std::vector<Variab
             parentVar = mGenInfo.findVariable(value);
         }
 
-        llvm::errs() << *value << "  " << *nestedOutputVar << "\n";
         assert(parentVar != nullptr && "Nested output variable should be present in parent as an input or local!");
 
         outputArgs.emplace_back(parentVar, nestedOutputVar->getRefExpr());
@@ -728,357 +696,9 @@ void BlocksToCfa::insertPhiAssignments(
     }
 }
 
-
-// Transformation functions
-//-----------------------------------------------------------------------------
-
-static bool isLogicInstruction(unsigned opcode) {
-    return opcode == Instruction::And || opcode == Instruction::Or || opcode == Instruction::Xor;
-}
-
-static bool isFloatInstruction(unsigned opcode) {
-    return opcode == Instruction::FAdd || opcode == Instruction::FSub
-           || opcode == Instruction::FMul || opcode == Instruction::FDiv;
-}
-
-static bool isNonConstValue(const llvm::Value* value) {
-    return isa<Instruction>(value) || isa<Argument>(value) || isa<GlobalVariable>(value);
-}
-
-ExprPtr BlocksToCfa::visitBinaryOperator(llvm::BinaryOperator &binop)
+ExprPtr BlocksToCfa::lookupInlinedVariable(const llvm::Value* value)
 {
-    auto variable = getVariable(&binop);
-    auto lhs = operand(binop.getOperand(0));
-    auto rhs = operand(binop.getOperand(1));
-
-    auto opcode = binop.getOpcode();
-    if (isLogicInstruction(opcode)) {
-        ExprPtr expr;
-        if (binop.getType()->isIntegerTy(1)) {
-            auto boolLHS = asBool(lhs);
-            auto boolRHS = asBool(rhs);
-
-            if (binop.getOpcode() == Instruction::And) {
-                return mExprBuilder.And(boolLHS, boolRHS);
-            } else if (binop.getOpcode() == Instruction::Or) {
-                return mExprBuilder.Or(boolLHS, boolRHS);
-            } else if (binop.getOpcode() == Instruction::Xor) {
-                return mExprBuilder.Xor(boolLHS, boolRHS);
-            } else {
-                llvm_unreachable("Unknown logic instruction opcode");
-            }
-        } else {
-            assert(binop.getType()->isIntegerTy()
-                   && "Integer operations on non-integer types");
-            auto iTy = llvm::dyn_cast<llvm::IntegerType>(binop.getType());
-
-            auto intLHS = asInt(lhs, iTy->getBitWidth());
-            auto intRHS = asInt(rhs, iTy->getBitWidth());
-
-            if (binop.getOpcode() == Instruction::And) {
-                return mExprBuilder.BAnd(intLHS, intRHS);
-            } else if (binop.getOpcode() == Instruction::Or) {
-                return mExprBuilder.BOr(intLHS, intRHS);
-            } else if (binop.getOpcode() == Instruction::Xor) {
-                return mExprBuilder.BXor(intLHS, intRHS);
-            } else {
-                llvm_unreachable("Unknown logic instruction opcode");
-            }
-        }
-
-        return mExprBuilder.Eq(variable->getRefExpr(), expr);
-    } else if (isFloatInstruction(opcode)) {
-        ExprPtr expr;
-        switch (binop.getOpcode()) {
-            case Instruction::FAdd:
-                return mExprBuilder.FAdd(lhs, rhs, llvm::APFloat::rmNearestTiesToEven);
-            case Instruction::FSub:
-                return mExprBuilder.FSub(lhs, rhs, llvm::APFloat::rmNearestTiesToEven);
-            case Instruction::FMul:
-                return mExprBuilder.FMul(lhs, rhs, llvm::APFloat::rmNearestTiesToEven);
-            case Instruction::FDiv:
-                return mExprBuilder.FDiv(lhs, rhs, llvm::APFloat::rmNearestTiesToEven);
-            default:
-                assert(false && "Invalid floating-point operation");
-        }
-
-        return expr;
-    } else {
-        const BvType* type = llvm::dyn_cast<BvType>(&variable->getType());
-        assert(type && "Arithmetic results must be integer types");
-
-        auto intLHS = asInt(lhs, type->getWidth());
-        auto intRHS = asInt(rhs, type->getWidth());
-
-#define HANDLE_INSTCASE(OPCODE, EXPRNAME)                           \
-            case OPCODE:                                            \
-                return mExprBuilder.EXPRNAME(intLHS, intRHS);       \
-
-        ExprPtr expr;
-        switch (binop.getOpcode()) {
-            HANDLE_INSTCASE(Instruction::Add, Add)
-            HANDLE_INSTCASE(Instruction::Sub, Sub)
-            HANDLE_INSTCASE(Instruction::Mul, Mul)
-            HANDLE_INSTCASE(Instruction::SDiv, SDiv)
-            HANDLE_INSTCASE(Instruction::UDiv, UDiv)
-            HANDLE_INSTCASE(Instruction::SRem, SRem)
-            HANDLE_INSTCASE(Instruction::URem, URem)
-            HANDLE_INSTCASE(Instruction::Shl, Shl)
-            HANDLE_INSTCASE(Instruction::LShr, LShr)
-            HANDLE_INSTCASE(Instruction::AShr, AShr)
-            default:
-                LLVM_DEBUG(llvm::dbgs() << "Unsupported instruction: " << binop << "\n");
-                llvm_unreachable("Unsupported arithmetic instruction opcode");
-        }
-
-#undef HANDLE_INSTCASE
-    }
-
-    llvm_unreachable("Invalid binary operation kind");
-}
-
-ExprPtr BlocksToCfa::visitSelectInst(llvm::SelectInst& select)
-{
-    Variable* selectVar = getVariable(&select);
-    const Type& type = selectVar->getType();
-
-    auto cond = asBool(operand(select.getCondition()));
-    auto then = castResult(operand(select.getTrueValue()), type);
-    auto elze = castResult(operand(select.getFalseValue()), type);
-
-    return mExprBuilder.Select(cond, then, elze);
-}
-
-ExprPtr BlocksToCfa::visitICmpInst(llvm::ICmpInst& icmp)
-{
-    using llvm::CmpInst;
-
-    auto lhs = operand(icmp.getOperand(0));
-    auto rhs = operand(icmp.getOperand(1));
-
-    auto pred = icmp.getPredicate();
-
-#define HANDLE_PREDICATE(PREDNAME, EXPRNAME)                    \
-        case PREDNAME:                                          \
-            return mExprBuilder.EXPRNAME(lhs, rhs);             \
-
-    ExprPtr expr;
-    switch (pred) {
-        HANDLE_PREDICATE(CmpInst::ICMP_EQ, Eq)
-        HANDLE_PREDICATE(CmpInst::ICMP_NE, NotEq)
-        HANDLE_PREDICATE(CmpInst::ICMP_UGT, UGt)
-        HANDLE_PREDICATE(CmpInst::ICMP_UGE, UGtEq)
-        HANDLE_PREDICATE(CmpInst::ICMP_ULT, ULt)
-        HANDLE_PREDICATE(CmpInst::ICMP_ULE, ULtEq)
-        HANDLE_PREDICATE(CmpInst::ICMP_SGT, SGt)
-        HANDLE_PREDICATE(CmpInst::ICMP_SGE, SGtEq)
-        HANDLE_PREDICATE(CmpInst::ICMP_SLT, SLt)
-        HANDLE_PREDICATE(CmpInst::ICMP_SLE, SLtEq)
-        default:
-            llvm_unreachable("Unhandled ICMP predicate.");
-    }
-
-#undef HANDLE_PREDICATE
-}
-
-ExprPtr BlocksToCfa::visitFCmpInst(llvm::FCmpInst& fcmp)
-{
-    using llvm::CmpInst;
-
-    auto left = operand(fcmp.getOperand(0));
-    auto right = operand(fcmp.getOperand(1));
-
-    auto pred = fcmp.getPredicate();
-
-    ExprPtr cmpExpr = nullptr;
-    switch (pred) {
-        case CmpInst::FCMP_OEQ:
-        case CmpInst::FCMP_UEQ:
-            cmpExpr = mExprBuilder.FEq(left, right);
-            break;
-        case CmpInst::FCMP_OGT:
-        case CmpInst::FCMP_UGT:
-            cmpExpr = mExprBuilder.FGt(left, right);
-            break;
-        case CmpInst::FCMP_OGE:
-        case CmpInst::FCMP_UGE:
-            cmpExpr = mExprBuilder.FGtEq(left, right);
-            break;
-        case CmpInst::FCMP_OLT:
-        case CmpInst::FCMP_ULT:
-            cmpExpr = mExprBuilder.FLt(left, right);
-            break;
-        case CmpInst::FCMP_OLE:
-        case CmpInst::FCMP_ULE:
-            cmpExpr = mExprBuilder.FLtEq(left, right);
-            break;
-        case CmpInst::FCMP_ONE:
-        case CmpInst::FCMP_UNE:
-            cmpExpr = mExprBuilder.Not(mExprBuilder.FEq(left, right));
-            break;
-        default:
-            break;
-    }
-
-
-    ExprPtr expr = nullptr;
-    if (pred == CmpInst::FCMP_FALSE) {
-        expr = mExprBuilder.False();
-    } else if (pred == CmpInst::FCMP_TRUE) {
-        expr = mExprBuilder.True();
-    } else if (pred == CmpInst::FCMP_ORD) {
-        expr = mExprBuilder.And(
-            mExprBuilder.Not(mExprBuilder.FIsNan(left)),
-            mExprBuilder.Not(mExprBuilder.FIsNan(right))
-        );
-    } else if (pred == CmpInst::FCMP_UNO) {
-        expr = mExprBuilder.Or(
-            mExprBuilder.FIsNan(left),
-            mExprBuilder.FIsNan(right)
-        );
-    } else if (CmpInst::isOrdered(pred)) {
-        // An ordered instruction can only be true if it has no NaN operands.
-        expr = mExprBuilder.And({
-             mExprBuilder.Not(mExprBuilder.FIsNan(left)),
-             mExprBuilder.Not(mExprBuilder.FIsNan(right)),
-             cmpExpr
-         });
-    } else if (CmpInst::isUnordered(pred)) {
-        // An unordered instruction may be true if either operand is NaN
-        expr = mExprBuilder.Or({
-            mExprBuilder.FIsNan(left),
-            mExprBuilder.FIsNan(right),
-            cmpExpr
-        });
-    } else {
-        llvm_unreachable("Invalid FCmp predicate");
-    }
-
-    return expr;
-}
-
-ExprPtr BlocksToCfa::integerCast(llvm::CastInst& cast, ExprPtr operand, unsigned width)
-{
-    auto variable = getVariable(&cast);
-
-    auto intTy = llvm::cast<gazer::BvType>(&variable->getType());
-
-    ExprPtr intOp = asInt(operand, width);
-    ExprPtr castOp = nullptr;
-    if (cast.getOpcode() == Instruction::ZExt) {
-        castOp = mExprBuilder.ZExt(intOp, *intTy);
-    } else if (cast.getOpcode() == Instruction::SExt) {
-        castOp = mExprBuilder.SExt(intOp, *intTy);
-    } else if (cast.getOpcode() == Instruction::Trunc) {
-        castOp = mExprBuilder.Trunc(intOp, *intTy);
-    } else {
-        llvm_unreachable("Unhandled integer cast operation");
-    }
-
-    return castOp;
-}
-
-ExprPtr BlocksToCfa::visitCallInst(llvm::CallInst& call)
-{
-    gazer::Type& callTy = mGenCtx.TheMemoryModel.translateType(call.getType());
-
-    const Function* callee = call.getCalledFunction();
-    if (callee == nullptr) {
-        return UndefExpr::Get(callTy);
-        // This is an indirect call, use the memory model to resolve it.
-        //return mMemoryModel.handleCall(call);
-    }
-
-    return UndefExpr::Get(callTy);
-}
-
-ExprPtr BlocksToCfa::visitLoadInst(llvm::LoadInst& load)
-{
-    return mGenCtx.TheMemoryModel.handleLoad(load);
-}
-
-ExprPtr BlocksToCfa::visitGEPOperator(llvm::GEPOperator& gep)
-{
-    return mGenCtx.TheMemoryModel.handleGetElementPtr(gep);
-}
-
-ExprPtr BlocksToCfa::visitCastInst(llvm::CastInst& cast)
-{
-    auto castOp = operand(cast.getOperand(0));
-    //if (cast.getOperand(0)->getType()->isPointerTy()) {
-    //    return mMemoryModel.handlePointerCast(cast, castOp);
-    //}
-
-    if (cast.getType()->isFloatingPointTy()) {
-        auto& fltTy = *llvm::dyn_cast<FloatType>(&mGenCtx.TheMemoryModel.translateType(cast.getType()));
-
-        switch (cast.getOpcode()) {
-            case Instruction::FPExt:
-            case Instruction::FPTrunc:
-                return mExprBuilder.FCast(castOp, fltTy, llvm::APFloat::rmNearestTiesToEven);
-            case Instruction::SIToFP:
-                return mExprBuilder.SignedToFp(castOp, fltTy, llvm::APFloat::rmNearestTiesToEven);
-            case Instruction::UIToFP:
-                return mExprBuilder.UnsignedToFp(castOp, fltTy, llvm::APFloat::rmNearestTiesToEven);
-            default:
-                break;
-        }
-    }
-
-    if (cast.getOpcode() == Instruction::FPToSI) {
-        auto& bvTy = *llvm::dyn_cast<BvType>(&mGenCtx.TheMemoryModel.translateType(cast.getType()));
-        return mExprBuilder.FpToSigned(castOp, bvTy, llvm::APFloat::rmNearestTiesToEven);
-    } else if (cast.getOpcode() == Instruction::UIToFP) {
-        auto& bvTy = *llvm::dyn_cast<BvType>(&mGenCtx.TheMemoryModel.translateType(cast.getType()));
-        return mExprBuilder.FpToUnsigned(castOp, bvTy, llvm::APFloat::rmNearestTiesToEven);
-    } else if (castOp->getType().isBoolType()) {
-        return integerCast(cast, castOp, 1);
-    } else if (castOp->getType().isBvType()) {
-        if (cast.getType()->isIntegerTy(1)
-            && cast.getOpcode() == Instruction::Trunc
-            && getVariable(&cast)->getType().isBoolType()    
-        ) {
-            // If the instruction truncates an integer to an i1 boolean, cast to boolean instead.
-            return asBool(castOp);
-        }
-
-        return integerCast(
-            cast, castOp, dyn_cast<BvType>(&castOp->getType())->getWidth()
-        );
-    }
-
-    assert(false && "Unsupported cast operation");
-}
-
-ExprPtr BlocksToCfa::operand(const Value* value)
-{
-    if (const ConstantInt* ci = dyn_cast<ConstantInt>(value)) {
-        // Check for boolean literals
-        if (ci->getType()->isIntegerTy(1)) {
-            return ci->isZero() ? mExprBuilder.False() : mExprBuilder.True();
-        }
-
-        return mExprBuilder.BvLit(
-            ci->getValue().getLimitedValue(),
-            ci->getType()->getIntegerBitWidth()
-        );
-    } else if (const llvm::ConstantFP* cfp = dyn_cast<llvm::ConstantFP>(value)) {
-        return mExprBuilder.FloatLit(cfp->getValueAPF());
-    } /*else if (const llvm::ConstantPointerNull* ptr = dyn_cast<llvm::ConstantPointerNull>(value)) {
-        return mMemoryModel.getNullPointer();
-    } */ else if (isNonConstValue(value)) {
-        auto result = mInlinedVars.find(value);
-        if (result != mInlinedVars.end()) {
-            return result->second;
-        }
-
-        return getVariable(value)->getRefExpr();
-    } else if (isa<llvm::UndefValue>(value)) {
-        return mExprBuilder.Undef(mGenCtx.TheMemoryModel.translateType(value->getType()));
-    } else {
-        LLVM_DEBUG(llvm::dbgs() << "  Unhandled value for operand: " << *value << "\n");
-        assert(false && "Unhandled value type");
-    }
+    return mInlinedVars.lookup(value);
 }
 
 Variable* BlocksToCfa::getVariable(const Value* value)
@@ -1091,59 +711,16 @@ Variable* BlocksToCfa::getVariable(const Value* value)
     return result;
 }
 
-ExprPtr BlocksToCfa::asBool(ExprPtr operand)
-{
-    if (operand->getType().isBoolType()) {
-        return operand;
-    } else if (operand->getType().isBvType()) {
-        const BvType* bvTy = dyn_cast<BvType>(&operand->getType());
-        unsigned bits = bvTy->getWidth();
-
-        return mExprBuilder.Select(
-            mExprBuilder.Eq(operand, mExprBuilder.BvLit(0, bits)),
-            mExprBuilder.False(),
-            mExprBuilder.True()
-        );
-    } else {
-        assert(false && "Unsupported gazer type.");
-    }
-}
-
-ExprPtr BlocksToCfa::asInt(ExprPtr operand, unsigned bits)
-{
-    if (operand->getType().isBoolType()) {
-        return mExprBuilder.Select(
-            operand,
-            mExprBuilder.BvLit(1, bits),
-            mExprBuilder.BvLit(0, bits)
-        );
-    } else if (operand->getType().isBvType()) {
-        return operand;
-    } else {
-        assert(false && "Unsupported gazer type.");
-    }
-}
-
-ExprPtr BlocksToCfa::castResult(ExprPtr expr, const Type& type)
-{
-    if (type.isBoolType()) {
-        return asBool(expr);
-    } else if (type.isBvType()) {
-        return asInt(expr, dyn_cast<BvType>(&type)->getWidth());
-    } else {
-        assert(!"Invalid cast result type");
-    } 
-}
-
 std::unique_ptr<AutomataSystem> gazer::translateModuleToAutomata(
     llvm::Module& module,
+    ModuleToAutomataSettings settings,
     std::unordered_map<llvm::Function*, llvm::LoopInfo*>& loopInfos,
     GazerContext& context,
     MemoryModel& memoryModel,
     llvm::DenseMap<llvm::Value*, Variable*>& variables,
     llvm::DenseMap<Location*, llvm::BasicBlock*>& blockEntries
 ) {
-    ModuleToCfa transformer(module, loopInfos, context, memoryModel);
+    ModuleToCfa transformer(module, loopInfos, context, memoryModel, settings);
     return transformer.generate(variables, blockEntries);
 }
 
@@ -1170,8 +747,11 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
 
     DummyMemoryModel memoryModel(mContext);
 
+    ModuleToAutomataSettings settings;
+    settings.setElimVarsLevel(ElimVarsLevel);
+
     llvm::outs() << "Translating module.\n";
-    mSystem = translateModuleToAutomata(module, loops, mContext, memoryModel, mVariables, mBlocks);
+    mSystem = translateModuleToAutomata(module, settings, loops, mContext, memoryModel, mVariables, mBlocks);
 
     // for (Cfa& cfa : *mSystem) {
     //     llvm::errs() << cfa.getName() << "("

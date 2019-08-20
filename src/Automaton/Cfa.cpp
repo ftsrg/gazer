@@ -137,8 +137,10 @@ Variable *Cfa::createLocal(llvm::StringRef name, Type& type)
 Variable *Cfa::createMemberVariable(llvm::StringRef name, Type &type)
 {
     auto variableName = (llvm::Twine(mName, "/") + name).str();
+    auto variable = mContext.createVariable(variableName, type);
+    mSymbolNames[variable] = name.str();
 
-    return mContext.createVariable(variableName, type);
+    return variable;
 }
 
 void Cfa::addNestedAutomaton(Cfa* cfa)

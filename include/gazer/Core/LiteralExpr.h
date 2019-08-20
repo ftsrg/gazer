@@ -6,6 +6,8 @@
 #include <llvm/ADT/APInt.h>
 #include <llvm/ADT/APFloat.h>
 
+#include <boost/rational.hpp>
+
 namespace llvm {
     class ConstantData;
 }
@@ -94,6 +96,37 @@ public:
     }
 private:
     int64_t mValue;
+};
+
+class RealLiteralExpr final : public LiteralExpr
+{
+    friend class ExprStorage;
+private:
+    RealLiteralExpr(RealType& type, boost::rational<int64_t> value)
+        : LiteralExpr(type), mValue(value)
+    {}
+
+public:
+    static ExprRef<RealLiteralExpr> Get(RealType& type, boost::rational<int64_t> value);
+    static ExprRef<RealLiteralExpr> Get(RealType& type, int64_t nom, int64_t denom) {
+        return Get(type, boost::rational<int64_t>(nom, denom));
+    }
+
+public:
+    virtual void print(llvm::raw_ostream& os) const override;
+
+    boost::rational<int64_t> getValue() const { return mValue; }
+
+    static bool classof(const Expr* expr) {
+        return expr->getKind() == Literal && expr->getType().isRealType();
+    }
+
+    static bool classof(const Expr& expr) {
+        return expr.getKind() == Literal && expr.getType().isRealType();
+    }
+
+private:
+    boost::rational<int64_t> mValue;
 };
 
 class BvLiteralExpr final : public LiteralExpr

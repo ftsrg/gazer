@@ -25,6 +25,12 @@ public:
     ~GazerContext();
 
 public:
+
+    /// Declares a new variable with the given name and type,
+    /// or the already declared instance if a variable already
+    /// exists with the given name.
+    Variable* variableDecl(llvm::StringRef name, Type& type);
+
     Variable *getVariable(llvm::StringRef name);
     Variable *createVariable(std::string name, Type &type);
 

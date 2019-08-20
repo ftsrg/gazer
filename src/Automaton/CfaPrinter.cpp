@@ -1,6 +1,7 @@
 /// \file Printing utilities for control flow automata.
 #include "gazer/Automaton/Cfa.h"
 #include "gazer/Core/LiteralExpr.h"
+#include "gazer/ADT/StringUtils.h"
 
 #include <llvm/ADT/StringExtras.h>
 
@@ -136,4 +137,79 @@ void Transition::print(llvm::raw_ostream &os) const
     llvm_unreachable("Unknown edge kind in Transition::print()!");
 }
 
+void Cfa::print(llvm::raw_ostream& os) const
+{
+    constexpr auto indent1 = "    ";
+    constexpr auto indent2 = "        ";
 
+    auto printIo = [this](llvm::raw_ostream& os, Variable* variable) {
+        os << mSymbolNames.lookup(variable) << " : " << variable->getType();
+    };
+
+    auto printCallInput = [](llvm::raw_ostream& os, ExprPtr expr) {
+        os << *expr;
+    };
+
+    auto printCallOutput = [](llvm::raw_ostream& os, const VariableAssignment& assign) {
+        os << assign.getVariable()->getName() << " <= " << *assign.getValue();
+    };
+
+    os << "procedure " << mName << "(";
+    join_print_as(os, mInputs.begin(), mInputs.end(), ", ", printIo);
+    os << ") -> (";
+    join_print_as(os, mOutputs.begin(), mOutputs.end(), ", ", printIo);
+    os << ")\n";
+
+    os << "{\n";
+
+    for (auto& local : mLocals) {
+        os << indent1 << "var "
+        << mSymbolNames.lookup(local) << " : " << local->getType()
+        << "\n";
+    }
+
+    os << "\n";
+
+    for (auto& loc : mLocations) {
+        os << indent1 << "loc $" << loc->getId();
+        if (loc->isError()) {
+            os << " error";
+        }
+
+        os << "\n";
+    }
+
+    os << "\n";
+
+    for (auto& edge : mTransitions) {
+        os << indent1 << "transition "
+        << "$" << edge->getSource()->getId()
+        << " -> "
+        << "$" << edge->getTarget()->getId() << "\n"
+        << indent2 << "assume " << *edge->getGuard() << "\n";
+
+        if (auto assignEdge = llvm::dyn_cast<AssignTransition>(edge.get())) {
+            os << indent1 << "{\n";
+            for (auto assign : *assignEdge) {
+                os << indent2 << mSymbolNames.lookup(assign.getVariable())
+                << " := " << *assign.getValue()
+                << ";\n";
+            }
+            os << indent1 << "}\n";
+        } else if (auto call = llvm::dyn_cast<CallTransition>(edge.get())) {
+            os << indent2 << "call " << call->getCalledAutomaton()->getName() << "(";
+            join_print_as(os, call->input_begin(), call->input_end(), ", ", printCallInput);
+            if (call->getNumInputs() != 0 && call->getNumOutputs() != 0) {
+                os << ", ";
+            }
+            join_print_as(os, call->output_begin(), call->output_end(), ", ", printCallOutput);
+            os << ");\n";            
+        } else {
+            llvm_unreachable("Unknown transition kind.");
+        }
+
+        os << "\n";
+    }
+
+    os << "}\n";
+}

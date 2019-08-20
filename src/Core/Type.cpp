@@ -29,6 +29,8 @@ std::string Type::getName() const
         }
         case IntTypeID:
             return "Int";
+        case RealTypeID:
+            return "Real";
         case FloatTypeID: {
             auto fltTy = llvm::cast<FloatType>(this);
             return "Float" + std::to_string(fltTy->getWidth());
@@ -38,7 +40,8 @@ std::string Type::getName() const
             return getArrayTypeStr(
                 arrayType->getIndexType(), arrayType->getElementType()
             );
-        }/*
+        }
+        /*
         case FunctionTypeID: {
             auto funcType = llvm::cast<FunctionType>(this);
             return getFunctionTypeStr(
@@ -90,17 +93,22 @@ bool Type::equals(const Type* other) const
     return true;
 }
 
-BoolType& BoolType::Get(GazerContext& context)
+auto BoolType::Get(GazerContext& context) -> BoolType&
 {
     return context.pImpl->BoolTy;
 }
 
-IntType& IntType::Get(GazerContext& context)
+auto IntType::Get(GazerContext& context) -> IntType&
 {
     return context.pImpl->IntTy;
 }
 
-BvType& BvType::Get(GazerContext& context, unsigned width)
+auto RealType::Get(GazerContext& context) -> RealType&
+{
+    return context.pImpl->RealTy;
+}
+
+auto BvType::Get(GazerContext& context, unsigned width) -> BvType&
 {
     auto& pImpl = context.pImpl;
 
@@ -122,7 +130,8 @@ BvType& BvType::Get(GazerContext& context, unsigned width)
     return *result->second;
 }
 
-FloatType& FloatType::Get(GazerContext& context, FloatType::FloatPrecision precision)
+auto FloatType::Get(
+    GazerContext& context, FloatType::FloatPrecision precision) -> FloatType&
 {
     switch (precision) {
         case Half: return context.pImpl->FpHalfTy;

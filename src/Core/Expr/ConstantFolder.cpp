@@ -103,7 +103,7 @@ ExprPtr ConstantFolder::Mul(const ExprPtr& left, const ExprPtr& right)
     return SubExpr::Create(left, right);
 }
 
-ExprPtr ConstantFolder::SDiv(const ExprPtr& left, const ExprPtr& right)
+ExprPtr ConstantFolder::BvSDiv(const ExprPtr& left, const ExprPtr& right)
 {
     if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
         if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
@@ -114,10 +114,10 @@ ExprPtr ConstantFolder::SDiv(const ExprPtr& left, const ExprPtr& right)
         }
     }
 
-    return SDivExpr::Create(left, right);
+    return BvSDivExpr::Create(left, right);
 }
 
-ExprPtr ConstantFolder::UDiv(const ExprPtr& left, const ExprPtr& right)
+ExprPtr ConstantFolder::BvUDiv(const ExprPtr& left, const ExprPtr& right)
 {
     if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
         if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
@@ -128,10 +128,10 @@ ExprPtr ConstantFolder::UDiv(const ExprPtr& left, const ExprPtr& right)
         }
     }
 
-    return UDivExpr::Create(left, right);
+    return BvUDivExpr::Create(left, right);
 }
 
-ExprPtr ConstantFolder::SRem(const ExprPtr& left, const ExprPtr& right)
+ExprPtr ConstantFolder::BvSRem(const ExprPtr& left, const ExprPtr& right)
 {
     if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
         if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
@@ -142,10 +142,10 @@ ExprPtr ConstantFolder::SRem(const ExprPtr& left, const ExprPtr& right)
         }
     }
 
-    return SRemExpr::Create(left, right);
+    return BvSRemExpr::Create(left, right);
 }
 
-ExprPtr ConstantFolder::URem(const ExprPtr& left, const ExprPtr& right)
+ExprPtr ConstantFolder::BvURem(const ExprPtr& left, const ExprPtr& right)
 {
     if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
         if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
@@ -156,7 +156,7 @@ ExprPtr ConstantFolder::URem(const ExprPtr& left, const ExprPtr& right)
         }
     }
 
-    return URemExpr::Create(left, right);
+    return BvURemExpr::Create(left, right);
 }
 
 ExprPtr ConstantFolder::Shl(const ExprPtr& left, const ExprPtr& right)
@@ -201,7 +201,7 @@ ExprPtr ConstantFolder::AShr(const ExprPtr& left, const ExprPtr& right)
     return AShrExpr::Create(left, right);
 }
 
-ExprPtr ConstantFolder::BAnd(const ExprPtr& left, const ExprPtr& right)
+ExprPtr ConstantFolder::BvAnd(const ExprPtr& left, const ExprPtr& right)
 {
     if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
         if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
@@ -212,10 +212,10 @@ ExprPtr ConstantFolder::BAnd(const ExprPtr& left, const ExprPtr& right)
         }
     }
 
-    return BAndExpr::Create(left, right);
+    return BvAndExpr::Create(left, right);
 }
 
-ExprPtr ConstantFolder::BOr(const ExprPtr& left, const ExprPtr& right)
+ExprPtr ConstantFolder::BvOr(const ExprPtr& left, const ExprPtr& right)
 {
     if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
         if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
@@ -226,10 +226,10 @@ ExprPtr ConstantFolder::BOr(const ExprPtr& left, const ExprPtr& right)
         }
     }
 
-    return BOrExpr::Create(left, right);
+    return BvOrExpr::Create(left, right);
 }
 
-ExprPtr ConstantFolder::BXor(const ExprPtr& left, const ExprPtr& right)
+ExprPtr ConstantFolder::BvXor(const ExprPtr& left, const ExprPtr& right)
 {
     if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
         if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
@@ -240,7 +240,7 @@ ExprPtr ConstantFolder::BXor(const ExprPtr& left, const ExprPtr& right)
         }
     }
 
-    return BXorExpr::Create(left, right);
+    return BvXorExpr::Create(left, right);
 }
 
 ExprPtr ConstantFolder::And(const ExprVector& vector)

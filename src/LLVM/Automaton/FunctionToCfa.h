@@ -6,6 +6,8 @@
 #include "gazer/Automaton/Cfa.h"
 #include "gazer/LLVM/Analysis/MemoryObject.h"
 
+#include "gazer/LLVM/InstToExpr.h"
+
 #include <llvm/IR/Function.h>
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/Instructions.h>
@@ -101,6 +103,7 @@ struct GenerationContext
     llvm::DenseMap<llvm::Function*, CfaGenInfo> FunctionMap;
     llvm::DenseMap<llvm::Loop*, CfaGenInfo> LoopMap;
     llvm::LoopInfo* LoopInfo;
+    ModuleToAutomataSettings Settings;
 
     AutomataSystem& System;
     MemoryModel& TheMemoryModel;
@@ -117,6 +120,7 @@ public:
 class ModuleToCfa final
 {
 public:
+
     using LoopInfoMapTy = std::unordered_map<llvm::Function*, llvm::LoopInfo*>;
 
     static constexpr char FunctionReturnValueName[] = "RET_VAL";
@@ -126,11 +130,12 @@ public:
         llvm::Module& module,
         LoopInfoMapTy& loops,
         GazerContext& context,
-        MemoryModel& memoryModel
+        MemoryModel& memoryModel,
+        ModuleToAutomataSettings settings
     )
         : mModule(module),
         mLoops(loops), mContext(context),
-        mMemoryModel(memoryModel)
+        mMemoryModel(memoryModel), mSettings(settings)
     {
         mSystem = std::make_unique<AutomataSystem>(context);
     }
@@ -148,13 +153,14 @@ private:
     std::unique_ptr<AutomataSystem> mSystem;
 
     MemoryModel& mMemoryModel;
+    ModuleToAutomataSettings mSettings;
 
     // Generation helpers
     std::unordered_map<llvm::Function*, Cfa*> mFunctionMap;
     std::unordered_map<llvm::Loop*, Cfa*> mLoopMap;
 };
 
-class BlocksToCfa
+class BlocksToCfa : public InstToExpr
 {
 public:
     BlocksToCfa(
@@ -163,40 +169,24 @@ public:
         llvm::ArrayRef<llvm::BasicBlock*> blocks,
         Cfa* cfa,
         ExprBuilder& exprBuilder
-    ) : mGenCtx(generationContext),
+    ) : InstToExpr(exprBuilder, generationContext.TheMemoryModel),
+        mGenCtx(generationContext),
         mGenInfo(genInfo),
         mBlocks(blocks),
-        mCfa(cfa),
-        mExprBuilder(exprBuilder)
+        mCfa(cfa)
     {}
 
     void encode(llvm::BasicBlock* entry);
 
-    ExprPtr transform(llvm::Instruction& inst);
-
-    ExprPtr visitBinaryOperator(llvm::BinaryOperator& binop);
-    ExprPtr visitSelectInst(llvm::SelectInst& select);
-    ExprPtr visitICmpInst(llvm::ICmpInst& icmp);
-    ExprPtr visitFCmpInst(llvm::FCmpInst& fcmp);
-    ExprPtr visitCastInst(llvm::CastInst& cast);
-    ExprPtr visitCallInst(llvm::CallInst& call);
-    ExprPtr visitLoadInst(llvm::LoadInst& load);
-    ExprPtr visitGEPOperator(llvm::GEPOperator& gep);
+protected:
+    Variable* getVariable(const llvm::Value* value) override;
+    ExprPtr lookupInlinedVariable(const llvm::Value* value) override;
 
 private:
     GazerContext& getContext() const { return mGenCtx.System.getContext(); }
 private:
 
     bool tryToEliminate(llvm::Instruction& inst, ExprPtr expr);
-
-    ExprPtr integerCast(llvm::CastInst& cast, ExprPtr operand, unsigned int width);
-    ExprPtr operand(const llvm::Value* value);
-
-    Variable* getVariable(const llvm::Value* value);
-    ExprPtr asBool(ExprPtr operand);
-
-    ExprPtr asInt(ExprPtr operand, unsigned int bits);
-    ExprPtr castResult(ExprPtr expr, const Type& type);
 
     void insertOutputAssignments(CfaGenInfo& callee, std::vector<VariableAssignment>& outputArgs);
     void insertPhiAssignments(llvm::BasicBlock* source, llvm::BasicBlock* target, std::vector<VariableAssignment>& phiAssignments);
@@ -212,7 +202,6 @@ private:
     CfaGenInfo& mGenInfo;
     llvm::ArrayRef<llvm::BasicBlock*> mBlocks;
     Cfa* mCfa;
-    ExprBuilder& mExprBuilder;
     unsigned mCounter = 0;
     llvm::DenseMap<llvm::Value*, ExprPtr> mInlinedVars;
     llvm::DenseSet<Variable*> mEliminatedVarsSet;

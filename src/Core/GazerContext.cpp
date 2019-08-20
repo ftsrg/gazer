@@ -112,7 +112,7 @@ void ExprStorage::destroy(Expr *expr)
     // For really large and deep expression trees the chain of
     // delete -> destroy -> delete calls may cause a stack oveflow error.
     // Here we overcome this issue by traversing the expression and all its
-    // operands and pushing all would-be deleted expressions onto a list and
+    // operands, pushing all would-be deleted expressions onto a list and
     // deleting them afterwards.
     // The list is built by reusing the available expression nodes
     // (through the mNextPtr's) to form a singly linked list,
@@ -224,7 +224,7 @@ void GazerContext::addManagedResouce(ManagedResource* resource)
 GazerContextImpl::GazerContextImpl(GazerContext& ctx)
     :
     // Types
-    BoolTy(ctx), IntTy(ctx),
+    BoolTy(ctx), IntTy(ctx), RealTy(ctx),
     Bv1Ty(ctx, 1), Bv8Ty(ctx, 8), Bv16Ty(ctx, 16), Bv32Ty(ctx, 32), Bv64Ty(ctx, 64),
     FpHalfTy(ctx, FloatType::Half), FpSingleTy(ctx, FloatType::Single),
     FpDoubleTy(ctx, FloatType::Double), FpQuadTy(ctx, FloatType::Quad),

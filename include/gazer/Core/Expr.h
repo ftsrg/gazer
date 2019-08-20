@@ -58,26 +58,27 @@ public:
         Not,
 
         // Cast
-        ZExt,       ///< zero extend to another type
-        SExt,       ///< sign extend to another type
+        ZExt,    ///< zero extend to another type
+        SExt,    ///< sign extend to another type
         Extract,
 
         // Binary arithmetic
         Add,
         Sub,
         Mul,
-        SDiv,
-        UDiv,
-        SRem,
-        URem,
+        Div,    ///< division operator for arithmetic types
+        BvSDiv, ///< signed division for bitvectors
+        BvUDiv, ///< signed division for bitvectors
+        BvSRem, ///< signed remainder for bitvectors
+        BvURem, ///< signed remainder for bitvectors
 
-        // Bit operations
+        // Bitvector operations
         Shl,    ///< binary shift left
         LShr,   ///< logical shift right
         AShr,   ///< arithmetic shift right
-        BAnd,   ///< binary AND for bit vectors
-        BOr,    ///< binary OR for bit vectors
-        BXor,   ///< binary XOR for bit vectors
+        BvAnd,  ///< binary AND for bitvectors
+        BvOr,   ///< binary OR for bitvectors
+        BvXor,  ///< binary XOR for bitvectors
 
         // Binary logic
         And,    ///< multiary AND operator for booleans
@@ -129,19 +130,32 @@ public:
         ArrayWrite,
     };
 
+    // Atomic and literal expressions
     static constexpr int FirstAtomic = Undef;
     static constexpr int LastAtomic = Literal;
 
+    // Unary operations and casts
     static constexpr int FirstUnary = Not;
     static constexpr int LastUnary = Extract;
     static constexpr int FirstUnaryCast = ZExt;
     static constexpr int LastUnaryCast = Extract;
+    
+    // Binary operations
     static constexpr int FirstBinaryArithmetic = Add;
-    static constexpr int LastBinaryArithmetic = BXor;
+    static constexpr int LastBinaryArithmetic = BvXor;
+    static constexpr int FirstBitLogic = Shl;
+    static constexpr int LastBitLogic  = BvXor;
+
+    // Logic and compare
     static constexpr int FirstLogic = And;
     static constexpr int LastLogic = Xor;
     static constexpr int FirstCompare = Eq;
     static constexpr int LastCompare = UGtEq;
+
+    // Floats
+    static constexpr int FirstFp = FIsNan;
+    static constexpr int LastFp = FLtEq;
+
     static constexpr int FirstFpUnary = FIsNan;
     static constexpr int LastFpUnary = FpToUnsigned;
     static constexpr int FirstFpArithmetic = FAdd;
@@ -149,6 +163,7 @@ public:
     static constexpr int FirstFpCompare = FEq;
     static constexpr int LastFpCompare = FLtEq;
 
+    // Generic expressions
     static constexpr int FirstExprKind = Undef;
     static constexpr int LastExprKind = ArrayWrite;
 
@@ -177,8 +192,16 @@ public:
         return FirstLogic <= mKind && mKind <= LastLogic;
     }
 
+    bool isBitLogic() const {
+        return FirstBitLogic <= mKind && mKind <= LastBitLogic;
+    }
+
     bool isCompare() const {
         return FirstCompare <= mKind && mKind <= LastCompare;
+    }
+
+    bool isFloatingPoint() const {
+        return FirstFp <= mKind && mKind <= LastFp;
     }
 
     bool isFpArithmetic() const {

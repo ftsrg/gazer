@@ -1,5 +1,6 @@
 SET(TEST_SOURCES
-        CfaTest.cpp
+    CfaTest.cpp
+    CfaPrinterTest.cpp
 )
 
 add_executable(GazerAutomatonTest ${TEST_SOURCES})

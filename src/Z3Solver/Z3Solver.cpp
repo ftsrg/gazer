@@ -75,6 +75,9 @@ protected:
                 auto intTy = llvm::cast<BvType>(type);
                 return mZ3Context.bv_sort(intTy->getWidth());
             }
+            case Type::RealTypeID: {
+                return mZ3Context.real_sort();
+            }
             case Type::FloatTypeID: {
                 auto fltTy = llvm::cast<FloatType>(type);
                 switch (fltTy->getPrecision()) {
@@ -156,6 +159,10 @@ protected:
 
     // Unary
     z3::expr visitNot(const ExprRef<NotExpr>& expr) override {
+        if (auto eq = llvm::dyn_cast<EqExpr>(expr->getOperand())) {
+            return visit(eq->getLeft()) != visit(eq->getRight());
+        }
+
         return !(visit(expr->getOperand()));
     }
 
@@ -183,16 +190,16 @@ protected:
         return visit(expr->getLeft()) * visit(expr->getRight());
     }
 
-    z3::expr visitSDiv(const ExprRef<SDivExpr>& expr) override {
+    z3::expr visitBvSDiv(const ExprRef<BvSDivExpr>& expr) override {
         return visit(expr->getLeft()) / visit(expr->getRight());
     }
-    z3::expr visitUDiv(const ExprRef<UDivExpr>& expr) override {
+    z3::expr visitBvUDiv(const ExprRef<BvUDivExpr>& expr) override {
         return z3::udiv(visit(expr->getLeft()), visit(expr->getRight()));
     }
-    z3::expr visitSRem(const ExprRef<SRemExpr>& expr) override {
+    z3::expr visitBvSRem(const ExprRef<BvSRemExpr>& expr) override {
         return z3::srem(visit(expr->getLeft()), visit(expr->getRight()));
     }
-    z3::expr visitURem(const ExprRef<URemExpr>& expr) override {
+    z3::expr visitBvURem(const ExprRef<BvURemExpr>& expr) override {
         return z3::urem(visit(expr->getLeft()), visit(expr->getRight()));
     }
 
@@ -205,13 +212,13 @@ protected:
     z3::expr visitAShr(const ExprRef<AShrExpr>& expr) override {
         return z3::ashr(visit(expr->getLeft()), visit(expr->getRight()));
     }
-    z3::expr visitBAnd(const ExprRef<BAndExpr>& expr) override {
+    z3::expr visitBvAnd(const ExprRef<BvAndExpr>& expr) override {
         return visit(expr->getLeft()) & visit(expr->getRight());
     }
-    z3::expr visitBOr(const ExprRef<BOrExpr>& expr) override {
+    z3::expr visitBvOr(const ExprRef<BvOrExpr>& expr) override {
         return visit(expr->getLeft()) | visit(expr->getRight());
     }
-    z3::expr visitBXor(const ExprRef<BXorExpr>& expr) override {
+    z3::expr visitBvXor(const ExprRef<BvXorExpr>& expr) override {
         return visit(expr->getLeft()) ^ visit(expr->getRight());
     }
 

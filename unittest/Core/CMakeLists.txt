@@ -3,6 +3,8 @@ SET(TEST_SOURCES
     VariableTest.cpp
     ExprTest.cpp
     Expr/MatcherTest.cpp
+    Expr/ExprPrinterTest.cpp
+    Expr/ExprEvaluatorTest.cpp
     core_tests.cpp
 )
 

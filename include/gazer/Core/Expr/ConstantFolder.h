@@ -21,17 +21,17 @@ public:
     static ExprPtr Add(const ExprPtr& left, const ExprPtr& right);
     static ExprPtr Sub(const ExprPtr& left, const ExprPtr& right);
     static ExprPtr Mul(const ExprPtr& left, const ExprPtr& right);
-    static ExprPtr SDiv(const ExprPtr& left, const ExprPtr& right);
-    static ExprPtr UDiv(const ExprPtr& left, const ExprPtr& right);
-    static ExprPtr SRem(const ExprPtr& left, const ExprPtr& right);
-    static ExprPtr URem(const ExprPtr& left, const ExprPtr& right);
+    static ExprPtr BvSDiv(const ExprPtr& left, const ExprPtr& right);
+    static ExprPtr BvUDiv(const ExprPtr& left, const ExprPtr& right);
+    static ExprPtr BvSRem(const ExprPtr& left, const ExprPtr& right);
+    static ExprPtr BvURem(const ExprPtr& left, const ExprPtr& right);
 
     static ExprPtr Shl(const ExprPtr& left, const ExprPtr& right);
     static ExprPtr LShr(const ExprPtr& left, const ExprPtr& right);
     static ExprPtr AShr(const ExprPtr& left, const ExprPtr& right);    
-    static ExprPtr BAnd(const ExprPtr& left, const ExprPtr& right);    
-    static ExprPtr BOr(const ExprPtr& left, const ExprPtr& right);
-    static ExprPtr BXor(const ExprPtr& left, const ExprPtr& right);
+    static ExprPtr BvAnd(const ExprPtr& left, const ExprPtr& right);    
+    static ExprPtr BvOr(const ExprPtr& left, const ExprPtr& right);
+    static ExprPtr BvXor(const ExprPtr& left, const ExprPtr& right);
 
     static ExprPtr And(const ExprVector& vector);
     static ExprPtr Or(const ExprVector& vector);
