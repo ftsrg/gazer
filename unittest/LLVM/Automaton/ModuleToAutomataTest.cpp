@@ -145,15 +145,18 @@ TEST_P(ModuleToCfaTest, TestWithoutMemoryModel)
 std::vector<ModuleToCfaTestModel> GetTestModels()
 {
     auto simpleConfig = Settings{
-        Settings::ElimVars_Off, Settings::Loops_Recursion, Settings::Ints_UseBv, Settings::Floats_UseFpa,
+        Settings::ElimVars_Off, Settings::Loops_Recursion,
+        Settings::Ints_UseBv, Settings::Floats_UseFpa,
         /*simplifyExpr=*/false
     };
     auto elimVarsDefaultConfig = Settings{
-        Settings::ElimVars_Normal, Settings::Loops_Recursion, Settings::Ints_UseBv, Settings::Floats_UseFpa,
+        Settings::ElimVars_Normal, Settings::Loops_Recursion,
+        Settings::Ints_UseBv, Settings::Floats_UseFpa,
         /*simplifyExpr=*/false
     };
     auto elimVarsAggressiveConfig = Settings{
-        Settings::ElimVars_Aggressive, Settings::Loops_Recursion, Settings::Ints_UseBv, Settings::Floats_UseFpa,
+        Settings::ElimVars_Aggressive, Settings::Loops_Recursion,
+        Settings::Ints_UseBv, Settings::Floats_UseFpa,
         /*simplifyExpr=*/false
     };
 
@@ -165,7 +168,10 @@ std::vector<ModuleToCfaTestModel> GetTestModels()
         { "LoopTest_ElimVarsNormal", "LoopTest.ll", "LoopTest_ElimVarsDefault.cfa", elimVarsDefaultConfig },
         { "LoopTest_ElimVarsAggressive", "LoopTest.ll", "LoopTest_ElimVarsDefault.cfa", elimVarsAggressiveConfig },
         { "NestedLoops_Simple", "NestedLoops.ll", "NestedLoops_Simple.cfa", simpleConfig },
+        { "LoopMultipleExits_Simple", "LoopMultipleExits.ll", "LoopMultipleExits_Simple.cfa", simpleConfig },
+        { "PostTestLoop_Simple", "PostTestLoop.ll", "PostTestLoop_Simple.cfa", simpleConfig },
     };
+
 }
 
 INSTANTIATE_TEST_SUITE_P(

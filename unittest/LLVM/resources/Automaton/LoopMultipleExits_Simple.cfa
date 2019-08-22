@@ -1,0 +1,155 @@
+procedure main() -> (main/RET_VAL : Bv32)
+{
+    var main/RET_VAL : Bv32
+    var main/limit : Bv32
+    var main/sum : Bv32
+    var main/__output_selector0 : Bv8
+
+    loc $0 entry 
+    loc $1 final 
+    loc $2
+    loc $3
+    loc $4
+    loc $5
+    loc $6
+    loc $7
+    loc $8
+
+    transition $0 -> $2
+        assume true
+    {
+    };
+
+    transition $2 -> $3
+        assume true
+    {
+        main/limit := undef;
+    };
+
+    transition $3 -> $8
+        assume true
+        call main/loop.header(0bv32, 0bv32, main/limit, main/sum <= main/loop.header/sum_out, main/__output_selector0 <= main/loop.header/__output_selector);
+
+    transition $8 -> $6
+        assume main/__output_selector0=0bv8
+    {
+    };
+
+    transition $8 -> $4
+        assume main/__output_selector0=1bv8
+    {
+    };
+
+    transition $4 -> $5
+        assume true
+    {
+    };
+
+    transition $5 -> $1
+        assume true
+    {
+        main/RET_VAL := main/sum;
+    };
+
+    transition $6 -> $7
+        assume true
+    {
+    };
+
+    transition $7 -> $1
+        assume true
+    {
+        main/RET_VAL := 1bv32;
+    };
+
+}
+procedure main/loop.header(main/loop.header/i : Bv32, main/loop.header/sum : Bv32, main/loop.header/limit : Bv32) -> (main/loop.header/sum_out : Bv32, main/loop.header/__output_selector : Bv8)
+{
+    var main/loop.header/sum_out : Bv32
+    var main/loop.header/cond : Bool
+    var main/loop.header/a : Bv32
+    var main/loop.header/error.cond : Bool
+    var main/loop.header/i1 : Bv32
+    var main/loop.header/s : Bv32
+    var main/loop.header/c : Bv32
+    var main/loop.header/c1 : Bool
+    var main/loop.header/__output_selector : Bv8
+
+    loc $0 entry 
+    loc $1 final 
+    loc $2
+    loc $3
+    loc $4
+    loc $5
+    loc $6
+    loc $7
+    loc $8
+
+    transition $0 -> $2
+        assume true
+    {
+    };
+
+    transition $2 -> $3
+        assume true
+    {
+        main/loop.header/cond := slt(main/loop.header/i,main/loop.header/limit);
+    };
+
+    transition $3 -> $4
+        assume main/loop.header/cond
+    {
+    };
+
+    transition $3 -> $1
+        assume not main/loop.header/cond
+    {
+        main/loop.header/__output_selector := 1bv8;
+        main/loop.header/sum_out := main/loop.header/sum;
+    };
+
+    transition $4 -> $5
+        assume true
+    {
+        main/loop.header/a := undef;
+        main/loop.header/error.cond := slt(main/loop.header/a,0bv32);
+    };
+
+    transition $5 -> $1
+        assume main/loop.header/error.cond
+    {
+        main/loop.header/__output_selector := 0bv8;
+        main/loop.header/sum_out := main/loop.header/sum;
+    };
+
+    transition $5 -> $6
+        assume not main/loop.header/error.cond
+    {
+    };
+
+    transition $6 -> $7
+        assume true
+    {
+        main/loop.header/i1 := main/loop.header/i + 1bv32;
+        main/loop.header/s := main/loop.header/sum + main/loop.header/a;
+        main/loop.header/c := undef;
+        main/loop.header/c1 := if (main/loop.header/c=0bv32) then false else true;
+    };
+
+    transition $7 -> $1
+        assume main/loop.header/c1
+    {
+        main/loop.header/__output_selector := 1bv8;
+        main/loop.header/sum_out := main/loop.header/sum;
+    };
+
+    transition $7 -> $8
+        assume not main/loop.header/c1
+    {
+    };
+
+    transition $8 -> $1
+        assume true
+        call main/loop.header(main/loop.header/i1, main/loop.header/s, main/loop.header/limit, main/loop.header/sum_out <= main/loop.header/sum_out, main/loop.header/__output_selector <= main/loop.header/__output_selector);
+
+}
