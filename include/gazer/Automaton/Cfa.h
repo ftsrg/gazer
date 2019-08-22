@@ -412,8 +412,6 @@ public:
     Cfa* createCfa(std::string name);
     Cfa* createNestedCfa(Cfa* parent, std::string name);
 
-    void addGlobalVariable(Variable* variable);
-
     using iterator = boost::indirect_iterator<std::vector<std::unique_ptr<Cfa>>::iterator>;
     using const_iterator = boost::indirect_iterator<std::vector<std::unique_ptr<Cfa>>::const_iterator>;
 
@@ -428,10 +426,11 @@ public:
     size_t getNumAutomata() const { return mAutomata.size(); }
     Cfa* getAutomatonByName(llvm::StringRef name) const;
 
+    void print(llvm::raw_ostream& os) const;
+
 private:
     GazerContext& mContext;
     std::vector<std::unique_ptr<Cfa>> mAutomata;
-    std::vector<Variable*> mGlobalVariables;
 };
 
 inline llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Transition& transition)

@@ -106,7 +106,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
     genCtx.Settings = mSettings;
     std::unique_ptr<ExprBuilder> exprBuilder;
 
-    if (!NoSimplifyExpr) {
+    if (mSettings.isSimplifyExpr()) {
         exprBuilder = CreateFoldingExprBuilder(mContext);
     } else {
         exprBuilder = CreateExprBuilder(mContext);
@@ -153,10 +153,12 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
             for (BasicBlock* bb : loopBlocks) {
                 for (Instruction& inst : *bb) {
                     Variable* variable = nullptr;
+                    std::string localName = "";
 
                     if (inst.getOpcode() == Instruction::PHI && bb == loop->getHeader()) {
                         // PHI nodes of the entry block should also be inputs.
-                        variable = nested->createInput(inst.getName(), mMemoryModel.translateType(inst.getType()));
+                        localName = inst.getName();
+                        variable = nested->createInput(localName, mMemoryModel.translateType(inst.getType()));
                         loopGenInfo.addPhiInput(&inst, variable);
                         variables[&inst] = variable;
                         
@@ -184,7 +186,8 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
                         // If the instruction is defined in an already visited block, it is a local of
                         // a subloop rather than this loop.
                         if (visitedBlocks.count(bb) == 0 || hasUsesInBlockRange(&inst, loopOnlyBlocks)) {
-                            variable = nested->createLocal(inst.getName(), mMemoryModel.translateType(inst.getType()));
+                            localName = inst.getName();
+                            variable = nested->createLocal(localName, mMemoryModel.translateType(inst.getType()));
                             loopGenInfo.addLocal(&inst, variable);
                             variables[&inst] = variable;
 
@@ -198,7 +201,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
                     for (auto user : inst.users()) {
                         if (auto i = llvm::dyn_cast<Instruction>(user)) {
                             if (std::find(loopBlocks.begin(), loopBlocks.end(), i->getParent()) == loopBlocks.end()) {
-                                std::string name = Twine(variable->getName(), "_out").str();
+                                std::string name = Twine(localName, "_out").str();
                                 auto copyOfVar = nested->createLocal(name, variable->getType());
 
                                 nested->addOutput(copyOfVar);
@@ -749,20 +752,50 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
 
     ModuleToAutomataSettings settings;
     settings.setElimVarsLevel(ElimVarsLevel);
+    settings.setSimplifyExpr(!NoSimplifyExpr);
 
     llvm::outs() << "Translating module.\n";
     mSystem = translateModuleToAutomata(module, settings, loops, mContext, memoryModel, mVariables, mBlocks);
 
-    // for (Cfa& cfa : *mSystem) {
-    //     llvm::errs() << cfa.getName() << "("
-    //         << llvm::join(to_string_range(cfa.inputs()), ",")
-    //         << ")\n -> "
-    //         << llvm::join(to_string_range(cfa.outputs()), ", ")
-    //         << " {\n"
-    //         << llvm::join(to_string_range(cfa.locals()), "\n")
-    //         << "\n}";
-    //     llvm::errs() << "\n";
-    // }
-
     return false;
+}
+
+// Settings
+//-----------------------------------------------------------------------------
+
+std::string ModuleToAutomataSettings::toString() const
+{
+    std::string str;
+
+    str += "{\"elim_vars\": \"";
+    switch (mElimVars) {
+        case ElimVars_Off:         str += "off"; break;
+        case ElimVars_Normal:      str += "normal"; break;
+        case ElimVars_Aggressive:  str += "aggressive"; break;
+    }
+    str += "\", \"loop_representation\": \"";
+
+    switch (mLoops) {
+        case Loops_Recursion:  str += "recursion"; break;
+        case Loops_Cycle:      str += "cycle"; break;
+    }
+
+    str += "\", \"int_representation\": \"";
+
+    switch (mInts) {
+        case Ints_UseBv:        str += "bv"; break;
+        case Ints_UseInt:       str += "int"; break;
+    }
+
+    str += "\", \"float_representation\": \"";
+
+    switch (mFloats) {
+        case Floats_UseFpa:     str += "fpa";   break;
+        case Floats_UseReal:    str += "real";  break;
+        case Floats_UseUndef:   str += "undef"; break;
+    }
+
+    str += "\"}";
+
+    return str;
 }

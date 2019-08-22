@@ -25,12 +25,12 @@ ExprRef<BoolLiteralExpr> BoolLiteralExpr::False(BoolType& type) {
     return type.getContext().pImpl->FalseLit;
 }
 
-ExprRef<IntLiteralExpr> IntLiteralExpr::Get(IntType& type, int64_t value)
+ExprRef<IntLiteralExpr> IntLiteralExpr::Get(IntType& type, long long int value)
 {
     return type.getContext().pImpl->Exprs.create<IntLiteralExpr>(type, value);
 }
 
-ExprRef<RealLiteralExpr> RealLiteralExpr::Get(RealType& type, boost::rational<int64_t> value)
+ExprRef<RealLiteralExpr> RealLiteralExpr::Get(RealType& type, boost::rational<long long int> value)
 {
     return type.getContext().pImpl->Exprs.create<RealLiteralExpr>(type, value);
 }
