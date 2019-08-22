@@ -62,9 +62,11 @@ void join_print(StreamT& os, Iterator begin, Iterator end, llvm::StringRef separ
 template<class StreamT, class Iterator, class Function>
 void join_print_as(StreamT& os, Iterator begin, Iterator end, llvm::StringRef separator, Function func)
 {
-    if (begin != end) {
-        func(os, *begin);
+    if (begin == end) {
+        return;
     }
+
+    func(os, *begin);
 
     while (++begin != end) {
         os << separator;

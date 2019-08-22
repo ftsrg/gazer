@@ -178,7 +178,7 @@ public:
     Type& getType() const { return mType; }
     GazerContext& getContext() const { return mType.getContext(); }
 
-    bool isNullary() const { return mKind <= FirstUnary; }
+    bool isNullary() const { return mKind < FirstUnary; }
     bool isUnary() const {
         return (FirstUnary <= mKind && mKind <= LastUnary)
             || (FirstFpUnary <= mKind && mKind <= LastFpUnary);

@@ -75,12 +75,12 @@ class IntLiteralExpr final : public LiteralExpr
 {
     friend class ExprStorage;
 private:
-    IntLiteralExpr(IntType& type, int64_t value)
+    IntLiteralExpr(IntType& type, long long int value)
         : LiteralExpr(type), mValue(value)
     {}
 
 public:
-    static ExprRef<IntLiteralExpr> Get(IntType& type, int64_t value);
+    static ExprRef<IntLiteralExpr> Get(IntType& type, long long int value);
 
 public:
     virtual void print(llvm::raw_ostream& os) const override;
@@ -95,27 +95,27 @@ public:
         return expr.getKind() == Literal && expr.getType().isIntType();
     }
 private:
-    int64_t mValue;
+    long long int mValue;
 };
 
 class RealLiteralExpr final : public LiteralExpr
 {
     friend class ExprStorage;
 private:
-    RealLiteralExpr(RealType& type, boost::rational<int64_t> value)
+    RealLiteralExpr(RealType& type, boost::rational<long long int> value)
         : LiteralExpr(type), mValue(value)
     {}
 
 public:
-    static ExprRef<RealLiteralExpr> Get(RealType& type, boost::rational<int64_t> value);
-    static ExprRef<RealLiteralExpr> Get(RealType& type, int64_t nom, int64_t denom) {
-        return Get(type, boost::rational<int64_t>(nom, denom));
+    static ExprRef<RealLiteralExpr> Get(RealType& type, boost::rational<long long int> value);
+    static ExprRef<RealLiteralExpr> Get(RealType& type, long long int num, long long int denom) {
+        return Get(type, boost::rational<long long int>(num, denom));
     }
 
 public:
     virtual void print(llvm::raw_ostream& os) const override;
 
-    boost::rational<int64_t> getValue() const { return mValue; }
+    boost::rational<long long int> getValue() const { return mValue; }
 
     static bool classof(const Expr* expr) {
         return expr->getKind() == Literal && expr->getType().isRealType();
@@ -126,7 +126,7 @@ public:
     }
 
 private:
-    boost::rational<int64_t> mValue;
+    boost::rational<long long int> mValue;
 };
 
 class BvLiteralExpr final : public LiteralExpr

@@ -48,6 +48,16 @@ TEST(InfixPrintExpr, TestPrintBvLiteral)
     EXPECT_TRUE(printEquals("16#0bv8",  builder->BvLit(0, 8),  16));
 }
 
+TEST(InfixPrintExpr, TestPrintIntLiteral)
+{
+    GazerContext ctx;
+    auto builder = CreateExprBuilder(ctx);
+
+    EXPECT_TRUE(printEquals("0",     builder->IntLit(0)));
+    EXPECT_TRUE(printEquals("1",     builder->IntLit(1)));
+    EXPECT_TRUE(printEquals("65535", builder->IntLit(65535)));
+}
+
 TEST(InfixPrintExpr, TestPrintBvCast)
 {
     GazerContext ctx;
@@ -64,6 +74,30 @@ TEST(InfixPrintExpr, TestPrintBvCast)
     EXPECT_TRUE(printEquals("extract.bv32.bv8(255bv32, 8, 8)", e4));
 }
 
+TEST(InfixPrintExpr, TestPrintAnd)
+{
+    GazerContext ctx;
+    auto builder = CreateExprBuilder(ctx);
+
+    auto e1 = builder->And(builder->True(), builder->False());
+    auto e2 = builder->And(builder->Not(builder->True()), builder->False());
+
+    EXPECT_TRUE(printEquals("true and false", e1));
+    EXPECT_TRUE(printEquals("(not true) and false", e2));
+}
+
+TEST(InfixPrintExpr, TestPrintOr)
+{
+    GazerContext ctx;
+    auto builder = CreateExprBuilder(ctx);
+
+    auto e1 = builder->Or(builder->True(), builder->False());
+    auto e2 = builder->Or(builder->Not(builder->True()), builder->False());
+
+    EXPECT_TRUE(printEquals("true or false", e1));
+    EXPECT_TRUE(printEquals("(not true) or false", e2));
+}
+
 TEST(InfixPrintExpr, TestPrintNot)
 {
     GazerContext ctx;
@@ -73,17 +107,5 @@ TEST(InfixPrintExpr, TestPrintNot)
     auto e2 = builder->Not(builder->And(builder->True(), builder->False()));
 
     EXPECT_TRUE(printEquals("not true", e1));
-    EXPECT_TRUE(printEquals("not false", e2));
+    EXPECT_TRUE(printEquals("not (true and false)", e2));
 }
-TEST(InfixPrintExpr, TestPrintNot)
-{
-    GazerContext ctx;
-    auto builder = CreateExprBuilder(ctx);
-
-    auto e1 = builder->Not(builder->True());
-    auto e2 = builder->Not(builder->And(builder->True(), builder->False()));
-
-    EXPECT_TRUE(printEquals("not true", e1));
-    EXPECT_TRUE(printEquals("not false", e2));
-}
-

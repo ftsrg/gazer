@@ -1,0 +1,135 @@
+procedure calculate(calculate/x : Bv32, calculate/y : Bv32) -> (calculate/RET_VAL : Bv32)
+{
+    var calculate/RET_VAL : Bv32
+
+    loc $0 entry 
+    loc $1 final 
+    loc $2
+    loc $3
+
+    transition $0 -> $2
+        assume true
+    {
+    };
+
+    transition $2 -> $3
+        assume true
+    {
+    };
+
+    transition $3 -> $1
+        assume true
+    {
+        calculate/RET_VAL := calculate/x + calculate/y;
+    };
+
+}
+procedure main() -> (main/RET_VAL : Bv32)
+{
+    var main/RET_VAL : Bv32
+    var main/limit : Bv32
+    var main/sum : Bv32
+
+    loc $0 entry 
+    loc $1 final 
+    loc $2
+    loc $3
+    loc $4
+    loc $5
+    loc $6
+
+    transition $0 -> $2
+        assume true
+    {
+    };
+
+    transition $2 -> $3
+        assume true
+    {
+        main/limit := undef;
+    };
+
+    transition $3 -> $6
+        assume true
+        call main/loop.header(0bv32, 0bv32, main/limit, main/sum <= main/loop.header/sum_out);
+
+    transition $6 -> $4
+        assume true
+    {
+    };
+
+    transition $4 -> $5
+        assume true
+    {
+    };
+
+    transition $5 -> $1
+        assume true
+    {
+        main/RET_VAL := main/sum;
+    };
+
+}
+procedure main/loop.header(main/loop.header/i : Bv32, main/loop.header/sum : Bv32, main/loop.header/limit : Bv32) -> (main/loop.header/sum_out : Bv32)
+{
+    var main/loop.header/sum_out : Bv32
+    var main/loop.header/a : Bv32
+    var main/loop.header/s : Bv32
+
+    loc $0 entry 
+    loc $1 final 
+    loc $2
+    loc $3
+    loc $4
+    loc $5
+    loc $6
+    loc $7
+    loc $8
+
+    transition $0 -> $2
+        assume true
+    {
+    };
+
+    transition $2 -> $3
+        assume true
+    {
+    };
+
+    transition $3 -> $4
+        assume slt(main/loop.header/i,main/loop.header/limit)
+    {
+    };
+
+    transition $3 -> $1
+        assume not (slt(main/loop.header/i,main/loop.header/limit))
+    {
+        main/loop.header/sum_out := main/loop.header/sum;
+    };
+
+    transition $4 -> $6
+        assume true
+    {
+        main/loop.header/a := undef;
+    };
+
+    transition $6 -> $7
+        assume true
+        call calculate(main/loop.header/a, main/loop.header/sum, main/loop.header/s <= calculate/RET_VAL);
+
+    transition $7 -> $5
+        assume true
+    {
+        main/loop.header/a := undef;
+    };
+
+    transition $5 -> $8
+        assume true
+    {
+    };
+
+    transition $8 -> $1
+        assume true
+        call main/loop.header(main/loop.header/i + 1bv32, main/loop.header/s, main/loop.header/limit, main/loop.header/sum_out <= main/loop.header/sum_out);
+
+}

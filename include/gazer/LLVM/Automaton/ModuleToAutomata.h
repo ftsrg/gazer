@@ -50,9 +50,10 @@ public:
         ElimVarsLevel elimVars = ElimVars_Off,
         LoopRepresentation loops = Loops_Recursion,
         IntRepresentation ints = Ints_UseBv,
-        FloatRepresentation floats = Floats_UseFpa
+        FloatRepresentation floats = Floats_UseFpa,
+        bool simplifyExpr = true
     )
-        : mElimVars(elimVars), mLoops(loops), mInts(ints), mFloats(floats)
+        : mElimVars(elimVars), mLoops(loops), mInts(ints), mFloats(floats), mSimplifyExpr(simplifyExpr)
     {}
 
     ElimVarsLevel       getElimVarsLevel()       const { return mElimVars; }
@@ -64,17 +65,21 @@ public:
     void setLoopRepresentation(LoopRepresentation value) { mLoops = value; }
     void setIntRepresentation(IntRepresentation value) { mInts = value; }
     void setFloatRepresentation(FloatRepresentation value) { mFloats = value; }
+    void setSimplifyExpr(bool value) { mSimplifyExpr = value; }
 
     bool isElimVarsOff() const { return mElimVars == ElimVars_Off; }
     bool isElimVarsNormal() const { return mElimVars == ElimVars_Normal; }
     bool isElimVarsAggressive() const { return mElimVars == ElimVars_Aggressive; }
+    bool isSimplifyExpr() const { return mSimplifyExpr; }
 
+    std::string toString() const;
 
 private:
     ElimVarsLevel mElimVars;
     LoopRepresentation mLoops;
     IntRepresentation mInts;
     FloatRepresentation mFloats;
+    bool mSimplifyExpr;
 };
 
 

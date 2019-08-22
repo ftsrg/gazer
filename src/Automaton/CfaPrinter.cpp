@@ -1,6 +1,7 @@
 /// \file Printing utilities for control flow automata.
 #include "gazer/Automaton/Cfa.h"
 #include "gazer/Core/LiteralExpr.h"
+#include "gazer/Core/Expr/ExprUtils.h"
 #include "gazer/ADT/StringUtils.h"
 
 #include <llvm/ADT/StringExtras.h>
@@ -142,16 +143,17 @@ void Cfa::print(llvm::raw_ostream& os) const
     constexpr auto indent1 = "    ";
     constexpr auto indent2 = "        ";
 
-    auto printIo = [this](llvm::raw_ostream& os, Variable* variable) {
-        os << mSymbolNames.lookup(variable) << " : " << variable->getType();
+    auto printIo = [](llvm::raw_ostream& os, Variable* variable) {
+        os << variable->getName() << " : " << variable->getType();
     };
 
     auto printCallInput = [](llvm::raw_ostream& os, ExprPtr expr) {
-        os << *expr;
+        InfixPrintExpr(expr, os);
     };
 
     auto printCallOutput = [](llvm::raw_ostream& os, const VariableAssignment& assign) {
-        os << assign.getVariable()->getName() << " <= " << *assign.getValue();
+        os << assign.getVariable()->getName() << " <= ";
+        InfixPrintExpr(assign.getValue(), os);
     };
 
     os << "procedure " << mName << "(";
@@ -164,7 +166,7 @@ void Cfa::print(llvm::raw_ostream& os) const
 
     for (auto& local : mLocals) {
         os << indent1 << "var "
-        << mSymbolNames.lookup(local) << " : " << local->getType()
+        << local->getName() << " : " << local->getType()
         << "\n";
     }
 
@@ -174,6 +176,14 @@ void Cfa::print(llvm::raw_ostream& os) const
         os << indent1 << "loc $" << loc->getId();
         if (loc->isError()) {
             os << " error";
+        }
+
+        if (mEntry == loc.get()) {
+            os << " entry ";
+        }
+
+        if (mExit == loc.get()) {
+            os << " final ";
         }
 
         os << "\n";
@@ -186,16 +196,19 @@ void Cfa::print(llvm::raw_ostream& os) const
         << "$" << edge->getSource()->getId()
         << " -> "
         << "$" << edge->getTarget()->getId() << "\n"
-        << indent2 << "assume " << *edge->getGuard() << "\n";
+        << indent2 << "assume ";
+        InfixPrintExpr(edge->getGuard(), os);
+        os << "\n";
 
         if (auto assignEdge = llvm::dyn_cast<AssignTransition>(edge.get())) {
             os << indent1 << "{\n";
             for (auto assign : *assignEdge) {
-                os << indent2 << mSymbolNames.lookup(assign.getVariable())
-                << " := " << *assign.getValue()
-                << ";\n";
+                os << indent2 << assign.getVariable()->getName()
+                << " := ";
+                InfixPrintExpr(assign.getValue(), os);
+                os << ";\n";
             }
-            os << indent1 << "}\n";
+            os << indent1 << "};\n";
         } else if (auto call = llvm::dyn_cast<CallTransition>(edge.get())) {
             os << indent2 << "call " << call->getCalledAutomaton()->getName() << "(";
             join_print_as(os, call->input_begin(), call->input_end(), ", ", printCallInput);
@@ -211,5 +224,13 @@ void Cfa::print(llvm::raw_ostream& os) const
         os << "\n";
     }
 
-    os << "}\n";
+    os << "}";
+}
+
+void AutomataSystem::print(llvm::raw_ostream& os) const
+{
+    for (auto& cfa : mAutomata) {
+        cfa->print(os);
+        os << "\n";
+    }
 }

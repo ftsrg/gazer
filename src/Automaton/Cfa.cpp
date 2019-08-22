@@ -334,11 +334,6 @@ Cfa* AutomataSystem::createNestedCfa(Cfa* parent, std::string name)
     return cfa;
 }
 
-void AutomataSystem::addGlobalVariable(Variable* variable)
-{
-    mGlobalVariables.push_back(variable);
-}
-
 Cfa* AutomataSystem::getAutomatonByName(llvm::StringRef name) const
 {
     auto result = std::find_if(begin(), end(), [name](Cfa& cfa) {

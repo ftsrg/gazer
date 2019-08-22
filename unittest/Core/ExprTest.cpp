@@ -50,9 +50,9 @@ TEST(Expr, CanCreateLiteralExpressions)
 
     auto rZero = RealLiteralExpr::Get(RealType::Get(context), 0);
     auto rOne = RealLiteralExpr::Get(RealType::Get(context), 1);
-    auto rHalf = RealLiteralExpr::Get(RealType::Get(context), boost::rational<int64_t>{1, 2});
+    auto rHalf = RealLiteralExpr::Get(RealType::Get(context), boost::rational<long long int>{1, 2});
 
     EXPECT_EQ(rZero->getValue(), 0);
     EXPECT_EQ(rOne->getValue(), 1);
-    EXPECT_EQ(rHalf->getValue(), boost::rational<int64_t>(1, 2));
+    EXPECT_EQ(rHalf->getValue(), boost::rational<long long int>(1, 2));
 }

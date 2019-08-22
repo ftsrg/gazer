@@ -1,0 +1,186 @@
+procedure main() -> (main/RET_VAL : Bv32)
+{
+    var main/RET_VAL : Bv32
+    var main/c1 : Bv32
+    var main/c2 : Bv32
+    var main/result : Bv32
+    var main/s : Bv32
+
+    loc $0 entry 
+    loc $1 final 
+    loc $2
+    loc $3
+    loc $4
+    loc $5
+    loc $6
+
+    transition $0 -> $2
+        assume true
+    {
+    };
+
+    transition $2 -> $3
+        assume true
+    {
+        main/c1 := undef;
+        main/c2 := undef;
+    };
+
+    transition $3 -> $6
+        assume true
+        call main/loop.header(0bv32, 0bv32, main/c1, main/c2, main/result <= main/loop.header/result_out);
+
+    transition $6 -> $4
+        assume true
+    {
+    };
+
+    transition $4 -> $5
+        assume true
+    {
+    };
+
+    transition $5 -> $1
+        assume true
+    {
+        main/RET_VAL := main/result;
+    };
+
+}
+procedure main/loop.header(main/loop.header/result : Bv32, main/loop.header/i : Bv32, main/loop.header/c1 : Bv32, main/loop.header/c2 : Bv32) -> (main/loop.header/result_out : Bv32)
+{
+    var main/loop.header/result_out : Bv32
+    var main/loop.header/loop.cond : Bool
+    var main/loop.header/x : Bv32
+    var main/loop.header/s : Bv32
+    var main/loop.header/result1 : Bv32
+    var main/loop.header/i1 : Bv32
+
+    loc $0 entry 
+    loc $1 final 
+    loc $2
+    loc $3
+    loc $4
+    loc $5
+    loc $6
+    loc $7
+    loc $8
+    loc $9
+
+    transition $0 -> $2
+        assume true
+    {
+    };
+
+    transition $2 -> $3
+        assume true
+    {
+        main/loop.header/loop.cond := slt(main/loop.header/i,main/loop.header/c1);
+    };
+
+    transition $3 -> $4
+        assume main/loop.header/loop.cond
+    {
+    };
+
+    transition $3 -> $1
+        assume not main/loop.header/loop.cond
+    {
+        main/loop.header/result_out := main/loop.header/result;
+    };
+
+    transition $4 -> $5
+        assume true
+    {
+        main/loop.header/x := undef;
+    };
+
+    transition $5 -> $8
+        assume true
+        call main/nested.header(0bv32, 0bv32, main/loop.header/c2, main/loop.header/x, main/loop.header/s <= main/nested.header/s_out);
+
+    transition $8 -> $6
+        assume true
+    {
+    };
+
+    transition $6 -> $7
+        assume true
+    {
+        main/loop.header/result1 := main/loop.header/result + main/loop.header/s;
+        main/loop.header/i1 := main/loop.header/i + 1bv32;
+    };
+
+    transition $7 -> $9
+        assume true
+    {
+    };
+
+    transition $9 -> $1
+        assume true
+        call main/loop.header(main/loop.header/result1, main/loop.header/i1, main/loop.header/c1, main/loop.header/c2, main/loop.header/result_out <= main/loop.header/result_out);
+
+}
+procedure main/nested.header(main/nested.header/s : Bv32, main/nested.header/j : Bv32, main/nested.header/c2 : Bv32, main/nested.header/x : Bv32) -> (main/nested.header/s_out : Bv32)
+{
+    var main/nested.header/s_out : Bv32
+    var main/nested.header/nested.cond : Bool
+    var main/nested.header/y : Bv32
+    var main/nested.header/s1 : Bv32
+    var main/nested.header/s2 : Bv32
+    var main/nested.header/j1 : Bv32
+
+    loc $0 entry 
+    loc $1 final 
+    loc $2
+    loc $3
+    loc $4
+    loc $5
+    loc $6
+    loc $7
+
+    transition $0 -> $2
+        assume true
+    {
+    };
+
+    transition $2 -> $3
+        assume true
+    {
+        main/nested.header/nested.cond := slt(main/nested.header/j,main/nested.header/c2);
+    };
+
+    transition $3 -> $4
+        assume main/nested.header/nested.cond
+    {
+    };
+
+    transition $3 -> $6
+        assume not main/nested.header/nested.cond
+        call main/loop.header();
+
+    transition $3 -> $1
+        assume not main/nested.header/nested.cond
+    {
+        main/nested.header/s_out := main/nested.header/s;
+    };
+
+    transition $4 -> $5
+        assume true
+    {
+        main/nested.header/y := undef;
+        main/nested.header/s1 := main/nested.header/x + main/nested.header/y;
+        main/nested.header/s2 := main/nested.header/s + main/nested.header/s1;
+        main/nested.header/j1 := main/nested.header/j + 1bv32;
+    };
+
+    transition $5 -> $7
+        assume true
+    {
+    };
+
+    transition $7 -> $1
+        assume true
+        call main/nested.header(main/nested.header/s2, main/nested.header/j1, main/nested.header/c2, main/nested.header/x, main/nested.header/s_out <= main/nested.header/s_out);
+
+}

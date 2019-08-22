@@ -1,5 +1,6 @@
 #include "gazer/Core/Expr/ExprUtils.h"
 #include "gazer/Core/ExprVisitor.h"
+#include "gazer/ADT/StringUtils.h"
 
 #include <llvm/ADT/Twine.h>
 #include <llvm/Support/raw_ostream.h>
@@ -91,7 +92,18 @@ public:
     {
         assert(mRadix == 2 || mRadix == 8 || mRadix == 16 || mRadix == 10);
     }
+private:
+    std::string printOp(const ExprPtr& op)
+    {
+        std::string opStr = this->visit(op);
+        if (op->isNullary()) {
+            return opStr;
+        }
 
+        return (Twine("(") + Twine(opStr) + ")").str();
+    }
+
+protected:
     std::string visitExpr(const ExprPtr& expr) override { return "???"; }    
     std::string visitUndef(const ExprRef<UndefExpr>& expr) override { return "undef"; }
     std::string visitVarRef(const ExprRef<VarRefExpr>& expr) override {
@@ -122,6 +134,10 @@ public:
 
                 return (Twine{buffer} + "fp" + Twine{fl->getType().getWidth()}).str();
             }
+            case Type::IntTypeID: {
+                auto il = llvm::cast<IntLiteralExpr>(expr);
+                return std::to_string(il->getValue());
+            }
         }
 
         llvm_unreachable("Unknown literal expression kind.");
@@ -130,7 +146,7 @@ public:
     // Unary
     std::string visitNot(const ExprRef<NotExpr>& expr) override
     {
-        return "not " + visit(expr->getOperand());
+        return "not " + printOp(expr->getOperand());
     }
 
     std::string visitZExt(const ExprRef<ZExtExpr>& expr) override
@@ -155,147 +171,130 @@ public:
 
     // Binary
 
-    #define PRINT_BINARY_INFIX(NAME, OPERATOR)                              \
-    std::string visit##NAME(const ExprRef<NAME##Expr>& expr) override {     \
-        return visit(expr->getLeft()) + OPERATOR + visit(expr->getRight()); \
+    #define PRINT_BINARY_INFIX(NAME, OPERATOR)                                  \
+    std::string visit##NAME(const ExprRef<NAME##Expr>& expr) override           \
+    {                                                                           \
+        return printOp(expr->getLeft()) + OPERATOR + printOp(expr->getRight()); \
     }
 
-    PRINT_BINARY_INFIX(Add, "+")
-    PRINT_BINARY_INFIX(Sub, "-")
-    PRINT_BINARY_INFIX(Mul, "*")
-    PRINT_BINARY_INFIX(Div, "/")
-    PRINT_BINARY_INFIX(BvSDiv, "sdiv")
-    PRINT_BINARY_INFIX(BvUDiv, "udiv")
-    PRINT_BINARY_INFIX(BvSRem, "srem")
-    PRINT_BINARY_INFIX(BvURem, "urem")
+    PRINT_BINARY_INFIX(Add,     " + ")
+    PRINT_BINARY_INFIX(Sub,     " - ")
+    PRINT_BINARY_INFIX(Mul,     " * ")
+    PRINT_BINARY_INFIX(Div,     " / ")
+    PRINT_BINARY_INFIX(BvSDiv,  " sdiv ")
+    PRINT_BINARY_INFIX(BvUDiv,  " udiv ")
+    PRINT_BINARY_INFIX(BvSRem,  " srem ")
+    PRINT_BINARY_INFIX(BvURem,  " urem ")
 
-    std::string visitShl(const ExprRef<ShlExpr>& expr) override {
-        return this->visitNonNullary(expr);
+    #define PRINT_BINARY_PREFIX(NAME, OPERATOR)                                 \
+    std::string visit##NAME(const ExprRef<NAME##Expr>& expr) override           \
+        {                                                                       \
+        return (Twine{OPERATOR} + "("                                           \
+            + visit(expr->getLeft()) + "," + visit(expr->getRight()) + ")"      \
+        ).str();                                                                \
     }
-    std::string visitLShr(const ExprRef<LShrExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    std::string visitAShr(const ExprRef<AShrExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    std::string visitBvAnd(const ExprRef<BvAndExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    std::string visitBvOr(const ExprRef<BvOrExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    std::string visitBvXor(const ExprRef<BvXorExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
+
+    PRINT_BINARY_PREFIX(Shl,    "bv.shl")
+    PRINT_BINARY_PREFIX(LShr,   "bv.lhsr")
+    PRINT_BINARY_PREFIX(AShr,   "bv.ashr")
+    PRINT_BINARY_PREFIX(BvAnd,  "bv.and")
+    PRINT_BINARY_PREFIX(BvOr,   "bv.or")
+    PRINT_BINARY_PREFIX(BvXor,  "bv.xor")
 
     // Logic
-    std::string visitAnd(const ExprRef<AndExpr>& expr) override {
-        return this->visitNonNullary(expr);
+    PRINT_BINARY_INFIX(Xor,     "xor")
+    PRINT_BINARY_INFIX(Imply,   "imply")
+
+    std::string visitAnd(const ExprRef<AndExpr>& expr) override
+    {
+        std::string buffer;
+        llvm::raw_string_ostream rso{buffer};
+
+        join_print_as(rso, expr->op_begin(), expr->op_end(), " and ", [this](auto& rso, auto& op) {
+            rso << this->printOp(op);
+        });
+
+        return rso.str();
     }
-    std::string visitOr(const ExprRef<OrExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    std::string visitXor(const ExprRef<XorExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    std::string visitImply(const ExprRef<ImplyExpr>& expr) override {
-        return this->visitNonNullary(expr);
+
+    std::string visitOr(const ExprRef<OrExpr>& expr) override
+    {
+        std::string buffer;
+        llvm::raw_string_ostream rso{buffer};
+
+        join_print_as(rso, expr->op_begin(), expr->op_end(), " or ", [this](auto& rso, auto& op) {
+            rso << this->printOp(op);
+        });
+
+        return rso.str();
     }
 
     // Compare
-    std::string visitEq(const ExprRef<EqExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    std::string visitNotEq(const ExprRef<NotEqExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    
-    std::string visitSLt(const ExprRef<SLtExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    std::string visitSLtEq(const ExprRef<SLtEqExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    std::string visitSGt(const ExprRef<SGtExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    std::string visitSGtEq(const ExprRef<SGtEqExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
+    PRINT_BINARY_INFIX(Eq, "=");
+    PRINT_BINARY_INFIX(NotEq, "<>");
 
-    std::string visitULt(const ExprRef<ULtExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    std::string visitULtEq(const ExprRef<ULtEqExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    std::string visitUGt(const ExprRef<UGtExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    std::string visitUGtEq(const ExprRef<UGtEqExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
+    PRINT_BINARY_PREFIX(SLt,        "slt")
+    PRINT_BINARY_PREFIX(SLtEq,      "sle")
+    PRINT_BINARY_PREFIX(SGt,        "sgt")
+    PRINT_BINARY_PREFIX(SGtEq,      "sge")
+    PRINT_BINARY_PREFIX(ULt,        "ult")
+    PRINT_BINARY_PREFIX(ULtEq,      "ule")
+    PRINT_BINARY_PREFIX(UGt,        "ugt")
+    PRINT_BINARY_PREFIX(UGtEq,      "uge")
 
     // Floating-point queries
     std::string visitFIsNan(const ExprRef<FIsNanExpr>& expr) override {
-        return this->visitNonNullary(expr);
+        return "fp.is_nan(" + visit(expr->getOperand()) + ")";
     }
     std::string visitFIsInf(const ExprRef<FIsInfExpr>& expr) override {
-        return this->visitNonNullary(expr);
+        return "fp.is_inf(" + visit(expr->getOperand()) + ")";
     }
 
     // Floating-point casts
-    std::string visitFCast(const ExprRef<FCastExpr>& expr) override {
-        return this->visitNonNullary(expr);
+    std::string visitFCast(const ExprRef<FCastExpr>& expr) override
+    {
+        return castTypeName("fcast", expr->getOperand()->getType(), expr->getOperand()->getType());
     }
 
-    std::string visitSignedToFp(const ExprRef<SignedToFpExpr>& expr) override {
-        return this->visitNonNullary(expr);
+    std::string visitSignedToFp(const ExprRef<SignedToFpExpr>& expr) override
+    {
+        return castTypeName("si_to_fp", expr->getOperand()->getType(), expr->getOperand()->getType());
     }
-    std::string visitUnsignedToFp(const ExprRef<UnsignedToFpExpr>& expr) override {
-        return this->visitNonNullary(expr);
+
+    std::string visitUnsignedToFp(const ExprRef<UnsignedToFpExpr>& expr) override
+    {
+        return castTypeName("ui_to_fp", expr->getOperand()->getType(), expr->getOperand()->getType());
     }
-    std::string visitFpToSigned(const ExprRef<FpToSignedExpr>& expr) override {
-        return this->visitNonNullary(expr);
+
+    std::string visitFpToSigned(const ExprRef<FpToSignedExpr>& expr) override
+    {
+        return castTypeName("fp_to_si", expr->getOperand()->getType(), expr->getOperand()->getType());
     }
-    std::string visitFpToUnsigned(const ExprRef<FpToUnsignedExpr>& expr) override {
-        return this->visitNonNullary(expr);
+
+    std::string visitFpToUnsigned(const ExprRef<FpToUnsignedExpr>& expr) override
+    {
+        return castTypeName("fp_to_ui", expr->getOperand()->getType(), expr->getOperand()->getType());
     }
 
     // Floating-point arithmetic
-    std::string visitFAdd(const ExprRef<FAddExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    std::string visitFSub(const ExprRef<FSubExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    std::string visitFMul(const ExprRef<FMulExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    std::string visitFDiv(const ExprRef<FDivExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
+    PRINT_BINARY_PREFIX(FAdd,   "fp.add")
+    PRINT_BINARY_PREFIX(FSub,   "fp.sub")
+    PRINT_BINARY_PREFIX(FMul,   "fp.mul")
+    PRINT_BINARY_PREFIX(FDiv,   "fp.div")
 
     // Floating-point compare
-    std::string visitFEq(const ExprRef<FEqExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    std::string visitFGt(const ExprRef<FGtExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    std::string visitFGtEq(const ExprRef<FGtEqExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    std::string visitFLt(const ExprRef<FLtExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
-    std::string visitFLtEq(const ExprRef<FLtEqExpr>& expr) override {
-        return this->visitNonNullary(expr);
-    }
+    PRINT_BINARY_PREFIX(FEq,   "fp.eq")
+    PRINT_BINARY_PREFIX(FGt,   "fp.gt")
+    PRINT_BINARY_PREFIX(FGtEq, "fp.ge")
+    PRINT_BINARY_PREFIX(FLt,   "fp.lt")
+    PRINT_BINARY_PREFIX(FLtEq, "fp.le")
 
     // Ternary
-    std::string visitSelect(const ExprRef<SelectExpr>& expr) override {
-        return this->visitNonNullary(expr);
+    std::string visitSelect(const ExprRef<SelectExpr>& expr) override
+    {
+        return (Twine("if ") + printOp(expr->getCondition())
+            + Twine(" then ") + printOp(expr->getThen())
+            + Twine(" else ") + printOp(expr->getElse())).str();
     }
 
     // Arrays
