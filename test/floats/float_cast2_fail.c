@@ -13,7 +13,7 @@ int main(void)
     uint32_t t = __VERIFIER_nondet_uint32();
     double y = __VERIFIER_nondet_double();
 
-    double f = x * (1500.0f + y) / ((float) t);
+    double f = x * (1500.0f + y) * ((float) t);
 
     assert(f != 0);
 

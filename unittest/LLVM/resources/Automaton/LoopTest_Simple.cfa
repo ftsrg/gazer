@@ -88,7 +88,6 @@ procedure main/loop.header(main/loop.header/i : Bv32, main/loop.header/sum : Bv3
     loc $5
     loc $6
     loc $7
-    loc $8
 
     transition $0 -> $2
         assume true
@@ -125,16 +124,10 @@ procedure main/loop.header(main/loop.header/i : Bv32, main/loop.header/sum : Bv3
     transition $7 -> $5
         assume true
     {
-        main/loop.header/a := undef;
         main/loop.header/i1 := main/loop.header/i + 1bv32;
     };
 
-    transition $5 -> $8
-        assume true
-    {
-    };
-
-    transition $8 -> $1
+    transition $5 -> $1
         assume true
         call main/loop.header(main/loop.header/i1, main/loop.header/s, main/loop.header/limit, main/loop.header/sum_out <= main/loop.header/sum_out);
 
