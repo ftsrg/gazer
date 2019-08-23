@@ -20,7 +20,7 @@ public:
         : mExprBuilder(builder), mContext(builder.getContext()), mMemoryModel(memoryModel)
     {}
 
-    ExprPtr transform(llvm::Instruction& inst);
+    ExprPtr transform(const llvm::Instruction& inst);
 
     virtual ~InstToExpr() = default;
 
@@ -34,21 +34,21 @@ protected:
     }
 
 protected:
-    ExprPtr visitBinaryOperator(llvm::BinaryOperator& binop);
-    ExprPtr visitSelectInst(llvm::SelectInst& select);
-    ExprPtr visitICmpInst(llvm::ICmpInst& icmp);
-    ExprPtr visitFCmpInst(llvm::FCmpInst& fcmp);
-    ExprPtr visitCastInst(llvm::CastInst& cast);
-    ExprPtr visitCallInst(llvm::CallInst& call);
-    ExprPtr visitLoadInst(llvm::LoadInst& load);
-    ExprPtr visitGEPOperator(llvm::GEPOperator& gep);
+    ExprPtr visitBinaryOperator(const llvm::BinaryOperator& binop);
+    ExprPtr visitSelectInst(const llvm::SelectInst& select);
+    ExprPtr visitICmpInst(const llvm::ICmpInst& icmp);
+    ExprPtr visitFCmpInst(const llvm::FCmpInst& fcmp);
+    ExprPtr visitCastInst(const llvm::CastInst& cast);
+    ExprPtr visitCallInst(const llvm::CallInst& call);
+    ExprPtr visitLoadInst(const llvm::LoadInst& load);
+    ExprPtr visitGEPOperator(const llvm::GEPOperator& gep);
 
     ExprPtr operand(const llvm::Value* value);
     
     ExprPtr asBool(const ExprPtr& operand);
     ExprPtr asInt(const ExprPtr& operand, unsigned int bits);
 
-    ExprPtr integerCast(llvm::CastInst& cast, ExprPtr operand, unsigned int width);
+    ExprPtr integerCast(const llvm::CastInst& cast, const ExprPtr& operand, unsigned int width);
     ExprPtr castResult(const ExprPtr& expr, const Type& type);
 
     gazer::Type& translateType(const llvm::Type* type);
