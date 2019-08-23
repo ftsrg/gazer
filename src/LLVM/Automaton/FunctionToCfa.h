@@ -110,15 +110,12 @@ public:
 };
 
 /// Helper structure for CFA generation information.
-struct GenerationContext
+class GenerationContext
 {
-    //std::unordered_map<llvm::Function*, CfaGenInfo> FunctionMap;
-    //std::unordered_map<llvm::Loop*, CfaGenInfo> LoopMap;
+public:
+    using LoopInfoMapTy = llvm::DenseMap<llvm::Function*, llvm::LoopInfo*>;
     using VariantT = std::variant<llvm::Function*, llvm::Loop*>;
 
-    std::unordered_map<VariantT, CfaGenInfo> mProcedures;
-
-    llvm::LoopInfo* LoopInfo;
     ModuleToAutomataSettings Settings;
 
     AutomataSystem& System;
@@ -127,8 +124,14 @@ struct GenerationContext
     llvm::DenseMap<llvm::Value*, Variable*> Variables;
 
 public:
-    GenerationContext(AutomataSystem& system, MemoryModel& memoryModel, ModuleToAutomataSettings settings)
-        : System(system), TheMemoryModel(memoryModel), Settings(settings)
+    GenerationContext(
+        AutomataSystem& system,
+        MemoryModel& memoryModel,
+        LoopInfoMapTy loopInfos,
+        ModuleToAutomataSettings settings
+    )
+        : System(system), TheMemoryModel(memoryModel),
+        mLoopInfos(loopInfos), Settings(settings)
     {}
 
     GenerationContext(const GenerationContext&) = delete;
@@ -160,6 +163,11 @@ public:
         return llvm::make_range(mProcedures.begin(), mProcedures.end());
     }
 
+    llvm::LoopInfo* getLoopInfoFor(const llvm::Function* function)
+    {
+        return mLoopInfos.lookup(function);
+    }
+
 private:
     CfaGenInfo& getInfoFor(VariantT key)
     {
@@ -168,19 +176,21 @@ private:
 
         return it->second;
     }
+
+private:
+    LoopInfoMapTy mLoopInfos;
+    std::unordered_map<VariantT, CfaGenInfo> mProcedures;
 };
 
 class ModuleToCfa final
 {
 public:
-    using LoopInfoMapTy = std::unordered_map<llvm::Function*, llvm::LoopInfo*>;
-
     static constexpr char FunctionReturnValueName[] = "RET_VAL";
     static constexpr char LoopOutputSelectorName[] = "__output_selector";
 
     ModuleToCfa(
         llvm::Module& module,
-        LoopInfoMapTy& loops,
+        GenerationContext::LoopInfoMapTy& loops,
         GazerContext& context,
         MemoryModel& memoryModel,
         ModuleToAutomataSettings settings
@@ -196,7 +206,6 @@ protected:
 
 private:
     llvm::Module& mModule;
-    LoopInfoMapTy& mLoops;
 
     GazerContext& mContext;
     MemoryModel& mMemoryModel;
@@ -217,15 +226,24 @@ public:
     BlocksToCfa(
         GenerationContext& generationContext,
         CfaGenInfo& genInfo,
-        Cfa* cfa,
         ExprBuilder& exprBuilder
     ) : InstToExpr(exprBuilder, generationContext.TheMemoryModel),
         mGenCtx(generationContext),
         mGenInfo(genInfo),
-        mCfa(cfa)
-    {}
+        mCfa(genInfo.Automaton)
+    {
+        if (auto function = genInfo.getSourceFunction()) {
+            mEntryBlock = &function->getEntryBlock();
+        } else if (auto loop = genInfo.getSourceLoop()) {
+            mEntryBlock = loop->getHeader();
+        } else {
+            llvm_unreachable("A CFA source can only be a function or a loop!");
+        }
 
-    void encode(llvm::BasicBlock* entry);
+        assert(mGenInfo.Blocks.count(mEntryBlock) != 0 && "Entry block must be in the block map!");
+    }
+
+    void encode();
 
 protected:
     Variable* getVariable(const llvm::Value* value) override;
@@ -240,9 +258,14 @@ private:
     void insertOutputAssignments(CfaGenInfo& callee, std::vector<VariableAssignment>& outputArgs);
     void insertPhiAssignments(const llvm::BasicBlock* source, const llvm::BasicBlock* target, std::vector<VariableAssignment>& phiAssignments);
 
+    bool handleCall(const llvm::CallInst* call, Location** entry, Location* exit, std::vector<VariableAssignment>& previousAssignments);
+    void handleTerminator(const llvm::BasicBlock* bb, Location* entry, Location* exit);
+
     void handleSuccessor(
-        const llvm::BasicBlock* succ, const ExprPtr& succCondition, const llvm::BasicBlock* parent,
-        const llvm::BasicBlock* entryBlock, Location* exit
+        const llvm::BasicBlock* succ,
+        const ExprPtr& succCondition,
+        const llvm::BasicBlock* parent,
+        Location* exit
     );
     void createExitTransition(const llvm::BasicBlock* target, Location* pred, const ExprPtr& succCondition);
     ExprPtr getExitCondition(const llvm::BasicBlock* target, Variable* exitSelector, CfaGenInfo& nestedInfo);
@@ -256,6 +279,7 @@ private:
     unsigned mCounter = 0;
     llvm::DenseMap<const llvm::Value*, ExprPtr> mInlinedVars;
     llvm::DenseSet<Variable*> mEliminatedVarsSet;
+    llvm::BasicBlock* mEntryBlock;
 };
 
 class TraceFromCfaToLLVM

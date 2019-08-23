@@ -11,7 +11,7 @@ int main(void)
     double x = __VERIFIER_nondet_float();
     uint32_t t = __VERIFIER_nondet_uint32();
 
-    double f = x * ((double) 1500) / ((float) t);
+    double f = x * ((double) 1500) * ((float) t);
 
     assert(f != 0);
 

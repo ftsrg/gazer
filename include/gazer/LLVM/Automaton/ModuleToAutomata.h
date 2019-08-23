@@ -115,7 +115,7 @@ private:
 std::unique_ptr<AutomataSystem> translateModuleToAutomata(
     llvm::Module& module,
     ModuleToAutomataSettings settings,
-    std::unordered_map<llvm::Function*, llvm::LoopInfo*>& loopInfos,
+    llvm::DenseMap<llvm::Function*, llvm::LoopInfo*>& loopInfos,
     GazerContext& context,
     MemoryModel& memoryModel,
     llvm::DenseMap<llvm::Value*, Variable*>& variables,

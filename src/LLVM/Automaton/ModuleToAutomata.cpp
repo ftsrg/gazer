@@ -101,7 +101,7 @@ static bool isErrorBlock(llvm::BasicBlock* bb)
 /// Otherwise, this function returns nullptr.
 static llvm::Loop* getNestedLoopOf(GenerationContext& genCtx, CfaGenInfo& genInfo, const llvm::BasicBlock* bb)
 {
-    auto nested = genCtx.LoopInfo->getLoopFor(bb);
+    auto nested = genCtx.getLoopInfoFor(bb->getParent())->getLoopFor(bb);
     if (nested == nullptr) {
         // This block is not part of a loop.
         return nullptr;
@@ -133,17 +133,16 @@ static llvm::Loop* getNestedLoopOf(GenerationContext& genCtx, CfaGenInfo& genInf
 
 ModuleToCfa::ModuleToCfa(
         llvm::Module& module,
-        LoopInfoMapTy& loops,
+        GenerationContext::LoopInfoMapTy& loops,
         GazerContext& context,
         MemoryModel& memoryModel,
         ModuleToAutomataSettings settings
 ) : mModule(module),
-    mLoops(loops),
     mContext(context),
     mMemoryModel(memoryModel),
     mSettings(settings),
     mSystem(new AutomataSystem(context)),
-    mGenCtx(*mSystem, mMemoryModel, settings)
+    mGenCtx(*mSystem, mMemoryModel, loops, settings)
 {
     if (mSettings.isSimplifyExpr()) {
         mExprBuilder = CreateFoldingExprBuilder(mContext);
@@ -162,23 +161,15 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
     // Encode all loops and functions
     for (auto& [source, genInfo] : mGenCtx.procedures()) {
         LLVM_DEBUG(llvm::dbgs() << "Encoding function CFA " << genInfo.Automaton->getName() << "\n");
+
         BlocksToCfa blocksToCfa(
             mGenCtx,
             genInfo,
-            genInfo.Automaton,
             *mExprBuilder
         );
-
-        llvm::BasicBlock* entryBB;
-        if (auto function = genInfo.getSourceFunction()) {
-            entryBB = &function->getEntryBlock();
-        } else if (auto loop = genInfo.getSourceLoop()) {
-            entryBB = loop->getHeader();
-        } else {
-            llvm_unreachable("A CFA source can only be a function or a loop!");
-        }
-        
-        blocksToCfa.encode(entryBB);
+            
+        // Do the actual encoding.
+        blocksToCfa.encode();
     }
 
     // CFAs must be connected graphs. Remove unreachable components now.
@@ -201,8 +192,7 @@ void ModuleToCfa::createAutomata()
         DenseSet<BasicBlock*> visitedBlocks;
 
         // Create a CFA for each loop nested in this function
-        LoopInfo* loopInfo = mLoops[&function];
-        mGenCtx.LoopInfo = loopInfo;
+        LoopInfo* loopInfo = mGenCtx.getLoopInfoFor(&function);
 
         auto loops = loopInfo->getLoopsInPreorder();
         for (Loop* loop : loops) {
@@ -371,12 +361,9 @@ void ModuleToCfa::createAutomata()
     }
 }
 
-void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
+void BlocksToCfa::encode()
 {
-    assert(mGenInfo.Blocks.count(entryBlock) != 0
-        && "Entry block must be in the block map!");
-
-    Location* first = mGenInfo.Blocks[entryBlock].first;
+    Location* first = mGenInfo.Blocks[mEntryBlock].first;
 
     // Create a transition between the initial location and the entry block.
     mCfa->createAssignTransition(mCfa->getEntry(), first, mExprBuilder.True());
@@ -392,52 +379,9 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
             const llvm::Instruction& inst = *it;
 
             if (auto call = llvm::dyn_cast<CallInst>(&inst)) {
-                Function* callee = call->getCalledFunction();
-                if (callee == nullptr) {
-                    // We do not support indirect calls yet.
+                bool generateAssignmentAfter = this->handleCall(call, &entry, exit, assignments);
+                if (!generateAssignmentAfter) {
                     continue;
-                } else if (!callee->isDeclaration()) {                    
-                    CfaGenInfo& calledAutomatonInfo = mGenCtx.getFunctionCfa(callee);
-                    Cfa* calledCfa = calledAutomatonInfo.Automaton;
-
-                    assert(calledCfa != nullptr && "The callee automaton must exist in a function call!");
-                    
-                    // Split the current transition here and create a call.
-                    Location* callBegin = mCfa->createLocation();
-                    Location* callEnd = mCfa->createLocation();
-
-                    mCfa->createAssignTransition(entry, callBegin, assignments);
-
-                    std::vector<ExprPtr> inputs;
-                    std::vector<VariableAssignment> outputs;
-
-                    for (size_t i = 0; i < call->getNumArgOperands(); ++i) {
-                        ExprPtr expr = this->operand(call->getArgOperand(i));
-                        inputs.push_back(expr);
-                    }
-
-                    if (!callee->getReturnType()->isVoidTy()) {
-                        Variable* variable = getVariable(&inst);
-
-                        // Find the return variable of this function.                        
-                        Variable* retval = calledCfa->findOutputByName(ModuleToCfa::FunctionReturnValueName);
-                        assert(retval != nullptr && "A non-void function must have a return value!");
-                        
-                        outputs.emplace_back(variable, retval->getRefExpr());
-                    }
-
-                    mCfa->createCallTransition(callBegin, callEnd, calledCfa, inputs, outputs);
-
-                    // Continue the translation from the end location of the call.
-                    entry = callEnd;
-
-                    // Do not generate an assignment for this call.
-                    continue;
-                } else if (callee->getName() == CheckRegistry::ErrorFunctionName) {
-                    assert(exit->isError() && "The target location of a 'gazer.error_code' call must be an error location!");
-                    llvm::Value* arg = call->getArgOperand(0);
-
-                    mCfa->addErrorCode(exit, operand(arg));
                 }
             } else if (auto store = llvm::dyn_cast<StoreInst>(&inst)) {
                 auto storeValue = this->operand(store->getValueOperand());
@@ -468,50 +412,7 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
         mCfa->createAssignTransition(entry, exit, assignments);
 
         // Handle the outgoing edges
-        auto terminator = bb->getTerminator();
-
-        if (auto br = llvm::dyn_cast<BranchInst>(terminator)) {
-            ExprPtr condition = br->isConditional() ? operand(br->getCondition()) : mExprBuilder.True();
-
-            for (unsigned succIdx = 0; succIdx < br->getNumSuccessors(); ++succIdx) {
-                BasicBlock* succ = br->getSuccessor(succIdx);
-                ExprPtr succCondition = succIdx == 0 ? condition : mExprBuilder.Not(condition);
-
-                handleSuccessor(succ, succCondition, bb, entryBlock, exit);
-            }
-        } else if (auto swi = llvm::dyn_cast<SwitchInst>(terminator)) {
-            ExprPtr condition = operand(swi->getCondition());
-
-            ExprPtr prevConds = mExprBuilder.True();
-            for (auto ci = swi->case_begin(); ci != swi->case_end(); ++ci) {
-                auto val = operand(ci->getCaseValue());
-                auto succ = ci->getCaseSuccessor();
-
-                ExprPtr succCondition = mExprBuilder.And(
-                    prevConds,
-                    mExprBuilder.Eq(condition, val)
-                );
-                prevConds = mExprBuilder.And(prevConds, mExprBuilder.NotEq(condition, val));
-
-                handleSuccessor(succ, succCondition, bb, entryBlock, exit);
-            }
-
-            handleSuccessor(swi->getDefaultDest(), prevConds, bb, entryBlock, exit);
-        } else if (auto ret = llvm::dyn_cast<ReturnInst>(terminator)) {
-            if (ret->getReturnValue() == nullptr) {
-                mCfa->createAssignTransition(exit, mCfa->getExit(), mExprBuilder.True());
-            } else {
-                Variable* retval = mCfa->findOutputByName(ModuleToCfa::FunctionReturnValueName);
-                mCfa->createAssignTransition(exit, mCfa->getExit(), mExprBuilder.True(), {
-                    VariableAssignment{ retval, operand(ret->getReturnValue()) }
-                });
-            }
-        } else if (terminator->getOpcode() == Instruction::Unreachable) {
-            // Do nothing.
-        } else {
-            LLVM_DEBUG(llvm::dbgs() << *terminator << "\n");
-            llvm_unreachable("Unknown terminator instruction.");
-        }
+        this->handleTerminator(bb, entry, exit);
     }
 
     // Do a clean-up, remove eliminated variables from the CFA.
@@ -519,6 +420,108 @@ void BlocksToCfa::encode(llvm::BasicBlock* entryBlock)
         mCfa->removeLocalsIf([this](Variable* v) {
             return mEliminatedVarsSet.count(v) != 0;
         });
+    }
+}
+
+bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Location* exit, std::vector<VariableAssignment>& previousAssignments)
+{
+    Function* callee = call->getCalledFunction();
+    if (callee == nullptr) {
+        // We do not support indirect calls yet.
+        return false;
+    } else if (!callee->isDeclaration()) {                    
+        CfaGenInfo& calledAutomatonInfo = mGenCtx.getFunctionCfa(callee);
+        Cfa* calledCfa = calledAutomatonInfo.Automaton;
+
+        assert(calledCfa != nullptr && "The callee automaton must exist in a function call!");
+        
+        // Split the current transition here and create a call.
+        Location* callBegin = mCfa->createLocation();
+        Location* callEnd = mCfa->createLocation();
+
+        mCfa->createAssignTransition(*entry, callBegin, previousAssignments);
+        previousAssignments.clear();
+
+        std::vector<ExprPtr> inputs;
+        std::vector<VariableAssignment> outputs;
+
+        for (size_t i = 0; i < call->getNumArgOperands(); ++i) {
+            ExprPtr expr = this->operand(call->getArgOperand(i));
+            inputs.push_back(expr);
+        }
+
+        if (!callee->getReturnType()->isVoidTy()) {
+            Variable* variable = getVariable(call);
+
+            // Find the return variable of this function.                        
+            Variable* retval = calledCfa->findOutputByName(ModuleToCfa::FunctionReturnValueName);
+            assert(retval != nullptr && "A non-void function must have a return value!");
+            
+            outputs.emplace_back(variable, retval->getRefExpr());
+        }
+
+        mCfa->createCallTransition(callBegin, callEnd, calledCfa, inputs, outputs);
+
+        // Continue the translation from the end location of the call.
+        *entry = callEnd;
+
+        // Do not generate an assignment for this call.
+        return false;
+    } else if (callee->getName() == CheckRegistry::ErrorFunctionName) {
+        assert(exit->isError() && "The target location of a 'gazer.error_code' call must be an error location!");
+        llvm::Value* arg = call->getArgOperand(0);
+
+        mCfa->addErrorCode(exit, operand(arg));
+    }
+
+    return true;
+}
+
+void BlocksToCfa::handleTerminator(const llvm::BasicBlock* bb, Location* entry, Location* exit)
+{
+    auto terminator = bb->getTerminator();
+
+    if (auto br = llvm::dyn_cast<BranchInst>(terminator)) {
+        ExprPtr condition = br->isConditional() ? operand(br->getCondition()) : mExprBuilder.True();
+
+        for (unsigned succIdx = 0; succIdx < br->getNumSuccessors(); ++succIdx) {
+            BasicBlock* succ = br->getSuccessor(succIdx);
+            ExprPtr succCondition = succIdx == 0 ? condition : mExprBuilder.Not(condition);
+
+            handleSuccessor(succ, succCondition, bb, exit);
+        }
+    } else if (auto swi = llvm::dyn_cast<SwitchInst>(terminator)) {
+        ExprPtr condition = operand(swi->getCondition());
+
+        ExprPtr prevConds = mExprBuilder.True();
+        for (auto ci = swi->case_begin(); ci != swi->case_end(); ++ci) {
+            auto val = operand(ci->getCaseValue());
+            auto succ = ci->getCaseSuccessor();
+
+            ExprPtr succCondition = mExprBuilder.And(
+                prevConds,
+                mExprBuilder.Eq(condition, val)
+            );
+            prevConds = mExprBuilder.And(prevConds, mExprBuilder.NotEq(condition, val));
+
+            handleSuccessor(succ, succCondition, bb, exit);
+        }
+
+        handleSuccessor(swi->getDefaultDest(), prevConds, bb, exit);
+    } else if (auto ret = llvm::dyn_cast<ReturnInst>(terminator)) {
+        if (ret->getReturnValue() == nullptr) {
+            mCfa->createAssignTransition(exit, mCfa->getExit(), mExprBuilder.True());
+        } else {
+            Variable* retval = mCfa->findOutputByName(ModuleToCfa::FunctionReturnValueName);
+            mCfa->createAssignTransition(exit, mCfa->getExit(), mExprBuilder.True(), {
+                VariableAssignment{ retval, operand(ret->getReturnValue()) }
+            });
+        }
+    } else if (terminator->getOpcode() == Instruction::Unreachable) {
+        // Do nothing.
+    } else {
+        LLVM_DEBUG(llvm::dbgs() << *terminator << "\n");
+        llvm_unreachable("Unknown terminator instruction.");
     }
 }
 
@@ -591,14 +594,11 @@ ExprPtr BlocksToCfa::getExitCondition(const llvm::BasicBlock* target, Variable* 
 }
 
 void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCondition, const BasicBlock* parent,
-    const BasicBlock* entryBlock, Location* exit)
+    Location* exit)
 {
-    if (succ == entryBlock) {
+    if (succ == mEntryBlock) {
         // If the target is the loop header (entry block), create a call to this same automaton.
-        auto loc = mCfa->createLocation();
-
-        mCfa->createAssignTransition(exit, loc, succCondition);
-
+    
         // Add possible calls arguments.
         // Due to the SSA-formed LLVM IR, regular inputs are not modified by loop iterations.
         // For PHI inputs, we need to determine which parent block to use for expression translation.
@@ -622,7 +622,7 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
             outputArgs.emplace_back(mGenInfo.ExitVariable, mGenInfo.ExitVariable->getRefExpr());
         }
 
-        mCfa->createCallTransition(loc, mCfa->getExit(), mCfa, loopArgs, outputArgs);
+        mCfa->createCallTransition(exit, mCfa->getExit(), succCondition, mCfa, loopArgs, outputArgs);
     } else if (mGenInfo.Blocks.count(succ) != 0) {
         // Else if the target is is inside the block region, just create a simple edge.
         Location* to = mGenInfo.Blocks[succ].first;
@@ -751,7 +751,7 @@ Variable* BlocksToCfa::getVariable(const Value* value)
 std::unique_ptr<AutomataSystem> gazer::translateModuleToAutomata(
     llvm::Module& module,
     ModuleToAutomataSettings settings,
-    std::unordered_map<llvm::Function*, llvm::LoopInfo*>& loopInfos,
+    llvm::DenseMap<llvm::Function*, llvm::LoopInfo*>& loopInfos,
     GazerContext& context,
     MemoryModel& memoryModel,
     llvm::DenseMap<llvm::Value*, Variable*>& variables,
@@ -775,7 +775,7 @@ void ModuleToAutomataPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
 
 bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
 {
-    ModuleToCfa::LoopInfoMapTy loops;
+    GenerationContext::LoopInfoMapTy loops;
     for (Function& function : module) {
         if (!function.isDeclaration()) {
             loops[&function] = &getAnalysis<LoopInfoWrapperPass>(function).getLoopInfo();

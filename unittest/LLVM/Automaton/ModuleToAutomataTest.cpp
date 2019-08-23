@@ -49,6 +49,11 @@ struct ModuleToCfaTestModel
     ModuleToAutomataSettings mSettings;
 };
 
+std::ostream& operator<<(std::ostream& os, const ModuleToCfaTestModel& model)
+{
+    return os << "<" << model.mName << ":" << model.mInput << ",settings=" << model.mSettings.toString() << ">";
+}
+
 class ModuleToCfaTest : public testing::TestWithParam<ModuleToCfaTestModel>
 {
 public:
@@ -59,7 +64,7 @@ protected:
     std::unique_ptr<llvm::Module> module;
     std::vector<std::unique_ptr<llvm::DominatorTree>> dominators;
     std::vector<std::unique_ptr<llvm::LoopInfo>> loops;
-    std::unordered_map<llvm::Function*, llvm::LoopInfo*> loopInfoMap;
+    llvm::DenseMap<llvm::Function*, llvm::LoopInfo*> loopInfoMap;
 
     GazerContext context;
     std::unique_ptr<MemoryModel> memoryModel = nullptr;
@@ -106,6 +111,11 @@ TEST_P(ModuleToCfaTest, TestWithoutMemoryModel)
     std::string buff;
     llvm::raw_string_ostream rso(buff);
     system->print(rso);
+
+    //llvm::errs() << rso.str();
+    //for (auto& cfa : *system) {
+    //    cfa.view();
+    //}
 
     auto expected = getResourceFile(model.mExpected);
 
