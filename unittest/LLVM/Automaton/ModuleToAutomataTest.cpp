@@ -41,30 +41,6 @@ std::string getResourceFile(std::string name)
     return file.get()->getBuffer().str();
 }
 
-::testing::AssertionResult checkVarList(
-    llvm::iterator_range<Cfa::var_iterator> vars,
-    std::vector<std::pair<std::string, gazer::Type*>> names
-) {
-    size_t numVars = std::distance(vars.begin(), vars.end());
-    if (names.size() != numVars) {
-        return ::testing::AssertionFailure()
-            << "Expected number of variable to be equal to '"
-            << names.size() << "' got '" << numVars << "'.";
-    }
-
-    for (auto& pair : names) {
-        if (std::none_of(vars.begin(), vars.end(), [&pair](Variable& v) {
-            return v.getName() == pair.first && v.getType() == *pair.second;
-        })) {
-            return ::testing::AssertionFailure()
-                << "Expected " << pair.first << " with type "
-                << pair.second->getName() << " in the given variable list";
-        }
-    }
-
-    return ::testing::AssertionSuccess();
-}
-
 struct ModuleToCfaTestModel
 {
     std::string mName;

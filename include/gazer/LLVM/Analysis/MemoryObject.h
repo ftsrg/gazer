@@ -127,12 +127,12 @@ public:
     ) = 0;
 
     /// Translates the given LoadInst into an assignable expression.
-    virtual ExprRef<> handleLoad(llvm::LoadInst& load) = 0;  
+    virtual ExprRef<> handleLoad(const llvm::LoadInst& load) = 0;  
 
-    virtual ExprRef<> handleGetElementPtr(llvm::GEPOperator& gep) = 0;
+    virtual ExprRef<> handleGetElementPtr(const llvm::GEPOperator& gep) = 0;
 
     virtual std::optional<VariableAssignment> handleStore(
-        llvm::StoreInst& store, ExprPtr pointer, ExprPtr value
+        const llvm::StoreInst& store, ExprPtr pointer, ExprPtr value
     ) = 0;
 
     virtual gazer::Type& handlePointerType(const llvm::PointerType* type) = 0;
@@ -161,12 +161,12 @@ public:
         std::vector<MemoryObject*>& objects
     ) override;
 
-    ExprRef<> handleLoad(llvm::LoadInst& load) override;
+    ExprRef<> handleLoad(const llvm::LoadInst& load) override;
 
-    ExprRef<> handleGetElementPtr(llvm::GEPOperator& gep) override;
+    ExprRef<> handleGetElementPtr(const llvm::GEPOperator& gep) override;
 
     std::optional<VariableAssignment> handleStore(
-        llvm::StoreInst& store, ExprPtr pointer, ExprPtr value
+        const llvm::StoreInst& store, ExprPtr pointer, ExprPtr value
     ) override;
     
     gazer::Type& handlePointerType(const llvm::PointerType* type) override;

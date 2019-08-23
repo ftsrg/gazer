@@ -11,18 +11,18 @@ void DummyMemoryModel::findMemoryObjects(
 ) {
 }
 
-ExprRef<> DummyMemoryModel::handleLoad(llvm::LoadInst& load)
+ExprRef<> DummyMemoryModel::handleLoad(const llvm::LoadInst& load)
 {
     return UndefExpr::Get(mTypes.get(load.getType()));
 }
 
-ExprRef<> DummyMemoryModel::handleGetElementPtr(llvm::GEPOperator& gep)
+ExprRef<> DummyMemoryModel::handleGetElementPtr(const llvm::GEPOperator& gep)
 {
     return UndefExpr::Get(BvType::Get(mContext, 32));
 }
 
 std::optional<VariableAssignment> DummyMemoryModel::handleStore(
-    llvm::StoreInst& store, ExprPtr pointer, ExprPtr value
+    const llvm::StoreInst& store, ExprPtr pointer, ExprPtr value
 ) {
     return std::nullopt;
 }

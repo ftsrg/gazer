@@ -137,7 +137,6 @@ procedure main/nested.header(main/nested.header/s : Bv32, main/nested.header/j :
     loc $4
     loc $5
     loc $6
-    loc $7
 
     transition $0 -> $2
         assume true
@@ -155,10 +154,6 @@ procedure main/nested.header(main/nested.header/s : Bv32, main/nested.header/j :
     {
     };
 
-    transition $3 -> $6
-        assume not main/nested.header/nested.cond
-        call main/loop.header();
-
     transition $3 -> $1
         assume not main/nested.header/nested.cond
     {
@@ -174,12 +169,12 @@ procedure main/nested.header(main/nested.header/s : Bv32, main/nested.header/j :
         main/nested.header/j1 := main/nested.header/j + 1bv32;
     };
 
-    transition $5 -> $7
+    transition $5 -> $6
         assume true
     {
     };
 
-    transition $7 -> $1
+    transition $6 -> $1
         assume true
         call main/nested.header(main/nested.header/s2, main/nested.header/j1, main/nested.header/c2, main/nested.header/x, main/nested.header/s_out <= main/nested.header/s_out);
 

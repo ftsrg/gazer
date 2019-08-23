@@ -7,7 +7,7 @@
 using namespace gazer;
 using namespace llvm;
 
-ExprPtr InstToExpr::transform(llvm::Instruction& inst)
+ExprPtr InstToExpr::transform(const llvm::Instruction& inst)
 {
     LLVM_DEBUG(llvm::dbgs() << "  Transforming instruction " << inst << "\n");
 #define HANDLE_INST(OPCODE, NAME)                                       \
@@ -50,7 +50,7 @@ static bool isNonConstValue(const llvm::Value* value) {
     return isa<Instruction>(value) || isa<Argument>(value) || isa<GlobalVariable>(value);
 }
 
-ExprPtr InstToExpr::visitBinaryOperator(llvm::BinaryOperator& binop)
+ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop)
 {
     auto variable = getVariable(&binop);
     auto lhs = operand(binop.getOperand(0));
@@ -142,7 +142,7 @@ ExprPtr InstToExpr::visitBinaryOperator(llvm::BinaryOperator& binop)
     llvm_unreachable("Invalid binary operation kind");
 }
 
-ExprPtr InstToExpr::visitSelectInst(llvm::SelectInst& select)
+ExprPtr InstToExpr::visitSelectInst(const llvm::SelectInst& select)
 {
     Variable* selectVar = getVariable(&select);
     const Type& type = selectVar->getType();
@@ -154,7 +154,7 @@ ExprPtr InstToExpr::visitSelectInst(llvm::SelectInst& select)
     return mExprBuilder.Select(cond, then, elze);
 }
 
-ExprPtr InstToExpr::visitICmpInst(llvm::ICmpInst& icmp)
+ExprPtr InstToExpr::visitICmpInst(const llvm::ICmpInst& icmp)
 {
     using llvm::CmpInst;
 
@@ -186,7 +186,7 @@ ExprPtr InstToExpr::visitICmpInst(llvm::ICmpInst& icmp)
 #undef HANDLE_PREDICATE
 }
 
-ExprPtr InstToExpr::visitFCmpInst(llvm::FCmpInst& fcmp)
+ExprPtr InstToExpr::visitFCmpInst(const llvm::FCmpInst& fcmp)
 {
     using llvm::CmpInst;
 
@@ -261,7 +261,7 @@ ExprPtr InstToExpr::visitFCmpInst(llvm::FCmpInst& fcmp)
     return expr;
 }
 
-ExprPtr InstToExpr::visitCastInst(llvm::CastInst& cast)
+ExprPtr InstToExpr::visitCastInst(const llvm::CastInst& cast)
 {
     auto castOp = operand(cast.getOperand(0));
     //if (cast.getOperand(0)->getType()->isPointerTy()) {
@@ -309,7 +309,7 @@ ExprPtr InstToExpr::visitCastInst(llvm::CastInst& cast)
     assert(false && "Unsupported cast operation");
 }
 
-ExprPtr InstToExpr::integerCast(llvm::CastInst& cast, ExprPtr operand, unsigned width)
+ExprPtr InstToExpr::integerCast(const llvm::CastInst& cast, const ExprPtr& operand, unsigned width)
 {
     auto variable = getVariable(&cast);
 
@@ -330,7 +330,7 @@ ExprPtr InstToExpr::integerCast(llvm::CastInst& cast, ExprPtr operand, unsigned 
     return castOp;
 }
 
-ExprPtr InstToExpr::visitCallInst(llvm::CallInst& call)
+ExprPtr InstToExpr::visitCallInst(const llvm::CallInst& call)
 {
     gazer::Type& callTy = this->translateType(call.getType());
 
@@ -344,12 +344,12 @@ ExprPtr InstToExpr::visitCallInst(llvm::CallInst& call)
     return UndefExpr::Get(callTy);
 }
 
-ExprPtr InstToExpr::visitLoadInst(llvm::LoadInst& load)
+ExprPtr InstToExpr::visitLoadInst(const llvm::LoadInst& load)
 {
     return nullptr;
 }
 
-ExprPtr InstToExpr::visitGEPOperator(llvm::GEPOperator& gep)
+ExprPtr InstToExpr::visitGEPOperator(const llvm::GEPOperator& gep)
 {
     return nullptr;
 }
