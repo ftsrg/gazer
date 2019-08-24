@@ -29,6 +29,10 @@ public:
     ExprRef<BvLiteralExpr> BvLit(uint64_t value, unsigned bits) {
         return BvLiteralExpr::Get(BvType::Get(mContext, bits), llvm::APInt(bits, value));
     }
+
+    ExprRef<BvLiteralExpr> BvLit32(uint64_t value) { return BvLit(value, 32); }
+    ExprRef<BvLiteralExpr> BvLit64(uint64_t value) { return BvLit(value, 64); }
+
     ExprRef<BvLiteralExpr> BvLit(llvm::APInt value) {
         return BvLiteralExpr::Get(BvType::Get(mContext, value.getBitWidth()), value);
     }

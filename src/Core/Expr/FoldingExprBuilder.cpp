@@ -3,7 +3,6 @@
 #include "gazer/Core/LiteralExpr.h"
 #include "gazer/Core/Expr/Matcher.h"
 #include "gazer/Core/Expr/ConstantFolder.h"
-#include "gazer/Core/Expr/ExprPropagator.h"
 
 #include <llvm/ADT/DenseMap.h>
 
@@ -204,25 +203,6 @@ public:
                 newOps[0] = e1;
                 newOps[1] = this->Or({e2, e3});
             }
-        }
-
-        // Move the Eq(X, C1) expressions to the front.
-        auto propStart = std::partition(newOps.begin(), newOps.end(), [](const ExprRef<>& e) {
-            return match(e, m_Eq(m_VarRef(), m_Literal()));
-        });
-
-        PropagationTable propTable;
-        for (auto it = newOps.begin(); it != propStart; ++it) {
-            ExprRef<VarRefExpr> x;
-            ExprRef<LiteralExpr> lit;
-
-            if (match(*it, m_Eq(m_VarRef(x), m_Literal(lit)))) {
-                propTable.put(&x->getVariable(), *it);
-            }
-        }
-
-        for (auto it = propStart; it != newOps.end(); ++it) {
-            *it = PropagateExpression(*it, propTable);
         }
 
         return AndExpr::Create(newOps);

@@ -7,6 +7,22 @@
 
 #include <unordered_set>
 
+// Disable exception handling in boost.
+#ifndef BOOST_NO_EXCEPTIONS
+    #error "gazer must be compiled with -fno-exceptions and BOOST_NO_EXCEPTIONS"
+#else
+namespace boost
+{
+    void throw_exception(std::exception const &e)
+    {
+        #ifndef NDEBUG
+        llvm::errs() << "Boost internal error: " << e.what();
+        #endif
+        std::terminate();
+    }
+} // end namespace boost
+#endif
+
 // TODO: Move this.
 #ifdef GAZER_ENABLE_DEBUG
 bool ::gazer::IsDebugEnabled = true;

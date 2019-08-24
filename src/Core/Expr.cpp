@@ -69,23 +69,6 @@ size_t Expr::getHashCode() const {
     return mHashCode;
 }
 
-ExprPtr NonNullaryExpr::clone(ExprVector ops)
-{
-    assert(this->getNumOperands() == ops.size()
-        && "Operand counts must match for cloning!");
-    assert(std::none_of(
-        ops.begin(), ops.end(), [](auto& op) { return op == nullptr; }
-    ) && "Cannot clone with a nullptr operand!");
-
-    if (std::equal(ops.begin(), ops.end(), this->op_begin())) {
-        // The operands are the same, just return the original object
-        return make_expr_ref(this);
-    }
-
-    // Otherwise perform the cloning operation and return a new ExprRef handle
-    return this->cloneImpl(ops);
-}
-
 //----------------------- Subtype initializers ------------------------//
 
 auto NotExpr::Create(const ExprPtr& operand) -> ExprRef<NotExpr>
@@ -178,9 +161,9 @@ static auto CreateMultiaryExpr(InputIterator begin, InputIterator end) -> ExprRe
 }
 
 template<Expr::ExprKind Kind>
-auto MultiaryLogicExpr<Kind>::Create(std::initializer_list<ExprPtr> ops) -> ExprRef<MultiaryLogicExpr<Kind>>
+auto MultiaryLogicExpr<Kind>::Create(const ExprPtr& left, const ExprPtr& right) -> ExprRef<MultiaryLogicExpr<Kind>>
 {
-    return CreateMultiaryExpr<Kind>(ops.begin(), ops.end());
+    return Create(ExprVector{left, right});
 }
 
 template<Expr::ExprKind Kind>
@@ -265,25 +248,81 @@ auto SelectExpr::Create(const ExprPtr& condition, const ExprPtr& then, const Exp
 }
 
 ExprRef<ArrayReadExpr> ArrayReadExpr::Create(
-    ExprRef<VarRefExpr> array, ExprPtr index
+    ExprPtr array, ExprPtr index
 ) {
     assert(array->getType().isArrayType() && "ArrayRead only works on arrays.");
-    const ArrayType* arrTy = llvm::cast<ArrayType>(&array->getType());
+    ArrayType* arrTy = llvm::cast<ArrayType>(&array->getType());
     assert(arrTy->getIndexType() == index->getType() &&
         "Array index type and index types must match.");
 
-    return ExprRef<ArrayReadExpr>(new ArrayReadExpr(array, index));
+    auto& context = arrTy->getContext();
+    return context.pImpl->Exprs.create<ArrayReadExpr>(arrTy->getElementType(), { array, index });
 }
 
 ExprRef<ArrayWriteExpr> ArrayWriteExpr::Create(
-    ExprRef<VarRefExpr> array, ExprPtr index, ExprPtr value
+    ExprPtr array, ExprPtr index, ExprPtr value
 ) {
     assert(array->getType().isArrayType() && "ArrayRead only works on arrays.");
-    const ArrayType* arrTy = llvm::cast<ArrayType>(&array->getType());
+    ArrayType* arrTy = llvm::cast<ArrayType>(&array->getType());
     assert(arrTy->getIndexType() == index->getType() &&
         "Array index type and index types must match.");
+    auto& context = arrTy->getContext();
 
-    return ExprRef<ArrayWriteExpr>(new ArrayWriteExpr(array, index, value));
+    return context.pImpl->Exprs.create<ArrayWriteExpr>(*arrTy, { array, index, value });
+}
+
+
+namespace gazer
+{
+template class ExtCastExpr<Expr::ZExt>;
+template class ExtCastExpr<Expr::SExt>;
+template class ArithmeticExpr<Expr::Add>;
+template class ArithmeticExpr<Expr::Sub>;
+template class ArithmeticExpr<Expr::Mul>;
+template class ArithmeticExpr<Expr::Div>;
+template class ArithmeticExpr<Expr::BvSDiv>;
+template class ArithmeticExpr<Expr::BvUDiv>;
+template class ArithmeticExpr<Expr::BvSRem>;
+template class ArithmeticExpr<Expr::BvURem>;
+template class ArithmeticExpr<Expr::Shl>;
+template class ArithmeticExpr<Expr::LShr>;
+template class ArithmeticExpr<Expr::AShr>;
+template class ArithmeticExpr<Expr::BvAnd>;
+template class ArithmeticExpr<Expr::BvOr>;
+template class ArithmeticExpr<Expr::BvXor>;
+
+template class CompareExpr<Expr::Eq>;
+template class CompareExpr<Expr::NotEq>;
+template class CompareExpr<Expr::SLt>;
+template class CompareExpr<Expr::SLtEq>;
+template class CompareExpr<Expr::SGt>;
+template class CompareExpr<Expr::SGtEq>;
+template class CompareExpr<Expr::ULt>;
+template class CompareExpr<Expr::ULtEq>;
+template class CompareExpr<Expr::UGt>;
+template class CompareExpr<Expr::UGtEq>;
+template class MultiaryLogicExpr<Expr::And>;
+template class MultiaryLogicExpr<Expr::Or>;
+template class BinaryLogicExpr<Expr::Xor>;
+template class BinaryLogicExpr<Expr::Imply>;
+
+template class FpQueryExpr<Expr::FIsNan>;
+template class FpQueryExpr<Expr::FIsInf>;
+template class BvFpCastExpr<Expr::FCast>;
+template class BvFpCastExpr<Expr::SignedToFp>;
+template class BvFpCastExpr<Expr::UnsignedToFp>;
+template class BvFpCastExpr<Expr::FpToSigned>;
+template class BvFpCastExpr<Expr::FpToUnsigned>;
+
+template class FpArithmeticExpr<Expr::FAdd>;
+template class FpArithmeticExpr<Expr::FSub>;
+template class FpArithmeticExpr<Expr::FMul>;
+template class FpArithmeticExpr<Expr::FDiv>;
+template class FpCompareExpr<Expr::FEq>;
+template class FpCompareExpr<Expr::FGt>;
+template class FpCompareExpr<Expr::FGtEq>;
+template class FpCompareExpr<Expr::FLt>;
+template class FpCompareExpr<Expr::FLtEq>;
 }
 
 //------------------------------- Utilities ---------------------------------//

@@ -30,7 +30,12 @@ ExprPtr ExprRewrite::visitNonNullary(const ExprRef<NonNullaryExpr>& expr)
 
     switch (expr->getKind()) {
         case Expr::Not: return mExprBuilder.Not(ops[0]);
-        // TODO: Add support for ZExt, SExt and Extract
+        case Expr::ZExt: return mExprBuilder.ZExt(ops[0], llvm::cast<BvType>(expr->getType()));
+        case Expr::SExt: return mExprBuilder.SExt(ops[0], llvm::cast<BvType>(expr->getType()));
+        case Expr::Extract: {
+            auto extract = llvm::cast<ExtractExpr>(expr);
+            return mExprBuilder.Extract(ops[0], extract->getOffset(), extract->getExtractedWidth());
+        }
         case Expr::Add: return mExprBuilder.Add(ops[0], ops[1]);
         case Expr::Sub: return mExprBuilder.Sub(ops[0], ops[1]);
         case Expr::Mul: return mExprBuilder.Mul(ops[0], ops[1]);
@@ -70,11 +75,9 @@ ExprPtr ExprRewrite::visitNonNullary(const ExprRef<NonNullaryExpr>& expr)
         case Expr::FLt: return mExprBuilder.FLt(ops[0], ops[1]);
         case Expr::FLtEq: return mExprBuilder.FLtEq(ops[0], ops[1]);
         case Expr::Select: return mExprBuilder.Select(ops[0], ops[1], ops[2]);
-        default:
-            return expr->clone(ops);
     }
 
-    return expr->clone(ops);
+    llvm_unreachable("Unknown expression kind");
 }
 
 ExprPtr& ExprRewrite::operator[](Variable* variable)

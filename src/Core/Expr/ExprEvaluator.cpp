@@ -9,12 +9,12 @@ using llvm::dyn_cast;
 /// Checks for undefs among operands.
 
 ExprRef<LiteralExpr> ExprEvaluatorBase::visitUndef(const ExprRef<UndefExpr>& expr) {
-    assert(!"Invalid undef expression");
+    llvm_unreachable("Invalid undef expression");
 }
 
 ExprRef<LiteralExpr> ExprEvaluatorBase::visitExpr(const ExprPtr& expr)
 {
-    assert(!"Unhandled expression type in ExprEvaluatorBase!");
+    llvm_unreachable("Unhandled expression type in ExprEvaluatorBase");
 }
 
 ExprRef<LiteralExpr> ExprEvaluatorBase::visitLiteral(const ExprRef<LiteralExpr>& expr) {

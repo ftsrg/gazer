@@ -101,11 +101,11 @@ protected:
             }
         }
 
-        assert(false && "Unsupported gazer type for Z3Solver");
+        llvm_unreachable("Unsupported gazer type for Z3Solver");
     }
 
     z3::expr visitExpr(const ExprPtr& expr) override {
-        assert(!"Unhandled expression type in Z3ExprTransformer.");
+        llvm_unreachable("Unhandled expression type in Z3ExprTransformer.");
     }
 
     z3::expr visitUndef(const ExprRef<UndefExpr>& expr) override {
@@ -148,7 +148,7 @@ protected:
             }
         }
 
-        assert(false && "Unsupported operand type.");
+        llvm_unreachable("Unsupported operand type.");
     }
 
     z3::expr visitVarRef(const ExprRef<VarRefExpr>& expr) override
@@ -666,7 +666,7 @@ Valuation Z3Solver::getModel()
             }
 
         } else {
-            assert(false && "Unhandled Z3 expression type.");
+            llvm_unreachable("Unhandled Z3 expression type.");
         }
 
         builder.put(&variable, expr);

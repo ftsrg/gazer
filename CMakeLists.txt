@@ -5,10 +5,11 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 # Project settings
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti -Wall -Wno-missing-braces -Wmissing-field-initializers -Werror=return-type")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions -Wall -Wno-missing-braces -Wmissing-field-initializers -Werror=return-type")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 
+# AddressSanitizer
 option(GAZER_ENABLE_SANITIZER "Enable sanitizer flags for debug builds" OFF)
 
 if(GAZER_ENABLE_SANITIZER)
@@ -19,13 +20,6 @@ if(GAZER_ENABLE_SANITIZER)
         message(STATUS "Sanitizer flags are only available with clang/gcc and only for debug builds")
     endif()
 endif()
-
-# Compile dependencies
-#add_subdirectory(vendor/mstch)
-#include_directories(${mstch_INCLUDE_DIR})
-
-#add_subdirectory(vendor/fmt)
-#include_directories(vendor/fmt/include)
 
 # Get LLVM
 find_package(LLVM 9.0 REQUIRED CONFIG)
@@ -38,18 +32,11 @@ include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
 
-# Add DSA and AssistDS
-#include_directories(vendor/llvm-dsa/include)
-#add_subdirectory(vendor/llvm-dsa)
-
-# Add Sea-DSA
-#include_directories(vendor/sea-dsa/include)
-#add_subdirectory(vendor/sea-dsa)
-
-# Add boost
+# Get boost
 find_package(Boost REQUIRED)
-
 include_directories(${Boost_INCLUDE_DIR})
+
+add_definitions(-DBOOST_NO_RTTI -DBOOST_EXCEPTION_DISABLE -DBOOST_NO_EXCEPTIONS)
 
 # Project directories
 include_directories(include)

@@ -101,13 +101,13 @@ ExprRef<LiteralExpr> gazer::LiteralFromLLVMConst(GazerContext& context, llvm::Co
         } else if (fltTy->isFP128Ty()) {
             precision = FloatType::Quad;
         } else {
-            assert(false && "Unsupported floating-point type.");
+            llvm_unreachable("Unsupported floating-point type.");
         }
 
         return FloatLiteralExpr::Get(FloatType::Get(context, precision), cfp->getValueAPF());
     }
 
     // TODO: We do not support undefs here.
-    assert(false && "Unsupported LLVM constant value.");
+    llvm_unreachable("Unsupported LLVM constant value.");
 }
 

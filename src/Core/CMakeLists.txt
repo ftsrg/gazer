@@ -10,7 +10,6 @@ set(SOURCE_FILES
     Expr/ExprPrinter.cpp
     Expr/ExprEvaluator.cpp
     Expr/ConstantFolder.cpp
-    Expr/ExpressionPropagator.cpp
     Expr/ExprRewrite.cpp
     Expr/ExprUtils.cpp    
 )

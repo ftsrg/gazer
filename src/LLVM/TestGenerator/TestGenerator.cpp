@@ -29,9 +29,9 @@ static llvm::Constant* exprToLLVMValue(ExprRef<AtomicExpr>& expr, LLVMContext& c
     } else if (expr->getType().isFloatType()) {
         auto fltLit = llvm::cast<FloatLiteralExpr>(expr.get());
         return llvm::ConstantFP::get(context, fltLit->getValue());    
-    } else {
-        assert(false && "Unsupported expression kind");
     }
+    
+    llvm_unreachable("Unsupported expression kind");
 }
 
 std::unique_ptr<Module> TestGenerator::generateModuleFromTrace(
