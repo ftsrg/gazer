@@ -236,7 +236,7 @@ bool BackwardSlicerPass::runOnModule(llvm::Module& module)
                                 BranchInst::Create(unreachable) :
                                 BranchInst::Create(bottom);
                         } else {
-                            assert(false && "At least the then or else path should be a needed child.");
+                            llvm_unreachable("At least the then or else path should be a needed child.");
                         }
                     } else {
                         new_br = bottom == nullptr ?

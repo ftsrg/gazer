@@ -104,7 +104,7 @@ ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop)
             case Instruction::FDiv:
                 return mExprBuilder.FDiv(lhs, rhs, llvm::APFloat::rmNearestTiesToEven);
             default:
-                assert(false && "Invalid floating-point operation");
+                llvm_unreachable("Invalid floating-point operation");
         }
 
         return expr;
@@ -306,7 +306,7 @@ ExprPtr InstToExpr::visitCastInst(const llvm::CastInst& cast)
         );
     }
 
-    assert(false && "Unsupported cast operation");
+    llvm_unreachable("Unsupported cast operation");
 }
 
 ExprPtr InstToExpr::integerCast(const llvm::CastInst& cast, const ExprPtr& operand, unsigned width)
@@ -381,7 +381,7 @@ ExprPtr InstToExpr::operand(const Value* value)
         return mExprBuilder.Undef(this->translateType(value->getType()));
     } else {
         LLVM_DEBUG(llvm::dbgs() << "  Unhandled value for operand: " << *value << "\n");
-        assert(false && "Unhandled value type");
+        llvm_unreachable("Unhandled value type");
     }
 }
 
@@ -428,9 +428,9 @@ ExprPtr InstToExpr::castResult(const ExprPtr& expr, const Type& type)
         return asBool(expr);
     } else if (type.isBvType()) {
         return asInt(expr, dyn_cast<BvType>(&type)->getWidth());
-    } else {
-        assert(!"Invalid cast result type");
-    } 
+    }
+
+    llvm_unreachable("Invalid cast result type");
 }
 
 gazer::Type& InstToExpr::translateType(const llvm::Type* type)

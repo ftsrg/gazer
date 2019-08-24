@@ -92,7 +92,6 @@ class MemoryObjectUse
 public:
 
 private:
-    MemoryObjectDef* mReachingDef;
 };
 
 class MemoryObjectPhi : public MemoryObjectDef
@@ -102,7 +101,6 @@ class MemoryObjectPhi : public MemoryObjectDef
     public:
         
     private:
-        llvm::BasicBlock* mBlock;
     };
 public:
 

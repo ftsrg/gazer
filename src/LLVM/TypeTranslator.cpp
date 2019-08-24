@@ -39,6 +39,6 @@ gazer::Type& LLVMTypeTranslator::get(const llvm::Type* type)
             return mMemoryModel.handleArrayType(llvm::cast<llvm::ArrayType>(type));
         default:
             llvm::errs() << "Unsupported LLVM Type: " << *type << "\n";
-            assert(false && "Unsupported LLVM type.");
+            llvm_unreachable("Unsupported LLVM type.");
     }
 }

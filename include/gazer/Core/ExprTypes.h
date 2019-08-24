@@ -32,11 +32,6 @@ protected:
     using UnaryExpr::UnaryExpr;
 
 protected:
-    ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override
-    {
-        return Create(ops[0]);
-    }
-
 public:
     static ExprRef<NotExpr> Create(const ExprPtr& operand);
 
@@ -61,11 +56,6 @@ class ExtCastExpr final : public UnaryExpr
 private:
     using UnaryExpr::UnaryExpr;
 
-protected:
-    ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
-        return Create(ops[0], getType());
-    }
-
 public:
     unsigned getExtendedWidth() const {
         return llvm::dyn_cast<BvType>(&getType())->getWidth();
@@ -87,9 +77,6 @@ public:
     }
 };
 
-template class ExtCastExpr<Expr::ZExt>;
-template class ExtCastExpr<Expr::SExt>;
-
 using ZExtExpr = ExtCastExpr<Expr::ZExt>;
 using SExtExpr = ExtCastExpr<Expr::SExt>;
 
@@ -107,10 +94,6 @@ protected:
     ExtractExpr(ExprKind kind, Type& type, InputIterator begin, InputIterator end, unsigned offset, unsigned width)
         : UnaryExpr(kind, type, begin, end), mOffset(offset), mWidth(width)
     {}
-
-    ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
-        return Create(ops[0], mOffset, mWidth);
-    }
 
 public:
     unsigned getExtractedWidth() const {
@@ -157,11 +140,6 @@ class ArithmeticExpr final : public BinaryExpr
 protected:
     using BinaryExpr::BinaryExpr;
 
-protected:
-    ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
-        return Create(ops[0], ops[1]);
-    }
-
 public:
     static ExprRef<ArithmeticExpr<Kind>> Create(const ExprPtr& left, const ExprPtr& right);
 
@@ -175,21 +153,6 @@ public:
         return expr.getKind() == Kind;
     }
 };
-
-template class ArithmeticExpr<Expr::Add>;
-template class ArithmeticExpr<Expr::Sub>;
-template class ArithmeticExpr<Expr::Mul>;
-template class ArithmeticExpr<Expr::Div>;
-template class ArithmeticExpr<Expr::BvSDiv>;
-template class ArithmeticExpr<Expr::BvUDiv>;
-template class ArithmeticExpr<Expr::BvSRem>;
-template class ArithmeticExpr<Expr::BvURem>;
-template class ArithmeticExpr<Expr::Shl>;
-template class ArithmeticExpr<Expr::LShr>;
-template class ArithmeticExpr<Expr::AShr>;
-template class ArithmeticExpr<Expr::BvAnd>;
-template class ArithmeticExpr<Expr::BvOr>;
-template class ArithmeticExpr<Expr::BvXor>;
 
 using AddExpr = ArithmeticExpr<Expr::Add>;
 using SubExpr = ArithmeticExpr<Expr::Sub>;
@@ -215,34 +178,12 @@ class CompareExpr final : public BinaryExpr
 protected:
     using BinaryExpr::BinaryExpr;
 
-    ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
-        return Create(ops[0], ops[1]);
-    }
-
 public:
     static ExprRef<CompareExpr<Kind>> Create(const ExprPtr& left, const ExprPtr& right);
     
-    /**
-     * Type inquiry support.
-     */
-    static bool classof(const Expr* expr) {
-        return expr->getKind() == Kind;
-    }
-    static bool classof(const Expr& expr) {
-        return expr.getKind() == Kind;
-    }
+    static bool classof(const Expr* expr) { return expr->getKind() == Kind; }
+    static bool classof(const Expr& expr) { return expr.getKind() == Kind; }
 };
-
-template class CompareExpr<Expr::Eq>;
-template class CompareExpr<Expr::NotEq>;
-template class CompareExpr<Expr::SLt>;
-template class CompareExpr<Expr::SLtEq>;
-template class CompareExpr<Expr::SGt>;
-template class CompareExpr<Expr::SGtEq>;
-template class CompareExpr<Expr::ULt>;
-template class CompareExpr<Expr::ULtEq>;
-template class CompareExpr<Expr::UGt>;
-template class CompareExpr<Expr::UGtEq>;
 
 using EqExpr     = CompareExpr<Expr::Eq>;
 using NotEqExpr  = CompareExpr<Expr::NotEq>;
@@ -264,29 +205,13 @@ class MultiaryLogicExpr final : public NonNullaryExpr
 protected:
     using NonNullaryExpr::NonNullaryExpr;
 
-    ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
-        return Create(ops);
-    }
 public:
-    static ExprRef<MultiaryLogicExpr<Kind>> Create(const ExprPtr& left, const ExprPtr& right) {
-        return Create({left, right});
-    }
-    static ExprRef<MultiaryLogicExpr<Kind>> Create(std::initializer_list<ExprPtr> ops);
+    static ExprRef<MultiaryLogicExpr<Kind>> Create(const ExprPtr& left, const ExprPtr& right);
     static ExprRef<MultiaryLogicExpr<Kind>> Create(const ExprVector& ops);
-    
-    /**
-     * Type inquiry support.
-     */
-    static bool classof(const Expr* expr) {
-        return expr->getKind() == Kind;
-    }
-    static bool classof(const Expr& expr) {
-        return expr.getKind() == Kind;
-    }
-};
 
-template class MultiaryLogicExpr<Expr::And>;
-template class MultiaryLogicExpr<Expr::Or>;
+    static bool classof(const Expr* expr) { return expr->getKind() == Kind; }
+    static bool classof(const Expr& expr) { return expr.getKind() == Kind; }
+};
 
 using AndExpr = MultiaryLogicExpr<Expr::And>;
 using OrExpr  = MultiaryLogicExpr<Expr::Or>;
@@ -298,25 +223,12 @@ class BinaryLogicExpr final : public BinaryExpr
 protected:
     using BinaryExpr::BinaryExpr;
 
-protected:
-    ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
-        return Create(ops[0], ops[1]);
-    }
-
 public:
     static ExprRef<BinaryLogicExpr<Kind>> Create(const ExprPtr& left, const ExprPtr& right);
 
-    static bool classof(const Expr* expr) {
-        return expr->getKind() == Kind;
-    }
-
-    static bool classof(const Expr& expr) {
-        return expr.getKind() == Kind;
-    }
+    static bool classof(const Expr* expr) { return expr->getKind() == Kind; }
+    static bool classof(const Expr& expr) { return expr.getKind() == Kind; }
 };
-
-template class BinaryLogicExpr<Expr::Xor>;
-template class BinaryLogicExpr<Expr::Imply>;
 
 using XorExpr = BinaryLogicExpr<Expr::Xor>;
 using ImplyExpr = BinaryLogicExpr<Expr::Imply>;
@@ -333,15 +245,9 @@ class FpQueryExpr final : public UnaryExpr
 protected:
     using UnaryExpr::UnaryExpr;
 
-    ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
-        return Create(ops[0]);
-    }
 public:
     static ExprRef<FpQueryExpr<Kind>> Create(const ExprPtr& operand);
 };
-
-template class FpQueryExpr<Expr::FIsNan>;
-template class FpQueryExpr<Expr::FIsInf>;
 
 using FIsNanExpr = FpQueryExpr<Expr::FIsNan>;
 using FIsInfExpr = FpQueryExpr<Expr::FIsInf>;
@@ -372,27 +278,13 @@ private:
     {}
 
 protected:
-    ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
-        return Create(ops[0], getType(), getRoundingMode());
-    }
 
 public:
     static ExprRef<BvFpCastExpr<Kind>> Create(const ExprPtr& operand, Type& type, const llvm::APFloat::roundingMode& rm);
 
-    static bool classof(const Expr* expr) {
-        return expr->getKind() == Kind;
-    }
-
-    static bool classof(const Expr& expr) {
-        return expr.getKind() == Kind;
-    }
+    static bool classof(const Expr* expr) { return expr->getKind() == Kind; }
+    static bool classof(const Expr& expr) { return expr.getKind() == Kind; }
 };
-
-template class BvFpCastExpr<Expr::FCast>;
-template class BvFpCastExpr<Expr::SignedToFp>;
-template class BvFpCastExpr<Expr::UnsignedToFp>;
-template class BvFpCastExpr<Expr::FpToSigned>;
-template class BvFpCastExpr<Expr::FpToUnsigned>;
 
 using FCastExpr        = BvFpCastExpr<Expr::FCast>;
 using SignedToFpExpr   = BvFpCastExpr<Expr::SignedToFp>;
@@ -414,24 +306,13 @@ protected:
         : BinaryExpr(kind, type, begin, end), FpExprWithRoundingMode(rm)
     {}
 
-    ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
-        return Create(ops[0], ops[1], mRoundingMode);
-    }
 public:
     static ExprRef<FpArithmeticExpr<Kind>> Create(const ExprPtr& left, const ExprPtr& right, const llvm::APFloat::roundingMode& rm);
 
-    static bool classof(const Expr* expr) {
-        return expr->getKind() == Kind;
-    }
-    static bool classof(const Expr& expr) {
-        return expr.getKind() == Kind;
-    }
+    static bool classof(const Expr* expr) { return expr->getKind() == Kind; }
+    static bool classof(const Expr& expr) { return expr.getKind() == Kind; }
 };
 
-template class FpArithmeticExpr<Expr::FAdd>;
-template class FpArithmeticExpr<Expr::FSub>;
-template class FpArithmeticExpr<Expr::FMul>;
-template class FpArithmeticExpr<Expr::FDiv>;
 
 using FAddExpr = FpArithmeticExpr<Expr::FAdd>;
 using FSubExpr = FpArithmeticExpr<Expr::FSub>;
@@ -447,29 +328,12 @@ class FpCompareExpr final : public BinaryExpr
 protected:
     using BinaryExpr::BinaryExpr;
 
-    ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
-        return Create(ops[0], ops[1]);
-    }
-
 public:
     static ExprRef<FpCompareExpr<Kind>> Create(const ExprPtr& left, const ExprPtr& right);
     
-    /**
-     * Type inquiry support.
-     */
-    static bool classof(const Expr* expr) {
-        return expr->getKind() == Kind;
-    }
-    static bool classof(const Expr& expr) {
-        return expr.getKind() == Kind;
-    }
+    static bool classof(const Expr* expr) { return expr->getKind() == Kind; }
+    static bool classof(const Expr& expr) { return expr.getKind() == Kind; }
 };
-
-template class FpCompareExpr<Expr::FEq>;
-template class FpCompareExpr<Expr::FGt>;
-template class FpCompareExpr<Expr::FGtEq>;
-template class FpCompareExpr<Expr::FLt>;
-template class FpCompareExpr<Expr::FLtEq>;
 
 using FEqExpr = FpCompareExpr<Expr::FEq>;
 using FGtExpr = FpCompareExpr<Expr::FGt>;
@@ -483,9 +347,6 @@ class SelectExpr final : public NonNullaryExpr
 protected:
     using NonNullaryExpr::NonNullaryExpr;
 
-    ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
-        return Create(ops[0], ops[1], ops[2]);
-    }
 public:
     static ExprRef<SelectExpr> Create(const ExprPtr& condition, const ExprPtr& then, const ExprPtr& elze);
 
@@ -493,25 +354,24 @@ public:
     ExprPtr getThen() const { return getOperand(1); }
     ExprPtr getElse() const { return getOperand(2); }
 
-    static bool classof(const Expr* expr) {
+    static bool classof(const Expr* expr)
+    { 
         return expr->getKind() == Expr::Select;
     }
-    static bool classof(const Expr& expr) {
+
+    static bool classof(const Expr& expr)
+    {
         return expr.getKind() == Expr::Select;
     }
 };
 
-
 class ArrayReadExpr final : public NonNullaryExpr
 {
+    friend class ExprStorage;
 protected:
-    ArrayReadExpr(ExprPtr array, ExprPtr index)
-        : NonNullaryExpr(Expr::ArrayRead, array->getType(), {array, index})
-    {}
+    using NonNullaryExpr::NonNullaryExpr;
 public:
-    ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
-        return new ArrayReadExpr(ops[0], ops[1]);
-    }
+    static ExprRef<ArrayReadExpr> Create(ExprPtr array, ExprPtr index);
 
     ExprRef<VarRefExpr> getArrayRef() const {
         return llvm::cast<VarRefExpr>(getOperand(0));
@@ -519,43 +379,39 @@ public:
 
     ExprPtr getIndex() const { return getOperand(1); }
 
-    static ExprRef<ArrayReadExpr> Create(ExprRef<VarRefExpr> array, ExprPtr index);
-
-    static bool classof(const Expr* expr) {
+    static bool classof(const Expr* expr)
+    {
         return expr->getKind() == Expr::ArrayRead;
     }
 
-    static bool classof(const Expr& expr) {
+    static bool classof(const Expr& expr)
+    {
         return expr.getKind() == Expr::ArrayRead;
     }
 };
 
 class ArrayWriteExpr final : public NonNullaryExpr
 {
+    friend class ExprStorage;
 protected:
-    ArrayWriteExpr(ExprPtr array, ExprPtr index, ExprPtr value)
-        : NonNullaryExpr(Expr::ArrayRead, array->getType(), {array, index, value})
-    {}
+    using NonNullaryExpr::NonNullaryExpr;
 public:
-    ExprPtr cloneImpl(std::vector<ExprPtr> ops) const override {
-        return new ArrayWriteExpr(ops[0], ops[1], ops[2]);
-    }
+    static ExprRef<ArrayWriteExpr> Create(ExprPtr array, ExprPtr index, ExprPtr value);
 
     ExprRef<VarRefExpr> getArrayRef() const {
         return llvm::cast<VarRefExpr>(getOperand(0));
     }
+
     ExprPtr getIndex() const { return getOperand(1); }
     ExprPtr getElementValue() const { return getOperand(2); }
 
-    static ExprRef<ArrayWriteExpr> Create(
-        ExprRef<VarRefExpr> array, ExprPtr index, ExprPtr value
-    );
-
-    static bool classof(const Expr* expr) {
+    static bool classof(const Expr* expr)
+    {
         return expr->getKind() == Expr::ArrayWrite;
     }
 
-    static bool classof(const Expr& expr) {
+    static bool classof(const Expr& expr)
+    {
         return expr.getKind() == Expr::ArrayWrite;
     }
 };

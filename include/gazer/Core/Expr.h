@@ -383,10 +383,6 @@ class NonNullaryExpr : public Expr
 {
     friend class ExprStorage;
 protected:
-    NonNullaryExpr(ExprKind kind, Type& type, const ExprVector& ops)
-        : NonNullaryExpr(kind, type, ops.begin(), ops.end())
-    {}
-
     template<class InputIterator>
     NonNullaryExpr(ExprKind kind, Type& type, InputIterator begin, InputIterator end)
         : Expr(kind, type), mOperands(begin, end)
@@ -397,17 +393,8 @@ protected:
         );
     }
 
-protected:
-
-    virtual ExprPtr cloneImpl(ExprVector ops) const = 0;
-
 public: 
     void print(llvm::raw_ostream& os) const override;
-
-    /// Creates a clone of this expression, with the operands in \param ops.
-    /// If the operand list of the given expression and the \param ops vector are the same,
-    /// this function returns the original expression.
-    ExprPtr clone(ExprVector ops);
 
     //---- Operand handling ----//
     using op_iterator = typename std::vector<ExprPtr>::iterator;

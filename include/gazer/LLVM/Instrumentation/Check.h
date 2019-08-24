@@ -50,7 +50,6 @@ private:
     void setCheckRegistry(CheckRegistry* registry);
 
 private:
-    unsigned mErrorCode = 0;
     CheckRegistry* mRegistry;
 };
 

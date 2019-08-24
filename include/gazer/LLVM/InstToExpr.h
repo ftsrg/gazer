@@ -27,7 +27,7 @@ public:
 protected:
     virtual Variable* getVariable(const llvm::Value* value) = 0;
 
-    /// If \p value was inlined, returns the corresponding expressions.
+    /// If \p value was inlined, returns the corresponding expression.
     /// Otherwise, this method should return nullptr.
     virtual ExprPtr lookupInlinedVariable(const llvm::Value* value) {
         return nullptr;
