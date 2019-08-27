@@ -116,13 +116,6 @@ public:
     using LoopInfoMapTy = llvm::DenseMap<llvm::Function*, llvm::LoopInfo*>;
     using VariantT = std::variant<llvm::Function*, llvm::Loop*>;
 
-    ModuleToAutomataSettings Settings;
-
-    AutomataSystem& System;
-    MemoryModel& TheMemoryModel;
-
-    llvm::DenseMap<llvm::Value*, Variable*> Variables;
-
 public:
     GenerationContext(
         AutomataSystem& system,
@@ -130,8 +123,8 @@ public:
         LoopInfoMapTy loopInfos,
         ModuleToAutomataSettings settings
     )
-        : System(system), TheMemoryModel(memoryModel),
-        mLoopInfos(loopInfos), Settings(settings)
+        : mSystem(system), mMemoryModel(memoryModel),
+        mLoopInfos(loopInfos), mSettings(settings)
     {}
 
     GenerationContext(const GenerationContext&) = delete;
@@ -155,6 +148,10 @@ public:
         return info;
     }
 
+    void addVariable(llvm::Value* value, Variable* variable) {
+        mVariables[value] = variable;
+    }
+
     CfaGenInfo& getLoopCfa(llvm::Loop* loop) { return getInfoFor(loop); }
     CfaGenInfo& getFunctionCfa(llvm::Function* function) { return getInfoFor(function); }
 
@@ -167,6 +164,10 @@ public:
     {
         return mLoopInfos.lookup(function);
     }
+    
+    AutomataSystem& getSystem() const { return mSystem; }
+    MemoryModel& getMemoryModel() const { return mMemoryModel; }
+    ModuleToAutomataSettings& getSettings() { return mSettings; }
 
 private:
     CfaGenInfo& getInfoFor(VariantT key)
@@ -178,8 +179,12 @@ private:
     }
 
 private:
+    AutomataSystem& mSystem;
+    MemoryModel& mMemoryModel;
     LoopInfoMapTy mLoopInfos;
+    ModuleToAutomataSettings mSettings;
     std::unordered_map<VariantT, CfaGenInfo> mProcedures;
+    llvm::DenseMap<llvm::Value*, Variable*> mVariables;
 };
 
 class ModuleToCfa final
@@ -227,7 +232,7 @@ public:
         GenerationContext& generationContext,
         CfaGenInfo& genInfo,
         ExprBuilder& exprBuilder
-    ) : InstToExpr(exprBuilder, generationContext.TheMemoryModel),
+    ) : InstToExpr(exprBuilder, generationContext.getMemoryModel()),
         mGenCtx(generationContext),
         mGenInfo(genInfo),
         mCfa(genInfo.Automaton)
@@ -250,7 +255,7 @@ protected:
     ExprPtr lookupInlinedVariable(const llvm::Value* value) override;
 
 private:
-    GazerContext& getContext() const { return mGenCtx.System.getContext(); }
+    GazerContext& getContext() const { return mGenCtx.getSystem().getContext(); }
 
 private:
     bool tryToEliminate(const llvm::Instruction& inst, ExprPtr expr);

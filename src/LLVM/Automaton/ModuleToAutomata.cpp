@@ -167,7 +167,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
             genInfo,
             *mExprBuilder
         );
-            
+
         // Do the actual encoding.
         blocksToCfa.encode();
     }
@@ -226,7 +226,7 @@ void ModuleToCfa::createAutomata()
                         localName = inst.getName();
                         variable = nested->createInput(localName, mMemoryModel.translateType(inst.getType()));
                         loopGenInfo.addPhiInput(&inst, variable);
-                        mGenCtx.Variables[&inst] = variable;
+                        mGenCtx.addVariable(&inst, variable);
                         
                         LLVM_DEBUG(llvm::dbgs() << "  Added PHI input variable " << *variable << "\n");
                     } else {
@@ -255,7 +255,7 @@ void ModuleToCfa::createAutomata()
                             localName = inst.getName();
                             variable = nested->createLocal(localName, mMemoryModel.translateType(inst.getType()));
                             loopGenInfo.addLocal(&inst, variable);
-                            mGenCtx.Variables[&inst] = variable;
+                            mGenCtx.addVariable(&inst, variable);
 
                             LLVM_DEBUG(llvm::dbgs() << "  Added local variable " << *variable << "\n");
                         } else {
@@ -312,7 +312,7 @@ void ModuleToCfa::createAutomata()
         for (llvm::Argument& argument : function.args()) {
             Variable* variable = cfa->createInput(argument.getName(), mMemoryModel.translateType(argument.getType()));
             genInfo.addInput(&argument, variable);
-            mGenCtx.Variables[&argument] = variable;
+            mGenCtx.addVariable(&argument, variable);
         }
 
         // TODO: Maybe add RET_VAL to genInfo outputs in some way?
@@ -345,7 +345,7 @@ void ModuleToCfa::createAutomata()
                 if (inst.getName() != "") {
                     Variable* variable = cfa->createLocal(inst.getName(), mMemoryModel.translateType(inst.getType()));
                     genInfo.addLocal(&inst, variable);
-                    mGenCtx.Variables[&inst] = variable;
+                    mGenCtx.addVariable(&inst, variable);
                 }
             }
         }
@@ -387,7 +387,7 @@ void BlocksToCfa::encode()
                 auto storeValue = this->operand(store->getValueOperand());
                 auto ptr = this->operand(store->getPointerOperand());
 
-                auto storeRes = mGenCtx.TheMemoryModel.handleStore(*store, ptr, storeValue);
+                auto storeRes = mGenCtx.getMemoryModel().handleStore(*store, ptr, storeValue);
                 if (storeRes.has_value()) {
                     assignments.push_back(*storeRes);
                 }
@@ -416,7 +416,7 @@ void BlocksToCfa::encode()
     }
 
     // Do a clean-up, remove eliminated variables from the CFA.
-    if (!mGenCtx.Settings.isElimVarsOff()) {
+    if (!mGenCtx.getSettings().isElimVarsOff()) {
         mCfa->removeLocalsIf([this](Variable* v) {
             return mEliminatedVarsSet.count(v) != 0;
         });
@@ -527,7 +527,7 @@ void BlocksToCfa::handleTerminator(const llvm::BasicBlock* bb, Location* entry, 
 
 bool BlocksToCfa::tryToEliminate(const Instruction& inst, ExprPtr expr)
 {
-    if (mGenCtx.Settings.isElimVarsOff()) {
+    if (mGenCtx.getSettings().isElimVarsOff()) {
         return false;
     }
 
@@ -545,7 +545,7 @@ bool BlocksToCfa::tryToEliminate(const Instruction& inst, ExprPtr expr)
 
     // On 'Normal' level, we do not want to inline expressions which have multiple uses and have already inlined operands.
     if (
-        !mGenCtx.Settings.isElimVarsAggressive() &&
+        !mGenCtx.getSettings().isElimVarsAggressive() &&
         getNumUsesInBlocks(&inst) > 1 &&
         std::any_of(inst.op_begin(), inst.op_end(), [this](const llvm::Use& op) {
             const llvm::Value* v = &*op;
@@ -658,7 +658,7 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
         if (nestedLoopInfo.ExitVariable != nullptr) {
             exitSelector = mCfa->createLocal(
                 Twine(ModuleToCfa::LoopOutputSelectorName).concat(Twine(mCounter++)).str(),
-                BvType::Get(mGenCtx.System.getContext(), 8)
+                BvType::Get(mGenCtx.getSystem().getContext(), 8)
             );
             outputArgs.emplace_back(exitSelector, nestedLoopInfo.ExitVariable->getRefExpr());
         }
@@ -801,27 +801,27 @@ std::string ModuleToAutomataSettings::toString() const
 {
     std::string str;
 
-    str += "{\"elim_vars\": \"";
+    str += R"({"elim_vars": ")";
     switch (mElimVars) {
         case ElimVars_Off:         str += "off"; break;
         case ElimVars_Normal:      str += "normal"; break;
         case ElimVars_Aggressive:  str += "aggressive"; break;
     }
-    str += "\", \"loop_representation\": \"";
+    str += R"(", "loop_representation": ")";
 
     switch (mLoops) {
         case Loops_Recursion:  str += "recursion"; break;
         case Loops_Cycle:      str += "cycle"; break;
     }
 
-    str += "\", \"int_representation\": \"";
+    str += R"(", "int_representation": ")";
 
     switch (mInts) {
         case Ints_UseBv:        str += "bv"; break;
         case Ints_UseInt:       str += "int"; break;
     }
 
-    str += "\", \"float_representation\": \"";
+    str += R"(", "float_representation": ")";
 
     switch (mFloats) {
         case Floats_UseFpa:     str += "fpa";   break;

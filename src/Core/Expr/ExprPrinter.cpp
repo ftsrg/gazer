@@ -174,7 +174,7 @@ protected:
     #define PRINT_BINARY_INFIX(NAME, OPERATOR)                                  \
     std::string visit##NAME(const ExprRef<NAME##Expr>& expr) override           \
     {                                                                           \
-        return printOp(expr->getLeft()) + OPERATOR + printOp(expr->getRight()); \
+        return printOp(expr->getLeft()) + (OPERATOR) + printOp(expr->getRight()); \
     }
 
     PRINT_BINARY_INFIX(Add,     " + ")
@@ -322,7 +322,7 @@ private:
     unsigned mRadix;
 };
 
-}
+} // end anonymous namespace
 
 namespace gazer
 {
@@ -339,4 +339,4 @@ void InfixPrintExpr(const ExprPtr& expr, llvm::raw_ostream& os, unsigned bvRadix
     os << visitor.visit(expr);
 }
 
-}
+} // end namespace gazer

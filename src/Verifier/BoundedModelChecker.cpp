@@ -220,11 +220,11 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                     ExprEvaluator eval{model};
 
                     BmcCex cex{mError, *mRoot, eval, mPredecessors};
-                    for (auto it = cex.begin(), ie = cex.end(); it != ie; ++it) {
-                        Location* state  = it->getLocation();
-                        Transition* edge = it->getOutgoingTransition();
+                    for (auto state : cex) {
+                        Location* loc = state.getLocation();
+                        Transition* edge = state.getOutgoingTransition();
 
-                        states.push_back(state);
+                        states.push_back(loc);
                         if (edge == nullptr) {
                             continue;
                         }
@@ -583,8 +583,8 @@ void BoundedModelCheckerImpl::findOpenCallsInCex(Valuation& model, llvm::SmallVe
     ExprEvaluator eval{model};
     auto cex = BmcCex{mError, *mRoot, eval, mPredecessors};
 
-    for (auto it = cex.begin(), ie = cex.end(); it != ie; ++it) {
-        auto call = llvm::dyn_cast_or_null<CallTransition>(it->getOutgoingTransition());
+    for (auto state : cex) {
+        auto call = llvm::dyn_cast_or_null<CallTransition>(state.getOutgoingTransition());
         if (call != nullptr && mOpenCalls.count(call) != 0) {
             callsInCex.push_back(call);
             if (callsInCex.size() == mOpenCalls.size()) {

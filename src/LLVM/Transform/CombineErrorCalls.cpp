@@ -100,10 +100,11 @@ bool CombineErrorCallsPass::runOnModule(llvm::Module& module)
     }
 
     return true;
-}
+} // end anonymous namespace
 
-namespace gazer {
+namespace gazer
+{
     llvm::Pass* createCombineErrorCallsPass() {
         return new CombineErrorCallsPass();
     }
-}
+} // end namespace gazer

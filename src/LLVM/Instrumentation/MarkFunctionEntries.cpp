@@ -40,7 +40,7 @@ public:
             BasicBlock& entry = function.getEntryBlock();
 
             auto dsp = function.getSubprogram();
-            if (dsp) {
+            if (dsp != nullptr) {
                 builder.SetInsertPoint(&entry, entry.getFirstInsertionPt());
                 builder.CreateCall(mark, {
                     MetadataAsValue::get(context, dsp),
