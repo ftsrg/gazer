@@ -63,14 +63,15 @@ ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop)
             auto boolLHS = asBool(lhs);
             auto boolRHS = asBool(rhs);
 
-            if (binop.getOpcode() == Instruction::And) {
-                return mExprBuilder.And(boolLHS, boolRHS);
-            } else if (binop.getOpcode() == Instruction::Or) {
-                return mExprBuilder.Or(boolLHS, boolRHS);
-            } else if (binop.getOpcode() == Instruction::Xor) {
-                return mExprBuilder.Xor(boolLHS, boolRHS);
-            } else {
-                llvm_unreachable("Unknown logic instruction opcode");
+            switch (binop.getOpcode()) {
+                case Instruction::And:
+                    return mExprBuilder.And(boolLHS, boolRHS);
+                case Instruction::Or:
+                    return mExprBuilder.Or(boolLHS, boolRHS);
+                case Instruction::Xor:
+                    return mExprBuilder.Xor(boolLHS, boolRHS);
+                default:
+                    llvm_unreachable("Unknown logic instruction opcode");
             }
         } else {
             assert(binop.getType()->isIntegerTy()
@@ -80,14 +81,15 @@ ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop)
             auto intLHS = asInt(lhs, iTy->getBitWidth());
             auto intRHS = asInt(rhs, iTy->getBitWidth());
 
-            if (binop.getOpcode() == Instruction::And) {
-                return mExprBuilder.BvAnd(intLHS, intRHS);
-            } else if (binop.getOpcode() == Instruction::Or) {
-                return mExprBuilder.BvOr(intLHS, intRHS);
-            } else if (binop.getOpcode() == Instruction::Xor) {
-                return mExprBuilder.BvXor(intLHS, intRHS);
-            } else {
-                llvm_unreachable("Unknown logic instruction opcode");
+            switch (binop.getOpcode()) {
+                case Instruction::And:
+                    return mExprBuilder.BvAnd(intLHS, intRHS);
+                case Instruction::Or:
+                    return mExprBuilder.BvOr(intLHS, intRHS);
+                case Instruction::Xor:
+                    return mExprBuilder.BvXor(intLHS, intRHS);
+                default:
+                    llvm_unreachable("Unknown logic instruction opcode");
             }
         }
 

@@ -32,10 +32,12 @@ ExprRef<LiteralExpr> Valuation::eval(const ExprPtr& expr)
     if (auto varRef = llvm::dyn_cast<VarRefExpr>(expr.get())) {
         auto lit = this->operator[](varRef->getVariable());
         return lit;
-    } else if (expr->getKind() == Expr::Literal) {
-        return llvm::cast<LiteralExpr>(expr);
-    } else {
-        // TODO: Expand this part
-        return nullptr;
     }
+    
+    if (expr->getKind() == Expr::Literal) {
+        return llvm::cast<LiteralExpr>(expr);
+    }
+
+    // TODO: Some better error checking would be good in here.
+    return nullptr;
 }

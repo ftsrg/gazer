@@ -75,9 +75,9 @@ ExprPtr ExprRewrite::visitNonNullary(const ExprRef<NonNullaryExpr>& expr)
         case Expr::FLt: return mExprBuilder.FLt(ops[0], ops[1]);
         case Expr::FLtEq: return mExprBuilder.FLtEq(ops[0], ops[1]);
         case Expr::Select: return mExprBuilder.Select(ops[0], ops[1], ops[2]);
-    }
-
-    llvm_unreachable("Unknown expression kind");
+        default:
+            llvm_unreachable("Invalid non-nullary expression kind.");
+    }    
 }
 
 ExprPtr& ExprRewrite::operator[](Variable* variable)

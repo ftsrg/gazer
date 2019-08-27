@@ -160,7 +160,7 @@ public:
                 auto lit = llvm::dyn_cast<BoolLiteralExpr>(op.get());
 
                 assert(lit != nullptr && "Operands for ANDs should be booleans!");
-                if (lit->getValue() == false) {
+                if (lit->getValue() == false) { //NOLINT
                     return this->False();
                 } else {
                     // We are not adding unnecessary true literals

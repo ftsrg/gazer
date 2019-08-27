@@ -222,7 +222,7 @@ public:
 
     AssignTransition* createAssignTransition(
         Location* source, Location* target,
-        ExprPtr guard, std::vector<VariableAssignment> assignments
+        const ExprPtr& guard, std::vector<VariableAssignment> assignments
     );
 
     AssignTransition* createAssignTransition(
@@ -230,11 +230,11 @@ public:
     );
 
     AssignTransition* createAssignTransition(
-        Location* source, Location* target, ExprPtr guard
+        Location* source, Location* target, const ExprPtr& guard
     );
 
     CallTransition* createCallTransition(
-        Location* source, Location* target, ExprPtr guard,
+        Location* source, Location* target, const ExprPtr& guard,
         Cfa* callee, std::vector<ExprPtr> inputArgs, std::vector<VariableAssignment> outputArgs
     );
 

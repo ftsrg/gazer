@@ -46,10 +46,10 @@ Location* Cfa::findLocationById(unsigned id)
     return mLocationNumbers.lookup(id);
 }
 
-AssignTransition *Cfa::createAssignTransition(Location *source, Location *target, ExprPtr guard,
+AssignTransition *Cfa::createAssignTransition(Location *source, Location *target, const ExprPtr& guard,
         std::vector<VariableAssignment> assignments)
 {
-    auto edge = new AssignTransition(source, target, guard, assignments);
+    auto edge = new AssignTransition(source, target, guard, std::move(assignments));
     mTransitions.emplace_back(edge);
     source->addOutgoing(edge);
     target->addIncoming(edge);
@@ -63,15 +63,15 @@ AssignTransition *Cfa::createAssignTransition(Location *source, Location *target
 
 AssignTransition *Cfa::createAssignTransition(Location *source, Location *target, std::vector<VariableAssignment> assignments)
 {
-    return createAssignTransition(source, target, BoolLiteralExpr::True(mContext), assignments);
+    return createAssignTransition(source, target, BoolLiteralExpr::True(mContext), std::move(assignments));
 }
 
-AssignTransition *Cfa::createAssignTransition(Location *source, Location *target, ExprPtr guard)
+AssignTransition *Cfa::createAssignTransition(Location *source, Location *target, const ExprPtr& guard)
 {
     return createAssignTransition(source, target, guard, {});
 }
 
-CallTransition *Cfa::createCallTransition(Location *source, Location *target, ExprPtr guard,
+CallTransition *Cfa::createCallTransition(Location *source, Location *target, const ExprPtr& guard,
     Cfa *callee, std::vector<ExprPtr> inputArgs, std::vector<VariableAssignment> outputArgs)
 {
     assert(source != nullptr);
@@ -293,14 +293,14 @@ void Location::removeOutgoing(Transition *edge)
 AssignTransition::AssignTransition(
     Location *source, Location *target, ExprPtr guard,
     std::vector<VariableAssignment> assignments
-) : Transition(source, target, guard, Transition::Edge_Assign), mAssignments(assignments)
+) : Transition(source, target, guard, Transition::Edge_Assign), mAssignments(std::move(assignments))
 {}
 
 CallTransition::CallTransition(
     Location *source, Location *target, ExprPtr guard, Cfa *callee,
     std::vector<ExprPtr> inputArgs, std::vector<VariableAssignment> outputArgs
 ) : Transition(source, target, guard, Transition::Edge_Call), mCallee(callee),
-    mInputArgs(inputArgs), mOutputArgs(outputArgs)
+    mInputArgs(std::move(inputArgs)), mOutputArgs(std::move(outputArgs))
 {
     assert(source != nullptr);
     assert(target != nullptr);
