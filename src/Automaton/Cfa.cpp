@@ -305,7 +305,7 @@ CallTransition::CallTransition(
     assert(source != nullptr);
     assert(target != nullptr);
     assert(callee != nullptr);
-    assert(callee->getNumInputs() == inputArgs.size());
+    assert(callee->getNumInputs() == mInputArgs.size());
 }
 
 // Automata system

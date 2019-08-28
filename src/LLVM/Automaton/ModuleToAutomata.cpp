@@ -197,7 +197,7 @@ void ModuleToCfa::createAutomata()
         auto loops = loopInfo->getLoopsInPreorder();
         for (Loop* loop : loops) {
             Cfa* nested = mSystem->createNestedCfa(cfa, loop->getName());
-            CfaGenInfo& loopGenInfo = mGenCtx.createLoopCfaInfo(nested, loop);
+            mGenCtx.createLoopCfaInfo(nested, loop);
         }
 
         for (auto li = loops.rbegin(), le = loops.rend(); li != le; ++li) {
@@ -597,8 +597,10 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
     Location* exit)
 {
     if (succ == mEntryBlock) {
-        // If the target is the loop header (entry block), create a call to this same automaton.
-    
+        // If the target is the loop header (entry block), create a call to this same automaton.    
+        auto loc = mCfa->createLocation();
+        mCfa->createAssignTransition(exit, loc, succCondition);
+
         // Add possible calls arguments.
         // Due to the SSA-formed LLVM IR, regular inputs are not modified by loop iterations.
         // For PHI inputs, we need to determine which parent block to use for expression translation.
@@ -622,7 +624,7 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
             outputArgs.emplace_back(mGenInfo.ExitVariable, mGenInfo.ExitVariable->getRefExpr());
         }
 
-        mCfa->createCallTransition(exit, mCfa->getExit(), succCondition, mCfa, loopArgs, outputArgs);
+        mCfa->createCallTransition(loc, mCfa->getExit(), mExprBuilder.True(), mCfa, loopArgs, outputArgs);
     } else if (mGenInfo.Blocks.count(succ) != 0) {
         // Else if the target is is inside the block region, just create a simple edge.
         Location* to = mGenInfo.Blocks[succ].first;

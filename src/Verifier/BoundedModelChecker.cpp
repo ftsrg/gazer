@@ -294,8 +294,10 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
 
             this->push();
             if (lca != nullptr) {
+                LLVM_DEBUG(llvm::dbgs() << "Found LCA, " << lca->getId() << ".\n");
                 mSolver->add(forwardReachableCondition(start, lca));
             } else {
+                LLVM_DEBUG(llvm::dbgs() << "No calls present, LCA is " << start->getId() << ".\n");
                 lca = start;
             }
 
@@ -325,6 +327,9 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
 
             llvm::outs() << "    Calculating verification condition...\n";
             formula = this->forwardReachableCondition(lca, mError);
+            if (DumpFormula) {
+                formula->print(llvm::errs());
+            }
 
             llvm::outs() << "    Transforming formula...\n";
             mSolver->add(formula);
@@ -634,7 +639,7 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
         LLVM_DEBUG(llvm::dbgs() << "Callee input " << input->getName() << "\n"); 
         if (!callee->isOutput(input)) {
             auto varname = (input->getName() + suffix).str();
-            auto newInput = mRoot->createInput(varname, input->getType());
+            auto newInput = mRoot->createLocal(varname, input->getType());
             oldVarToNew[input] = newInput;
             vmap[newInput] = input;
             rewrite[input] = call->getInputArgument(i);
