@@ -323,7 +323,7 @@ template class FpCompareExpr<Expr::FGt>;
 template class FpCompareExpr<Expr::FGtEq>;
 template class FpCompareExpr<Expr::FLt>;
 template class FpCompareExpr<Expr::FLtEq>;
-}
+} // end namespace gazer
 
 //------------------------------- Utilities ---------------------------------//
 

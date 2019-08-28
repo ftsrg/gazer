@@ -13,6 +13,7 @@
 
 #include <llvm/Analysis/CFGPrinter.h>
 
+#include <llvm/AsmParser/Parser.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/SourceMgr.h>
@@ -27,6 +28,7 @@
 #include <llvm/Support/Signals.h>
 
 #include <string>
+#include <filesystem>
 
 using namespace gazer;
 using namespace llvm;
@@ -55,11 +57,22 @@ int main(int argc, char* argv[])
     llvm::EnableDebugBuffering = true;
 
     std::string input = InputFilename;
+    namespace fs = std::filesystem;
 
     llvm::LLVMContext llvmContext;
     llvm::SMDiagnostic err;
-    auto module = llvm::parseIRFile(input, err, llvmContext);
-    
+    std::unique_ptr<llvm::Module> module;
+
+    fs::path inputPath{InputFilename.c_str()};
+    if (inputPath.extension() == ".bc") {
+        module = llvm::parseIRFile(inputPath.c_str(), err, llvmContext);
+    } else if (inputPath.extension() == ".ll") {
+        module = llvm::parseAssemblyFile(inputPath.c_str(), err, llvmContext);
+    } else {
+        llvm::errs() << "ERROR: Input file must be an LLVM bitcode (.bc) or LLVM assembly (.ll) format.\n";
+        return 1;
+    }
+
     if (!module) {
         err.print("gazer-bmc", llvm::errs());
         return 1;

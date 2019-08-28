@@ -147,7 +147,7 @@ void Cfa::print(llvm::raw_ostream& os) const
         os << variable->getName() << " : " << variable->getType();
     };
 
-    auto printCallInput = [](llvm::raw_ostream& os, ExprPtr expr) {
+    auto printCallInput = [](llvm::raw_ostream& os, const ExprPtr& expr) {
         InfixPrintExpr(expr, os);
     };
 
@@ -202,7 +202,7 @@ void Cfa::print(llvm::raw_ostream& os) const
 
         if (auto assignEdge = llvm::dyn_cast<AssignTransition>(edge.get())) {
             os << indent1 << "{\n";
-            for (auto assign : *assignEdge) {
+            for (auto& assign : *assignEdge) {
                 os << indent2 << assign.getVariable()->getName()
                 << " := ";
                 InfixPrintExpr(assign.getValue(), os);
