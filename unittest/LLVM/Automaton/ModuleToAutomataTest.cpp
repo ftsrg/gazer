@@ -112,11 +112,6 @@ TEST_P(ModuleToCfaTest, TestWithoutMemoryModel)
     llvm::raw_string_ostream rso(buff);
     system->print(rso);
 
-    //llvm::errs() << rso.str();
-    //for (auto& cfa : *system) {
-    //    cfa.view();
-    //}
-
     auto expected = getResourceFile(model.mExpected);
 
     if (expected == "") {
@@ -156,6 +151,7 @@ std::vector<ModuleToCfaTestModel> GetTestModels()
         { "NestedLoops_Simple", "NestedLoops.ll", "NestedLoops_Simple.cfa", simpleConfig },
         { "LoopMultipleExits_Simple", "LoopMultipleExits.ll", "LoopMultipleExits_Simple.cfa", simpleConfig },
         { "PostTestLoop_Simple", "PostTestLoop.ll", "PostTestLoop_Simple.cfa", simpleConfig },
+        { "locks_bug0", "locks_bug0.ll", "locks_bug0.cfa", simpleConfig },
     };
 
 }

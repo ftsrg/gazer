@@ -52,6 +52,7 @@ procedure main/loop.header(main/loop.header/i : Bv32, main/loop.header/limit : B
     loc $1 final 
     loc $2
     loc $3
+    loc $4
 
     transition $0 -> $2
         assume true
@@ -65,8 +66,13 @@ procedure main/loop.header(main/loop.header/i : Bv32, main/loop.header/limit : B
         main/loop.header/cond := slt(main/loop.header/i1,main/loop.header/limit);
     };
 
-    transition $3 -> $1
+    transition $3 -> $4
         assume main/loop.header/cond
+    {
+    };
+
+    transition $4 -> $1
+        assume true
         call main/loop.header(main/loop.header/i1, main/loop.header/limit);
 
     transition $3 -> $1
