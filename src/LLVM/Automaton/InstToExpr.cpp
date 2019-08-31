@@ -1,4 +1,4 @@
-#include "gazer/LLVM/InstToExpr.h"
+#include "gazer/LLVM/Automaton/InstToExpr.h"
 
 #include <llvm/Support/Debug.h>
 
@@ -11,17 +11,22 @@ ExprPtr InstToExpr::transform(const llvm::Instruction& inst)
 {
     LLVM_DEBUG(llvm::dbgs() << "  Transforming instruction " << inst << "\n");
 #define HANDLE_INST(OPCODE, NAME)                                       \
-        else if (inst.getOpcode() == (OPCODE)) {                        \
+        if (inst.getOpcode() == (OPCODE)) {                        \
             return visit##NAME(*llvm::cast<llvm::NAME>(&inst));         \
         }                                                               \
 
     if (inst.isBinaryOp()) {
         return visitBinaryOperator(*dyn_cast<llvm::BinaryOperator>(&inst));
-    } else if (inst.isCast()) {
+    }
+    
+    if (inst.isCast()) {
         return visitCastInst(*dyn_cast<llvm::CastInst>(&inst));
-    } else if (auto gep = llvm::dyn_cast<llvm::GEPOperator>(&inst)) {
+    }
+    
+    if (auto gep = llvm::dyn_cast<llvm::GEPOperator>(&inst)) {
         return visitGEPOperator(*gep);
     }
+
     HANDLE_INST(Instruction::ICmp, ICmpInst)
     HANDLE_INST(Instruction::Call, CallInst)
     HANDLE_INST(Instruction::FCmp, FCmpInst)
@@ -94,7 +99,9 @@ ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop)
         }
 
         return mExprBuilder.Eq(variable->getRefExpr(), expr);
-    } else if (isFloatInstruction(opcode)) {
+    }
+    
+    if (isFloatInstruction(opcode)) {
         ExprPtr expr;
         switch (binop.getOpcode()) {
             case Instruction::FAdd:
@@ -110,9 +117,10 @@ ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop)
         }
 
         return expr;
-    } else {
-        const BvType* type = llvm::dyn_cast<BvType>(&variable->getType());
-        assert(type && "Arithmetic results must be integer types");
+    }
+    
+    if (variable->getType().isBvType()) {
+        const BvType* type = llvm::cast<BvType>(&variable->getType());
 
         auto intLHS = asInt(lhs, type->getWidth());
         auto intRHS = asInt(rhs, type->getWidth());
@@ -289,12 +297,18 @@ ExprPtr InstToExpr::visitCastInst(const llvm::CastInst& cast)
     if (cast.getOpcode() == Instruction::FPToSI) {
         auto& bvTy = this->translateTypeTo<BvType>(cast.getType());
         return mExprBuilder.FpToSigned(castOp, bvTy, llvm::APFloat::rmNearestTiesToEven);
-    } else if (cast.getOpcode() == Instruction::UIToFP) {
+    }
+    
+    if (cast.getOpcode() == Instruction::UIToFP) {
         auto& bvTy = this->translateTypeTo<BvType>(cast.getType());
         return mExprBuilder.FpToUnsigned(castOp, bvTy, llvm::APFloat::rmNearestTiesToEven);
-    } else if (castOp->getType().isBoolType()) {
+    }
+    
+    if (castOp->getType().isBoolType()) {
         return integerCast(cast, castOp, 1);
-    } else if (castOp->getType().isBvType()) {
+    }
+    
+    if (castOp->getType().isBvType()) {
         if (cast.getType()->isIntegerTy(1)
             && cast.getOpcode() == Instruction::Trunc
             && getVariable(&cast)->getType().isBoolType()    
@@ -358,7 +372,7 @@ ExprPtr InstToExpr::visitGEPOperator(const llvm::GEPOperator& gep)
 
 ExprPtr InstToExpr::operand(const Value* value)
 {
-    if (const ConstantInt* ci = dyn_cast<ConstantInt>(value)) {
+    if (auto ci = dyn_cast<ConstantInt>(value)) {
         // Check for boolean literals
         if (ci->getType()->isIntegerTy(1)) {
             return ci->isZero() ? mExprBuilder.False() : mExprBuilder.True();
@@ -368,23 +382,27 @@ ExprPtr InstToExpr::operand(const Value* value)
             ci->getValue().getLimitedValue(),
             ci->getType()->getIntegerBitWidth()
         );
-    } else if (const llvm::ConstantFP* cfp = dyn_cast<llvm::ConstantFP>(value)) {
+    }
+    
+    if (const llvm::ConstantFP* cfp = dyn_cast<llvm::ConstantFP>(value)) {
         return mExprBuilder.FloatLit(cfp->getValueAPF());
-    } /*else if (const llvm::ConstantPointerNull* ptr = dyn_cast<llvm::ConstantPointerNull>(value)) {
-        return mMemoryModel.getNullPointer();
-    } */ else if (isNonConstValue(value)) {
+    }
+    
+    if (isNonConstValue(value)) {
         auto result = this->lookupInlinedVariable(value);
         if (result != nullptr) {
             return result;
         }
 
         return getVariable(value)->getRefExpr();
-    } else if (isa<llvm::UndefValue>(value)) {
-        return mExprBuilder.Undef(this->translateType(value->getType()));
-    } else {
-        LLVM_DEBUG(llvm::dbgs() << "  Unhandled value for operand: " << *value << "\n");
-        llvm_unreachable("Unhandled value type");
     }
+    
+    if (isa<llvm::UndefValue>(value)) {
+        return mExprBuilder.Undef(this->translateType(value->getType()));
+    }
+    
+    LLVM_DEBUG(llvm::dbgs() << "  Unhandled value for operand: " << *value << "\n");
+    llvm_unreachable("Unhandled value type");
 }
 
 ExprPtr InstToExpr::asBool(const ExprPtr& operand)

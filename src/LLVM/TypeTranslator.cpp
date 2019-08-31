@@ -4,8 +4,8 @@
 
 using namespace gazer;
 
-LLVMTypeTranslator::LLVMTypeTranslator(MemoryModel& memoryModel)
-    : mMemoryModel(memoryModel)
+LLVMTypeTranslator::LLVMTypeTranslator(MemoryModel& memoryModel, bool intsAsBv)
+    : mMemoryModel(memoryModel), mIntsAsBv(intsAsBv)
 {}
 
 gazer::Type& LLVMTypeTranslator::get(const llvm::Type* type)
@@ -22,8 +22,11 @@ gazer::Type& LLVMTypeTranslator::get(const llvm::Type* type)
                 return BoolType::Get(ctx);
             }
 
+            if (mIntsAsBv) {
+                return BvType::Get(ctx, width);
+            }
 
-            return BvType::Get(ctx, width);
+            return IntType::Get(ctx);            
         }
         case llvm::Type::HalfTyID:
             return FloatType::Get(ctx, FloatType::Half);

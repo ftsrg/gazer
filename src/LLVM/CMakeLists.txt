@@ -11,10 +11,10 @@ set(SOURCE_FILES
     TestGenerator/TestGenerator.cpp
     Utils/LLVMType.cpp
     Automaton/ModuleToAutomata.cpp
+    Automaton/InstToExpr.cpp
     Verifier/BmcPass.cpp
     LLVMTraceBuilder.cpp
     TypeTranslator.cpp
-    InstToExpr.cpp
 )
 
 llvm_map_components_to_libnames(LLVM_LIBS support core irreader transformutils scalaropts ipo)
