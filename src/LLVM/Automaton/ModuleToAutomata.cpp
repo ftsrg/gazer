@@ -34,7 +34,7 @@ namespace gazer
     );
 
     cl::opt<bool> NoSimplifyExpr("no-simplify-expr", cl::desc("Do not simplify expessions."));
-}
+} // end namespace gazer
 
 static bool isDefinedInCaller(llvm::Value* value, llvm::ArrayRef<llvm::BasicBlock*> blocks)
 {
@@ -122,7 +122,9 @@ static llvm::Loop* getNestedLoopOf(GenerationContext& genCtx, CfaGenInfo& genInf
         }
 
         return nullptr;
-    } else if (std::holds_alternative<llvm::Function*>(genInfo.Source)) {
+    }
+    
+    if (std::holds_alternative<llvm::Function*>(genInfo.Source)) {
         assert(nested->getParentLoop() == nullptr && "Function are only allowed to enter into top-level loops");
         assert(nested->getHeader() == bb && "There is a jump into a loop block which is not its header. Perhaps the CFG is irreducible?");
         return nested->getParentLoop() == nullptr ? nested : nullptr;

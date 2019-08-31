@@ -14,12 +14,13 @@ class MemoryModel;
 class LLVMTypeTranslator final
 {
 public:
-    LLVMTypeTranslator(MemoryModel& memoryModel);
+    LLVMTypeTranslator(MemoryModel& memoryModel, bool intsAsBv = true);
 
     gazer::Type& get(const llvm::Type* type);
 
 protected:
     MemoryModel& mMemoryModel;
+    bool mIntsAsBv;
 };
 
 }

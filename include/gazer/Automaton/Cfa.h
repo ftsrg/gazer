@@ -374,6 +374,7 @@ private:
 
 private:
     std::string mName;
+    GazerContext& mContext;
 
     std::vector<std::unique_ptr<Location>> mLocations;
     std::vector<std::unique_ptr<Transition>> mTransitions;
@@ -394,8 +395,8 @@ private:
 
     Cfa* mParentAutomaton = nullptr;
     std::vector<Cfa*> mNestedAutomata;
+    ExprVector mPostConditions;
 
-    GazerContext& mContext;
     unsigned int mLocationIdx = 0;
 };
 

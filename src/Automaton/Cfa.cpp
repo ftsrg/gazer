@@ -77,7 +77,7 @@ CallTransition *Cfa::createCallTransition(Location *source, Location *target, co
     assert(source != nullptr);
     assert(target != nullptr);
 
-    auto call = new CallTransition(source, target, guard, callee, inputArgs, outputArgs);
+    auto call = new CallTransition(source, target, guard, callee, std::move(inputArgs), std::move(outputArgs));
     mTransitions.emplace_back(call);
     source->addOutgoing(call);
     target->addIncoming(call);
@@ -92,7 +92,14 @@ CallTransition *Cfa::createCallTransition(
     std::vector<ExprPtr> inputArgs,
     std::vector<VariableAssignment> outputArgs)
 {
-    return createCallTransition(source, target, BoolLiteralExpr::True(mContext), callee, inputArgs, outputArgs);
+    return createCallTransition(
+        source,
+        target,
+        BoolLiteralExpr::True(mContext),
+        callee,
+        std::move(inputArgs),
+        std::move(outputArgs)
+    );
 }
 
 void Cfa::addErrorCode(Location* location, ExprPtr errorCodeExpr)
@@ -293,7 +300,7 @@ void Location::removeOutgoing(Transition *edge)
 AssignTransition::AssignTransition(
     Location *source, Location *target, ExprPtr guard,
     std::vector<VariableAssignment> assignments
-) : Transition(source, target, guard, Transition::Edge_Assign), mAssignments(std::move(assignments))
+) : Transition(source, target, std::move(guard), Transition::Edge_Assign), mAssignments(std::move(assignments))
 {}
 
 CallTransition::CallTransition(

@@ -6,7 +6,7 @@
 #include "gazer/Automaton/Cfa.h"
 #include "gazer/LLVM/Analysis/MemoryObject.h"
 
-#include "gazer/LLVM/InstToExpr.h"
+#include "gazer/LLVM/Automaton/InstToExpr.h"
 
 #include <llvm/IR/Function.h>
 #include <llvm/IR/InstrTypes.h>

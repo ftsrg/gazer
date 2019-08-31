@@ -1,7 +1,7 @@
 SET(TEST_SOURCES
     Analysis/MemoryObjectTest.cpp
     Automaton/ModuleToAutomataTest.cpp
-    InstToExprTest.cpp
+    Automaton/InstToExprTest.cpp
     GazerLLVMTest_main.cpp
 )
 
