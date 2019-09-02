@@ -11,7 +11,7 @@ set(SOURCE_FILES
     Expr/ExprEvaluator.cpp
     Expr/ConstantFolder.cpp
     Expr/ExprRewrite.cpp
-    Expr/ExprUtils.cpp    
+    Expr/ExprUtils.cpp
 )
 
 add_library(GazerCore ${SOURCE_FILES})

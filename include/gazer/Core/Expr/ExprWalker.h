@@ -1,0 +1,328 @@
+#ifndef GAZER_CORE_EXPR_EXPRWALKER_H
+#define GAZER_CORE_EXPR_EXPRWALKER_H
+
+#include "gazer/Core/Expr.h"
+#include "gazer/Core/ExprTypes.h"
+#include "gazer/Core/LiteralExpr.h"
+
+#include <llvm/Support/raw_ostream.h>
+#include <boost/dynamic_bitset.hpp>
+
+#include <stack>
+
+namespace gazer
+{
+
+/// Generic walker interface for expressions.
+/// 
+/// This class avoids recursion by using an explicit stack on the heap instead
+/// of the normal call stack. This allows us to avoid stack overflow errors in
+/// the case of large input expressions. The order of the traversal is fixed
+/// to be post-order, thus all (translated/visited) operands of an expression
+/// are available in the visit() method.
+/// 
+/// Operands may be retrieved by calling the getOperand(size_t) method.
+template<class DerivedT, class ReturnT>
+class ExprWalker
+{
+    struct Frame
+    {
+        ExprPtr mExpr;
+        size_t mIndex;
+        Frame* mParent = nullptr;
+        Frame* mNext = nullptr;
+        size_t mState = 0;
+        std::vector<ReturnT> mVisitedOps;
+
+        Frame(ExprPtr expr, size_t index, Frame* parent)
+            : mExpr(std::move(expr)), mIndex(index),
+            mParent(parent), mVisitedOps(
+                mExpr->isNullary() ? 0 : llvm::cast<NonNullaryExpr>(mExpr)->getNumOperands()
+            )
+        {}
+
+        bool isFinished() const
+        {
+            return mExpr->isNullary() || llvm::cast<NonNullaryExpr>(mExpr)->getNumOperands() == mState;
+        }
+    };
+
+public:
+    ExprWalker()
+        : mTop(nullptr)
+    {}
+
+    ExprWalker(const ExprWalker&) = delete;
+    ExprWalker& operator=(ExprWalker&) = delete;
+
+public:
+    ReturnT visit(const ExprPtr& expr)
+    {
+        static_assert(
+            std::is_base_of_v<ExprWalker, DerivedT>,
+            "The derived type must be passed to the ExprWalker!"
+        );
+
+        assert(mTop == nullptr);
+        mTop = new Frame(expr, 0, nullptr);
+
+        while (mTop != nullptr) {
+            Frame* current = mTop;
+
+            if (current->isFinished()) {
+                ReturnT ret = this->doVisit(mTop, current->mExpr);
+                Frame* parent = current->mParent;
+                size_t idx = current->mIndex;
+                delete current;
+
+                if (LLVM_LIKELY(parent != nullptr)) {
+                    parent->mVisitedOps[idx] = std::move(ret);
+                    mTop = parent;
+                    continue;
+                }
+                
+                mTop = nullptr;
+                return std::move(ret);
+            }
+
+            auto nn = llvm::cast<NonNullaryExpr>(current->mExpr);
+            size_t i = current->mState;
+
+            auto frame = new Frame(nn->getOperand(i), i, current);
+            mTop = frame;
+            current->mState++;
+        }
+
+        llvm_unreachable("Invalid walker state!");
+    }
+
+public:
+    /// Returns the operand of index \p i of the topmost frame.
+    [[nodiscard]] ReturnT getOperand(size_t i) const
+    {
+        assert(mTop != nullptr);
+        assert(i < mTop->mVisitedOps.size());
+        return mTop->mVisitedOps[i];
+    }
+
+protected:
+    void visitExpr(const ExprPtr& expr) {}
+
+    ReturnT visitNonNullary(const ExprRef<NonNullaryExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitExpr(expr);
+    }
+
+    // Nullary
+    ReturnT visitUndef(const ExprRef<UndefExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitExpr(expr);
+    }
+    ReturnT visitLiteral(const ExprRef<LiteralExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitExpr(expr);
+    }
+    ReturnT visitVarRef(const ExprRef<VarRefExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitExpr(expr);
+    }
+
+    // Unary
+    ReturnT visitNot(const ExprRef<NotExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitZExt(const ExprRef<ZExtExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitSExt(const ExprRef<SExtExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitExtract(const ExprRef<ExtractExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+
+    // Binary
+    ReturnT visitAdd(const ExprRef<AddExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitSub(const ExprRef<SubExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitMul(const ExprRef<MulExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitDiv(const ExprRef<DivExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+
+    ReturnT visitBvSDiv(const ExprRef<BvSDivExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitBvUDiv(const ExprRef<BvUDivExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitBvSRem(const ExprRef<BvSRemExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitBvURem(const ExprRef<BvURemExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+
+    ReturnT visitShl(const ExprRef<ShlExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitLShr(const ExprRef<LShrExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitAShr(const ExprRef<AShrExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitBvAnd(const ExprRef<BvAndExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitBvOr(const ExprRef<BvOrExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitBvXor(const ExprRef<BvXorExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+
+    // Logic
+    ReturnT visitAnd(const ExprRef<AndExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitOr(const ExprRef<OrExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitXor(const ExprRef<XorExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitImply(const ExprRef<ImplyExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+
+    // Compare
+    ReturnT visitEq(const ExprRef<EqExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitNotEq(const ExprRef<NotEqExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    
+    ReturnT visitSLt(const ExprRef<SLtExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitSLtEq(const ExprRef<SLtEqExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitSGt(const ExprRef<SGtExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitSGtEq(const ExprRef<SGtEqExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+
+    ReturnT visitULt(const ExprRef<ULtExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitULtEq(const ExprRef<ULtEqExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitUGt(const ExprRef<UGtExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitUGtEq(const ExprRef<UGtEqExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+
+    // Floating-point queries
+    ReturnT visitFIsNan(const ExprRef<FIsNanExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitFIsInf(const ExprRef<FIsInfExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+
+    // Floating-point casts
+    ReturnT visitFCast(const ExprRef<FCastExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+
+    ReturnT visitSignedToFp(const ExprRef<SignedToFpExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitUnsignedToFp(const ExprRef<UnsignedToFpExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitFpToSigned(const ExprRef<FpToSignedExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitFpToUnsigned(const ExprRef<FpToUnsignedExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+
+    // Floating-point arithmetic
+    ReturnT visitFAdd(const ExprRef<FAddExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitFSub(const ExprRef<FSubExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitFMul(const ExprRef<FMulExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitFDiv(const ExprRef<FDivExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+
+    // Floating-point compare
+    ReturnT visitFEq(const ExprRef<FEqExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitFGt(const ExprRef<FGtExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitFGtEq(const ExprRef<FGtEqExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitFLt(const ExprRef<FLtExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitFLtEq(const ExprRef<FLtEqExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+
+    // Ternary
+    ReturnT visitSelect(const ExprRef<SelectExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+
+    // Arrays
+    ReturnT visitArrayRead(const ExprRef<ArrayReadExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+
+    ReturnT visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+
+private:
+    ReturnT doVisit(Frame* top, const ExprPtr& expr)
+    {
+        #define GAZER_EXPR_KIND(KIND)                                       \
+            case Expr::KIND:                                                \
+                return static_cast<DerivedT*>(this)->visit##KIND(           \
+                    llvm::cast<KIND##Expr>(expr)                            \
+                );                                                          \
+
+        switch (expr->getKind()) {
+            #include "gazer/Core/Expr/ExprKind.inc"
+        }
+
+        llvm_unreachable("Unknown expression kind!");
+
+        #undef GAZER_EXPR_KIND
+    }
+private:
+    Frame* mTop;
+};
+
+} // end namespace gazer
+
+#endif

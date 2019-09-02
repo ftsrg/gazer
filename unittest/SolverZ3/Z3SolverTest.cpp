@@ -9,7 +9,7 @@ using namespace gazer;
 TEST(SolverZ3Test, SmokeTest1)
 {
     GazerContext ctx;
-    Z3SolverFactory factory(false);
+    Z3SolverFactory factory(/*cache=*/false);
     auto solver = factory.createSolver(ctx);
 
     auto a = ctx.createVariable("A", BoolType::Get(ctx));
