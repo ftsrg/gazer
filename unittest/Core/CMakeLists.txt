@@ -5,6 +5,7 @@ SET(TEST_SOURCES
     Expr/MatcherTest.cpp
     Expr/ExprPrinterTest.cpp
     Expr/ExprEvaluatorTest.cpp
+    Expr/ExprWalkerTest.cpp
     core_tests.cpp
 )
 

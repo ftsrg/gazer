@@ -56,3 +56,27 @@ TEST(Expr, CanCreateLiteralExpressions)
     EXPECT_EQ(rOne->getValue(), 1);
     EXPECT_EQ(rHalf->getValue(), boost::rational<long long int>(1, 2));
 }
+
+TEST(Expr, CanFormExpressionDAG)
+{
+    GazerContext context;
+
+    auto eq = EqExpr::Create(
+        BvLiteralExpr::Get(BvType::Get(context, 32), llvm::APInt{32, 0}),
+        ZExtExpr::Create(
+            context.createVariable("a", BvType::Get(context, 8))->getRefExpr(),
+            BvType::Get(context, 32)
+        )
+    );
+
+    auto expr = ImplyExpr::Create(
+        AndExpr::Create(
+            BoolLiteralExpr::True(BoolType::Get(context)),
+            eq
+        ),
+        OrExpr::Create(
+            eq,
+            BoolLiteralExpr::False(BoolType::Get(context))
+        )
+    );
+}

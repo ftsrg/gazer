@@ -1,6 +1,6 @@
 #include "gazer/Z3Solver/Z3Solver.h"
 
-#include "gazer/Core/ExprVisitor.h"
+#include "gazer/Core/Expr/ExprWalker.h"
 
 #include "gazer/ADT/ScopedCache.h"
 #include "gazer/Support/Float.h"
@@ -13,6 +13,69 @@ using namespace gazer;
 
 namespace
 {
+
+class Z3AstHandle
+{
+public:
+    Z3AstHandle()
+        : mContext(nullptr), mAst(nullptr)
+    {}
+
+    Z3AstHandle(Z3_context context, Z3_ast ast)
+        : mContext(context), mAst(ast)
+    {
+        assert(context != nullptr);
+        assert(ast != nullptr);
+        Z3_inc_ref(mContext, mAst);
+    }
+
+    Z3AstHandle(const Z3AstHandle& other)
+        : mContext(other.mContext), mAst(other.mAst)
+    {
+        if (mContext != nullptr && mAst != nullptr) {
+            Z3_inc_ref(mContext, mAst);
+        }
+    }
+
+    Z3AstHandle& operator=(const Z3AstHandle& other)
+    {
+        if (mContext == nullptr && mAst == nullptr) {
+            mContext = other.mContext;
+        }
+
+        assert(mContext == other.mContext);
+        // If mAst is not null then the context should not be null either.
+        assert(mAst == nullptr || mContext != nullptr);
+
+        if (mContext != nullptr && mAst != nullptr) {
+            Z3_dec_ref(mContext, mAst);
+        }
+        mAst = other.mAst;
+        if (mContext != nullptr && mAst != nullptr) {
+            Z3_inc_ref(mContext, mAst);
+        }
+
+        return *this;
+    }
+
+    /*implicit*/ operator Z3_ast()
+    {
+        assert(mContext != nullptr);
+        assert(mAst != nullptr);
+
+        return mAst;
+    }
+
+    ~Z3AstHandle()
+    {
+        if (mContext != nullptr && mAst != nullptr) {
+            Z3_dec_ref(mContext, mAst);
+        }
+    }
+private:
+    Z3_context mContext;
+    Z3_ast mAst;
+};
 
 class Z3Solver : public Solver
 {
@@ -42,7 +105,7 @@ protected:
 class CachingZ3Solver final : public Z3Solver
 {
 public:
-    using CacheMapT = ScopedCache<ExprPtr, Z3_ast, std::unordered_map<ExprPtr, Z3_ast>>;
+    using CacheMapT = ScopedCache<ExprPtr, Z3AstHandle, std::unordered_map<ExprPtr, Z3AstHandle>>;
     using Z3Solver::Z3Solver;
 
 protected:
@@ -56,7 +119,7 @@ private:
     CacheMapT mCache;
 };
 
-class Z3ExprTransformer : public ExprVisitor<z3::expr>
+class Z3ExprTransformer : public ExprWalker<Z3ExprTransformer, Z3AstHandle>
 {
 public:
     Z3ExprTransformer(z3::context& context, unsigned& tmpCount)
@@ -64,6 +127,11 @@ public:
     {}
 
 protected:
+    Z3AstHandle createHandle(Z3_ast ast)
+    {
+        return Z3AstHandle{mZ3Context, ast};
+    }
+
     z3::sort typeToSort(const Type* type)
     {
         switch (type->getTypeID()) {
@@ -103,34 +171,42 @@ protected:
 
         llvm_unreachable("Unsupported gazer type for Z3Solver");
     }
-
-    z3::expr visitExpr(const ExprPtr& expr) override {
+public:
+    Z3AstHandle visitExpr(const ExprPtr& expr)
+    {
         llvm_unreachable("Unhandled expression type in Z3ExprTransformer.");
     }
 
-    z3::expr visitUndef(const ExprRef<UndefExpr>& expr) override {
+    Z3AstHandle visitUndef(const ExprRef<UndefExpr>& expr)
+    {
         std::string name = "__gazer_undef:" + std::to_string(mTmpCount++);
 
-        return mZ3Context.constant(name.c_str(), typeToSort(&expr->getType()));
+        return createHandle(
+            Z3_mk_const(mZ3Context, Z3_mk_string_symbol(mZ3Context, name.c_str()), typeToSort(&expr->getType()))
+        );
     }
 
-    z3::expr visitLiteral(const ExprRef<LiteralExpr>& expr) override
+    Z3AstHandle visitLiteral(const ExprRef<LiteralExpr>& expr)
     {
         if (expr->getType().isBvType()) {
             auto lit = llvm::dyn_cast<BvLiteralExpr>(&*expr);
             auto value = lit->getValue();
 
-            return mZ3Context.bv_val(value.getLimitedValue(), lit->getType().getWidth());
+            return createHandle(
+                Z3_mk_unsigned_int64(mZ3Context, value.getLimitedValue(), typeToSort(&lit->getType()))
+            );
         }
         
         if (expr->getType().isBoolType()) {
             auto value = llvm::dyn_cast<BoolLiteralExpr>(&*expr)->getValue();
-            return mZ3Context.bool_val(value);
+            return createHandle(value ? Z3_mk_true(mZ3Context) : Z3_mk_false(mZ3Context));
         }
         
         if (expr->getType().isIntType()) {
             int64_t value = llvm::dyn_cast<IntLiteralExpr>(&*expr)->getValue();
-            return mZ3Context.int_val(value);    
+            return createHandle(
+                Z3_mk_unsigned_int64(mZ3Context, value, Z3_mk_int_sort(mZ3Context))
+            );
         }
         
         if (expr->getType().isFloatType()) {
@@ -138,11 +214,11 @@ protected:
             auto value = llvm::dyn_cast<FloatLiteralExpr>(&*expr)->getValue();
             
             if (fltTy->getPrecision() == FloatType::Single) {
-                return z3::expr(mZ3Context, Z3_mk_fpa_numeral_float(
+                return createHandle(Z3_mk_fpa_numeral_float(
                     mZ3Context, value.convertToFloat(), typeToSort(fltTy)
                 ));
             } else if (fltTy->getPrecision() == FloatType::Double) {
-                return z3::expr(mZ3Context, Z3_mk_fpa_numeral_double(
+                return createHandle(Z3_mk_fpa_numeral_double(
                     mZ3Context, value.convertToDouble(), typeToSort(fltTy)
                 ));
             }
@@ -151,297 +227,392 @@ protected:
         llvm_unreachable("Unsupported operand type.");
     }
 
-    z3::expr visitVarRef(const ExprRef<VarRefExpr>& expr) override
+    Z3AstHandle visitVarRef(const ExprRef<VarRefExpr>& expr)
     {
         auto name = expr->getVariable().getName();
-        return mZ3Context.constant(name.c_str(), typeToSort(&expr->getType()));
+        return createHandle(
+            Z3_mk_const(mZ3Context, Z3_mk_string_symbol(mZ3Context, name.c_str()), typeToSort(&expr->getType()))
+        );
     }
 
     // Unary
-    z3::expr visitNot(const ExprRef<NotExpr>& expr) override {
-        if (auto eq = llvm::dyn_cast<EqExpr>(expr->getOperand())) {
-            return visit(eq->getLeft()) != visit(eq->getRight());
-        }
-
-        return !(visit(expr->getOperand()));
+    Z3AstHandle visitNot(const ExprRef<NotExpr>& expr)
+    {
+        return createHandle(Z3_mk_not(mZ3Context, getOperand(0)));
     }
 
-    z3::expr visitZExt(const ExprRef<ZExtExpr>& expr) override {
-        return z3::zext(visit(expr->getOperand()), expr->getWidthDiff());
+    Z3AstHandle visitZExt(const ExprRef<ZExtExpr>& expr)
+    {
+        return createHandle(Z3_mk_zero_ext(mZ3Context, expr->getWidthDiff(), getOperand(0)));
     }
-    z3::expr visitSExt(const ExprRef<SExtExpr>& expr) override {
-        return z3::sext(visit(expr->getOperand()), expr->getWidthDiff());
+
+    Z3AstHandle visitSExt(const ExprRef<SExtExpr>& expr)
+    {
+        return createHandle(Z3_mk_sign_ext(mZ3Context, expr->getWidthDiff(), getOperand(0)));
     }
-    z3::expr visitExtract(const ExprRef<ExtractExpr>& expr) override {
+
+    Z3AstHandle visitExtract(const ExprRef<ExtractExpr>& expr)
+    {
         unsigned hi = expr->getOffset() + expr->getWidth() - 1;
         unsigned lo = expr->getOffset();
 
-        return visit(expr->getOperand()).extract(hi, lo);
+        return createHandle(Z3_mk_extract(mZ3Context, hi, lo, getOperand(0)));
     }
 
     // Binary
-    z3::expr visitAdd(const ExprRef<AddExpr>& expr) override {
-        return visit(expr->getLeft()) + visit(expr->getRight());
-    }
-    z3::expr visitSub(const ExprRef<SubExpr>& expr) override {
-        return visit(expr->getLeft()) - visit(expr->getRight());
-    }
-    z3::expr visitMul(const ExprRef<MulExpr>& expr) override {
-        return visit(expr->getLeft()) * visit(expr->getRight());
+    Z3AstHandle visitAdd(const ExprRef<AddExpr>& expr)
+    {
+        if (expr->getType().isBvType()) {
+            return createHandle(Z3_mk_bvadd(mZ3Context, getOperand(0), getOperand(1)));
+        }
+
+        Z3_ast ops[2];
+        ops[0] = getOperand(0);
+        ops[1] = getOperand(1);
+
+        return createHandle(Z3_mk_add(mZ3Context, 2, ops));
     }
 
-    z3::expr visitBvSDiv(const ExprRef<BvSDivExpr>& expr) override {
-        return visit(expr->getLeft()) / visit(expr->getRight());
-    }
-    z3::expr visitBvUDiv(const ExprRef<BvUDivExpr>& expr) override {
-        return z3::udiv(visit(expr->getLeft()), visit(expr->getRight()));
-    }
-    z3::expr visitBvSRem(const ExprRef<BvSRemExpr>& expr) override {
-        return z3::srem(visit(expr->getLeft()), visit(expr->getRight()));
-    }
-    z3::expr visitBvURem(const ExprRef<BvURemExpr>& expr) override {
-        return z3::urem(visit(expr->getLeft()), visit(expr->getRight()));
+    Z3AstHandle visitSub(const ExprRef<SubExpr>& expr)
+    {
+        if (expr->getType().isBvType()) {
+            return createHandle(Z3_mk_bvsub(mZ3Context, getOperand(0), getOperand(1)));
+        }
+
+        Z3_ast ops[2];
+        ops[0] = getOperand(0);
+        ops[1] = getOperand(1);
+
+        return createHandle(Z3_mk_sub(mZ3Context, 2, ops));
     }
 
-    z3::expr visitShl(const ExprRef<ShlExpr>& expr) override {
-        return z3::shl(visit(expr->getLeft()), visit(expr->getRight()));
+    Z3AstHandle visitMul(const ExprRef<MulExpr>& expr)
+    {
+        if (expr->getType().isBvType()) {
+            return createHandle(Z3_mk_bvmul(mZ3Context, getOperand(0), getOperand(1)));
+        }
+
+        Z3_ast ops[2];
+        ops[0] = getOperand(0);
+        ops[1] = getOperand(1);
+
+        return createHandle(Z3_mk_mul(mZ3Context, 2, ops));
     }
-    z3::expr visitLShr(const ExprRef<LShrExpr>& expr) override {
-        return z3::lshr(visit(expr->getLeft()), visit(expr->getRight()));
+
+    Z3AstHandle visitBvSDiv(const ExprRef<BvSDivExpr>& expr)
+    {
+        return createHandle(Z3_mk_bvsdiv(mZ3Context, getOperand(0), getOperand(1)));
     }
-    z3::expr visitAShr(const ExprRef<AShrExpr>& expr) override {
-        return z3::ashr(visit(expr->getLeft()), visit(expr->getRight()));
+
+    Z3AstHandle visitBvUDiv(const ExprRef<BvUDivExpr>& expr)
+    {
+        return createHandle(Z3_mk_bvudiv(mZ3Context, getOperand(0), getOperand(1)));
     }
-    z3::expr visitBvAnd(const ExprRef<BvAndExpr>& expr) override {
-        return visit(expr->getLeft()) & visit(expr->getRight());
+
+    Z3AstHandle visitBvSRem(const ExprRef<BvSRemExpr>& expr)
+    {
+        return createHandle(Z3_mk_bvsrem(mZ3Context, getOperand(0), getOperand(1)));
     }
-    z3::expr visitBvOr(const ExprRef<BvOrExpr>& expr) override {
-        return visit(expr->getLeft()) | visit(expr->getRight());
+
+    Z3AstHandle visitBvURem(const ExprRef<BvURemExpr>& expr)
+    {
+        return createHandle(Z3_mk_bvurem(mZ3Context, getOperand(0), getOperand(1)));
+    }    
+
+    Z3AstHandle visitShl(const ExprRef<ShlExpr>& expr)
+    {
+        return createHandle(Z3_mk_bvshl(mZ3Context, getOperand(0), getOperand(1)));
     }
-    z3::expr visitBvXor(const ExprRef<BvXorExpr>& expr) override {
-        return visit(expr->getLeft()) ^ visit(expr->getRight());
+
+    Z3AstHandle visitLShr(const ExprRef<LShrExpr>& expr)
+    {
+        return createHandle(Z3_mk_bvlshr(mZ3Context, getOperand(0), getOperand(1)));
+    }
+
+    Z3AstHandle visitAShr(const ExprRef<AShrExpr>& expr)
+    {
+        return createHandle(Z3_mk_bvashr(mZ3Context, getOperand(0), getOperand(1)));
+    }
+
+    Z3AstHandle visitBvAnd(const ExprRef<BvAndExpr>& expr)
+    {
+        return createHandle(Z3_mk_bvand(mZ3Context, getOperand(0), getOperand(1)));
+    }
+
+    Z3AstHandle visitBvOr(const ExprRef<BvOrExpr>& expr)
+    {
+        return createHandle(Z3_mk_bvor(mZ3Context, getOperand(0), getOperand(1)));
+    }
+
+    Z3AstHandle visitBvXor(const ExprRef<BvXorExpr>& expr)
+    {
+        return createHandle(Z3_mk_bvxor(mZ3Context, getOperand(0), getOperand(1)));
     }
 
     // Logic
-    z3::expr visitAnd(const ExprRef<AndExpr>& expr) override {
-        z3::expr_vector ops(mZ3Context);
-
-        for (ExprPtr& op : expr->operands()) {
-            ops.push_back(visit(op));
+    Z3AstHandle visitAnd(const ExprRef<AndExpr>& expr)
+    {
+        z3::array<Z3_ast> ops(expr->getNumOperands());
+        for (size_t i = 0; i < ops.size(); ++i) {
+            ops[i] = getOperand(i);
         }
-
-        return z3::mk_and(ops);
+    
+        return createHandle(Z3_mk_and(mZ3Context, expr->getNumOperands(), ops.ptr()));
     }
 
-    z3::expr visitOr(const ExprRef<OrExpr>& expr) override {
-        z3::expr_vector ops(mZ3Context);
-
-        for (ExprPtr& op : expr->operands()) {
-            ops.push_back(visit(op));
+    Z3AstHandle visitOr(const ExprRef<OrExpr>& expr)
+    {
+        z3::array<Z3_ast> ops(expr->getNumOperands());
+        for (size_t i = 0; i < expr->getNumOperands(); ++i) {
+            ops[i] = getOperand(i);
         }
-
-        return z3::mk_or(ops);
+    
+        return createHandle(Z3_mk_or(mZ3Context, expr->getNumOperands(), ops.ptr()));
     }
 
-    z3::expr visitXor(const ExprRef<XorExpr>& expr) override {
+    Z3AstHandle visitXor(const ExprRef<XorExpr>& expr)
+    {
         assert(expr->getType().isBoolType() && "Can only handle boolean XORs");
+        Z3_ast ops[2] = { getOperand(0), getOperand(1) };
 
-        return visit(expr->getLeft()) != visit(expr->getRight());
+        return createHandle(Z3_mk_distinct(mZ3Context, 2, ops));
     }
 
-    z3::expr visitImply(const ExprRef<ImplyExpr>& expr) override {
+    Z3AstHandle visitImply(const ExprRef<ImplyExpr>& expr)
+    {
         assert(expr->getType().isBoolType() && "Can only handle boolean implications");
 
-        return z3::implies(visit(expr->getLeft()), visit(expr->getRight()));
+        return createHandle(Z3_mk_implies(mZ3Context, getOperand(0), getOperand(1)));
     }
 
     // Compare
-    z3::expr visitEq(const ExprRef<EqExpr>& expr) override {
-        return visit(expr->getLeft()) == visit(expr->getRight());
-    }
-    z3::expr visitNotEq(const ExprRef<NotEqExpr>& expr) override {
-        return visit(expr->getLeft()) != visit(expr->getRight());
+    Z3AstHandle visitEq(const ExprRef<EqExpr>& expr)
+    {
+        return createHandle(Z3_mk_eq(mZ3Context, getOperand(0), getOperand(1)));
     }
 
-    z3::expr visitSLt(const ExprRef<SLtExpr>& expr) override {
-        return visit(expr->getLeft()) < visit(expr->getRight());
-    }
-    z3::expr visitSLtEq(const ExprRef<SLtEqExpr>& expr) override {
-        return visit(expr->getLeft()) <= visit(expr->getRight());
-    }
-    z3::expr visitSGt(const ExprRef<SGtExpr>& expr) override {
-        return visit(expr->getLeft()) > visit(expr->getRight());
-    }
-    z3::expr visitSGtEq(const ExprRef<SGtEqExpr>& expr) override {
-        return visit(expr->getLeft()) >= visit(expr->getRight());
+    Z3AstHandle visitNotEq(const ExprRef<NotEqExpr>& expr)
+    {
+        Z3_ast ops[2] = { getOperand(0), getOperand(1) };
+        return createHandle(Z3_mk_distinct(mZ3Context, 2, ops));
     }
 
-    z3::expr visitULt(const ExprRef<ULtExpr>& expr) override {
-        return z3::ult(visit(expr->getLeft()), visit(expr->getRight()));
+    Z3AstHandle visitSLt(const ExprRef<SLtExpr>& expr)
+    {
+        return createHandle(Z3_mk_bvslt(mZ3Context, getOperand(0), getOperand(1)));
     }
-    z3::expr visitULtEq(const ExprRef<ULtEqExpr>& expr) override {
-        return z3::ule(visit(expr->getLeft()), visit(expr->getRight()));
+
+    Z3AstHandle visitSLtEq(const ExprRef<SLtEqExpr>& expr)
+    {
+        return createHandle(Z3_mk_bvsle(mZ3Context, getOperand(0), getOperand(1)));
     }
-    z3::expr visitUGt(const ExprRef<UGtExpr>& expr) override {
-        return z3::ugt(visit(expr->getLeft()), visit(expr->getRight()));
+
+    Z3AstHandle visitSGt(const ExprRef<SGtExpr>& expr)
+    {
+        return createHandle(Z3_mk_bvsgt(mZ3Context, getOperand(0), getOperand(1)));
     }
-    z3::expr visitUGtEq(const ExprRef<UGtEqExpr>& expr) override {
-        return z3::uge(visit(expr->getLeft()), visit(expr->getRight()));
+
+    Z3AstHandle visitSGtEq(const ExprRef<SGtEqExpr>& expr)
+    {
+        return createHandle(Z3_mk_bvsge(mZ3Context, getOperand(0), getOperand(1)));
     }
+
+    Z3AstHandle visitULt(const ExprRef<ULtExpr>& expr)
+    {
+        return createHandle(Z3_mk_bvult(mZ3Context, getOperand(0), getOperand(1)));
+    }
+
+    Z3AstHandle visitULtEq(const ExprRef<ULtEqExpr>& expr)
+    {
+        return createHandle(Z3_mk_bvule(mZ3Context, getOperand(0), getOperand(1)));
+    }
+
+    Z3AstHandle visitUGt(const ExprRef<UGtExpr>& expr)
+    {
+        return createHandle(Z3_mk_bvugt(mZ3Context, getOperand(0), getOperand(1)));
+    }
+
+    Z3AstHandle visitUGtEq(const ExprRef<UGtEqExpr>& expr)
+    {
+        return createHandle(Z3_mk_bvuge(mZ3Context, getOperand(0), getOperand(1)));
+    }
+
 
     // Floating-point queries
-    z3::expr visitFIsNan(const ExprRef<FIsNanExpr>& expr) override {
-        return z3::expr(mZ3Context, Z3_mk_fpa_is_nan(mZ3Context, visit(expr->getOperand())));
-    }
-    z3::expr visitFIsInf(const ExprRef<FIsInfExpr>& expr) override {
-        return z3::expr(mZ3Context, Z3_mk_fpa_is_infinite(mZ3Context, visit(expr->getOperand())));
+    Z3AstHandle visitFIsNan(const ExprRef<FIsNanExpr>& expr)
+    {
+        return createHandle(Z3_mk_fpa_is_nan(mZ3Context, getOperand(0)));
     }
 
+    Z3AstHandle visitFIsInf(const ExprRef<FIsInfExpr>& expr)
+    {
+        return createHandle(Z3_mk_fpa_is_infinite(mZ3Context, getOperand(0)));
+    }
+
+
     // Floating-point casts
-    z3::expr visitFCast(const ExprRef<FCastExpr>& expr) override {
-        return z3::expr(mZ3Context, Z3_mk_fpa_to_fp_float(
+    Z3AstHandle visitFCast(const ExprRef<FCastExpr>& expr)
+    {
+        return createHandle(Z3_mk_fpa_to_fp_float(
             mZ3Context,
             transformRoundingMode(expr->getRoundingMode()),
-            visit(expr->getOperand()),
+            getOperand(0),
             typeToSort(&expr->getType())            
         ));
     }
 
-    z3::expr visitSignedToFp(const ExprRef<SignedToFpExpr>& expr) override {
-        return z3::expr(mZ3Context, Z3_mk_fpa_to_fp_signed(
+    Z3AstHandle visitSignedToFp(const ExprRef<SignedToFpExpr>& expr)
+    {
+        return createHandle(Z3_mk_fpa_to_fp_signed(
             mZ3Context,
             transformRoundingMode(expr->getRoundingMode()),
-            visit(expr->getOperand()),
+            getOperand(0),
             typeToSort(&expr->getType())
         ));
     }
 
-    z3::expr visitUnsignedToFp(const ExprRef<UnsignedToFpExpr>& expr) override {
-        return z3::expr(mZ3Context, Z3_mk_fpa_to_fp_unsigned(
+    Z3AstHandle visitUnsignedToFp(const ExprRef<UnsignedToFpExpr>& expr)
+    {
+        return createHandle(Z3_mk_fpa_to_fp_unsigned(
             mZ3Context,
             transformRoundingMode(expr->getRoundingMode()),
-            visit(expr->getOperand()),
+            getOperand(0),
             typeToSort(&expr->getType())
         ));
     }
 
-    z3::expr visitFpToSigned(const ExprRef<FpToSignedExpr>& expr) override {
-        return z3::expr(mZ3Context, Z3_mk_fpa_to_sbv(
+    Z3AstHandle visitFpToSigned(const ExprRef<FpToSignedExpr>& expr)
+    {
+        return createHandle(Z3_mk_fpa_to_sbv(
             mZ3Context,
             transformRoundingMode(expr->getRoundingMode()),
-            visit(expr->getOperand()),
+            getOperand(0),
             llvm::cast<BvType>(&expr->getType())->getWidth()
         ));
     }
 
-    z3::expr visitFpToUnsigned(const ExprRef<FpToUnsignedExpr>& expr) override {
-        return z3::expr(mZ3Context, Z3_mk_fpa_to_ubv(
+    Z3AstHandle visitFpToUnsigned(const ExprRef<FpToUnsignedExpr>& expr)
+    {
+        return createHandle(Z3_mk_fpa_to_ubv(
             mZ3Context,
             transformRoundingMode(expr->getRoundingMode()),
-            visit(expr->getOperand()),
+            getOperand(0),
             llvm::cast<BvType>(&expr->getType())->getWidth()
         ));
     }
 
     // Floating-point arithmetic
-    z3::expr visitFAdd(const ExprRef<FAddExpr>& expr) override {
-        return z3::expr(mZ3Context, Z3_mk_fpa_add(
+
+    Z3AstHandle visitFAdd(const ExprRef<FAddExpr>& expr)
+    {
+        return createHandle(Z3_mk_fpa_add(
             mZ3Context,
             transformRoundingMode(expr->getRoundingMode()),
-            visit(expr->getLeft()),
-            visit(expr->getRight())
-        ));
-    }
-    z3::expr visitFSub(const ExprRef<FSubExpr>& expr) override {
-        return z3::expr(mZ3Context, Z3_mk_fpa_sub(
-            mZ3Context,
-            transformRoundingMode(expr->getRoundingMode()),
-            visit(expr->getLeft()),
-            visit(expr->getRight())
-        ));
-    }
-    z3::expr visitFMul(const ExprRef<FMulExpr>& expr) override {
-        return z3::expr(mZ3Context, Z3_mk_fpa_mul(
-            mZ3Context,
-            transformRoundingMode(expr->getRoundingMode()),
-            visit(expr->getLeft()),
-            visit(expr->getRight())
-        ));
-    }
-    z3::expr visitFDiv(const ExprRef<FDivExpr>& expr) override {
-        return z3::expr(mZ3Context, Z3_mk_fpa_div(
-            mZ3Context,
-            transformRoundingMode(expr->getRoundingMode()),
-            visit(expr->getLeft()),
-            visit(expr->getRight())
+            getOperand(0),
+            getOperand(1)
         ));
     }
 
-    z3::expr visitFEq(const ExprRef<FEqExpr>& expr) override {
-        return z3::expr(mZ3Context, Z3_mk_fpa_eq(
-            mZ3Context, visit(expr->getLeft()), visit(expr->getRight())
+    Z3AstHandle visitFSub(const ExprRef<FSubExpr>& expr)
+    {
+        return createHandle(Z3_mk_fpa_sub(
+            mZ3Context,
+            transformRoundingMode(expr->getRoundingMode()),
+            getOperand(0),
+            getOperand(1)
         ));
     }
-    z3::expr visitFGt(const ExprRef<FGtExpr>& expr) override {
-        return z3::expr(mZ3Context, Z3_mk_fpa_gt(
-            mZ3Context, visit(expr->getLeft()), visit(expr->getRight())
+
+    Z3AstHandle visitFMul(const ExprRef<FMulExpr>& expr)
+    {
+        return createHandle(Z3_mk_fpa_mul(
+            mZ3Context,
+            transformRoundingMode(expr->getRoundingMode()),
+            getOperand(0),
+            getOperand(1)
         ));
     }
-    z3::expr visitFGtEq(const ExprRef<FGtEqExpr>& expr) override {
-        return z3::expr(mZ3Context, Z3_mk_fpa_geq(
-            mZ3Context, visit(expr->getLeft()), visit(expr->getRight())
+
+    Z3AstHandle visitFDiv(const ExprRef<FDivExpr>& expr)
+    {
+        return createHandle(Z3_mk_fpa_div(
+            mZ3Context,
+            transformRoundingMode(expr->getRoundingMode()),
+            getOperand(0),
+            getOperand(1)
         ));
     }
-    z3::expr visitFLt(const ExprRef<FLtExpr>& expr) override {
-        return z3::expr(mZ3Context, Z3_mk_fpa_lt(
-            mZ3Context, visit(expr->getLeft()), visit(expr->getRight())
-        ));
+
+    Z3AstHandle visitFEq(const ExprRef<FEqExpr>& expr)
+    {
+        return createHandle(Z3_mk_fpa_eq(mZ3Context, getOperand(0), getOperand(1)));
     }
-    z3::expr visitFLtEq(const ExprRef<FLtEqExpr>& expr) override {
-        return z3::expr(mZ3Context, Z3_mk_fpa_leq(
-            mZ3Context, visit(expr->getLeft()), visit(expr->getRight())
-        ));
+
+    Z3AstHandle visitFGt(const ExprRef<FGtExpr>& expr)
+    {
+        return createHandle(Z3_mk_fpa_gt(mZ3Context, getOperand(0), getOperand(1)));
+    }
+
+    Z3AstHandle visitFGtEq(const ExprRef<FGtEqExpr>& expr)
+    {
+        return createHandle(Z3_mk_fpa_geq(mZ3Context, getOperand(0), getOperand(1)));
+    }
+
+    Z3AstHandle visitFLt(const ExprRef<FLtExpr>& expr)
+    {
+        return createHandle(Z3_mk_fpa_lt(mZ3Context, getOperand(0), getOperand(1)));
+    }
+
+    Z3AstHandle visitFLtEq(const ExprRef<FLtEqExpr>& expr)
+    {
+        return createHandle(Z3_mk_fpa_leq(mZ3Context, getOperand(0), getOperand(1)));
     }
 
     // Ternary
-    z3::expr visitSelect(const ExprRef<SelectExpr>& expr) override {
-        return z3::ite(
-            visit(expr->getCondition()),
-            visit(expr->getThen()),
-            visit(expr->getElse())
-        );
+    Z3AstHandle visitSelect(const ExprRef<SelectExpr>& expr)
+    {
+        return createHandle(Z3_mk_ite(
+            mZ3Context,
+            getOperand(0), // condition
+            getOperand(1), // then
+            getOperand(2)  // else
+        ));
     }
 
     // Arrays
-    z3::expr visitArrayRead(const ExprRef<ArrayReadExpr>& expr) override {
-        return z3::select(
-            visit(expr->getArrayRef()),
-            visit(expr->getIndex())
-        );
+    Z3AstHandle visitArrayRead(const ExprRef<ArrayReadExpr>& expr)
+    {
+        return createHandle(Z3_mk_select(
+            mZ3Context,
+            getOperand(0),
+            getOperand(1)
+        ));
     }
 
-    z3::expr visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr) override {
-        return z3::store(
-            visit(expr->getArrayRef()),
-            visit(expr->getIndex()),
-            visit(expr->getElementValue())
-        );
+    Z3AstHandle visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr)
+    {
+        return createHandle(Z3_mk_store(
+            mZ3Context,
+            getOperand(0),
+            getOperand(1),
+            getOperand(2)
+        ));
     }
 
 protected:
-    z3::expr transformRoundingMode(llvm::APFloat::roundingMode rm)
+    Z3_ast transformRoundingMode(llvm::APFloat::roundingMode rm)
     {
         switch (rm) {
             case llvm::APFloat::roundingMode::rmNearestTiesToEven:
-                return z3::expr(mZ3Context, Z3_mk_fpa_round_nearest_ties_to_even(mZ3Context));
+                return Z3_mk_fpa_round_nearest_ties_to_even(mZ3Context);
             case llvm::APFloat::roundingMode::rmNearestTiesToAway:
-                return z3::expr(mZ3Context, Z3_mk_fpa_round_nearest_ties_to_away(mZ3Context));
+                return Z3_mk_fpa_round_nearest_ties_to_away(mZ3Context);
             case llvm::APFloat::roundingMode::rmTowardPositive:
-                return z3::expr(mZ3Context, Z3_mk_fpa_round_toward_positive(mZ3Context));
+                return Z3_mk_fpa_round_toward_positive(mZ3Context);
             case llvm::APFloat::roundingMode::rmTowardNegative:
-                return z3::expr(mZ3Context, Z3_mk_fpa_round_toward_negative(mZ3Context));
+                return Z3_mk_fpa_round_toward_negative(mZ3Context);
             case llvm::APFloat::roundingMode::rmTowardZero:
-                return z3::expr(mZ3Context, Z3_mk_fpa_round_toward_zero(mZ3Context));
+                return Z3_mk_fpa_round_toward_zero(mZ3Context);
         }
 
         llvm_unreachable("Invalid rounding mode");
@@ -462,19 +633,19 @@ public:
         : Z3ExprTransformer(context, tmpCount), mCache(cache)   
     {}
 
-    z3::expr visit(const ExprPtr& expr) override
+    Z3AstHandle visit(const ExprPtr& expr)
     {
         if (expr->isNullary() || expr->isUnary()) {
-            return ExprVisitor::visit(expr);
+            return Z3ExprTransformer::visit(expr);
         }
 
         auto result = mCache.get(expr);
         if (result) {
-            return z3::expr(mZ3Context, *result);
+            return Z3AstHandle(mZ3Context, *result);
         }
 
-        auto z3Expr = ExprVisitor::visit(expr);
-        mCache.insert(expr, static_cast<Z3_ast>(z3Expr));
+        Z3AstHandle z3Expr = Z3ExprTransformer::visit(expr);
+        mCache.insert(expr, z3Expr);
 
         return z3Expr;
     }
@@ -501,7 +672,7 @@ void Z3Solver::addConstraint(ExprPtr expr)
 {
     Z3ExprTransformer transformer(mZ3Context, mTmpCount);
     auto z3Expr = transformer.visit(expr);
-    mSolver.add(z3Expr);
+    mSolver.add(z3::expr(mZ3Context, z3Expr));
 }
 
 void Z3Solver::reset()
@@ -535,7 +706,7 @@ void CachingZ3Solver::addConstraint(ExprPtr expr)
 {
     CachingZ3ExprTransformer transformer(mZ3Context, mTmpCount, mCache);
     auto z3Expr = transformer.visit(expr);
-    mSolver.add(z3Expr);
+    mSolver.add(z3::expr(mZ3Context, z3Expr));
 }
 
 void CachingZ3Solver::reset()
