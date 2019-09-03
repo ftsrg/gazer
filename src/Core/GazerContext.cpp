@@ -231,6 +231,12 @@ ExprStorage::~ExprStorage()
     delete[] mStorage;
 }
 
+void GazerContext::dumpStats(llvm::raw_ostream& os) const
+{
+    os << "Number of expressions: " << pImpl->Exprs.size() << "\n";
+    os << "Number of variables: " << pImpl->VariableTable.size() << "\n";
+}
+
 //-------------------------------- Resources --------------------------------//
 void GazerContext::addManagedResouce(ManagedResource* resource)
 {

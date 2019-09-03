@@ -274,6 +274,8 @@ public:
 
     void rehashTable(size_t newSize);
 
+    size_t size() const { return mEntryCount; }
+
 private:
 
     template<class ExprTy, class... ConstructorArgs>

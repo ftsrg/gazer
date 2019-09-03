@@ -1,6 +1,8 @@
 #include "gazer/Core/Expr/ExprWalker.h"
 #include "gazer/Core/Expr/ExprBuilder.h"
 
+#include <llvm/Support/raw_ostream.h>
+
 #include <gtest/gtest.h>
 
 using namespace gazer;
