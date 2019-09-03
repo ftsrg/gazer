@@ -5,10 +5,9 @@
 #include "gazer/Core/ExprTypes.h"
 #include "gazer/Core/LiteralExpr.h"
 
-#include <llvm/Support/raw_ostream.h>
-#include <boost/dynamic_bitset.hpp>
+#include "gazer/Support/GrowingStackAllocator.h"
 
-#include <stack>
+#include <llvm/ADT/SmallVector.h>
 
 namespace gazer
 {
@@ -19,20 +18,34 @@ namespace gazer
 /// of the normal call stack. This allows us to avoid stack overflow errors in
 /// the case of large input expressions. The order of the traversal is fixed
 /// to be post-order, thus all (translated/visited) operands of an expression
-/// are available in the visit() method.
+/// are available in the visit() method. They may be retrieved by calling the
+/// getOperand(size_t) method.
 /// 
-/// Operands may be retrieved by calling the getOperand(size_t) method.
-template<class DerivedT, class ReturnT>
+/// In order to support caching, users may override the shouldSkip() and
+/// handleResult() functions. The former should return true if the cache
+/// was hit and set the found value. The latter should be used to insert
+/// new entries into the cache.
+/// 
+/// \tparam DerivedT A Curiously Recurring Template Pattern (CRTP) parameter of
+///     the derived class.
+/// \tparam ReturnT The visit result. Must be a default-constructible and
+///     copy-constructible.
+/// \tparam SlabSize Slab size of the underlying stack allocator.
+template<class DerivedT, class ReturnT, size_t SlabSize = 4096>
 class ExprWalker
 {
+    static_assert(std::is_default_constructible_v<ReturnT>,
+        "ExprWalker return type must be default-constructible!");
+
+    size_t tmp = 0;
+
     struct Frame
     {
         ExprPtr mExpr;
         size_t mIndex;
         Frame* mParent = nullptr;
-        Frame* mNext = nullptr;
         size_t mState = 0;
-        std::vector<ReturnT> mVisitedOps;
+        llvm::SmallVector<ReturnT, 2> mVisitedOps;
 
         Frame(ExprPtr expr, size_t index, Frame* parent)
             : mExpr(std::move(expr)), mIndex(index),
@@ -46,14 +59,36 @@ class ExprWalker
             return mExpr->isNullary() || llvm::cast<NonNullaryExpr>(mExpr)->getNumOperands() == mState;
         }
     };
+private:
+    Frame* createFrame(const ExprPtr& expr, size_t idx, Frame* parent)
+    {
+        size_t siz = sizeof(Frame);
+        void* ptr = mAllocator.Allocate(siz, alignof(Frame));
+
+        return new (ptr) Frame(expr, idx, parent);
+    }
+
+    void destroyFrame(Frame* frame)
+    {
+        frame->~Frame();
+        mAllocator.Deallocate(frame, sizeof(Frame));
+    }
+
+private:
+    Frame* mTop;
+    GrowingStackAllocator<llvm::MallocAllocator, SlabSize> mAllocator;
 
 public:
     ExprWalker()
         : mTop(nullptr)
-    {}
+    {
+        mAllocator.Init();
+    }
 
     ExprWalker(const ExprWalker&) = delete;
     ExprWalker& operator=(ExprWalker&) = delete;
+
+    ~ExprWalker() = default;
 
 public:
     ReturnT visit(const ExprPtr& expr)
@@ -64,16 +99,20 @@ public:
         );
 
         assert(mTop == nullptr);
-        mTop = new Frame(expr, 0, nullptr);
+        mTop = createFrame(expr, 0, nullptr);
 
         while (mTop != nullptr) {
             Frame* current = mTop;
-
-            if (current->isFinished()) {
-                ReturnT ret = this->doVisit(mTop, current->mExpr);
+            ReturnT ret;
+            bool shouldSkip = static_cast<DerivedT*>(this)->shouldSkip(current->mExpr, &ret);
+            if (current->isFinished() || shouldSkip) {
+                if (!shouldSkip) {
+                    ret = this->doVisit(current->mExpr);
+                    static_cast<DerivedT*>(this)->handleResult(current->mExpr, ret);
+                }
                 Frame* parent = current->mParent;
                 size_t idx = current->mIndex;
-                delete current;
+                this->destroyFrame(current);
 
                 if (LLVM_LIKELY(parent != nullptr)) {
                     parent->mVisitedOps[idx] = std::move(ret);
@@ -88,7 +127,7 @@ public:
             auto nn = llvm::cast<NonNullaryExpr>(current->mExpr);
             size_t i = current->mState;
 
-            auto frame = new Frame(nn->getOperand(i), i, current);
+            auto frame = createFrame(nn->getOperand(i), i, current);
             mTop = frame;
             current->mState++;
         }
@@ -96,7 +135,7 @@ public:
         llvm_unreachable("Invalid walker state!");
     }
 
-public:
+protected:
     /// Returns the operand of index \p i of the topmost frame.
     [[nodiscard]] ReturnT getOperand(size_t i) const
     {
@@ -106,6 +145,31 @@ public:
     }
 
 protected:
+    /// If this function returns true, the walker will not visit \p expr
+    /// and will use the value contained in \p ret.
+    bool shouldSkip(const ExprPtr& expr, ReturnT* ret) { return false; }
+
+    /// This function is called by the walker if an actual visit took place
+    /// for \p expr. The visit result is contained in \p ret.
+    void handleResult(const ExprPtr& expr, ReturnT& ret) {}
+
+    ReturnT doVisit(const ExprPtr& expr)
+    {
+        #define GAZER_EXPR_KIND(KIND)                                       \
+            case Expr::KIND:                                                \
+                return static_cast<DerivedT*>(this)->visit##KIND(           \
+                    llvm::cast<KIND##Expr>(expr)                            \
+                );                                                          \
+
+        switch (expr->getKind()) {
+            #include "gazer/Core/Expr/ExprKind.inc"
+        }
+
+        llvm_unreachable("Unknown expression kind!");
+
+        #undef GAZER_EXPR_KIND
+    }
+
     void visitExpr(const ExprPtr& expr) {}
 
     ReturnT visitNonNullary(const ExprRef<NonNullaryExpr>& expr) {
@@ -301,26 +365,6 @@ protected:
     ReturnT visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitNonNullary(expr);
     }
-
-private:
-    ReturnT doVisit(Frame* top, const ExprPtr& expr)
-    {
-        #define GAZER_EXPR_KIND(KIND)                                       \
-            case Expr::KIND:                                                \
-                return static_cast<DerivedT*>(this)->visit##KIND(           \
-                    llvm::cast<KIND##Expr>(expr)                            \
-                );                                                          \
-
-        switch (expr->getKind()) {
-            #include "gazer/Core/Expr/ExprKind.inc"
-        }
-
-        llvm_unreachable("Unknown expression kind!");
-
-        #undef GAZER_EXPR_KIND
-    }
-private:
-    Frame* mTop;
 };
 
 } // end namespace gazer

@@ -38,6 +38,8 @@ public:
 
     void addManagedResouce(ManagedResource* resource);
 
+    void dumpStats(llvm::raw_ostream& os) const;
+
 public:
     const std::unique_ptr<GazerContextImpl> pImpl;
 };

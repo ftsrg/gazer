@@ -80,6 +80,9 @@ private:
 class Z3Solver : public Solver
 {
 public:
+    using CacheMapT = ScopedCache<ExprPtr, Z3AstHandle, std::unordered_map<ExprPtr, Z3AstHandle>>;
+    
+public:
     Z3Solver(GazerContext& context)
         : Solver(context), mSolver(mZ3Context)
     {}
@@ -100,30 +103,14 @@ protected:
     z3::context mZ3Context;
     z3::solver mSolver;
     unsigned mTmpCount = 0;
-};
-
-class CachingZ3Solver final : public Z3Solver
-{
-public:
-    using CacheMapT = ScopedCache<ExprPtr, Z3AstHandle, std::unordered_map<ExprPtr, Z3AstHandle>>;
-    using Z3Solver::Z3Solver;
-
-protected:
-    void addConstraint(ExprPtr expr) override;
-    void reset() override;
-
-    void push() override;
-    void pop() override;
-
-private:
     CacheMapT mCache;
 };
 
 class Z3ExprTransformer : public ExprWalker<Z3ExprTransformer, Z3AstHandle>
 {
 public:
-    Z3ExprTransformer(z3::context& context, unsigned& tmpCount)
-        : mZ3Context(context), mTmpCount(tmpCount)
+    Z3ExprTransformer(z3::context& context, unsigned& tmpCount, Z3Solver::CacheMapT& cache)
+        : mZ3Context(context), mTmpCount(tmpCount), mCache(cache)
     {}
 
 protected:
@@ -172,6 +159,26 @@ protected:
         llvm_unreachable("Unsupported gazer type for Z3Solver");
     }
 public:
+    bool shouldSkip(const ExprPtr& expr, Z3AstHandle* ret)
+    {
+        if (expr->isNullary() || expr->isUnary()) {
+            return false;
+        }
+
+        auto result = mCache.get(expr);
+        if (result) {
+            *ret = *result;
+            return true;
+        }
+
+        return false;
+    }
+    
+    void handleResult(const ExprPtr& expr, Z3AstHandle& ret)
+    {
+        mCache.insert(expr, ret);
+    }
+
     Z3AstHandle visitExpr(const ExprPtr& expr)
     {
         llvm_unreachable("Unhandled expression type in Z3ExprTransformer.");
@@ -205,7 +212,7 @@ public:
         if (expr->getType().isIntType()) {
             int64_t value = llvm::dyn_cast<IntLiteralExpr>(&*expr)->getValue();
             return createHandle(
-                Z3_mk_unsigned_int64(mZ3Context, value, Z3_mk_int_sort(mZ3Context))
+                Z3_mk_int64(mZ3Context, value, Z3_mk_int_sort(mZ3Context))
             );
         }
         
@@ -621,36 +628,7 @@ protected:
 protected:
     z3::context& mZ3Context;
     unsigned& mTmpCount;
-};
-
-class CachingZ3ExprTransformer : public Z3ExprTransformer
-{
-public:
-    CachingZ3ExprTransformer(
-        z3::context& context,
-        unsigned& tmpCount,
-        CachingZ3Solver::CacheMapT& cache)
-        : Z3ExprTransformer(context, tmpCount), mCache(cache)   
-    {}
-
-    Z3AstHandle visit(const ExprPtr& expr)
-    {
-        if (expr->isNullary() || expr->isUnary()) {
-            return Z3ExprTransformer::visit(expr);
-        }
-
-        auto result = mCache.get(expr);
-        if (result) {
-            return Z3AstHandle(mZ3Context, *result);
-        }
-
-        Z3AstHandle z3Expr = Z3ExprTransformer::visit(expr);
-        mCache.insert(expr, z3Expr);
-
-        return z3Expr;
-    }
-private:
-    CachingZ3Solver::CacheMapT& mCache;
+    Z3Solver::CacheMapT& mCache;
 };
 
 } // end anonymous namespace
@@ -670,23 +648,26 @@ Solver::SolverStatus Z3Solver::run()
 
 void Z3Solver::addConstraint(ExprPtr expr)
 {
-    Z3ExprTransformer transformer(mZ3Context, mTmpCount);
+    Z3ExprTransformer transformer(mZ3Context, mTmpCount, mCache);
     auto z3Expr = transformer.visit(expr);
     mSolver.add(z3::expr(mZ3Context, z3Expr));
 }
 
 void Z3Solver::reset()
 {
-    mSolver.reset();
+    mCache.clear();
+    Z3Solver::reset();
 }
 
 void Z3Solver::push()
 {
+    mCache.push();
     mSolver.push();
 }
 
 void Z3Solver::pop()
 {
+    mCache.pop();
     mSolver.pop();
 }
 
@@ -700,29 +681,6 @@ void Z3Solver::printStats(llvm::raw_ostream& os)
 void Z3Solver::dump(llvm::raw_ostream& os)
 {
     os << Z3_solver_to_string(mZ3Context, mSolver);
-}
-
-void CachingZ3Solver::addConstraint(ExprPtr expr)
-{
-    CachingZ3ExprTransformer transformer(mZ3Context, mTmpCount, mCache);
-    auto z3Expr = transformer.visit(expr);
-    mSolver.add(z3::expr(mZ3Context, z3Expr));
-}
-
-void CachingZ3Solver::reset()
-{
-    mCache.clear();
-    Z3Solver::reset();
-}
-
-void CachingZ3Solver::push() {
-    mCache.push();
-    Z3Solver::push();
-}
-
-void CachingZ3Solver::pop() {
-    mCache.pop();
-    Z3Solver::pop();
 }
 
 //---- Support for model extraction ----//
@@ -848,9 +806,5 @@ Valuation Z3Solver::getModel()
 
 std::unique_ptr<Solver> Z3SolverFactory::createSolver(GazerContext& context)
 {
-    if (mCache) {
-        return std::unique_ptr<Solver>(new CachingZ3Solver(context));
-    }
-
     return std::unique_ptr<Solver>(new Z3Solver(context));
 }
