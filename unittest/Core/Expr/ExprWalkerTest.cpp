@@ -55,7 +55,7 @@ TEST(ExprWalkerTest, TestTraversal)
     );
 
     PrintKindWalker walker;
-    walker.visit(expr);
+    walker.walk(expr);
 
     ASSERT_EQ(walker.Res, "X A B ZExt Eq And A B ZExt Eq Y Or Imply Not ");
 }
@@ -101,7 +101,7 @@ TEST(ExprWalkerTest, TestGetOperand)
     });
 
     PrintAndOperandsWalker walker;
-    auto res = walker.visit(expr);
+    auto res = walker.walk(expr);
 
     ASSERT_EQ(res, "And(0: A 1: B 2: C 3: D )");
 }

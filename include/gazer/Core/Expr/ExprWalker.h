@@ -91,7 +91,7 @@ public:
     ~ExprWalker() = default;
 
 public:
-    ReturnT visit(const ExprPtr& expr)
+    ReturnT walk(const ExprPtr& expr)
     {
         static_assert(
             std::is_base_of_v<ExprWalker, DerivedT>,

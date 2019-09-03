@@ -649,7 +649,7 @@ Solver::SolverStatus Z3Solver::run()
 void Z3Solver::addConstraint(ExprPtr expr)
 {
     Z3ExprTransformer transformer(mZ3Context, mTmpCount, mCache);
-    auto z3Expr = transformer.visit(expr);
+    auto z3Expr = transformer.walk(expr);
     mSolver.add(z3::expr(mZ3Context, z3Expr));
 }
 
