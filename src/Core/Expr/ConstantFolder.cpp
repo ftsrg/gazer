@@ -296,7 +296,7 @@ ExprPtr ConstantFolder::NotEq(const ExprPtr& left, const ExprPtr& right)
     return NotEqExpr::Create(left, right);
 }
 
-ExprPtr ConstantFolder::SLt(const ExprPtr& left, const ExprPtr& right)
+ExprPtr ConstantFolder::BvSLt(const ExprPtr& left, const ExprPtr& right)
 {
     if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
         if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
@@ -304,10 +304,10 @@ ExprPtr ConstantFolder::SLt(const ExprPtr& left, const ExprPtr& right)
         }
     }
 
-    return SLtExpr::Create(left, right);
+    return BvSLtExpr::Create(left, right);
 }
 
-ExprPtr ConstantFolder::SLtEq(const ExprPtr& left, const ExprPtr& right)
+ExprPtr ConstantFolder::BvSLtEq(const ExprPtr& left, const ExprPtr& right)
 {
     if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
         if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
@@ -315,10 +315,10 @@ ExprPtr ConstantFolder::SLtEq(const ExprPtr& left, const ExprPtr& right)
         }
     }
 
-    return SLtEqExpr::Create(left, right);
+    return BvSLtEqExpr::Create(left, right);
 }
 
-ExprPtr ConstantFolder::SGt(const ExprPtr& left, const ExprPtr& right)
+ExprPtr ConstantFolder::BvSGt(const ExprPtr& left, const ExprPtr& right)
 {
     if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
         if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
@@ -326,10 +326,10 @@ ExprPtr ConstantFolder::SGt(const ExprPtr& left, const ExprPtr& right)
         }
     }
 
-    return SGtExpr::Create(left, right);
+    return BvSGtExpr::Create(left, right);
 }
 
-ExprPtr ConstantFolder::SGtEq(const ExprPtr& left, const ExprPtr& right)
+ExprPtr ConstantFolder::BvSGtEq(const ExprPtr& left, const ExprPtr& right)
 {
     if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
         if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
@@ -337,10 +337,10 @@ ExprPtr ConstantFolder::SGtEq(const ExprPtr& left, const ExprPtr& right)
         }
     }
 
-    return SGtEqExpr::Create(left, right);
+    return BvSGtEqExpr::Create(left, right);
 }
 
-ExprPtr ConstantFolder::ULt(const ExprPtr& left, const ExprPtr& right)
+ExprPtr ConstantFolder::BvULt(const ExprPtr& left, const ExprPtr& right)
 {
     if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
         if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
@@ -348,10 +348,10 @@ ExprPtr ConstantFolder::ULt(const ExprPtr& left, const ExprPtr& right)
         }
     }
 
-    return ULtExpr::Create(left, right);
+    return BvULtExpr::Create(left, right);
 }
 
-ExprPtr ConstantFolder::ULtEq(const ExprPtr& left, const ExprPtr& right)
+ExprPtr ConstantFolder::BvULtEq(const ExprPtr& left, const ExprPtr& right)
 {
     if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
         if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
@@ -359,10 +359,10 @@ ExprPtr ConstantFolder::ULtEq(const ExprPtr& left, const ExprPtr& right)
         }
     }
 
-    return ULtEqExpr::Create(left, right);
+    return BvULtEqExpr::Create(left, right);
 }
 
-ExprPtr ConstantFolder::UGt(const ExprPtr& left, const ExprPtr& right)
+ExprPtr ConstantFolder::BvUGt(const ExprPtr& left, const ExprPtr& right)
 {
     if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
         if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
@@ -370,10 +370,10 @@ ExprPtr ConstantFolder::UGt(const ExprPtr& left, const ExprPtr& right)
         }
     }
 
-    return UGtExpr::Create(left, right);
+    return BvUGtExpr::Create(left, right);
 }
 
-ExprPtr ConstantFolder::UGtEq(const ExprPtr& left, const ExprPtr& right)
+ExprPtr ConstantFolder::BvUGtEq(const ExprPtr& left, const ExprPtr& right)
 {
     if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {
         if (auto rhsLit = dyn_cast<BvLiteralExpr>(right.get())) {
@@ -381,7 +381,7 @@ ExprPtr ConstantFolder::UGtEq(const ExprPtr& left, const ExprPtr& right)
         }
     }
 
-    return UGtEqExpr::Create(left, right);
+    return BvUGtEqExpr::Create(left, right);
 }
 
 //--- Floating point ---//

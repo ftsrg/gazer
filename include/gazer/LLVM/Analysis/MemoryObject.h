@@ -111,8 +111,8 @@ private:
 class MemoryModel
 {
 public:
-    explicit MemoryModel(GazerContext& context)
-        : mContext(context), mTypes(*this)
+    MemoryModel(GazerContext& context, LLVMFrontendSettings settings)
+        : mContext(context), mTypes(*this, settings.getIntRepresentation())
     {}
 
     MemoryModel(const MemoryModel&) = delete;

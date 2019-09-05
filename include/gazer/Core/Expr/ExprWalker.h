@@ -144,7 +144,7 @@ protected:
         return mTop->mVisitedOps[i];
     }
 
-protected:
+public:
     /// If this function returns true, the walker will not visit \p expr
     /// and will use the value contained in \p ret.
     bool shouldSkip(const ExprPtr& expr, ReturnT* ret) { return false; }
@@ -269,29 +269,29 @@ protected:
         return static_cast<DerivedT*>(this)->visitNonNullary(expr);
     }
     
-    ReturnT visitSLt(const ExprRef<SLtExpr>& expr) {
+    ReturnT visitBvSLt(const ExprRef<BvSLtExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitNonNullary(expr);
     }
-    ReturnT visitSLtEq(const ExprRef<SLtEqExpr>& expr) {
+    ReturnT visitBvSLtEq(const ExprRef<BvSLtEqExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitNonNullary(expr);
     }
-    ReturnT visitSGt(const ExprRef<SGtExpr>& expr) {
+    ReturnT visitBvSGt(const ExprRef<BvSGtExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitNonNullary(expr);
     }
-    ReturnT visitSGtEq(const ExprRef<SGtEqExpr>& expr) {
+    ReturnT visitBvSGtEq(const ExprRef<BvSGtEqExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitNonNullary(expr);
     }
 
-    ReturnT visitULt(const ExprRef<ULtExpr>& expr) {
+    ReturnT visitBvULt(const ExprRef<BvULtExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitNonNullary(expr);
     }
-    ReturnT visitULtEq(const ExprRef<ULtEqExpr>& expr) {
+    ReturnT visitBvULtEq(const ExprRef<BvULtEqExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitNonNullary(expr);
     }
-    ReturnT visitUGt(const ExprRef<UGtExpr>& expr) {
+    ReturnT visitBvUGt(const ExprRef<BvUGtExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitNonNullary(expr);
     }
-    ReturnT visitUGtEq(const ExprRef<UGtEqExpr>& expr) {
+    ReturnT visitBvUGtEq(const ExprRef<BvUGtEqExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitNonNullary(expr);
     }
 

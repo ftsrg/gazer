@@ -22,20 +22,6 @@
 using namespace gazer;
 using namespace llvm;
 
-namespace gazer
-{
-    cl::opt<ModuleToAutomataSettings::ElimVarsLevel> ElimVarsLevel("elim-vars", cl::desc("Level for variable elimination:"),
-        cl::values(
-            clEnumValN(ModuleToAutomataSettings::ElimVars_Off, "off", "Do not eliminate variables"),
-            clEnumValN(ModuleToAutomataSettings::ElimVars_Normal, "normal", "Eliminate variables with only one use"),
-            clEnumValN(ModuleToAutomataSettings::ElimVars_Aggressive, "aggressive", "Eliminate all eligible variables")
-        ),
-        cl::init(ModuleToAutomataSettings::ElimVars_Normal)
-    );
-
-    cl::opt<bool> NoSimplifyExpr("no-simplify-expr", cl::desc("Do not simplify expessions."));
-} // end namespace gazer
-
 static bool isDefinedInCaller(llvm::Value* value, llvm::ArrayRef<llvm::BasicBlock*> blocks)
 {
     if (isa<Argument>(value)) {
@@ -138,7 +124,7 @@ ModuleToCfa::ModuleToCfa(
         GenerationContext::LoopInfoMapTy& loops,
         GazerContext& context,
         MemoryModel& memoryModel,
-        ModuleToAutomataSettings settings
+        LLVMFrontendSettings settings
 ) : mModule(module),
     mContext(context),
     mMemoryModel(memoryModel),
@@ -754,7 +740,7 @@ Variable* BlocksToCfa::getVariable(const Value* value)
 
 std::unique_ptr<AutomataSystem> gazer::translateModuleToAutomata(
     llvm::Module& module,
-    ModuleToAutomataSettings settings,
+    LLVMFrontendSettings settings,
     llvm::DenseMap<llvm::Function*, llvm::LoopInfo*>& loopInfos,
     GazerContext& context,
     MemoryModel& memoryModel,
@@ -786,11 +772,9 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
         }
     }
 
-    DummyMemoryModel memoryModel(mContext);
+    auto settings = LLVMFrontendSettings::initFromCommandLine();
 
-    ModuleToAutomataSettings settings;
-    settings.setElimVarsLevel(ElimVarsLevel);
-    settings.setSimplifyExpr(!NoSimplifyExpr);
+    DummyMemoryModel memoryModel(mContext, settings);
 
     llvm::outs() << "Translating module.\n";
     mSystem = translateModuleToAutomata(module, settings, loops, mContext, memoryModel, mVariables, mBlocks);
@@ -800,40 +784,3 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
 
 // Settings
 //-----------------------------------------------------------------------------
-
-std::string ModuleToAutomataSettings::toString() const
-{
-    std::string str;
-
-    str += R"({"elim_vars": ")";
-    switch (mElimVars) {
-        case ElimVars_Off:         str += "off"; break;
-        case ElimVars_Normal:      str += "normal"; break;
-        case ElimVars_Aggressive:  str += "aggressive"; break;
-    }
-    str += R"(", "loop_representation": ")";
-
-    switch (mLoops) {
-        case Loops_Recursion:  str += "recursion"; break;
-        case Loops_Cycle:      str += "cycle"; break;
-    }
-
-    str += R"(", "int_representation": ")";
-
-    switch (mInts) {
-        case Ints_UseBv:        str += "bv"; break;
-        case Ints_UseInt:       str += "int"; break;
-    }
-
-    str += R"(", "float_representation": ")";
-
-    switch (mFloats) {
-        case Floats_UseFpa:     str += "fpa";   break;
-        case Floats_UseReal:    str += "real";  break;
-        case Floats_UseUndef:   str += "undef"; break;
-    }
-
-    str += "\"}";
-
-    return str;
-}

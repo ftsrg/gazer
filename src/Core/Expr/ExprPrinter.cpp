@@ -1,11 +1,13 @@
 #include "gazer/Core/Expr/ExprUtils.h"
-#include "gazer/Core/ExprVisitor.h"
+#include "gazer/Core/Expr/ExprWalker.h"
 #include "gazer/ADT/StringUtils.h"
 
 #include <llvm/ADT/Twine.h>
 #include <llvm/Support/raw_ostream.h>
 
 #include <boost/algorithm/string.hpp>
+#include <boost/range/irange.hpp>
+
 
 #include <algorithm>
 
@@ -14,62 +16,6 @@ using llvm::dyn_cast;
 
 namespace
 {
-
-class FormattedPrintVisitor : public ExprVisitor<void>
-{
-public:
-    FormattedPrintVisitor(llvm::raw_ostream& os)
-        : mOS(os), mIndent(0)
-    {}
-
-protected:
-    void visitExpr(const ExprPtr& expr) override {
-        this->indent();
-        expr->print(mOS);
-    }
-
-    void visitNonNullary(const ExprRef<NonNullaryExpr>& expr) override {
-        this->indent();
-        if (std::all_of(expr->op_begin(), expr->op_end(), [](const ExprPtr& op) {
-            return op->isNullary();
-        })) {
-            expr->print(mOS);
-            return;
-        }
-
-        mOS << Expr::getKindName(expr->getKind()) << "(\n";
-
-        size_t numOps = expr->getNumOperands();
-        size_t i = 0;
-        mIndent++;
-        while (i < numOps - 1) {
-            this->visit(expr->getOperand(i));
-            mOS << ",\n";
-            i++;
-        }
-        this->visit(expr->getOperand(i));
-        mOS << "\n";
-        mIndent--;
-        this->indent();
-        mOS << ")";
-    }
-
-    void visitExtract(const ExprRef<ExtractExpr>& expr) override {
-        this->indent();
-        expr->print(mOS);
-    }
-
-private:
-    void indent() {
-        for (size_t i = 0; i < mIndent; ++i) {
-            mOS << "  ";
-        }
-    }
-
-private:
-    llvm::raw_ostream& mOS;
-    size_t mIndent;
-};
 
 using llvm::Twine;
 
@@ -84,7 +30,7 @@ std::string castTypeName(llvm::Twine name, const Type& from, const Type& to)
     return (name + "." + Twine(fromStr) + "." + Twine(toStr)).str();
 }
 
-class InfixPrintVisitor : public ExprVisitor<std::string>
+class InfixPrintVisitor : public ExprWalker<InfixPrintVisitor, std::string>
 {
 public:
     InfixPrintVisitor(unsigned radix)
@@ -93,24 +39,25 @@ public:
         assert(mRadix == 2 || mRadix == 8 || mRadix == 16 || mRadix == 10);
     }
 private:
-    std::string printOp(const ExprPtr& op)
+    std::string printOp(const ExprRef<NonNullaryExpr>& expr, size_t idx)
     {
-        std::string opStr = this->visit(op);
-        if (op->isNullary()) {
+        std::string opStr = getOperand(idx);
+        if (expr->getOperand(idx)->isNullary()) {
             return opStr;
         }
 
         return (Twine("(") + Twine(opStr) + ")").str();
     }
 
-protected:
-    std::string visitExpr(const ExprPtr& expr) override { return "???"; }    
-    std::string visitUndef(const ExprRef<UndefExpr>& expr) override { return "undef"; }
-    std::string visitVarRef(const ExprRef<VarRefExpr>& expr) override {
+public:
+    std::string visitExpr(const ExprPtr& expr) { return "???"; }    
+    std::string visitUndef(const ExprRef<UndefExpr>& expr) { return "undef"; }
+    std::string visitVarRef(const ExprRef<VarRefExpr>& expr)
+    {
         return expr->getVariable().getName();
     }
 
-    std::string visitLiteral(const ExprRef<LiteralExpr>& expr) override
+    std::string visitLiteral(const ExprRef<LiteralExpr>& expr)
     {        
         llvm::SmallVector<char, 32> buffer;
 
@@ -144,27 +91,27 @@ protected:
     }
 
     // Unary
-    std::string visitNot(const ExprRef<NotExpr>& expr) override
+    std::string visitNot(const ExprRef<NotExpr>& expr)
     {
-        return "not " + printOp(expr->getOperand());
+        return "not " + printOp(expr, 0);
     }
 
-    std::string visitZExt(const ExprRef<ZExtExpr>& expr) override
+    std::string visitZExt(const ExprRef<ZExtExpr>& expr)
     {
         auto fname = castTypeName("zext", expr->getOperand()->getType(), expr->getType());
-        return fname + "(" + visit(expr->getOperand()) + ")";
+        return fname + "(" + getOperand(0) + ")";
     }
 
-    std::string visitSExt(const ExprRef<SExtExpr>& expr) override
+    std::string visitSExt(const ExprRef<SExtExpr>& expr)
     {
         auto fname = castTypeName("sext", expr->getOperand()->getType(), expr->getType());
-        return fname + "(" + visit(expr->getOperand()) + ")";
+        return fname + "(" + getOperand(0) + ")";
     }
 
-    std::string visitExtract(const ExprRef<ExtractExpr>& expr) override
+    std::string visitExtract(const ExprRef<ExtractExpr>& expr)
     {
         auto fname = castTypeName("extract", expr->getOperand()->getType(), expr->getType());
-        return (fname + "(" + visit(expr->getOperand())
+        return (fname + "(" + getOperand(0)
                      + ", " + Twine(expr->getOffset())
                      + ", " + Twine(expr->getWidth()) + ")").str();
     }
@@ -172,9 +119,9 @@ protected:
     // Binary
 
     #define PRINT_BINARY_INFIX(NAME, OPERATOR)                                  \
-    std::string visit##NAME(const ExprRef<NAME##Expr>& expr) override           \
+    std::string visit##NAME(const ExprRef<NAME##Expr>& expr)                    \
     {                                                                           \
-        return printOp(expr->getLeft()) + (OPERATOR) + printOp(expr->getRight()); \
+        return (getOperand(0)) + (OPERATOR) + (getOperand(1));                  \
     }
 
     PRINT_BINARY_INFIX(Add,     " + ")
@@ -187,10 +134,10 @@ protected:
     PRINT_BINARY_INFIX(BvURem,  " urem ")
 
     #define PRINT_BINARY_PREFIX(NAME, OPERATOR)                                 \
-    std::string visit##NAME(const ExprRef<NAME##Expr>& expr) override           \
+    std::string visit##NAME(const ExprRef<NAME##Expr>& expr)                    \
         {                                                                       \
         return (Twine{OPERATOR} + "("                                           \
-            + visit(expr->getLeft()) + "," + visit(expr->getRight()) + ")"      \
+            + (getOperand(0)) + "," + (getOperand(1)) + ")"                     \
         ).str();                                                                \
     }
 
@@ -205,25 +152,29 @@ protected:
     PRINT_BINARY_INFIX(Xor,     "xor")
     PRINT_BINARY_INFIX(Imply,   "imply")
 
-    std::string visitAnd(const ExprRef<AndExpr>& expr) override
+    std::string visitAnd(const ExprRef<AndExpr>& expr)
     {
         std::string buffer;
         llvm::raw_string_ostream rso{buffer};
 
-        join_print_as(rso, expr->op_begin(), expr->op_end(), " and ", [this](auto& rso, auto& op) {
-            rso << this->printOp(op);
+        auto r = boost::irange<size_t>(0, expr->getNumOperands());
+
+        join_print_as(rso, r.begin(), r.end(), " and ", [this, &expr](auto& rso, size_t i) {
+            rso << this->printOp(expr, i);
         });
 
         return rso.str();
     }
 
-    std::string visitOr(const ExprRef<OrExpr>& expr) override
+    std::string visitOr(const ExprRef<OrExpr>& expr)
     {
         std::string buffer;
         llvm::raw_string_ostream rso{buffer};
 
-        join_print_as(rso, expr->op_begin(), expr->op_end(), " or ", [this](auto& rso, auto& op) {
-            rso << this->printOp(op);
+        auto r = boost::irange<size_t>(0, expr->getNumOperands());
+
+        join_print_as(rso, r.begin(), r.end(), " or ", [this, &expr](auto& rso, size_t i) {
+            rso << this->printOp(expr, i);
         });
 
         return rso.str();
@@ -233,47 +184,51 @@ protected:
     PRINT_BINARY_INFIX(Eq, "=");
     PRINT_BINARY_INFIX(NotEq, "<>");
 
-    PRINT_BINARY_PREFIX(SLt,        "slt")
-    PRINT_BINARY_PREFIX(SLtEq,      "sle")
-    PRINT_BINARY_PREFIX(SGt,        "sgt")
-    PRINT_BINARY_PREFIX(SGtEq,      "sge")
-    PRINT_BINARY_PREFIX(ULt,        "ult")
-    PRINT_BINARY_PREFIX(ULtEq,      "ule")
-    PRINT_BINARY_PREFIX(UGt,        "ugt")
-    PRINT_BINARY_PREFIX(UGtEq,      "uge")
+    PRINT_BINARY_PREFIX(BvSLt,        "slt")
+    PRINT_BINARY_PREFIX(BvSLtEq,      "sle")
+    PRINT_BINARY_PREFIX(BvSGt,        "sgt")
+    PRINT_BINARY_PREFIX(BvSGtEq,      "sge")
+    PRINT_BINARY_PREFIX(BvULt,        "ult")
+    PRINT_BINARY_PREFIX(BvULtEq,      "ule")
+    PRINT_BINARY_PREFIX(BvUGt,        "ugt")
+    PRINT_BINARY_PREFIX(BvUGtEq,      "uge")
 
     // Floating-point queries
-    std::string visitFIsNan(const ExprRef<FIsNanExpr>& expr) override {
-        return "fp.is_nan(" + visit(expr->getOperand()) + ")";
+    std::string visitFIsNan(const ExprRef<FIsNanExpr>& expr)
+    {
+        return "fp.is_nan(" + getOperand(0) + ")";
     }
-    std::string visitFIsInf(const ExprRef<FIsInfExpr>& expr) override {
-        return "fp.is_inf(" + visit(expr->getOperand()) + ")";
+
+    std::string visitFIsInf(const ExprRef<FIsInfExpr>& expr)
+    {
+        return "fp.is_inf(" + getOperand(0) + ")";
     }
+
 
     // Floating-point casts
-    std::string visitFCast(const ExprRef<FCastExpr>& expr) override
+    std::string visitFCast(const ExprRef<FCastExpr>& expr)
     {
-        return castTypeName("fcast", expr->getOperand()->getType(), expr->getOperand()->getType());
+        return castTypeName("fcast", expr->getType(), expr->getOperand()->getType()) + "(" + getOperand(0) + ")";
     }
 
-    std::string visitSignedToFp(const ExprRef<SignedToFpExpr>& expr) override
+    std::string visitSignedToFp(const ExprRef<SignedToFpExpr>& expr)
     {
-        return castTypeName("si_to_fp", expr->getOperand()->getType(), expr->getOperand()->getType());
+        return castTypeName("si_to_fp", expr->getType(), expr->getOperand()->getType()) + "(" + getOperand(0) + ")";
     }
 
-    std::string visitUnsignedToFp(const ExprRef<UnsignedToFpExpr>& expr) override
+    std::string visitUnsignedToFp(const ExprRef<UnsignedToFpExpr>& expr)
     {
-        return castTypeName("ui_to_fp", expr->getOperand()->getType(), expr->getOperand()->getType());
+        return castTypeName("ui_to_fp", expr->getType(), expr->getOperand()->getType()) + "(" + getOperand(0) + ")";
     }
 
-    std::string visitFpToSigned(const ExprRef<FpToSignedExpr>& expr) override
+    std::string visitFpToSigned(const ExprRef<FpToSignedExpr>& expr)
     {
-        return castTypeName("fp_to_si", expr->getOperand()->getType(), expr->getOperand()->getType());
+        return castTypeName("fp_to_si", expr->getType(), expr->getOperand()->getType()) + "(" + getOperand(0) + ")";
     }
 
-    std::string visitFpToUnsigned(const ExprRef<FpToUnsignedExpr>& expr) override
+    std::string visitFpToUnsigned(const ExprRef<FpToUnsignedExpr>& expr)
     {
-        return castTypeName("fp_to_ui", expr->getOperand()->getType(), expr->getOperand()->getType());
+        return castTypeName("fp_to_ui", expr->getType(), expr->getOperand()->getType()) + "(" + getOperand(0) + ")";
     }
 
     // Floating-point arithmetic
@@ -290,19 +245,21 @@ protected:
     PRINT_BINARY_PREFIX(FLtEq, "fp.le")
 
     // Ternary
-    std::string visitSelect(const ExprRef<SelectExpr>& expr) override
+    std::string visitSelect(const ExprRef<SelectExpr>& expr)
     {
-        return (Twine("if ") + printOp(expr->getCondition())
-            + Twine(" then ") + printOp(expr->getThen())
-            + Twine(" else ") + printOp(expr->getElse())).str();
+        return (Twine("if ") + printOp(expr, 0)
+            + Twine(" then ") + printOp(expr, 1)
+            + Twine(" else ") + printOp(expr, 2)).str();
     }
 
     // Arrays
-    std::string visitArrayRead(const ExprRef<ArrayReadExpr>& expr) override {
+    std::string visitArrayRead(const ExprRef<ArrayReadExpr>& expr) 
+    {
         return this->visitNonNullary(expr);
     }
 
-    std::string visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr) override {
+    std::string visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr)
+    {
         return this->visitNonNullary(expr);
     }
 
@@ -329,14 +286,15 @@ namespace gazer
 
 void FormatPrintExpr(const ExprPtr& expr, llvm::raw_ostream& os)
 {
-    FormattedPrintVisitor visitor(os);
-    visitor.visit(expr);
+    // TODO
+    InfixPrintVisitor visitor{10};
+    os << visitor.walk(expr);
 }
 
 void InfixPrintExpr(const ExprPtr& expr, llvm::raw_ostream& os, unsigned bvRadix)
 {
     InfixPrintVisitor visitor{bvRadix};
-    os << visitor.visit(expr);
+    os << visitor.walk(expr);
 }
 
 } // end namespace gazer

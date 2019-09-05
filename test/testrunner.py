@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import os
 import sys
 import glob
@@ -82,10 +83,16 @@ if __name__ == '__main__':
     argument_parser.add_argument("--gazer-path", help="Path to the Gazer executable.")
 
     args = argument_parser.parse_args()
-    tests = discover_tests(pathlib.Path(args.tests))
+    
+    tests_path = pathlib.Path(args.tests)
 
+    tests = discover_tests(tests_path)
     clang_cmd = args.clang_path
     gazer_bmc_path = pathlib.Path(args.gazer_path)
+
+    print("Running functional test suite in directory %s" % tests_path)
+    print("    clang compiler is %s" % clang_cmd)
+    print("    gazer-bmc is at %s" % gazer_bmc_path)
 
     PASSED = 0
     FAILED = 1

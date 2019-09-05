@@ -23,9 +23,9 @@ ExprPtr ExprRewrite::visitVarRef(const ExprRef<VarRefExpr>& expr)
 
 ExprPtr ExprRewrite::visitNonNullary(const ExprRef<NonNullaryExpr>& expr)
 {
-    ExprVector ops;
-    for (const ExprPtr& operand : expr->operands()) {
-        ops.push_back(this->visit(operand));
+    ExprVector ops(expr->getNumOperands(), nullptr);
+    for (size_t i = 0; i < expr->getNumOperands(); ++i) {
+        ops[i] = getOperand(i);
     }
 
     switch (expr->getKind()) {
@@ -55,14 +55,14 @@ ExprPtr ExprRewrite::visitNonNullary(const ExprRef<NonNullaryExpr>& expr)
         case Expr::Imply: return mExprBuilder.Imply(ops[0], ops[1]);
         case Expr::Eq: return mExprBuilder.Eq(ops[0], ops[1]);
         case Expr::NotEq: return mExprBuilder.NotEq(ops[0], ops[1]);
-        case Expr::SLt: return mExprBuilder.SLt(ops[0], ops[1]);
-        case Expr::SLtEq: return mExprBuilder.SLtEq(ops[0], ops[1]);
-        case Expr::SGt: return mExprBuilder.SGt(ops[0], ops[1]);
-        case Expr::SGtEq: return mExprBuilder.SGtEq(ops[0], ops[1]);
-        case Expr::ULt: return mExprBuilder.ULt(ops[0], ops[1]);
-        case Expr::ULtEq: return mExprBuilder.ULtEq(ops[0], ops[1]);
-        case Expr::UGt: return mExprBuilder.UGt(ops[0], ops[1]);
-        case Expr::UGtEq: return mExprBuilder.UGtEq(ops[0], ops[1]);
+        case Expr::BvSLt: return mExprBuilder.BvSLt(ops[0], ops[1]);
+        case Expr::BvSLtEq: return mExprBuilder.BvSLtEq(ops[0], ops[1]);
+        case Expr::BvSGt: return mExprBuilder.BvSGt(ops[0], ops[1]);
+        case Expr::BvSGtEq: return mExprBuilder.BvSGtEq(ops[0], ops[1]);
+        case Expr::BvULt: return mExprBuilder.BvULt(ops[0], ops[1]);
+        case Expr::BvULtEq: return mExprBuilder.BvULtEq(ops[0], ops[1]);
+        case Expr::BvUGt: return mExprBuilder.BvUGt(ops[0], ops[1]);
+        case Expr::BvUGtEq: return mExprBuilder.BvUGtEq(ops[0], ops[1]);
         case Expr::FIsNan: return mExprBuilder.FIsNan(ops[0]);
         case Expr::FIsInf: return mExprBuilder.FIsInf(ops[0]);
         case Expr::FAdd: return mExprBuilder.FAdd(ops[0], ops[1], llvm::cast<FAddExpr>(expr.get())->getRoundingMode());

@@ -93,7 +93,7 @@ class BoundedModelCheckerImpl
     private:
         Cfa& mCfa;
         Location* mStart;
-        ExprEvaluator mEval;
+        ExprEvaluator& mEval;
         PredecessorMapT& mPredecessors;
     };
 

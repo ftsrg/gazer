@@ -15,6 +15,7 @@ class InstToExprTest : public ::testing::Test
 public:
     GazerContext context;
     llvm::LLVMContext llvmContext;
+    LLVMFrontendSettings settings;
     std::unique_ptr<ExprBuilder> builder;
     std::unique_ptr<MemoryModel> memoryModel;
 
@@ -27,7 +28,7 @@ public:
 public:
     InstToExprTest()
         : builder(CreateExprBuilder(context)),
-        memoryModel(new DummyMemoryModel(context))
+        memoryModel(new DummyMemoryModel(context, settings))
     {}
 
     void SetUp() override
@@ -225,49 +226,49 @@ TEST_F(InstToExprTest, TransformBvCmp)
         inst2expr->transform(*cast<Instruction>(
             ir->CreateICmpUGT(loadGv1, loadGv2)
         )),
-        builder->UGt(gv1Var->getRefExpr(), gv2Var->getRefExpr())
+        builder->BvUGt(gv1Var->getRefExpr(), gv2Var->getRefExpr())
     );
     EXPECT_EQ(
         inst2expr->transform(*cast<Instruction>(
             ir->CreateICmpUGE(loadGv1, loadGv2)
         )),
-        builder->UGtEq(gv1Var->getRefExpr(), gv2Var->getRefExpr())
+        builder->BvUGtEq(gv1Var->getRefExpr(), gv2Var->getRefExpr())
     );
     EXPECT_EQ(
         inst2expr->transform(*cast<Instruction>(
             ir->CreateICmpULT(loadGv1, loadGv2)
         )),
-        builder->ULt(gv1Var->getRefExpr(), gv2Var->getRefExpr())
+        builder->BvULt(gv1Var->getRefExpr(), gv2Var->getRefExpr())
     );
     EXPECT_EQ(
         inst2expr->transform(*cast<Instruction>(
             ir->CreateICmpULE(loadGv1, loadGv2)
         )),
-        builder->ULtEq(gv1Var->getRefExpr(), gv2Var->getRefExpr())
+        builder->BvULtEq(gv1Var->getRefExpr(), gv2Var->getRefExpr())
     );
     EXPECT_EQ(
         inst2expr->transform(*cast<Instruction>(
             ir->CreateICmpSGT(loadGv1, loadGv2)
         )),
-        builder->SGt(gv1Var->getRefExpr(), gv2Var->getRefExpr())
+        builder->BvSGt(gv1Var->getRefExpr(), gv2Var->getRefExpr())
     );
     EXPECT_EQ(
         inst2expr->transform(*cast<Instruction>(
             ir->CreateICmpSGE(loadGv1, loadGv2)
         )),
-        builder->SGtEq(gv1Var->getRefExpr(), gv2Var->getRefExpr())
+        builder->BvSGtEq(gv1Var->getRefExpr(), gv2Var->getRefExpr())
     );
     EXPECT_EQ(
         inst2expr->transform(*cast<Instruction>(
             ir->CreateICmpSLT(loadGv1, loadGv2)
         )),
-        builder->SLt(gv1Var->getRefExpr(), gv2Var->getRefExpr())
+        builder->BvSLt(gv1Var->getRefExpr(), gv2Var->getRefExpr())
     );
     EXPECT_EQ(
         inst2expr->transform(*cast<Instruction>(
             ir->CreateICmpSLE(loadGv1, loadGv2)
         )),
-        builder->SLtEq(gv1Var->getRefExpr(), gv2Var->getRefExpr())
+        builder->BvSLtEq(gv1Var->getRefExpr(), gv2Var->getRefExpr())
     );
 }
 
