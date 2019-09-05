@@ -26,7 +26,7 @@ namespace gazer::unittest
 namespace
 {
 
-using Settings = ModuleToAutomataSettings;
+using Settings = LLVMFrontendSettings;
 
 std::string getResourceFile(std::string name)
 {
@@ -46,7 +46,7 @@ struct ModuleToCfaTestModel
     std::string mName;
     std::string mInput;
     std::string mExpected;
-    ModuleToAutomataSettings mSettings;
+    LLVMFrontendSettings mSettings;
 };
 
 std::ostream& operator<<(std::ostream& os, const ModuleToCfaTestModel& model)
@@ -74,7 +74,7 @@ protected:
     
 protected:
     std::unique_ptr<AutomataSystem> createSystemFromModule(
-        std::string input, ModuleToAutomataSettings settings, MemoryModel* memoryModel = nullptr
+        std::string input, LLVMFrontendSettings settings, MemoryModel* memoryModel = nullptr
     ) {
         auto path = gazer::unittest::ResourcesPath + "/Automaton/" + input;
         auto buff = llvm::MemoryBuffer::getFile(path);
@@ -92,7 +92,7 @@ protected:
         }
 
         if (memoryModel == nullptr) {
-            this->memoryModel.reset(new DummyMemoryModel(context));
+            this->memoryModel.reset(new DummyMemoryModel(context, settings));
         } else {
             this->memoryModel.reset(memoryModel);
         }
@@ -126,18 +126,18 @@ TEST_P(ModuleToCfaTest, TestWithoutMemoryModel)
 std::vector<ModuleToCfaTestModel> GetTestModels()
 {
     auto simpleConfig = Settings{
-        Settings::ElimVars_Off, Settings::Loops_Recursion,
-        Settings::Ints_UseBv, Settings::Floats_UseFpa,
+        ElimVarsLevel::Off, LoopRepresentation::Recursion,
+        IntRepresentation::BitVectors, FloatRepresentation::Fpa,
         /*simplifyExpr=*/false
     };
     auto elimVarsDefaultConfig = Settings{
-        Settings::ElimVars_Normal, Settings::Loops_Recursion,
-        Settings::Ints_UseBv, Settings::Floats_UseFpa,
+        ElimVarsLevel::Normal, LoopRepresentation::Recursion,
+        IntRepresentation::BitVectors, FloatRepresentation::Fpa,
         /*simplifyExpr=*/false
     };
     auto elimVarsAggressiveConfig = Settings{
-        Settings::ElimVars_Aggressive, Settings::Loops_Recursion,
-        Settings::Ints_UseBv, Settings::Floats_UseFpa,
+        ElimVarsLevel::Aggressive, LoopRepresentation::Recursion,
+        IntRepresentation::BitVectors, FloatRepresentation::Fpa,
         /*simplifyExpr=*/false
     };
 

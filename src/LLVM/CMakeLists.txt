@@ -15,6 +15,7 @@ set(SOURCE_FILES
     Verifier/BmcPass.cpp
     LLVMTraceBuilder.cpp
     TypeTranslator.cpp
+    LLVMFrontendSettings.cpp
 )
 
 llvm_map_components_to_libnames(LLVM_LIBS support core irreader transformutils scalaropts ipo)

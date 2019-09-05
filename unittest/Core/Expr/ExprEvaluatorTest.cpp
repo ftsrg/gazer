@@ -37,7 +37,7 @@ void checkBoolEval(
     const ExprRef<LiteralExpr>& expected)
 {
     ExprEvaluator eval{vb.build()};
-    auto actual = eval.visit(expr);
+    auto actual = eval.walk(expr);
 
     EXPECT_TRUE(llvm::isa<BoolLiteralExpr>(actual));
     EXPECT_EQ(actual, expected);
@@ -46,7 +46,7 @@ void checkBoolEval(
 void checkBv(Valuation::Builder& vb, const ExprPtr& expr, llvm::APInt expected)
 {
     ExprEvaluator eval{vb.build()};
-    auto lit = eval.visit(expr);
+    auto lit = eval.walk(expr);
 
     ASSERT_TRUE(llvm::isa<BvLiteralExpr>(lit));
     EXPECT_EQ(llvm::cast<BvLiteralExpr>(lit)->getValue(), expected);
@@ -62,18 +62,18 @@ TEST_F(ExprEvalTest, TestLiterals)
     auto vb = Valuation::CreateBuilder();
     ExprEvaluator eval{vb.build()};
 
-    EXPECT_EQ(eval.visit(builder->True()), builder->True());
-    EXPECT_EQ(eval.visit(builder->False()), builder->False());
+    EXPECT_EQ(eval.walk(builder->True()), builder->True());
+    EXPECT_EQ(eval.walk(builder->False()), builder->False());
 
-    EXPECT_EQ(eval.visit(builder->BvLit(0, 32)), builder->BvLit(0, 32));
-    EXPECT_EQ(eval.visit(builder->BvLit(1, 32)), builder->BvLit(1, 32));
+    EXPECT_EQ(eval.walk(builder->BvLit(0, 32)), builder->BvLit(0, 32));
+    EXPECT_EQ(eval.walk(builder->BvLit(1, 32)), builder->BvLit(1, 32));
 
     EXPECT_EQ(
-        eval.visit(builder->FloatLit(llvm::APFloat{0.00})),
+        eval.walk(builder->FloatLit(llvm::APFloat{0.00})),
         builder->FloatLit(llvm::APFloat{0.00})
     );
     EXPECT_EQ(
-        eval.visit(builder->FloatLit(llvm::APFloat{1.0})),
+        eval.walk(builder->FloatLit(llvm::APFloat{1.0})),
         builder->FloatLit(llvm::APFloat{1.0})
     );
 }
@@ -189,11 +189,11 @@ TEST_F(ExprEvalTest, TestEq)
     auto one  = builder->BvLit(1, 32);
     auto two  = builder->BvLit(2, 32);
 
-    EXPECT_EQ(eval.visit(builder->Eq(one, one)), builder->True());
-    EXPECT_EQ(eval.visit(builder->Eq(one, two)), builder->False());
+    EXPECT_EQ(eval.walk(builder->Eq(one, one)), builder->True());
+    EXPECT_EQ(eval.walk(builder->Eq(one, two)), builder->False());
 
-    EXPECT_EQ(eval.visit(builder->Eq(builder->True(), builder->True())), builder->True());
-    EXPECT_EQ(eval.visit(builder->Eq(builder->False(), builder->True())), builder->False());
+    EXPECT_EQ(eval.walk(builder->Eq(builder->True(), builder->True())), builder->True());
+    EXPECT_EQ(eval.walk(builder->Eq(builder->False(), builder->True())), builder->False());
 }
 
 TEST_F(ExprEvalTest, TestSignedCompareBv)
@@ -208,33 +208,33 @@ TEST_F(ExprEvalTest, TestSignedCompareBv)
     auto minusTwo = builder->BvLit(llvm::APInt{32, static_cast<uint64_t>(-2), true});
 
 
-    EXPECT_EQ(eval.visit(builder->SLt(one, two)), builder->True());
-    EXPECT_EQ(eval.visit(builder->SLt(minusOne, zero)), builder->True());
-    EXPECT_EQ(eval.visit(builder->SLt(minusTwo, minusOne)), builder->True());
-    EXPECT_EQ(eval.visit(builder->SLt(minusOne, minusOne)), builder->False());
-    EXPECT_EQ(eval.visit(builder->SLt(two, minusTwo)), builder->False());
+    EXPECT_EQ(eval.walk(builder->BvSLt(one, two)), builder->True());
+    EXPECT_EQ(eval.walk(builder->BvSLt(minusOne, zero)), builder->True());
+    EXPECT_EQ(eval.walk(builder->BvSLt(minusTwo, minusOne)), builder->True());
+    EXPECT_EQ(eval.walk(builder->BvSLt(minusOne, minusOne)), builder->False());
+    EXPECT_EQ(eval.walk(builder->BvSLt(two, minusTwo)), builder->False());
 
-    EXPECT_EQ(eval.visit(builder->SLtEq(one, two)), builder->True());
-    EXPECT_EQ(eval.visit(builder->SLtEq(minusOne, zero)), builder->True());
-    EXPECT_EQ(eval.visit(builder->SLtEq(minusTwo, minusOne)), builder->True());
-    EXPECT_EQ(eval.visit(builder->SLtEq(minusOne, minusOne)), builder->True());
-    EXPECT_EQ(eval.visit(builder->SLtEq(two, minusTwo)), builder->False());
+    EXPECT_EQ(eval.walk(builder->BvSLtEq(one, two)), builder->True());
+    EXPECT_EQ(eval.walk(builder->BvSLtEq(minusOne, zero)), builder->True());
+    EXPECT_EQ(eval.walk(builder->BvSLtEq(minusTwo, minusOne)), builder->True());
+    EXPECT_EQ(eval.walk(builder->BvSLtEq(minusOne, minusOne)), builder->True());
+    EXPECT_EQ(eval.walk(builder->BvSLtEq(two, minusTwo)), builder->False());
 
-    EXPECT_EQ(eval.visit(builder->SGt(one, zero)), builder->True());
-    EXPECT_EQ(eval.visit(builder->SGt(minusOne, zero)), builder->False());
-    EXPECT_EQ(eval.visit(builder->SGt(two, one)), builder->True());
-    EXPECT_EQ(eval.visit(builder->SGt(one, two)), builder->False());
-    EXPECT_EQ(eval.visit(builder->SGt(zero, zero)), builder->False());
-    EXPECT_EQ(eval.visit(builder->SGt(minusTwo, minusOne)), builder->False());
-    EXPECT_EQ(eval.visit(builder->SGt(minusOne, minusOne)), builder->False());
-    EXPECT_EQ(eval.visit(builder->SGt(two, minusTwo)), builder->True());
+    EXPECT_EQ(eval.walk(builder->BvSGt(one, zero)), builder->True());
+    EXPECT_EQ(eval.walk(builder->BvSGt(minusOne, zero)), builder->False());
+    EXPECT_EQ(eval.walk(builder->BvSGt(two, one)), builder->True());
+    EXPECT_EQ(eval.walk(builder->BvSGt(one, two)), builder->False());
+    EXPECT_EQ(eval.walk(builder->BvSGt(zero, zero)), builder->False());
+    EXPECT_EQ(eval.walk(builder->BvSGt(minusTwo, minusOne)), builder->False());
+    EXPECT_EQ(eval.walk(builder->BvSGt(minusOne, minusOne)), builder->False());
+    EXPECT_EQ(eval.walk(builder->BvSGt(two, minusTwo)), builder->True());
 
-    EXPECT_EQ(eval.visit(builder->SGtEq(one, zero)), builder->True());
-    EXPECT_EQ(eval.visit(builder->SGtEq(minusOne, zero)), builder->False());
-    EXPECT_EQ(eval.visit(builder->SGtEq(two, one)), builder->True());
-    EXPECT_EQ(eval.visit(builder->SGtEq(one, two)), builder->False());
-    EXPECT_EQ(eval.visit(builder->SGtEq(zero, zero)), builder->True());
-    EXPECT_EQ(eval.visit(builder->SGtEq(minusTwo, minusOne)), builder->False());
-    EXPECT_EQ(eval.visit(builder->SGtEq(minusOne, minusOne)), builder->True());
-    EXPECT_EQ(eval.visit(builder->SGtEq(two, minusTwo)), builder->True());
+    EXPECT_EQ(eval.walk(builder->BvSGtEq(one, zero)), builder->True());
+    EXPECT_EQ(eval.walk(builder->BvSGtEq(minusOne, zero)), builder->False());
+    EXPECT_EQ(eval.walk(builder->BvSGtEq(two, one)), builder->True());
+    EXPECT_EQ(eval.walk(builder->BvSGtEq(one, two)), builder->False());
+    EXPECT_EQ(eval.walk(builder->BvSGtEq(zero, zero)), builder->True());
+    EXPECT_EQ(eval.walk(builder->BvSGtEq(minusTwo, minusOne)), builder->False());
+    EXPECT_EQ(eval.walk(builder->BvSGtEq(minusOne, minusOne)), builder->True());
+    EXPECT_EQ(eval.walk(builder->BvSGtEq(two, minusTwo)), builder->True());
 }

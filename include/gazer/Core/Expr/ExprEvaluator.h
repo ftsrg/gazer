@@ -1,7 +1,7 @@
 #ifndef _GAZER_CORE_EXPR_EXPREVALUATOR_H
 #define _GAZER_CORE_EXPR_EXPREVALUATOR_H
 
-#include "gazer/Core/ExprVisitor.h"
+#include "gazer/Core/Expr/ExprWalker.h"
 #include "gazer/Core/Expr/ExprBuilder.h"
 #include "gazer/Core/Valuation.h"
 
@@ -11,82 +11,82 @@ namespace gazer
 /// Base class for expression evaluation implementations.
 /// This abstract class provides all methods to evaluate an expression, except for
 /// the means of acquiring the value of a variable.
-class ExprEvaluatorBase : public ExprVisitor<ExprRef<LiteralExpr>>
+class ExprEvaluatorBase : public ExprWalker<ExprEvaluatorBase, ExprRef<LiteralExpr>>
 {
 public:
 
-protected:
-    ExprRef<LiteralExpr> visitExpr(const ExprPtr& expr) override;
+public:
+    ExprRef<LiteralExpr> visitExpr(const ExprPtr& expr);
 
     // Nullary
-    ExprRef<LiteralExpr> visitUndef(const ExprRef<UndefExpr>& expr) override;
-    ExprRef<LiteralExpr> visitLiteral(const ExprRef<LiteralExpr>& expr) override;
-    ExprRef<LiteralExpr> visitVarRef(const ExprRef<VarRefExpr>& expr) override;
+    ExprRef<LiteralExpr> visitUndef(const ExprRef<UndefExpr>& expr);
+    ExprRef<LiteralExpr> visitLiteral(const ExprRef<LiteralExpr>& expr);
+    ExprRef<LiteralExpr> visitVarRef(const ExprRef<VarRefExpr>& expr);
 
     // Unary
-    ExprRef<LiteralExpr> visitNot(const ExprRef<NotExpr>& expr) override;
-    ExprRef<LiteralExpr> visitZExt(const ExprRef<ZExtExpr>& expr) override;
-    ExprRef<LiteralExpr> visitSExt(const ExprRef<SExtExpr>& expr) override;
-    ExprRef<LiteralExpr> visitExtract(const ExprRef<ExtractExpr>& expr) override;
+    ExprRef<LiteralExpr> visitNot(const ExprRef<NotExpr>& expr);
+    ExprRef<LiteralExpr> visitZExt(const ExprRef<ZExtExpr>& expr);
+    ExprRef<LiteralExpr> visitSExt(const ExprRef<SExtExpr>& expr);
+    ExprRef<LiteralExpr> visitExtract(const ExprRef<ExtractExpr>& expr);
 
     // Binary
-    ExprRef<LiteralExpr> visitAdd(const ExprRef<AddExpr>& expr) override;
-    ExprRef<LiteralExpr> visitSub(const ExprRef<SubExpr>& expr) override;
-    ExprRef<LiteralExpr> visitMul(const ExprRef<MulExpr>& expr) override;
+    ExprRef<LiteralExpr> visitAdd(const ExprRef<AddExpr>& expr);
+    ExprRef<LiteralExpr> visitSub(const ExprRef<SubExpr>& expr);
+    ExprRef<LiteralExpr> visitMul(const ExprRef<MulExpr>& expr);
 
-    ExprRef<LiteralExpr> visitBvSDiv(const ExprRef<BvSDivExpr>& expr) override;
-    ExprRef<LiteralExpr> visitBvUDiv(const ExprRef<BvUDivExpr>& expr) override;
-    ExprRef<LiteralExpr> visitBvSRem(const ExprRef<BvSRemExpr>& expr) override;
-    ExprRef<LiteralExpr> visitBvURem(const ExprRef<BvURemExpr>& expr) override;
+    ExprRef<LiteralExpr> visitBvSDiv(const ExprRef<BvSDivExpr>& expr);
+    ExprRef<LiteralExpr> visitBvUDiv(const ExprRef<BvUDivExpr>& expr);
+    ExprRef<LiteralExpr> visitBvSRem(const ExprRef<BvSRemExpr>& expr);
+    ExprRef<LiteralExpr> visitBvURem(const ExprRef<BvURemExpr>& expr);
 
-    ExprRef<LiteralExpr> visitShl(const ExprRef<ShlExpr>& expr) override;
-    ExprRef<LiteralExpr> visitLShr(const ExprRef<LShrExpr>& expr) override;
-    ExprRef<LiteralExpr> visitAShr(const ExprRef<AShrExpr>& expr) override;
-    ExprRef<LiteralExpr> visitBvAnd(const ExprRef<BvAndExpr>& expr) override;
-    ExprRef<LiteralExpr> visitBvOr(const ExprRef<BvOrExpr>& expr) override;
-    ExprRef<LiteralExpr> visitBvXor(const ExprRef<BvXorExpr>& expr) override;
+    ExprRef<LiteralExpr> visitShl(const ExprRef<ShlExpr>& expr);
+    ExprRef<LiteralExpr> visitLShr(const ExprRef<LShrExpr>& expr);
+    ExprRef<LiteralExpr> visitAShr(const ExprRef<AShrExpr>& expr);
+    ExprRef<LiteralExpr> visitBvAnd(const ExprRef<BvAndExpr>& expr);
+    ExprRef<LiteralExpr> visitBvOr(const ExprRef<BvOrExpr>& expr);
+    ExprRef<LiteralExpr> visitBvXor(const ExprRef<BvXorExpr>& expr);
 
     // Logic
-    ExprRef<LiteralExpr> visitAnd(const ExprRef<AndExpr>& expr) override;
-    ExprRef<LiteralExpr> visitOr(const ExprRef<OrExpr>& expr) override;
-    ExprRef<LiteralExpr> visitXor(const ExprRef<XorExpr>& expr) override;
-    ExprRef<LiteralExpr> visitImply(const ExprRef<ImplyExpr>& expr) override;
+    ExprRef<LiteralExpr> visitAnd(const ExprRef<AndExpr>& expr);
+    ExprRef<LiteralExpr> visitOr(const ExprRef<OrExpr>& expr);
+    ExprRef<LiteralExpr> visitXor(const ExprRef<XorExpr>& expr);
+    ExprRef<LiteralExpr> visitImply(const ExprRef<ImplyExpr>& expr);
 
     // Compare
-    ExprRef<LiteralExpr> visitEq(const ExprRef<EqExpr>& expr) override;
-    ExprRef<LiteralExpr> visitNotEq(const ExprRef<NotEqExpr>& expr) override;
+    ExprRef<LiteralExpr> visitEq(const ExprRef<EqExpr>& expr);
+    ExprRef<LiteralExpr> visitNotEq(const ExprRef<NotEqExpr>& expr);
     
-    ExprRef<LiteralExpr> visitSLt(const ExprRef<SLtExpr>& expr) override;
-    ExprRef<LiteralExpr> visitSLtEq(const ExprRef<SLtEqExpr>& expr) override;
-    ExprRef<LiteralExpr> visitSGt(const ExprRef<SGtExpr>& expr) override;
-    ExprRef<LiteralExpr> visitSGtEq(const ExprRef<SGtEqExpr>& expr) override;
+    ExprRef<LiteralExpr> visitBvSLt(const ExprRef<BvSLtExpr>& expr);
+    ExprRef<LiteralExpr> visitBvSLtEq(const ExprRef<BvSLtEqExpr>& expr);
+    ExprRef<LiteralExpr> visitBvSGt(const ExprRef<BvSGtExpr>& expr);
+    ExprRef<LiteralExpr> visitBvSGtEq(const ExprRef<BvSGtEqExpr>& expr);
 
-    ExprRef<LiteralExpr> visitULt(const ExprRef<ULtExpr>& expr) override;
-    ExprRef<LiteralExpr> visitULtEq(const ExprRef<ULtEqExpr>& expr) override;
-    ExprRef<LiteralExpr> visitUGt(const ExprRef<UGtExpr>& expr) override;
-    ExprRef<LiteralExpr> visitUGtEq(const ExprRef<UGtEqExpr>& expr) override;
+    ExprRef<LiteralExpr> visitBvULt(const ExprRef<BvULtExpr>& expr);
+    ExprRef<LiteralExpr> visitBvULtEq(const ExprRef<BvULtEqExpr>& expr);
+    ExprRef<LiteralExpr> visitBvUGt(const ExprRef<BvUGtExpr>& expr);
+    ExprRef<LiteralExpr> visitBvUGtEq(const ExprRef<BvUGtEqExpr>& expr);
 
     // Floating-point queries
-    ExprRef<LiteralExpr> visitFIsNan(const ExprRef<FIsNanExpr>& expr) override;
-    ExprRef<LiteralExpr> visitFIsInf(const ExprRef<FIsInfExpr>& expr) override;
+    ExprRef<LiteralExpr> visitFIsNan(const ExprRef<FIsNanExpr>& expr);
+    ExprRef<LiteralExpr> visitFIsInf(const ExprRef<FIsInfExpr>& expr);
 
     // Floating-point arithmetic
-    ExprRef<LiteralExpr> visitFAdd(const ExprRef<FAddExpr>& expr) override;
-    ExprRef<LiteralExpr> visitFSub(const ExprRef<FSubExpr>& expr) override;
-    ExprRef<LiteralExpr> visitFMul(const ExprRef<FMulExpr>& expr) override;
-    ExprRef<LiteralExpr> visitFDiv(const ExprRef<FDivExpr>& expr) override;
+    ExprRef<LiteralExpr> visitFAdd(const ExprRef<FAddExpr>& expr);
+    ExprRef<LiteralExpr> visitFSub(const ExprRef<FSubExpr>& expr);
+    ExprRef<LiteralExpr> visitFMul(const ExprRef<FMulExpr>& expr);
+    ExprRef<LiteralExpr> visitFDiv(const ExprRef<FDivExpr>& expr);
 
     // Floating-point compare
-    ExprRef<LiteralExpr> visitFEq(const ExprRef<FEqExpr>& expr) override;
-    ExprRef<LiteralExpr> visitFGt(const ExprRef<FGtExpr>& expr) override;
-    ExprRef<LiteralExpr> visitFGtEq(const ExprRef<FGtEqExpr>& expr) override;
-    ExprRef<LiteralExpr> visitFLt(const ExprRef<FLtExpr>& expr) override;
-    ExprRef<LiteralExpr> visitFLtEq(const ExprRef<FLtEqExpr>& expr) override;
+    ExprRef<LiteralExpr> visitFEq(const ExprRef<FEqExpr>& expr);
+    ExprRef<LiteralExpr> visitFGt(const ExprRef<FGtExpr>& expr);
+    ExprRef<LiteralExpr> visitFGtEq(const ExprRef<FGtEqExpr>& expr);
+    ExprRef<LiteralExpr> visitFLt(const ExprRef<FLtExpr>& expr);
+    ExprRef<LiteralExpr> visitFLtEq(const ExprRef<FLtEqExpr>& expr);
     // Ternary
-    ExprRef<LiteralExpr> visitSelect(const ExprRef<SelectExpr>& expr) override;
+    ExprRef<LiteralExpr> visitSelect(const ExprRef<SelectExpr>& expr);
     // Arrays
-    ExprRef<LiteralExpr> visitArrayRead(const ExprRef<ArrayReadExpr>& expr) override;
-    ExprRef<LiteralExpr> visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr) override;
+    ExprRef<LiteralExpr> visitArrayRead(const ExprRef<ArrayReadExpr>& expr);
+    ExprRef<LiteralExpr> visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr);
 
 protected:
     virtual ExprRef<LiteralExpr> getVariableValue(const Variable& variable) = 0;

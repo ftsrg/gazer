@@ -4,8 +4,8 @@
 
 using namespace gazer;
 
-LLVMTypeTranslator::LLVMTypeTranslator(MemoryModel& memoryModel, bool intsAsBv)
-    : mMemoryModel(memoryModel), mIntsAsBv(intsAsBv)
+LLVMTypeTranslator::LLVMTypeTranslator(MemoryModel& memoryModel, IntRepresentation intRepresentation)
+    : mMemoryModel(memoryModel), mInts(intRepresentation)
 {}
 
 gazer::Type& LLVMTypeTranslator::get(const llvm::Type* type)
@@ -22,7 +22,7 @@ gazer::Type& LLVMTypeTranslator::get(const llvm::Type* type)
                 return BoolType::Get(ctx);
             }
 
-            if (mIntsAsBv) {
+            if (mInts == IntRepresentation::BitVectors) {
                 return BvType::Get(ctx, width);
             }
 

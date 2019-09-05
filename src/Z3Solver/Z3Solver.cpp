@@ -404,46 +404,45 @@ public:
         return createHandle(Z3_mk_distinct(mZ3Context, 2, ops));
     }
 
-    Z3AstHandle visitSLt(const ExprRef<SLtExpr>& expr)
+    Z3AstHandle visitBvSLt(const ExprRef<BvSLtExpr>& expr)
     {
         return createHandle(Z3_mk_bvslt(mZ3Context, getOperand(0), getOperand(1)));
     }
 
-    Z3AstHandle visitSLtEq(const ExprRef<SLtEqExpr>& expr)
+    Z3AstHandle visitBvSLtEq(const ExprRef<BvSLtEqExpr>& expr)
     {
         return createHandle(Z3_mk_bvsle(mZ3Context, getOperand(0), getOperand(1)));
     }
 
-    Z3AstHandle visitSGt(const ExprRef<SGtExpr>& expr)
+    Z3AstHandle visitBvSGt(const ExprRef<BvSGtExpr>& expr)
     {
         return createHandle(Z3_mk_bvsgt(mZ3Context, getOperand(0), getOperand(1)));
     }
 
-    Z3AstHandle visitSGtEq(const ExprRef<SGtEqExpr>& expr)
+    Z3AstHandle visitBvSGtEq(const ExprRef<BvSGtEqExpr>& expr)
     {
         return createHandle(Z3_mk_bvsge(mZ3Context, getOperand(0), getOperand(1)));
     }
 
-    Z3AstHandle visitULt(const ExprRef<ULtExpr>& expr)
+    Z3AstHandle visitBvULt(const ExprRef<BvULtExpr>& expr)
     {
         return createHandle(Z3_mk_bvult(mZ3Context, getOperand(0), getOperand(1)));
     }
 
-    Z3AstHandle visitULtEq(const ExprRef<ULtEqExpr>& expr)
+    Z3AstHandle visitBvULtEq(const ExprRef<BvULtEqExpr>& expr)
     {
         return createHandle(Z3_mk_bvule(mZ3Context, getOperand(0), getOperand(1)));
     }
 
-    Z3AstHandle visitUGt(const ExprRef<UGtExpr>& expr)
+    Z3AstHandle visitBvUGt(const ExprRef<BvUGtExpr>& expr)
     {
         return createHandle(Z3_mk_bvugt(mZ3Context, getOperand(0), getOperand(1)));
     }
 
-    Z3AstHandle visitUGtEq(const ExprRef<UGtEqExpr>& expr)
+    Z3AstHandle visitBvUGtEq(const ExprRef<BvUGtEqExpr>& expr)
     {
         return createHandle(Z3_mk_bvuge(mZ3Context, getOperand(0), getOperand(1)));
     }
-
 
     // Floating-point queries
     Z3AstHandle visitFIsNan(const ExprRef<FIsNanExpr>& expr)
@@ -456,10 +455,12 @@ public:
         return createHandle(Z3_mk_fpa_is_infinite(mZ3Context, getOperand(0)));
     }
 
-
     // Floating-point casts
     Z3AstHandle visitFCast(const ExprRef<FCastExpr>& expr)
     {
+        llvm::errs() << "\n";
+        expr->print(llvm::errs());
+        llvm::errs() << Z3_ast_to_string(mZ3Context, getOperand(0)) << "\n";
         return createHandle(Z3_mk_fpa_to_fp_float(
             mZ3Context,
             transformRoundingMode(expr->getRoundingMode()),
@@ -656,7 +657,7 @@ void Z3Solver::addConstraint(ExprPtr expr)
 void Z3Solver::reset()
 {
     mCache.clear();
-    Z3Solver::reset();
+    mSolver.reset();
 }
 
 void Z3Solver::push()

@@ -93,30 +93,30 @@ public:
     //    return NotEqExpr::Create(left, right);
     //}
 
-    ExprPtr SLt(const ExprPtr& left, const ExprPtr& right) override {
-        return SLtExpr::Create(left, right);
+    ExprPtr BvSLt(const ExprPtr& left, const ExprPtr& right) override {
+        return BvSLtExpr::Create(left, right);
     }
-    ExprPtr SLtEq(const ExprPtr& left, const ExprPtr& right) override {
-        return SLtEqExpr::Create(left, right);
+    ExprPtr BvSLtEq(const ExprPtr& left, const ExprPtr& right) override {
+        return BvSLtEqExpr::Create(left, right);
     }
-    ExprPtr SGt(const ExprPtr& left, const ExprPtr& right) override {
-        return SGtExpr::Create(left, right);
+    ExprPtr BvSGt(const ExprPtr& left, const ExprPtr& right) override {
+        return BvSGtExpr::Create(left, right);
     }
-    ExprPtr SGtEq(const ExprPtr& left, const ExprPtr& right) override {
-        return SGtEqExpr::Create(left, right);
+    ExprPtr BvSGtEq(const ExprPtr& left, const ExprPtr& right) override {
+        return BvSGtEqExpr::Create(left, right);
     }
 
-    ExprPtr ULt(const ExprPtr& left, const ExprPtr& right) override {
-        return ULtExpr::Create(left, right);
+    ExprPtr BvULt(const ExprPtr& left, const ExprPtr& right) override {
+        return BvULtExpr::Create(left, right);
     }
-    ExprPtr ULtEq(const ExprPtr& left, const ExprPtr& right) override {
-        return ULtEqExpr::Create(left, right);
+    ExprPtr BvULtEq(const ExprPtr& left, const ExprPtr& right) override {
+        return BvULtEqExpr::Create(left, right);
     }
-    ExprPtr UGt(const ExprPtr& left, const ExprPtr& right) override {
-        return UGtExpr::Create(left, right);
+    ExprPtr BvUGt(const ExprPtr& left, const ExprPtr& right) override {
+        return BvUGtExpr::Create(left, right);
     }
-    ExprPtr UGtEq(const ExprPtr& left, const ExprPtr& right) override {
-        return UGtEqExpr::Create(left, right);
+    ExprPtr BvUGtEq(const ExprPtr& left, const ExprPtr& right) override {
+        return BvUGtEqExpr::Create(left, right);
     }
 
     ExprPtr Select(const ExprPtr& condition, const ExprPtr& then, const ExprPtr& elze) override {

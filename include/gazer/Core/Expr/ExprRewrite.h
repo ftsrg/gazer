@@ -1,22 +1,22 @@
 #ifndef GAZER_CORE_EXPR_EXPRREWRITE_H
 #define GAZER_CORE_EXPR_EXPRREWRITE_H
 
-#include "gazer/Core/ExprVisitor.h"
+#include "gazer/Core/Expr/ExprWalker.h"
 #include "gazer/Core/Expr/ExprBuilder.h"
 
 namespace gazer
 {
 
-class ExprRewrite : public ExprVisitor<ExprPtr>
+class ExprRewrite : public ExprWalker<ExprRewrite, ExprPtr>
 {
 public:
     ExprRewrite(ExprBuilder& builder);
     ExprPtr& operator[](Variable* variable);
 
-protected:
-    ExprPtr visitExpr(const ExprPtr& expr) override;
-    ExprPtr visitVarRef(const ExprRef<VarRefExpr>& expr) override;
-    ExprPtr visitNonNullary(const ExprRef<NonNullaryExpr>& expr) override;
+public:
+    ExprPtr visitExpr(const ExprPtr& expr);
+    ExprPtr visitVarRef(const ExprRef<VarRefExpr>& expr);
+    ExprPtr visitNonNullary(const ExprRef<NonNullaryExpr>& expr);
 
 private:
     llvm::DenseMap<Variable*, ExprPtr> mRewriteMap;

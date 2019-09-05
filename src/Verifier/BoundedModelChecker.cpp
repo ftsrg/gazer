@@ -245,7 +245,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                             if (model.find(assignment.getVariable()) == model.end()) {
                                 value = UndefExpr::Get(variable->getType());
                             } else {
-                                value = eval.visit(variable->getRefExpr());
+                                value = eval.walk(variable->getRefExpr());
                             }
 
                             traceAction.emplace_back(origVariable, value);
@@ -688,13 +688,13 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
                 [&oldVarToNew, &rewrite] (const VariableAssignment& origAssign) {
                     return VariableAssignment {
                         oldVarToNew[origAssign.getVariable()],
-                        rewrite.visit(origAssign.getValue())
+                        rewrite.walk(origAssign.getValue())
                     };
                 }
             );
 
             newEdge = mRoot->createAssignTransition(
-                source, target, rewrite.visit(assign->getGuard()), newAssigns
+                source, target, rewrite.walk(assign->getGuard()), newAssigns
             );
         } else if (auto nestedCall = llvm::dyn_cast<CallTransition>(origEdge)) {
             ExprVector newArgs;
@@ -703,7 +703,7 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
             std::transform(
                 nestedCall->input_begin(), nestedCall->input_end(),
                 std::back_inserter(newArgs),
-                [&rewrite](const ExprPtr& expr) { return rewrite.visit(expr); }
+                [&rewrite](const ExprPtr& expr) { return rewrite.walk(expr); }
             );
             std::transform(
                 nestedCall->output_begin(), nestedCall->output_end(),
@@ -724,7 +724,7 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
 
             auto callEdge = mRoot->createCallTransition(
                 source, target,
-                rewrite.visit(nestedCall->getGuard()),
+                rewrite.walk(nestedCall->getGuard()),
                 nestedCall->getCalledAutomaton(),
                 newArgs, newOuts
             );
@@ -811,7 +811,7 @@ void BoundedModelCheckerImpl::cex_iterator::advance()
 
     Location* current = mState.getLocation();
     auto predLit = llvm::dyn_cast_or_null<BvLiteralExpr>(
-        mCex.mEval.visit(pred->second).get()
+        mCex.mEval.walk(pred->second).get()
     );
                             
     assert((predLit != nullptr) && "Pred values should be evaluatable as bitvector literals!");

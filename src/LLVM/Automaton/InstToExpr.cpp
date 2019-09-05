@@ -11,7 +11,7 @@ ExprPtr InstToExpr::transform(const llvm::Instruction& inst)
 {
     LLVM_DEBUG(llvm::dbgs() << "  Transforming instruction " << inst << "\n");
 #define HANDLE_INST(OPCODE, NAME)                                       \
-        if (inst.getOpcode() == (OPCODE)) {                        \
+        if (inst.getOpcode() == (OPCODE)) {                             \
             return visit##NAME(*llvm::cast<llvm::NAME>(&inst));         \
         }                                                               \
 
@@ -181,14 +181,14 @@ ExprPtr InstToExpr::visitICmpInst(const llvm::ICmpInst& icmp)
     switch (pred) {
         HANDLE_PREDICATE(CmpInst::ICMP_EQ, Eq)
         HANDLE_PREDICATE(CmpInst::ICMP_NE, NotEq)
-        HANDLE_PREDICATE(CmpInst::ICMP_UGT, UGt)
-        HANDLE_PREDICATE(CmpInst::ICMP_UGE, UGtEq)
-        HANDLE_PREDICATE(CmpInst::ICMP_ULT, ULt)
-        HANDLE_PREDICATE(CmpInst::ICMP_ULE, ULtEq)
-        HANDLE_PREDICATE(CmpInst::ICMP_SGT, SGt)
-        HANDLE_PREDICATE(CmpInst::ICMP_SGE, SGtEq)
-        HANDLE_PREDICATE(CmpInst::ICMP_SLT, SLt)
-        HANDLE_PREDICATE(CmpInst::ICMP_SLE, SLtEq)
+        HANDLE_PREDICATE(CmpInst::ICMP_UGT, BvUGt)
+        HANDLE_PREDICATE(CmpInst::ICMP_UGE, BvUGtEq)
+        HANDLE_PREDICATE(CmpInst::ICMP_ULT, BvULt)
+        HANDLE_PREDICATE(CmpInst::ICMP_ULE, BvULtEq)
+        HANDLE_PREDICATE(CmpInst::ICMP_SGT, BvSGt)
+        HANDLE_PREDICATE(CmpInst::ICMP_SGE, BvSGtEq)
+        HANDLE_PREDICATE(CmpInst::ICMP_SLT, BvSLt)
+        HANDLE_PREDICATE(CmpInst::ICMP_SLE, BvSLtEq)
         default:
             llvm_unreachable("Unhandled ICMP predicate.");
     }
@@ -308,18 +308,28 @@ ExprPtr InstToExpr::visitCastInst(const llvm::CastInst& cast)
         return integerCast(cast, castOp, 1);
     }
     
-    if (castOp->getType().isBvType()) {
-        if (cast.getType()->isIntegerTy(1)
-            && cast.getOpcode() == Instruction::Trunc
-            && getVariable(&cast)->getType().isBoolType()    
-        ) {
-            // If the instruction truncates an integer to an i1 boolean, cast to boolean instead.
-            return asBool(castOp);
-        }
+    // If the instruction truncates an integer to an i1 boolean, cast to boolean instead.
+    if (cast.getType()->isIntegerTy(1)
+        && cast.getOpcode() == Instruction::Trunc
+        && getVariable(&cast)->getType().isBoolType()    
+    ) {
+        return asBool(castOp);
+    }
 
+    if (castOp->getType().isBvType()) {
         return integerCast(
             cast, castOp, dyn_cast<BvType>(&castOp->getType())->getWidth()
         );
+    }
+
+    if (castOp->getType().isIntType()) {
+        // ZExt and SExt are no-op in this case.
+        if (cast.getOpcode() == Instruction::ZExt || cast.getOpcode() == Instruction::SExt) {
+            return castOp;
+        }
+
+        // Trunc is transformed to undef at the moment
+        return mExprBuilder.Undef(castOp->getType());
     }
 
     llvm_unreachable("Unsupported cast operation");
@@ -329,21 +339,29 @@ ExprPtr InstToExpr::integerCast(const llvm::CastInst& cast, const ExprPtr& opera
 {
     auto variable = getVariable(&cast);
 
-    auto intTy = llvm::cast<gazer::BvType>(&variable->getType());
+    if (variable->getType().isBvType()) {
+        auto bvTy = llvm::cast<gazer::BvType>(&variable->getType());
+        ExprPtr intOp = asInt(operand, width);
+        ExprPtr castOp = nullptr;
 
-    ExprPtr intOp = asInt(operand, width);
-    ExprPtr castOp = nullptr;
-    if (cast.getOpcode() == Instruction::ZExt) {
-        castOp = mExprBuilder.ZExt(intOp, *intTy);
-    } else if (cast.getOpcode() == Instruction::SExt) {
-        castOp = mExprBuilder.SExt(intOp, *intTy);
-    } else if (cast.getOpcode() == Instruction::Trunc) {
-        castOp = mExprBuilder.Trunc(intOp, *intTy);
-    } else {
-        llvm_unreachable("Unhandled integer cast operation");
+        switch (cast.getOpcode()) {
+            case Instruction::ZExt:
+                castOp = mExprBuilder.ZExt(intOp, *bvTy);
+                break;
+            case Instruction::SExt:
+                castOp = mExprBuilder.SExt(intOp, *bvTy);
+                break;
+            case Instruction::Trunc:
+                castOp = mExprBuilder.Trunc(intOp, *bvTy);
+                break;
+            default:
+                llvm_unreachable("Unhandled integer cast operation");
+        }
+        
+        return castOp;
     }
 
-    return castOp;
+    llvm_unreachable("Invalid bit-vector type!");
 }
 
 ExprPtr InstToExpr::visitCallInst(const llvm::CallInst& call)
@@ -378,10 +396,19 @@ ExprPtr InstToExpr::operand(const Value* value)
             return ci->isZero() ? mExprBuilder.False() : mExprBuilder.True();
         }
 
-        return mExprBuilder.BvLit(
-            ci->getValue().getLimitedValue(),
-            ci->getType()->getIntegerBitWidth()
-        );
+        switch (mInts) {
+            case IntRepresentation::BitVectors:
+                return mExprBuilder.BvLit(
+                    ci->getValue().getLimitedValue(),
+                    ci->getType()->getIntegerBitWidth()
+                );
+            case IntRepresentation::Integers:
+                return mExprBuilder.IntLit(
+                    static_cast<int64_t>(ci->getLimitedValue())
+                );
+        }
+
+        llvm_unreachable("Invalid int representation strategy!");
     }
     
     if (const llvm::ConstantFP* cfp = dyn_cast<llvm::ConstantFP>(value)) {
@@ -412,11 +439,19 @@ ExprPtr InstToExpr::asBool(const ExprPtr& operand)
     }
     
     if (operand->getType().isBvType()) {
-        const BvType* bvTy = dyn_cast<BvType>(&operand->getType());
+        auto bvTy = dyn_cast<BvType>(&operand->getType());
         unsigned bits = bvTy->getWidth();
 
         return mExprBuilder.Select(
             mExprBuilder.Eq(operand, mExprBuilder.BvLit(0, bits)),
+            mExprBuilder.False(),
+            mExprBuilder.True()
+        );
+    }
+
+    if (operand->getType().isIntType()) {
+        return mExprBuilder.Select(
+            mExprBuilder.Eq(operand, mExprBuilder.IntLit(0)),
             mExprBuilder.False(),
             mExprBuilder.True()
         );
@@ -428,14 +463,25 @@ ExprPtr InstToExpr::asBool(const ExprPtr& operand)
 ExprPtr InstToExpr::asInt(const ExprPtr& operand, unsigned int bits)
 {
     if (operand->getType().isBoolType()) {
-        return mExprBuilder.Select(
-            operand,
-            mExprBuilder.BvLit(1, bits),
-            mExprBuilder.BvLit(0, bits)
-        );
+        switch (mInts) {
+            case IntRepresentation::BitVectors:
+                return mExprBuilder.Select(
+                    operand,
+                    mExprBuilder.BvLit(1, bits),
+                    mExprBuilder.BvLit(0, bits)
+                );
+            case IntRepresentation::Integers:
+                return mExprBuilder.Select(
+                    operand,
+                    mExprBuilder.IntLit(1),
+                    mExprBuilder.IntLit(0)
+                );
+        }
+
+        llvm_unreachable("Invalid int representation strategy!");
     }
     
-    if (operand->getType().isBvType()) {
+    if (operand->getType().isBvType() || operand->getType().isIntType()) {
         return operand;
     }
 
@@ -446,7 +492,7 @@ ExprPtr InstToExpr::castResult(const ExprPtr& expr, const Type& type)
 {
     if (type.isBoolType()) {
         return asBool(expr);
-    } else if (type.isBvType()) {
+    } else if (type.isBvType() || type.isIntType()) {
         return asInt(expr, dyn_cast<BvType>(&type)->getWidth());
     }
 

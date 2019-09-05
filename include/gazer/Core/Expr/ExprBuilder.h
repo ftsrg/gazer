@@ -113,15 +113,15 @@ public:
 
     virtual ExprPtr Eq(const ExprPtr& left, const ExprPtr& right) = 0;
 
-    virtual ExprPtr SLt(const ExprPtr& left, const ExprPtr& right) = 0;
-    virtual ExprPtr SLtEq(const ExprPtr& left, const ExprPtr& right) = 0;
-    virtual ExprPtr SGt(const ExprPtr& left, const ExprPtr& right) = 0;
-    virtual ExprPtr SGtEq(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr BvSLt(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr BvSLtEq(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr BvSGt(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr BvSGtEq(const ExprPtr& left, const ExprPtr& right) = 0;
 
-    virtual ExprPtr ULt(const ExprPtr& left, const ExprPtr& right) = 0;
-    virtual ExprPtr ULtEq(const ExprPtr& left, const ExprPtr& right) = 0;
-    virtual ExprPtr UGt(const ExprPtr& left, const ExprPtr& right) = 0;
-    virtual ExprPtr UGtEq(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr BvULt(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr BvULtEq(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr BvUGt(const ExprPtr& left, const ExprPtr& right) = 0;
+    virtual ExprPtr BvUGtEq(const ExprPtr& left, const ExprPtr& right) = 0;
 
     //--- Floating point ---//
     virtual ExprPtr FCast(const ExprPtr& op, FloatType& type, llvm::APFloat::roundingMode rm) = 0;

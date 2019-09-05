@@ -16,8 +16,15 @@ namespace gazer
 class InstToExpr
 {
 public:
-    InstToExpr(ExprBuilder& builder, MemoryModel& memoryModel)
-        : mExprBuilder(builder), mContext(builder.getContext()), mMemoryModel(memoryModel)
+    InstToExpr(
+        ExprBuilder& builder,
+        MemoryModel& memoryModel,
+        IntRepresentation ints = IntRepresentation::BitVectors,
+        FloatRepresentation floats = FloatRepresentation::Fpa
+    ) : mExprBuilder(builder),
+        mContext(builder.getContext()),
+        mMemoryModel(memoryModel),
+        mInts(ints), mFloats(floats)
     {}
 
     ExprPtr transform(const llvm::Instruction& inst);
@@ -66,6 +73,8 @@ protected:
     ExprBuilder& mExprBuilder;
     GazerContext& mContext;
     MemoryModel& mMemoryModel;
+    IntRepresentation mInts;
+    FloatRepresentation mFloats;
 };
 
 } // end namespace gazer

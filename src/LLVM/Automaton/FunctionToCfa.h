@@ -121,7 +121,7 @@ public:
         AutomataSystem& system,
         MemoryModel& memoryModel,
         LoopInfoMapTy loopInfos,
-        ModuleToAutomataSettings settings
+        LLVMFrontendSettings settings
     )
         : mSystem(system), mMemoryModel(memoryModel),
         mLoopInfos(loopInfos), mSettings(settings)
@@ -167,7 +167,7 @@ public:
     
     AutomataSystem& getSystem() const { return mSystem; }
     MemoryModel& getMemoryModel() const { return mMemoryModel; }
-    ModuleToAutomataSettings& getSettings() { return mSettings; }
+    LLVMFrontendSettings& getSettings() { return mSettings; }
 
 private:
     CfaGenInfo& getInfoFor(VariantT key)
@@ -182,7 +182,7 @@ private:
     AutomataSystem& mSystem;
     MemoryModel& mMemoryModel;
     LoopInfoMapTy mLoopInfos;
-    ModuleToAutomataSettings mSettings;
+    LLVMFrontendSettings mSettings;
     std::unordered_map<VariantT, CfaGenInfo> mProcedures;
     llvm::DenseMap<llvm::Value*, Variable*> mVariables;
 };
@@ -198,7 +198,7 @@ public:
         GenerationContext::LoopInfoMapTy& loops,
         GazerContext& context,
         MemoryModel& memoryModel,
-        ModuleToAutomataSettings settings
+        LLVMFrontendSettings settings
     );
 
     std::unique_ptr<AutomataSystem> generate(
@@ -214,7 +214,7 @@ private:
 
     GazerContext& mContext;
     MemoryModel& mMemoryModel;
-    ModuleToAutomataSettings mSettings;
+    LLVMFrontendSettings mSettings;
 
     std::unique_ptr<AutomataSystem> mSystem;
     GenerationContext mGenCtx;

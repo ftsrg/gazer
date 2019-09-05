@@ -185,16 +185,16 @@ public:
     static bool classof(const Expr& expr) { return expr.getKind() == Kind; }
 };
 
-using EqExpr     = CompareExpr<Expr::Eq>;
-using NotEqExpr  = CompareExpr<Expr::NotEq>;
-using SLtExpr    = CompareExpr<Expr::SLt>;
-using SLtEqExpr  = CompareExpr<Expr::SLtEq>;
-using SGtExpr    = CompareExpr<Expr::SGt>;
-using SGtEqExpr  = CompareExpr<Expr::SGtEq>;
-using ULtExpr    = CompareExpr<Expr::ULt>;
-using ULtEqExpr  = CompareExpr<Expr::ULtEq>;
-using UGtExpr    = CompareExpr<Expr::UGt>;
-using UGtEqExpr  = CompareExpr<Expr::UGtEq>;
+using EqExpr       = CompareExpr<Expr::Eq>;
+using NotEqExpr    = CompareExpr<Expr::NotEq>;
+using BvSLtExpr    = CompareExpr<Expr::BvSLt>;
+using BvSLtEqExpr  = CompareExpr<Expr::BvSLtEq>;
+using BvSGtExpr    = CompareExpr<Expr::BvSGt>;
+using BvSGtEqExpr  = CompareExpr<Expr::BvSGtEq>;
+using BvULtExpr    = CompareExpr<Expr::BvULt>;
+using BvULtEqExpr  = CompareExpr<Expr::BvULtEq>;
+using BvUGtExpr    = CompareExpr<Expr::BvUGt>;
+using BvUGtEqExpr  = CompareExpr<Expr::BvUGtEq>;
 
 template<Expr::ExprKind Kind>
 class MultiaryLogicExpr final : public NonNullaryExpr

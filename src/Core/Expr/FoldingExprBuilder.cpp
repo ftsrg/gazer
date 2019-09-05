@@ -41,12 +41,12 @@ public:
         }
 
         // Not(LESSTHAN(E1, E2)) --> GREATERTHANEQ(E1, E2)
-        if (match(op, m_ULt(m_Expr(e1), m_Expr(e2)))) {
-            return ConstantFolder::UGtEq(e1, e2);
+        if (match(op, m_BvULt(m_Expr(e1), m_Expr(e2)))) {
+            return ConstantFolder::BvUGtEq(e1, e2);
         }
 
-        if (match(op, m_SLt(m_Expr(e1), m_Expr(e2)))) {
-            return ConstantFolder::SGtEq(e1, e2);
+        if (match(op, m_BvSLt(m_Expr(e1), m_Expr(e2)))) {
+            return ConstantFolder::BvSGtEq(e1, e2);
         }
 
         // Not(Or(V1, Not(And(V2)))) --> And(Not(V1), V2)
@@ -384,52 +384,52 @@ public:
             return ConstantFolder::OPCODE(x, this->BvLit(c2 - c1));                 \
         }                                                                           \
 
-    ExprPtr SLt(const ExprPtr& left, const ExprPtr& right) override
+    ExprPtr BvSLt(const ExprPtr& left, const ExprPtr& right) override
     {
-        COMPARE_ARITHMETIC_SIMPLIFY(SLt)
+        COMPARE_ARITHMETIC_SIMPLIFY(BvSLt)
 
-        return ConstantFolder::SLt(left, right);
+        return ConstantFolder::BvSLt(left, right);
     }
 
-    ExprPtr SLtEq(const ExprPtr& left, const ExprPtr& right) override
+    ExprPtr BvSLtEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        COMPARE_ARITHMETIC_SIMPLIFY(SLtEq)
+        COMPARE_ARITHMETIC_SIMPLIFY(BvSLtEq)
 
-        return ConstantFolder::SLtEq(left, right);
+        return ConstantFolder::BvSLtEq(left, right);
     }
 
-    ExprPtr SGt(const ExprPtr& left, const ExprPtr& right) override
+    ExprPtr BvSGt(const ExprPtr& left, const ExprPtr& right) override
     {
-        COMPARE_ARITHMETIC_SIMPLIFY(SGt)
+        COMPARE_ARITHMETIC_SIMPLIFY(BvSGt)
     
-        return ConstantFolder::SGt(left, right);
+        return ConstantFolder::BvSGt(left, right);
     }
 
-    ExprPtr SGtEq(const ExprPtr& left, const ExprPtr& right) override
+    ExprPtr BvSGtEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        COMPARE_ARITHMETIC_SIMPLIFY(SGtEq)
+        COMPARE_ARITHMETIC_SIMPLIFY(BvSGtEq)
 
-        return ConstantFolder::SGtEq(left, right);
+        return ConstantFolder::BvSGtEq(left, right);
     }
 
-    ExprPtr ULt(const ExprPtr& left, const ExprPtr& right) override
+    ExprPtr BvULt(const ExprPtr& left, const ExprPtr& right) override
     {
-        return ConstantFolder::ULt(left, right);
+        return ConstantFolder::BvULt(left, right);
     }
 
-    ExprPtr ULtEq(const ExprPtr& left, const ExprPtr& right) override
+    ExprPtr BvULtEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        return ConstantFolder::ULtEq(left, right);
+        return ConstantFolder::BvULtEq(left, right);
     }
 
-    ExprPtr UGt(const ExprPtr& left, const ExprPtr& right) override
+    ExprPtr BvUGt(const ExprPtr& left, const ExprPtr& right) override
     {
-        return ConstantFolder::UGt(left, right);
+        return ConstantFolder::BvUGt(left, right);
     }
 
-    ExprPtr UGtEq(const ExprPtr& left, const ExprPtr& right) override
+    ExprPtr BvUGtEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        return ConstantFolder::UGtEq(left, right);
+        return ConstantFolder::BvUGtEq(left, right);
     }
 
     #undef COMPARE_ARITHMETIC_SIMPLIFY

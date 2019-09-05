@@ -89,14 +89,14 @@ public:
         // Compare
         Eq,
         NotEq,
-        SLt,
-        SLtEq,
-        SGt,
-        SGtEq,
-        ULt,
-        ULtEq,
-        UGt,
-        UGtEq,
+        BvSLt,
+        BvSLtEq,
+        BvSGt,
+        BvSGtEq,
+        BvULt,
+        BvULtEq,
+        BvUGt,
+        BvUGtEq,
         
         // Floating point unary
         FIsNan,
@@ -150,7 +150,7 @@ public:
     static constexpr int FirstLogic = And;
     static constexpr int LastLogic = Xor;
     static constexpr int FirstCompare = Eq;
-    static constexpr int LastCompare = UGtEq;
+    static constexpr int LastCompare = BvUGtEq;
 
     // Floats
     static constexpr int FirstFp = FIsNan;

@@ -58,15 +58,15 @@ public:
     static ExprPtr Eq(const ExprPtr& left, const ExprPtr& right);
     static ExprPtr NotEq(const ExprPtr& left, const ExprPtr& right);
 
-    static ExprPtr SLt(const ExprPtr& left, const ExprPtr& right);
-    static ExprPtr SLtEq(const ExprPtr& left, const ExprPtr& right);
-    static ExprPtr SGt(const ExprPtr& left, const ExprPtr& right);
-    static ExprPtr SGtEq(const ExprPtr& left, const ExprPtr& right);
+    static ExprPtr BvSLt(const ExprPtr& left, const ExprPtr& right);
+    static ExprPtr BvSLtEq(const ExprPtr& left, const ExprPtr& right);
+    static ExprPtr BvSGt(const ExprPtr& left, const ExprPtr& right);
+    static ExprPtr BvSGtEq(const ExprPtr& left, const ExprPtr& right);
 
-    static ExprPtr ULt(const ExprPtr& left, const ExprPtr& right);
-    static ExprPtr ULtEq(const ExprPtr& left, const ExprPtr& right);
-    static ExprPtr UGt(const ExprPtr& left, const ExprPtr& right);
-    static ExprPtr UGtEq(const ExprPtr& left, const ExprPtr& right);
+    static ExprPtr BvULt(const ExprPtr& left, const ExprPtr& right);
+    static ExprPtr BvULtEq(const ExprPtr& left, const ExprPtr& right);
+    static ExprPtr BvUGt(const ExprPtr& left, const ExprPtr& right);
+    static ExprPtr BvUGtEq(const ExprPtr& left, const ExprPtr& right);
 
     //--- Floating point ---//
     static ExprPtr FIsNan(const ExprPtr& op);

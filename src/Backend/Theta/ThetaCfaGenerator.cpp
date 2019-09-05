@@ -2,7 +2,6 @@
 
 #include "gazer/Core/Expr.h"
 #include "gazer/Core/LiteralExpr.h"
-#include "gazer/Core/ExprVisitor.h"
 
 #include <llvm/ADT/Twine.h>
 #include <llvm/Support/raw_ostream.h>
@@ -153,16 +152,7 @@ void ThetaProcess::print(llvm::raw_ostream& os) const
 namespace
 {
 
-class ThetaPrintVisitor : public ExprVisitor<std::string>
-{
-public:
-    std::string visitExpr(const ExprPtr& expr) override {
-        return "???";
-    }
-    
-};
-
-};
+}; // end anonymous namespace
 
 void theta::PrintThetaExpr(const ExprPtr& expr, llvm::raw_ostream& os)
 {

@@ -12,15 +12,6 @@ using namespace gazer;
 // These functions contain basic ExprKind-dependent functionality which should
 // be updated if a new expression kind is introduced to the system.
 
-#define GAZER_EXPR_KIND(KIND) #KIND,
-
-/// This array contains the name of every Gazer expression kind.
-static constexpr std::array ExprNames = {
-    #include "gazer/Core/Expr/ExprKind.inc"
-};
-
-#undef GAZER_EXPR_KIND
-
 std::size_t gazer::expr_kind_prime(Expr::ExprKind kind)
 {
     // Unique prime numbers for each expression kind, used for hashing.
@@ -197,6 +188,8 @@ static constexpr bool is_fp_to_bv(Expr::ExprKind Kind) { return Kind == Expr::Fp
 template<Expr::ExprKind Kind>
 auto BvFpCastExpr<Kind>::Create(const ExprPtr& operand, Type& type, const llvm::APFloat::roundingMode& rm) -> ExprRef<BvFpCastExpr<Kind>>
 {
+    assert(operand->getType() != type && "Cast source and target operands must differ!");
+
     if constexpr (is_bv_to_fp(Kind)) {
         assert(operand->getType().isBvType() && "Can only do BvToFp cast on bitvector inputs!");
         assert(type.isFloatType() && "Can only do BvToFp casts to floating-point targets!");
@@ -293,14 +286,14 @@ template class ArithmeticExpr<Expr::BvXor>;
 
 template class CompareExpr<Expr::Eq>;
 template class CompareExpr<Expr::NotEq>;
-template class CompareExpr<Expr::SLt>;
-template class CompareExpr<Expr::SLtEq>;
-template class CompareExpr<Expr::SGt>;
-template class CompareExpr<Expr::SGtEq>;
-template class CompareExpr<Expr::ULt>;
-template class CompareExpr<Expr::ULtEq>;
-template class CompareExpr<Expr::UGt>;
-template class CompareExpr<Expr::UGtEq>;
+template class CompareExpr<Expr::BvSLt>;
+template class CompareExpr<Expr::BvSLtEq>;
+template class CompareExpr<Expr::BvSGt>;
+template class CompareExpr<Expr::BvSGtEq>;
+template class CompareExpr<Expr::BvULt>;
+template class CompareExpr<Expr::BvULtEq>;
+template class CompareExpr<Expr::BvUGt>;
+template class CompareExpr<Expr::BvUGtEq>;
 template class MultiaryLogicExpr<Expr::And>;
 template class MultiaryLogicExpr<Expr::Or>;
 template class BinaryLogicExpr<Expr::Xor>;
@@ -329,14 +322,14 @@ template class FpCompareExpr<Expr::FLtEq>;
 
 llvm::StringRef Expr::getKindName(ExprKind kind)
 {
-    static_assert(
-        (sizeof(ExprNames) / sizeof(ExprNames[0])) == LastExprKind + 1,
-        "Missing ExprKind in Expr::print()"
-    );
+    #define GAZER_EXPR_KIND(KIND) case KIND: return #KIND;
 
-    if (Expr::FirstExprKind <= kind && kind <= Expr::LastExprKind) {
-        return ExprNames[kind];
-    }
+    /// This array contains the name of every Gazer expression kind.
+    switch (kind) {
+        #include "gazer/Core/Expr/ExprKind.inc"
+    };
+
+    #undef GAZER_EXPR_KIND
 
     llvm_unreachable("Invalid expression kind.");
 }
