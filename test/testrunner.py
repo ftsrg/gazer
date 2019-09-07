@@ -105,7 +105,7 @@ if __name__ == '__main__':
 
     for test in sorted(tests, key=operator.attrgetter('filename')):
         # Execute all tests
-        print("Test {0} {1}".format(test.filename, test.flags))
+        print("RUN {0} {1}".format(test.filename, test.flags), end=" ")
         logging.debug("Compiling C program into LLVM bitcode")
 
         bc_file = pathlib.Path(test.filename).with_suffix(".bc")
@@ -138,7 +138,9 @@ if __name__ == '__main__':
                 gazer_flags,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
-                text=True).stdout
+                text=True,
+                timeout=30
+            ).stdout
 
             outputs_file.write(">>>>>> Output for {0} {1}:\n".format(test.filename, test.flags))
             outputs_file.write(gazer_output)
@@ -151,13 +153,20 @@ if __name__ == '__main__':
 
             if verification_result == "":
                 results.append(tuple((test.filename, UNKNOWN, "Unknown value returned by gazer")))
+                print("UNKNOWN")
             elif verification_result == test.expect:
                 results.append(tuple((test.filename, PASSED, "")))
+                print("PASS")
             else:
+                print("FAIL")
                 results.append(tuple((test.filename, FAILED, "Expected: {0} Actual: {1}".format(test.expect, verification_result))))
         except subprocess.CalledProcessError as err:
+            print("ERROR")
             results.append(tuple((test.filename, ERROR, "gazer exited with an error")))
             continue
+        except subprocess.TimeoutExpired as err:
+            print("TIMEOUT")
+            results.append(tuple((test.filename, TIMEOUT, "")))
 
     print("\n=========================")
     print("-------- RESULTS --------")
@@ -171,6 +180,8 @@ if __name__ == '__main__':
             print("ERROR   {0} ({1})".format(result[0], result[2]))
         elif result[1] == SKIP:
             print("SKIP    {0} ({1})".format(result[0], result[2]))
+        elif result[1] == TIMEOUT:
+            print("TIMEOUT {0}".format(result[0]))
         else:
             print("UNKNOWN {0} ({1})".format(result[0], result[2]))
         
