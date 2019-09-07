@@ -36,23 +36,48 @@ public:
             Z3_inc_ref(mContext, mAst);
         }
     }
+    
+    Z3AstHandle(Z3AstHandle&& other)
+        : mContext(other.mContext), mAst(other.mAst)
+    {
+        other.mContext = nullptr;
+        other.mAst = nullptr;
+    }
 
     Z3AstHandle& operator=(const Z3AstHandle& other)
     {
-        if (mContext == nullptr && mAst == nullptr) {
+        if (this != &other) {
+            if (mContext == nullptr && mAst == nullptr) {
+                mContext = other.mContext;
+            }
+
+            assert(mContext == other.mContext);
+            // If the ast is not null then the context should not be null either.
+            assert(mAst == nullptr || mContext != nullptr);
+
+            if (mContext != nullptr && mAst != nullptr) {
+                Z3_dec_ref(mContext, mAst);
+            }
+            mAst = other.mAst;
+            if (mContext != nullptr && mAst != nullptr) {
+                Z3_inc_ref(mContext, mAst);
+            }
+        }
+
+        return *this;
+    }
+
+    Z3AstHandle& operator=(Z3AstHandle&& other)
+    {
+        if (this != &other) {
+            if (mContext != nullptr && mAst != nullptr) {
+                Z3_dec_ref(mContext, mAst);
+            }
+
             mContext = other.mContext;
-        }
-
-        assert(mContext == other.mContext);
-        // If mAst is not null then the context should not be null either.
-        assert(mAst == nullptr || mContext != nullptr);
-
-        if (mContext != nullptr && mAst != nullptr) {
-            Z3_dec_ref(mContext, mAst);
-        }
-        mAst = other.mAst;
-        if (mContext != nullptr && mAst != nullptr) {
-            Z3_inc_ref(mContext, mAst);
+            mAst = other.mAst;
+            other.mContext = nullptr;
+            other.mAst = nullptr;
         }
 
         return *this;
@@ -458,9 +483,6 @@ public:
     // Floating-point casts
     Z3AstHandle visitFCast(const ExprRef<FCastExpr>& expr)
     {
-        llvm::errs() << "\n";
-        expr->print(llvm::errs());
-        llvm::errs() << Z3_ast_to_string(mZ3Context, getOperand(0)) << "\n";
         return createHandle(Z3_mk_fpa_to_fp_float(
             mZ3Context,
             transformRoundingMode(expr->getRoundingMode()),

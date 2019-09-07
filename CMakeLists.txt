@@ -26,11 +26,20 @@ find_package(LLVM 9.0 REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
-llvm_map_components_to_libnames(LLVM_LIBS support)
-
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
+
+# Z3
+find_package(Z3 4.8 REQUIRED CONFIG)
+message(STATUS "Found Z3 ${Z3_VERSION_STRING}")
+message(STATUS "Using Z3 config in: ${Z3_DIR}")
+message(STATUS "Using Z3 libraries: ${Z3_LIBRARIES}")
+
+include_directories(${Z3_C_INCLUDE_DIRS})
+link_directories(${CMAKE_SOURCE_DIR}/lib)
+
+set(Z3_INCLUDE_DIR  ${Z3_C_INCLUDE_DIRS})
 
 # Get boost
 find_package(Boost REQUIRED)
