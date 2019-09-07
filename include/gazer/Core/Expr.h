@@ -116,6 +116,7 @@ public:
         FDiv,
 
         // Floating point compare
+        // All comparisons evaluate to false if either operand is NaN
         FEq,
         FGt,
         FGtEq,

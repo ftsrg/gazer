@@ -252,11 +252,9 @@ ExprPtr InstToExpr::visitFCmpInst(const llvm::FCmpInst& fcmp)
         );
     } else if (CmpInst::isOrdered(pred)) {
         // An ordered instruction can only be true if it has no NaN operands.
-        expr = mExprBuilder.And({
-             mExprBuilder.Not(mExprBuilder.FIsNan(left)),
-             mExprBuilder.Not(mExprBuilder.FIsNan(right)),
-             cmpExpr
-         });
+        // As our comparison operators are defined to be false if either
+        // argument is NaN, we we can just return the compare expression.
+        expr = cmpExpr;
     } else if (CmpInst::isUnordered(pred)) {
         // An unordered instruction may be true if either operand is NaN
         expr = mExprBuilder.Or({
