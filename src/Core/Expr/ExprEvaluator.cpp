@@ -78,6 +78,8 @@ static ExprRef<LiteralExpr> EvalBinaryArithmetic(
             case Expr::BvAnd: return BvLiteralExpr::Get(type, left & right);
             case Expr::BvOr: return BvLiteralExpr::Get(type, left | right);
             case Expr::BvXor: return BvLiteralExpr::Get(type, left ^ right);
+            default:
+                break;
         }
     }
     
@@ -217,6 +219,8 @@ static ExprRef<LiteralExpr> EvalBvCompare(
         case Expr::BvULtEq: return BoolLiteralExpr::Get(type, left.ule(right));
         case Expr::BvUGt: return BoolLiteralExpr::Get(type, left.ugt(right));
         case Expr::BvUGtEq: return BoolLiteralExpr::Get(type, left.uge(right));
+        default:
+            break;
     }
 
     llvm_unreachable("Unknown binary arithmetic expression kind.");

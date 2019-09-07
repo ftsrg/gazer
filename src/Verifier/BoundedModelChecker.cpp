@@ -189,7 +189,10 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
 
             this->push();
             llvm::outs() << "    Transforming formula...\n";
-            if (DumpFormula) { FormatPrintExpr(formula, llvm::errs()); }
+            if (DumpFormula) {
+                formula->print(llvm::errs());
+            }
+
             mSolver->add(formula);
 
             if (DumpSolver) {
@@ -513,15 +516,19 @@ ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Loc
 
             if (auto assignEdge = llvm::dyn_cast<AssignTransition>(edge)) {
                 ExprVector assigns;
-                std::transform(assignEdge->begin(), assignEdge->end(), std::back_inserter(assigns), [this](const VariableAssignment& varAssign) {
-                    return this->mExprBuilder.Eq(varAssign.getVariable()->getRefExpr(), varAssign.getValue());
-                });
+
+                for (auto& assignment : *assignEdge) {
+                    // As we are dealing with an SSA-formed CFA, we can just omit undef assignments.
+                    if (assignment.getValue()->getKind() != Expr::Undef) {
+                        auto eqExpr = mExprBuilder.Eq(assignment.getVariable()->getRefExpr(), assignment.getValue());
+                        assigns.push_back(eqExpr);
+                    }
+                }
 
                 if (!assigns.empty()) {
                     formula = mExprBuilder.And(formula, mExprBuilder.And(assigns));
                 }
             } else if (auto callEdge = llvm::dyn_cast<CallTransition>(edge)) {
-                //llvm::errs() << "Over-approximating edge with " << *mCalls[callEdge].overApprox << " edge " << *edge << "\n";
                 formula = mExprBuilder.And(formula, mCalls[callEdge].overApprox);
             }
 

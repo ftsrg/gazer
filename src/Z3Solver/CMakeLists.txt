@@ -5,4 +5,4 @@ set(SOURCE_FILES
 find_package(Z3 REQUIRED)
 
 add_library(GazerZ3Solver ${SOURCE_FILES})
-target_link_libraries(GazerZ3Solver ${Z3_LIBRARIES} GazerCore)
+target_link_libraries(GazerZ3Solver GazerCore)
