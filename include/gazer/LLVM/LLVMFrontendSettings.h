@@ -21,8 +21,8 @@ enum class FloatRepresentation
 
 enum class LoopRepresentation
 {
-    Recursion,  ///< Represents loops as recursive functions.
-    Cycle,      ///< Represents loops as cycles.
+    Recursion,  ///< Represent loops as recursive functions.
+    Cycle,      ///< Represent loops as cycles.
 };
 
 enum class ElimVarsLevel

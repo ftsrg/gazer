@@ -22,7 +22,8 @@ std::size_t gazer::expr_kind_prime(Expr::ExprKind kind)
         465977u, 765007u, 388727u, 730819u, 134353u, 819583u, 314953u, 848633u,
         290623u, 241291u, 579499u, 384287u, 125287u, 920273u, 485833u, 326449u,
         972683u, 485167u, 882599u, 535727u, 383651u, 159833u, 796001u, 218479u,
-        163993u, 622561u, 938881u, 692467u, 851971u, 478427u
+        163993u, 622561u, 938881u, 692467u, 851971u, 478427u, 653969u, 650329u,
+        645187u, 830827u
     };
 
     static_assert(
@@ -99,11 +100,13 @@ auto ExtractExpr::Create(const ExprPtr& operand, unsigned offset, unsigned width
     );
 }
 
-static constexpr bool is_arithmetic_only(Expr::ExprKind kind) {
+static constexpr bool is_arithmetic_only(Expr::ExprKind kind)
+{
     return kind == Expr::Div;
 }
 
-static constexpr bool is_bv_only(Expr::ExprKind kind) {
+static constexpr bool is_bv_only(Expr::ExprKind kind)
+{
     return Expr::BvSDiv <= kind && kind <= Expr::BvXor;
 }
 
@@ -127,10 +130,19 @@ auto ArithmeticExpr<Kind>::Create(const ExprPtr& left, const ExprPtr& right) -> 
     return context.pImpl->Exprs.create<ArithmeticExpr<Kind>>(left->getType(), { left, right });
 }
 
+static constexpr bool is_bv_only_compare(Expr::ExprKind kind)
+{
+    return Expr::BvSLt <= kind && kind <= Expr::BvUGtEq;
+}
+
 template<Expr::ExprKind Kind>
 auto CompareExpr<Kind>::Create(const ExprPtr& left, const ExprPtr& right) -> ExprRef<CompareExpr<Kind>>
 {
     assert(left->getType() == right->getType() && "Compare expresison operand types must match!");
+    if constexpr (is_bv_only_compare(Kind)) {
+        assert(left->getType().isBvType() && "Bitvector comparisons must have bitvector operands!");
+    }
+
     auto& context = left->getContext();
 
     return context.pImpl->Exprs.create<CompareExpr<Kind>>(BoolType::Get(context), { left, right });
@@ -267,6 +279,7 @@ ExprRef<ArrayWriteExpr> ArrayWriteExpr::Create(
 
 namespace gazer
 {
+
 template class ExtCastExpr<Expr::ZExt>;
 template class ExtCastExpr<Expr::SExt>;
 template class ArithmeticExpr<Expr::Add>;
@@ -286,6 +299,11 @@ template class ArithmeticExpr<Expr::BvXor>;
 
 template class CompareExpr<Expr::Eq>;
 template class CompareExpr<Expr::NotEq>;
+template class CompareExpr<Expr::Lt>;
+template class CompareExpr<Expr::LtEq>;
+template class CompareExpr<Expr::Gt>;
+template class CompareExpr<Expr::GtEq>;
+
 template class CompareExpr<Expr::BvSLt>;
 template class CompareExpr<Expr::BvSLtEq>;
 template class CompareExpr<Expr::BvSGt>;
@@ -294,6 +312,7 @@ template class CompareExpr<Expr::BvULt>;
 template class CompareExpr<Expr::BvULtEq>;
 template class CompareExpr<Expr::BvUGt>;
 template class CompareExpr<Expr::BvUGtEq>;
+
 template class MultiaryLogicExpr<Expr::And>;
 template class MultiaryLogicExpr<Expr::Or>;
 template class BinaryLogicExpr<Expr::Xor>;
@@ -316,6 +335,7 @@ template class FpCompareExpr<Expr::FGt>;
 template class FpCompareExpr<Expr::FGtEq>;
 template class FpCompareExpr<Expr::FLt>;
 template class FpCompareExpr<Expr::FLtEq>;
+
 } // end namespace gazer
 
 //------------------------------- Utilities ---------------------------------//

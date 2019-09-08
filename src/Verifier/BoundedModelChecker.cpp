@@ -34,7 +34,7 @@ llvm::cl::opt<bool> PrintSolverStats("print-solver-stats", llvm::cl::desc("Print
 
 llvm::cl::opt<bool> Trace("trace", llvm::cl::desc("Print counterexample traces to stdout."));
 
-extern llvm::cl::opt<bool> NoSimplifyExpr;
+llvm::cl::opt<bool> NoSimplifyExpr("no-simplify-expr", llvm::cl::desc("Do not simplify expessions."));
 
 } // end namespace gazer
 
@@ -47,7 +47,7 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::check(AutomataSystem& system)
     if (!NoSimplifyExpr) {
         builder = CreateFoldingExprBuilder(system.getContext());
     } else {
-        builder =CreateExprBuilder(system.getContext());
+        builder = CreateExprBuilder(system.getContext());
     }
     BoundedModelCheckerImpl impl{system, *builder, mSolverFactory, mTraceBuilder};
 
@@ -59,7 +59,9 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::check(AutomataSystem& system)
 }
 
 BoundedModelCheckerImpl::BoundedModelCheckerImpl(
-    AutomataSystem& system, ExprBuilder& builder, SolverFactory& solverFactory,
+    AutomataSystem& system,
+    ExprBuilder& builder,
+    SolverFactory& solverFactory,
     TraceBuilder<Location*>* traceBuilder
 ) : mSystem(system),
     mExprBuilder(builder),
@@ -69,67 +71,96 @@ BoundedModelCheckerImpl::BoundedModelCheckerImpl(
         // TODO: Make this more flexible
         mRoot = mSystem.getAutomatonByName("main");
         assert(mRoot != nullptr && "The main automaton must exist!");
+    }
 
-        // Set the verification goal - a single error location.
-        llvm::SmallVector<Location*, 1> errors;
-        for (auto& loc : mRoot->nodes()) {
-            if (loc->isError()) {
-                errors.push_back(loc.get());
-            }
-        }
+void BoundedModelCheckerImpl::createTopologicalSorts()
+{
+    for (Cfa& cfa : mSystem) {
+        auto poBegin = llvm::po_begin(cfa.getEntry());
+        auto poEnd = llvm::po_end(cfa.getEntry());
 
-        // Create the topological sorts
-        for (Cfa& cfa : mSystem) {
-            auto poBegin = llvm::po_begin(cfa.getEntry());
-            auto poEnd = llvm::po_end(cfa.getEntry());
+        auto& topoVec = mTopoSortMap[&cfa];
+        topoVec.insert(mTopo.end(), poBegin, poEnd);
+        std::reverse(topoVec.begin(), topoVec.end());
+    }
 
-            auto& topoVec = mTopoSortMap[&cfa];
-            topoVec.insert(mTopo.end(), poBegin, poEnd);
-            std::reverse(topoVec.begin(), topoVec.end());
-        }
+    auto& mainTopo = mTopoSortMap[mRoot];
+    mTopo.insert(mTopo.end(), mainTopo.begin(), mainTopo.end());
 
-        auto& mainTopo = mTopoSortMap[mRoot];
-        mTopo.insert(mTopo.end(), mainTopo.begin(), mainTopo.end());
+    for (size_t i = 0; i < mTopo.size(); ++i) {
+        mLocNumbers[mTopo[i]] = i;
+    }
+}
 
-        for (size_t i = 0; i < mTopo.size(); ++i) {
-            mLocNumbers[mTopo[i]] = i;
-        }
-
-        mErrorFieldVariable = mRoot->createLocal("__error_field", BvType::Get(mSystem.getContext(), 16));
-
-        if (errors.empty()) {
-            // If there are no error locations in the main automaton, they might still exist in a called CFA.
-            // Create a dummy error location which we will use as a goal.
-            mError = mRoot->createErrorLocation();
-            mRoot->createAssignTransition(mRoot->getEntry(), mError, mExprBuilder.False(), {
-                VariableAssignment{ mErrorFieldVariable, mExprBuilder.BvLit(0, 16) }
-            });
-            mLocNumbers[mError] = mTopo.size();
-            mTopo.push_back(mError);
-        } else {
-            // Create an error location which will be directly reachable from already existing error locations.
-            // This one error location will be used as the goal.
-            mError = mRoot->createErrorLocation();
-            for (Location* err : errors) {
-                mRoot->createAssignTransition(err, mError, mExprBuilder.True(), {
-                    VariableAssignment { mErrorFieldVariable, mRoot->getErrorFieldExpr(err) }
-                });
-            }
-            mLocNumbers[mError] = mTopo.size();
-            mTopo.push_back(mError);
-        }
-
-        // Insert initial call approximations.
-        for (auto& edge : mRoot->edges()) {
-            if (auto call = llvm::dyn_cast<CallTransition>(edge.get())) {
-                mCalls[call].overApprox = mExprBuilder.False();
-                mCalls[call].cost = 1;
-            }
+bool BoundedModelCheckerImpl::initializeErrorField()
+{
+    // Set the verification goal - a single error location.
+    llvm::SmallVector<Location*, 1> errors;
+    Type* errorFieldType = nullptr;
+    for (auto& loc : mRoot->nodes()) {
+        if (loc->isError()) {
+            errors.push_back(loc.get());
+            errorFieldType = &mRoot->getErrorFieldExpr(loc.get())->getType();
         }
     }
 
+    if (errorFieldType == nullptr) {
+        // Try to find the error field type from using another CFA.
+        // Try to find a suitable error field type.
+        for (Cfa& cfa : mSystem) {
+            for (auto& err : cfa.errors()) {
+                errorFieldType = &err.second->getType();
+                goto ERROR_TYPE_FOUND;
+            }
+        }
+
+        // There are no error calls in the system, it is safe by definition.
+        return false;
+    }
+    
+    ERROR_TYPE_FOUND:
+
+    mError = mRoot->createErrorLocation();
+    mErrorFieldVariable = mRoot->createLocal("__error_field", *errorFieldType);
+    if (errors.empty()) {
+        // If there are no error locations in the main automaton, they might still exist in a called CFA.
+        // A dummy error location will be used as a goal.
+        mRoot->createAssignTransition(mRoot->getEntry(), mError, mExprBuilder.False(), {
+            VariableAssignment{ mErrorFieldVariable, mExprBuilder.BvLit(0, 16) }
+        });        
+    } else {
+        // The error location which will be directly reachable from already existing error locations.
+        for (Location* err : errors) {
+            mRoot->createAssignTransition(err, mError, mExprBuilder.True(), {
+                VariableAssignment { mErrorFieldVariable, mRoot->getErrorFieldExpr(err) }
+            });
+        }
+    }
+    mLocNumbers[mError] = mTopo.size();
+    mTopo.push_back(mError);
+
+    return true;
+}
+
 std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
 {
+    // Create the topological sorts
+    this->createTopologicalSorts();
+
+    // Initialize error field
+    bool hasErrorLocation = this->initializeErrorField();
+    if (!hasErrorLocation) {
+        return SafetyResult::CreateSuccess();
+    }
+
+    // Insert initial call approximations.
+    for (auto& edge : mRoot->edges()) {
+        if (auto call = llvm::dyn_cast<CallTransition>(edge.get())) {
+            mCalls[call].overApprox = mExprBuilder.False();
+            mCalls[call].cost = 1;
+        }
+    }
+
     if (ViewCfa) {
         for (Cfa& cfa : mSystem) {
             cfa.view();
@@ -279,10 +310,17 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                     llvm::outs() << "State " << states.back()->getId() << "\n";
                 }
 
-                ExprRef<BvLiteralExpr> errorExpr = llvm::dyn_cast_or_null<BvLiteralExpr>(model[mErrorFieldVariable]);
-                assert(errorExpr != nullptr && "The error field must be present in the model as a BvLiteral!");
+                ExprRef<LiteralExpr> errorExpr = model[mErrorFieldVariable];
+                assert(errorExpr != nullptr && "The error field must be present in the model as a literal expression!");
 
-                return SafetyResult::CreateFail(errorExpr->getValue().getLimitedValue());
+                switch (errorExpr->getType().getTypeID()) {
+                    case Type::BvTypeID:
+                        return SafetyResult::CreateFail(llvm::cast<BvLiteralExpr>(errorExpr)->getValue().getLimitedValue());
+                    case Type::IntTypeID:
+                        return SafetyResult::CreateFail(llvm::cast<IntLiteralExpr>(errorExpr)->getValue());
+                    default:
+                        llvm_unreachable("Invalid error field type!");
+                }
             }
 
             this->pop();

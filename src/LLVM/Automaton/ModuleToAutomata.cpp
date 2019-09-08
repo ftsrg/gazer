@@ -119,6 +119,18 @@ static llvm::Loop* getNestedLoopOf(GenerationContext& genCtx, CfaGenInfo& genInf
     llvm_unreachable("A CFA source should either be a function or a loop.");
 }
 
+static gazer::Type& getExitSelectorType(IntRepresentation ints, GazerContext& context)
+{         
+    switch (ints) {
+        case IntRepresentation::BitVectors:
+            return BvType::Get(context, 8);
+        case IntRepresentation::Integers:
+            return IntType::Get(context);
+    }
+    
+    llvm_unreachable("Invalid int representation strategy!");
+}
+
 ModuleToCfa::ModuleToCfa(
         llvm::Module& module,
         GenerationContext::LoopInfoMapTy& loops,
@@ -284,10 +296,13 @@ void ModuleToCfa::createAutomata()
             llvm::SmallVector<llvm::BasicBlock*, 4> exitBlocks;
             loop->getUniqueExitBlocks(exitBlocks);
             if (exitBlocks.size() != 1) {
-                loopGenInfo.ExitVariable = nested->createLocal(LoopOutputSelectorName, BvType::Get(mContext, 8));
+                Type& selectorTy = getExitSelectorType(mSettings.getIntRepresentation(), mContext);
+                loopGenInfo.ExitVariable = nested->createLocal(LoopOutputSelectorName, selectorTy);
                 nested->addOutput(loopGenInfo.ExitVariable);
                 for (size_t i = 0; i < exitBlocks.size(); ++i) {
-                    loopGenInfo.ExitBlocks[exitBlocks[i]] = mExprBuilder->BvLit(i, 8);
+                    loopGenInfo.ExitBlocks[exitBlocks[i]] = selectorTy.isBvType() 
+                        ? boost::static_pointer_cast<LiteralExpr>(mExprBuilder->BvLit(i, 8))
+                        : mExprBuilder->IntLit(i);
                 }
             }
 
@@ -459,7 +474,9 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
         assert(exit->isError() && "The target location of a 'gazer.error_code' call must be an error location!");
         llvm::Value* arg = call->getArgOperand(0);
 
-        mCfa->addErrorCode(exit, operand(arg));
+        ExprPtr errorCodeExpr = operand(arg);
+
+        mCfa->addErrorCode(exit, errorCodeExpr);
     }
 
     return true;
@@ -646,9 +663,11 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
 
         Variable* exitSelector = nullptr;
         if (nestedLoopInfo.ExitVariable != nullptr) {
+            Type& selectorTy = getExitSelectorType(mSettings.getIntRepresentation(), mContext);
+
             exitSelector = mCfa->createLocal(
                 Twine(ModuleToCfa::LoopOutputSelectorName).concat(Twine(mCounter++)).str(),
-                BvType::Get(mGenCtx.getSystem().getContext(), 8)
+                selectorTy
             );
             outputArgs.emplace_back(exitSelector, nestedLoopInfo.ExitVariable->getRefExpr());
         }

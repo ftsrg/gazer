@@ -270,6 +270,15 @@ public:
         return llvm::make_range(node_begin(), node_end());
     }
 
+    // Iterator for error locations
+    using error_iterator = llvm::SmallDenseMap<Location*, ExprPtr, 1>::const_iterator;
+
+    error_iterator error_begin() const { return mErrorFieldExprs.begin(); }
+    error_iterator error_end() const { return mErrorFieldExprs.end(); }
+    llvm::iterator_range<error_iterator> errors() const {
+        return llvm::make_range(error_begin(), error_end());
+    }
+
     // Transition (edge) iterators...
     using edge_iterator = std::vector<std::unique_ptr<Transition>>::iterator;
     using const_edge_iterator = std::vector<std::unique_ptr<Transition>>::const_iterator;

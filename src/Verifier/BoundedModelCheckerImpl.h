@@ -120,6 +120,9 @@ public:
     void printStats(llvm::raw_ostream& os);
 
 private:
+    void createTopologicalSorts();
+    bool initializeErrorField();
+
     void inlineCallIntoRoot(
         CallTransition* call,
         llvm::DenseMap<Variable*, Variable*>& vmap,
