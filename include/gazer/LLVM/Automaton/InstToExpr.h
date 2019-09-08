@@ -19,12 +19,11 @@ public:
     InstToExpr(
         ExprBuilder& builder,
         MemoryModel& memoryModel,
-        IntRepresentation ints = IntRepresentation::BitVectors,
-        FloatRepresentation floats = FloatRepresentation::Fpa
+        LLVMFrontendSettings settings
     ) : mExprBuilder(builder),
         mContext(builder.getContext()),
         mMemoryModel(memoryModel),
-        mInts(ints), mFloats(floats)
+        mSettings(settings)
     {}
 
     ExprPtr transform(const llvm::Instruction& inst);
@@ -53,7 +52,8 @@ protected:
     ExprPtr operand(const llvm::Value* value);
     
     ExprPtr asBool(const ExprPtr& operand);
-    ExprPtr asInt(const ExprPtr& operand, unsigned int bits);
+    ExprPtr asBv(const ExprPtr& operand, unsigned int bits);
+    ExprPtr asInt(const ExprPtr& operand);
 
     ExprPtr integerCast(const llvm::CastInst& cast, const ExprPtr& operand, unsigned int width);
     ExprPtr castResult(const ExprPtr& expr, const Type& type);
@@ -73,8 +73,7 @@ protected:
     ExprBuilder& mExprBuilder;
     GazerContext& mContext;
     MemoryModel& mMemoryModel;
-    IntRepresentation mInts;
-    FloatRepresentation mFloats;
+    LLVMFrontendSettings mSettings;
 };
 
 } // end namespace gazer

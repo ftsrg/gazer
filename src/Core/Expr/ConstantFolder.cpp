@@ -296,6 +296,26 @@ ExprPtr ConstantFolder::NotEq(const ExprPtr& left, const ExprPtr& right)
     return NotEqExpr::Create(left, right);
 }
 
+ExprPtr ConstantFolder::Lt(const ExprPtr& left, const ExprPtr& right)
+{
+    return LtExpr::Create(left, right);
+}
+
+ExprPtr ConstantFolder::LtEq(const ExprPtr& left, const ExprPtr& right)
+{
+    return LtEqExpr::Create(left, right);
+}
+
+ExprPtr ConstantFolder::Gt(const ExprPtr& left, const ExprPtr& right)
+{
+    return GtExpr::Create(left, right);
+}
+
+ExprPtr ConstantFolder::GtEq(const ExprPtr& left, const ExprPtr& right)
+{
+    return GtEqExpr::Create(left, right);
+}
+
 ExprPtr ConstantFolder::BvSLt(const ExprPtr& left, const ExprPtr& right)
 {
     if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left.get())) {

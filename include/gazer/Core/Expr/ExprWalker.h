@@ -268,6 +268,19 @@ public:
     ReturnT visitNotEq(const ExprRef<NotEqExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitNonNullary(expr);
     }
+
+    ReturnT visitLt(const ExprRef<LtExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitLtEq(const ExprRef<LtEqExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitGt(const ExprRef<GtExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitGtEq(const ExprRef<GtEqExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
     
     ReturnT visitBvSLt(const ExprRef<BvSLtExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitNonNullary(expr);

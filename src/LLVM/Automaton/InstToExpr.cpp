@@ -62,43 +62,20 @@ ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop)
     auto rhs = operand(binop.getOperand(1));
     
     auto opcode = binop.getOpcode();
-    if (isLogicInstruction(opcode)) {
-        ExprPtr expr;
-        if (binop.getType()->isIntegerTy(1)) {
-            auto boolLHS = asBool(lhs);
-            auto boolRHS = asBool(rhs);
+    if (isLogicInstruction(opcode) && binop.getType()->isIntegerTy(1)) {
+        auto boolLHS = asBool(lhs);
+        auto boolRHS = asBool(rhs);
 
-            switch (binop.getOpcode()) {
-                case Instruction::And:
-                    return mExprBuilder.And(boolLHS, boolRHS);
-                case Instruction::Or:
-                    return mExprBuilder.Or(boolLHS, boolRHS);
-                case Instruction::Xor:
-                    return mExprBuilder.Xor(boolLHS, boolRHS);
-                default:
-                    llvm_unreachable("Unknown logic instruction opcode");
-            }
-        } else {
-            assert(binop.getType()->isIntegerTy()
-                   && "Integer operations on non-integer types");
-            auto iTy = llvm::dyn_cast<llvm::IntegerType>(binop.getType());
-
-            auto intLHS = asInt(lhs, iTy->getBitWidth());
-            auto intRHS = asInt(rhs, iTy->getBitWidth());
-
-            switch (binop.getOpcode()) {
-                case Instruction::And:
-                    return mExprBuilder.BvAnd(intLHS, intRHS);
-                case Instruction::Or:
-                    return mExprBuilder.BvOr(intLHS, intRHS);
-                case Instruction::Xor:
-                    return mExprBuilder.BvXor(intLHS, intRHS);
-                default:
-                    llvm_unreachable("Unknown logic instruction opcode");
-            }
+        switch (binop.getOpcode()) {
+            case Instruction::And:
+                return mExprBuilder.And(boolLHS, boolRHS);
+            case Instruction::Or:
+                return mExprBuilder.Or(boolLHS, boolRHS);
+            case Instruction::Xor:
+                return mExprBuilder.Xor(boolLHS, boolRHS);
+            default:
+                llvm_unreachable("Unknown logic instruction opcode");
         }
-
-        return mExprBuilder.Eq(variable->getRefExpr(), expr);
     }
     
     if (isFloatInstruction(opcode)) {
@@ -118,35 +95,72 @@ ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop)
 
         return expr;
     }
+
+    assert(variable->getType().isIntType() || variable->getType().isBvType());
     
     if (variable->getType().isBvType()) {
         const BvType* type = llvm::cast<BvType>(&variable->getType());
 
-        auto intLHS = asInt(lhs, type->getWidth());
-        auto intRHS = asInt(rhs, type->getWidth());
+        auto intLHS = asBv(lhs, type->getWidth());
+        auto intRHS = asBv(rhs, type->getWidth());
 
-#define HANDLE_INSTCASE(OPCODE, EXPRNAME)                           \
+        #define HANDLE_INSTCASE(OPCODE, EXPRNAME)                   \
             case OPCODE:                                            \
                 return mExprBuilder.EXPRNAME(intLHS, intRHS);       \
 
         ExprPtr expr;
         switch (binop.getOpcode()) {
-            HANDLE_INSTCASE(Instruction::Add, Add)
-            HANDLE_INSTCASE(Instruction::Sub, Sub)
-            HANDLE_INSTCASE(Instruction::Mul, Mul)
-            HANDLE_INSTCASE(Instruction::SDiv, BvSDiv)
-            HANDLE_INSTCASE(Instruction::UDiv, BvUDiv)
-            HANDLE_INSTCASE(Instruction::SRem, BvSRem)
-            HANDLE_INSTCASE(Instruction::URem, BvURem)
-            HANDLE_INSTCASE(Instruction::Shl, Shl)
-            HANDLE_INSTCASE(Instruction::LShr, LShr)
-            HANDLE_INSTCASE(Instruction::AShr, AShr)
+            HANDLE_INSTCASE(Instruction::Add,   Add)
+            HANDLE_INSTCASE(Instruction::Sub,   Sub)
+            HANDLE_INSTCASE(Instruction::Mul,   Mul)
+            HANDLE_INSTCASE(Instruction::SDiv,  BvSDiv)
+            HANDLE_INSTCASE(Instruction::UDiv,  BvUDiv)
+            HANDLE_INSTCASE(Instruction::SRem,  BvSRem)
+            HANDLE_INSTCASE(Instruction::URem,  BvURem)
+            HANDLE_INSTCASE(Instruction::Shl,   Shl)
+            HANDLE_INSTCASE(Instruction::LShr,  LShr)
+            HANDLE_INSTCASE(Instruction::AShr,  AShr)
+            HANDLE_INSTCASE(Instruction::And,   BvAnd)
+            HANDLE_INSTCASE(Instruction::Or,    BvOr)
+            HANDLE_INSTCASE(Instruction::Xor,   BvXor)
             default:
                 LLVM_DEBUG(llvm::dbgs() << "Unsupported instruction: " << binop << "\n");
                 llvm_unreachable("Unsupported arithmetic instruction opcode");
         }
 
-#undef HANDLE_INSTCASE
+        #undef HANDLE_INSTCASE
+    }
+
+    if (variable->getType().isIntType()) {
+        auto intLHS = asInt(lhs);
+        auto intRHS = asInt(rhs);
+
+        switch (binop.getOpcode()) {
+            case Instruction::Add:
+                // TODO: Add modulo to represent overflow.
+                return mExprBuilder.Add(intLHS, intRHS);
+            case Instruction::Sub:
+                return mExprBuilder.Sub(intLHS, intRHS);
+            case Instruction::Mul:
+                return mExprBuilder.Mul(intLHS, intRHS);
+            case Instruction::SDiv:
+            case Instruction::UDiv:
+                return mExprBuilder.Div(intLHS, intRHS);
+            case Instruction::SRem:
+            case Instruction::URem:
+                // TODO: Add arithmetic Rem
+                llvm_unreachable("Unsupported Rem expression");
+            case Instruction::Shl:
+            case Instruction::LShr:
+            case Instruction::AShr:
+            case Instruction::And:
+            case Instruction::Or:
+            case Instruction::Xor:
+                // TODO: Some magic could be applied here to transform operations on
+                // certain bit-patterns, e.g. all-ones, single-one, all-zero, single-zero, etc.
+                return mExprBuilder.Undef(variable->getType());
+        }
+
     }
 
     llvm_unreachable("Invalid binary operation kind");
@@ -168,32 +182,57 @@ ExprPtr InstToExpr::visitICmpInst(const llvm::ICmpInst& icmp)
 {
     using llvm::CmpInst;
 
+    auto pred = icmp.getPredicate();
+
     auto lhs = operand(icmp.getOperand(0));
     auto rhs = operand(icmp.getOperand(1));
 
-    auto pred = icmp.getPredicate();
+    if (pred == CmpInst::ICMP_EQ) {
+        return mExprBuilder.Eq(lhs, rhs);
+    }
 
-#define HANDLE_PREDICATE(PREDNAME, EXPRNAME)                    \
+    if (pred == CmpInst::ICMP_NE) {
+        return mExprBuilder.NotEq(lhs, rhs);
+    }
+
+    #define HANDLE_PREDICATE(PREDNAME, EXPRNAME)                \
         case PREDNAME:                                          \
             return mExprBuilder.EXPRNAME(lhs, rhs);             \
 
-    ExprPtr expr;
-    switch (pred) {
-        HANDLE_PREDICATE(CmpInst::ICMP_EQ, Eq)
-        HANDLE_PREDICATE(CmpInst::ICMP_NE, NotEq)
-        HANDLE_PREDICATE(CmpInst::ICMP_UGT, BvUGt)
-        HANDLE_PREDICATE(CmpInst::ICMP_UGE, BvUGtEq)
-        HANDLE_PREDICATE(CmpInst::ICMP_ULT, BvULt)
-        HANDLE_PREDICATE(CmpInst::ICMP_ULE, BvULtEq)
-        HANDLE_PREDICATE(CmpInst::ICMP_SGT, BvSGt)
-        HANDLE_PREDICATE(CmpInst::ICMP_SGE, BvSGtEq)
-        HANDLE_PREDICATE(CmpInst::ICMP_SLT, BvSLt)
-        HANDLE_PREDICATE(CmpInst::ICMP_SLE, BvSLtEq)
-        default:
-            llvm_unreachable("Unhandled ICMP predicate.");
+    if (lhs->getType().isBvType()) {
+        switch (pred) {
+            HANDLE_PREDICATE(CmpInst::ICMP_UGT, BvUGt)
+            HANDLE_PREDICATE(CmpInst::ICMP_UGE, BvUGtEq)
+            HANDLE_PREDICATE(CmpInst::ICMP_ULT, BvULt)
+            HANDLE_PREDICATE(CmpInst::ICMP_ULE, BvULtEq)
+            HANDLE_PREDICATE(CmpInst::ICMP_SGT, BvSGt)
+            HANDLE_PREDICATE(CmpInst::ICMP_SGE, BvSGtEq)
+            HANDLE_PREDICATE(CmpInst::ICMP_SLT, BvSLt)
+            HANDLE_PREDICATE(CmpInst::ICMP_SLE, BvSLtEq)
+            default:
+                llvm_unreachable("Unhandled ICMP predicate.");
+        }
+
     }
 
-#undef HANDLE_PREDICATE
+    if (lhs->getType().isArithmetic()) {
+        switch (pred) {
+            HANDLE_PREDICATE(CmpInst::ICMP_UGT, Gt)
+            HANDLE_PREDICATE(CmpInst::ICMP_UGE, GtEq)
+            HANDLE_PREDICATE(CmpInst::ICMP_SGT, Gt)
+            HANDLE_PREDICATE(CmpInst::ICMP_SGE, GtEq)
+            HANDLE_PREDICATE(CmpInst::ICMP_ULT, Lt)
+            HANDLE_PREDICATE(CmpInst::ICMP_ULE, LtEq)
+            HANDLE_PREDICATE(CmpInst::ICMP_SLT, Lt)
+            HANDLE_PREDICATE(CmpInst::ICMP_SLE, LtEq)
+            default:
+                llvm_unreachable("Unhandled ICMP predicate.");
+        }
+    }
+
+    llvm_unreachable("Invalid type for comparison instruction!");
+    
+    #undef HANDLE_PREDICATE
 }
 
 ExprPtr InstToExpr::visitFCmpInst(const llvm::FCmpInst& fcmp)
@@ -339,7 +378,7 @@ ExprPtr InstToExpr::integerCast(const llvm::CastInst& cast, const ExprPtr& opera
 
     if (variable->getType().isBvType()) {
         auto bvTy = llvm::cast<gazer::BvType>(&variable->getType());
-        ExprPtr intOp = asInt(operand, width);
+        ExprPtr intOp = asBv(operand, width);
         ExprPtr castOp = nullptr;
 
         switch (cast.getOpcode()) {
@@ -394,16 +433,14 @@ ExprPtr InstToExpr::operand(const Value* value)
             return ci->isZero() ? mExprBuilder.False() : mExprBuilder.True();
         }
 
-        switch (mInts) {
+        switch (mSettings.getIntRepresentation()) {
             case IntRepresentation::BitVectors:
                 return mExprBuilder.BvLit(
                     ci->getValue().getLimitedValue(),
                     ci->getType()->getIntegerBitWidth()
                 );
             case IntRepresentation::Integers:
-                return mExprBuilder.IntLit(
-                    static_cast<int64_t>(ci->getLimitedValue())
-                );
+                return mExprBuilder.IntLit(ci->getSExtValue());
         }
 
         llvm_unreachable("Invalid int representation strategy!");
@@ -458,28 +495,34 @@ ExprPtr InstToExpr::asBool(const ExprPtr& operand)
     llvm_unreachable("Attempt to cast to bool from unsupported type.");
 }
 
-ExprPtr InstToExpr::asInt(const ExprPtr& operand, unsigned int bits)
+ExprPtr InstToExpr::asBv(const ExprPtr& operand, unsigned int bits)
 {
     if (operand->getType().isBoolType()) {
-        switch (mInts) {
-            case IntRepresentation::BitVectors:
-                return mExprBuilder.Select(
-                    operand,
-                    mExprBuilder.BvLit(1, bits),
-                    mExprBuilder.BvLit(0, bits)
-                );
-            case IntRepresentation::Integers:
-                return mExprBuilder.Select(
-                    operand,
-                    mExprBuilder.IntLit(1),
-                    mExprBuilder.IntLit(0)
-                );
-        }
-
-        llvm_unreachable("Invalid int representation strategy!");
+        return mExprBuilder.Select(
+            operand,
+            mExprBuilder.BvLit(1, bits),
+            mExprBuilder.BvLit(0, bits)
+        );
     }
     
-    if (operand->getType().isBvType() || operand->getType().isIntType()) {
+    if (operand->getType().isBvType()) {
+        return operand;
+    }
+
+    llvm_unreachable("Attempt to cast to bitvector from unsupported type.");
+}
+
+ExprPtr InstToExpr::asInt(const ExprPtr& operand)
+{
+    if (operand->getType().isBoolType()) {
+        return mExprBuilder.Select(
+            operand,
+            mExprBuilder.IntLit(1),
+            mExprBuilder.IntLit(0)
+        );
+    }
+    
+    if (operand->getType().isIntType()) {
         return operand;
     }
 
@@ -490,8 +533,14 @@ ExprPtr InstToExpr::castResult(const ExprPtr& expr, const Type& type)
 {
     if (type.isBoolType()) {
         return asBool(expr);
-    } else if (type.isBvType() || type.isIntType()) {
-        return asInt(expr, dyn_cast<BvType>(&type)->getWidth());
+    }
+    
+    if (type.isBvType()) {
+        return asBv(expr, dyn_cast<BvType>(&type)->getWidth());
+    }
+
+    if (type.isIntType()) {
+        return asInt(expr);
     }
 
     llvm_unreachable("Invalid cast result type");

@@ -429,6 +429,26 @@ public:
         return createHandle(Z3_mk_distinct(mZ3Context, 2, ops));
     }
 
+    Z3AstHandle visitLt(const ExprRef<LtExpr>& expr)
+    {
+        return createHandle(Z3_mk_lt(mZ3Context, getOperand(0), getOperand(1)));
+    }
+
+    Z3AstHandle visitLtEq(const ExprRef<LtEqExpr>& expr)
+    {
+        return createHandle(Z3_mk_le(mZ3Context, getOperand(0), getOperand(1)));
+    }
+
+    Z3AstHandle visitGt(const ExprRef<GtExpr>& expr)
+    {
+        return createHandle(Z3_mk_gt(mZ3Context, getOperand(0), getOperand(1)));
+    }
+
+    Z3AstHandle visitGtEq(const ExprRef<GtEqExpr>& expr)
+    {
+        return createHandle(Z3_mk_ge(mZ3Context, getOperand(0), getOperand(1)));
+    }
+
     Z3AstHandle visitBvSLt(const ExprRef<BvSLtExpr>& expr)
     {
         return createHandle(Z3_mk_bvslt(mZ3Context, getOperand(0), getOperand(1)));

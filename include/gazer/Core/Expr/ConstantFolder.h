@@ -58,6 +58,11 @@ public:
     static ExprPtr Eq(const ExprPtr& left, const ExprPtr& right);
     static ExprPtr NotEq(const ExprPtr& left, const ExprPtr& right);
 
+    static ExprPtr Lt(const ExprPtr& left, const ExprPtr& right);
+    static ExprPtr LtEq(const ExprPtr& left, const ExprPtr& right);
+    static ExprPtr Gt(const ExprPtr& left, const ExprPtr& right);
+    static ExprPtr GtEq(const ExprPtr& left, const ExprPtr& right);
+
     static ExprPtr BvSLt(const ExprPtr& left, const ExprPtr& right);
     static ExprPtr BvSLtEq(const ExprPtr& left, const ExprPtr& right);
     static ExprPtr BvSGt(const ExprPtr& left, const ExprPtr& right);

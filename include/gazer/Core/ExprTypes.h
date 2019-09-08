@@ -187,6 +187,11 @@ public:
 
 using EqExpr       = CompareExpr<Expr::Eq>;
 using NotEqExpr    = CompareExpr<Expr::NotEq>;
+using LtExpr       = CompareExpr<Expr::Lt>;
+using LtEqExpr     = CompareExpr<Expr::LtEq>;
+using GtExpr       = CompareExpr<Expr::Gt>;
+using GtEqExpr     = CompareExpr<Expr::GtEq>;
+
 using BvSLtExpr    = CompareExpr<Expr::BvSLt>;
 using BvSLtEqExpr  = CompareExpr<Expr::BvSLtEq>;
 using BvSGtExpr    = CompareExpr<Expr::BvSGt>;

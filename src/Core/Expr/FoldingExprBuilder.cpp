@@ -371,8 +371,28 @@ public:
         return ConstantFolder::NotEq(left, right);
     }
 
+    ExprPtr Lt(const ExprPtr& left, const ExprPtr& right) override
+    {
+        return ConstantFolder::Lt(left, right);
+    }
+
+    ExprPtr LtEq(const ExprPtr& left, const ExprPtr& right) override
+    {
+        return ConstantFolder::LtEq(left, right);
+    }
+
+    ExprPtr Gt(const ExprPtr& left, const ExprPtr& right) override
+    {
+        return ConstantFolder::Gt(left, right);
+    }
+
+    ExprPtr GtEq(const ExprPtr& left, const ExprPtr& right) override
+    {
+        return ConstantFolder::GtEq(left, right);
+    }
+
     // Define a little helper for comparison operators.
-    // Note that this simplification does not work for unsigned integers.
+    // Note that this simplification does not work for unsigned bitvector operations.
     // As an example, a + b u> c --> a u> a - b is not a valid transformation
     // if (a - b) underflows.
     #define COMPARE_ARITHMETIC_SIMPLIFY(OPCODE)                                     \

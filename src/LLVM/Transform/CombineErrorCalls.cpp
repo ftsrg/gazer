@@ -97,6 +97,12 @@ bool CombineErrorCallsPass::runOnModule(llvm::Module& module)
                 ++it;
             }
         }
+
+        if (phi->getNumIncomingValues() == 0) {
+            // If there are no errors in this function, just delete the block
+            errorBlock->dropAllReferences();
+            errorBlock->eraseFromParent();
+        }
     }
 
     return true;

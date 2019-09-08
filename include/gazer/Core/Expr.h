@@ -43,7 +43,7 @@ public:
     //      (3) If your implementation class is atomic or a non-trivial descendant of 
     //          NonNullaryExpr, update expr_hasher in GazerContextImpl.h with a specialization
     //          for your implementation.
-    //      (4) Update the ExprVisitor interface. Note that this also means the possible
+    //      (4) Update the ExprWalker interface. Note that this also means the possible
     //          update of their implementations (such as solvers).
     //  Things will work without the following changes, but they are highly recommended:
     //      (5) Add a corresponding method to ExprBuilder and ConstantFolder.
@@ -89,14 +89,20 @@ public:
         // Compare
         Eq,
         NotEq,
-        BvSLt,
-        BvSLtEq,
-        BvSGt,
-        BvSGtEq,
-        BvULt,
-        BvULtEq,
-        BvUGt,
-        BvUGtEq,
+        Lt,     ///< arithmetic less than
+        LtEq,   ///< arithmetic less than or equal
+        Gt,     ///< arithmetic greater than
+        GtEq,   ///< arithmetic greater than or equal
+
+        // Bitvector compare
+        BvSLt,      ///< bitvector signed less than or equal
+        BvSLtEq,    ///< bitvector signed less than or equal
+        BvSGt,      ///< bitvector signed greater than
+        BvSGtEq,    ///< bitvector signed greater than or equal
+        BvULt,      ///< bitvector unsigned less than
+        BvULtEq,    ///< bitvector unsigned less than or equal
+        BvUGt,      ///< bitvector unsigned greater than
+        BvUGtEq,    ///< bitvector unsigned greater than or equal
         
         // Floating point unary
         FIsNan,

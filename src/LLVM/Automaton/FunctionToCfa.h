@@ -41,7 +41,7 @@ struct CfaGenInfo
 
     // For automata with multiple exit paths, this variable tells us which was taken.
     Variable* ExitVariable = nullptr;
-    llvm::SmallDenseMap<const llvm::BasicBlock*, ExprRef<BvLiteralExpr>, 4> ExitBlocks;
+    llvm::SmallDenseMap<const llvm::BasicBlock*, ExprRef<LiteralExpr>, 4> ExitBlocks;
 
 public:
     CfaGenInfo() = default;
@@ -232,7 +232,7 @@ public:
         GenerationContext& generationContext,
         CfaGenInfo& genInfo,
         ExprBuilder& exprBuilder
-    ) : InstToExpr(exprBuilder, generationContext.getMemoryModel()),
+    ) : InstToExpr(exprBuilder, generationContext.getMemoryModel(), generationContext.getSettings()),
         mGenCtx(generationContext),
         mGenInfo(genInfo),
         mCfa(genInfo.Automaton)
