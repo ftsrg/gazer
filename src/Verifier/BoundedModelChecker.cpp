@@ -68,10 +68,10 @@ BoundedModelCheckerImpl::BoundedModelCheckerImpl(
     mSolver(solverFactory.createSolver(system.getContext())),
     mTraceBuilder(traceBuilder)
 {
-        // TODO: Make this more flexible
-        mRoot = mSystem.getAutomatonByName("main");
-        assert(mRoot != nullptr && "The main automaton must exist!");
-    }
+    // TODO: Clone the main automaton instead of modifying the original.
+    mRoot = mSystem.getMainAutomaton();
+    assert(mRoot != nullptr && "The main automaton must exist!");
+}
 
 void BoundedModelCheckerImpl::createTopologicalSorts()
 {
@@ -118,7 +118,7 @@ bool BoundedModelCheckerImpl::initializeErrorField()
         return false;
     }
     
-    ERROR_TYPE_FOUND:
+ERROR_TYPE_FOUND:
 
     mError = mRoot->createErrorLocation();
     mErrorFieldVariable = mRoot->createLocal("__error_field", *errorFieldType);
@@ -168,7 +168,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
     }
 
     // We are using a dynamic programming-based approach.
-    // As the CFA is required to be a DAG, we have a topoligcal sort
+    // As the CFA is required to be a DAG, we have a topological sort
     // of its locations. Then we create an array with the size of numLocs, and
     // perform DP as the following:
     //  (0) dp[0] := True (as the entry node is always reachable)
@@ -297,6 +297,10 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                         Location* state = states[i];
                         Location* origState = mInlinedLocations.lookup(state);
 
+                        if (actions[i].empty()) {
+                            continue;
+                        }
+
                         llvm::outs() << "State " << state->getId();
                         if (origState != nullptr) {
                             llvm::outs() << " (" << origState->getId() << " in " << origState->getAutomaton()->getName() << ")";
@@ -307,7 +311,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                             llvm::outs() << "   " << assign << "\n";
                         }
                     }
-                    llvm::outs() << "State " << states.back()->getId() << "\n";
+                    //llvm::outs() << "State " << states.back()->getId() << "\n";
                 }
 
                 ExprRef<LiteralExpr> errorExpr = model[mErrorFieldVariable];

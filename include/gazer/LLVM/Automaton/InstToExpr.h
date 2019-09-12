@@ -48,6 +48,7 @@ protected:
     ExprPtr visitCallInst(const llvm::CallInst& call);
     ExprPtr visitLoadInst(const llvm::LoadInst& load);
     ExprPtr visitGEPOperator(const llvm::GEPOperator& gep);
+    ExprPtr visitAllocaInst(const llvm::AllocaInst& alloc);
 
     ExprPtr operand(const llvm::Value* value);
     

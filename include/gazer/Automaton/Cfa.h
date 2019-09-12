@@ -207,7 +207,7 @@ class Cfa final
 {
     friend class AutomataSystem;
 private:
-    Cfa(GazerContext& context, std::string name, AutomataSystem* parent);
+    Cfa(GazerContext& context, std::string name, AutomataSystem& parent);
 
 public:
     Cfa(const Cfa&) = delete;
@@ -327,6 +327,8 @@ public:
     Location* getEntry() const { return mEntry; }
     Location* getExit() const { return mExit; }
 
+    AutomataSystem& getParent() const { return mParent; }
+
     size_t getNumLocations() const { return mLocations.size(); }
     size_t getNumTransitions() const { return mTransitions.size(); }
 
@@ -384,6 +386,7 @@ private:
 private:
     std::string mName;
     GazerContext& mContext;
+    AutomataSystem& mParent;
 
     std::vector<std::unique_ptr<Location>> mLocations;
     std::vector<std::unique_ptr<Transition>> mTransitions;
@@ -436,11 +439,15 @@ public:
     size_t getNumAutomata() const { return mAutomata.size(); }
     Cfa* getAutomatonByName(llvm::StringRef name) const;
 
+    Cfa* getMainAutomaton() const { return mMainAutomaton; }
+    void setMainAutomaton(Cfa* cfa);
+
     void print(llvm::raw_ostream& os) const;
 
 private:
     GazerContext& mContext;
     std::vector<std::unique_ptr<Cfa>> mAutomata;
+    Cfa* mMainAutomaton;
 };
 
 inline llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Transition& transition)

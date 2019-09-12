@@ -9,8 +9,8 @@
 
 using namespace gazer;
 
-Cfa::Cfa(GazerContext &context, std::string name, AutomataSystem* parent)
-    : mName(std::move(name)), mContext(context)
+Cfa::Cfa(GazerContext &context, std::string name, AutomataSystem& parent)
+    : mName(std::move(name)), mContext(context), mParent(parent)
 {
     // Create an entry and exit location
     Location* entry = this->createLocation();
@@ -324,7 +324,7 @@ AutomataSystem::AutomataSystem(GazerContext &context)
 
 Cfa *AutomataSystem::createCfa(std::string name)
 {
-    Cfa* cfa = new Cfa(mContext, name, this);
+    Cfa* cfa = new Cfa(mContext, name, *this);
     mAutomata.emplace_back(cfa);
 
     return cfa;
@@ -333,7 +333,7 @@ Cfa *AutomataSystem::createCfa(std::string name)
 Cfa* AutomataSystem::createNestedCfa(Cfa* parent, std::string name)
 {
     auto fullName = (parent->getName() + "/" + name).str();
-    Cfa* cfa = new Cfa(mContext, fullName, this);
+    Cfa* cfa = new Cfa(mContext, fullName, *this);
     mAutomata.emplace_back(cfa);
 
     parent->addNestedAutomaton(cfa);
@@ -352,4 +352,10 @@ Cfa* AutomataSystem::getAutomatonByName(llvm::StringRef name) const
     }
 
     return &*result;
+}
+
+void AutomataSystem::setMainAutomaton(Cfa* cfa)
+{
+    assert(&cfa->getParent() == this);
+    mMainAutomaton = cfa;
 }

@@ -125,12 +125,16 @@ public:
     ) = 0;
 
     /// Translates the given LoadInst into an assignable expression.
-    virtual ExprRef<> handleLoad(const llvm::LoadInst& load) = 0;  
-
-    virtual ExprRef<> handleGetElementPtr(const llvm::GEPOperator& gep) = 0;
+    virtual ExprPtr handleLoad(const llvm::LoadInst& load) = 0;  
+    virtual ExprPtr handleGetElementPtr(const llvm::GEPOperator& gep) = 0;
+    virtual ExprPtr handleAlloca(const llvm::AllocaInst& alloc) = 0;
+    virtual ExprPtr handlePointerCast(const llvm::CastInst& cast) = 0;
+    virtual ExprPtr handlePointerValue(const llvm::Value* value) = 0;
 
     virtual std::optional<VariableAssignment> handleStore(
-        const llvm::StoreInst& store, ExprPtr pointer, ExprPtr value
+        const llvm::StoreInst& store,
+        ExprPtr pointer,
+        ExprPtr value
     ) = 0;
 
     virtual gazer::Type& handlePointerType(const llvm::PointerType* type) = 0;
@@ -159,9 +163,11 @@ public:
         std::vector<MemoryObject*>& objects
     ) override;
 
-    ExprRef<> handleLoad(const llvm::LoadInst& load) override;
-
-    ExprRef<> handleGetElementPtr(const llvm::GEPOperator& gep) override;
+    ExprPtr handleLoad(const llvm::LoadInst& load) override;
+    ExprPtr handleGetElementPtr(const llvm::GEPOperator& gep) override;
+    ExprPtr handleAlloca(const llvm::AllocaInst& alloc) override;
+    ExprPtr handlePointerCast(const llvm::CastInst& cast) override;
+    ExprPtr handlePointerValue(const llvm::Value* value) override;
 
     std::optional<VariableAssignment> handleStore(
         const llvm::StoreInst& store, ExprPtr pointer, ExprPtr value

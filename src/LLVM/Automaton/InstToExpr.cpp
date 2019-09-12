@@ -27,11 +27,12 @@ ExprPtr InstToExpr::transform(const llvm::Instruction& inst)
         return visitGEPOperator(*gep);
     }
 
-    HANDLE_INST(Instruction::ICmp, ICmpInst)
-    HANDLE_INST(Instruction::Call, CallInst)
-    HANDLE_INST(Instruction::FCmp, FCmpInst)
-    HANDLE_INST(Instruction::Select, SelectInst)
-    HANDLE_INST(Instruction::Load, LoadInst)
+    HANDLE_INST(Instruction::ICmp,      ICmpInst)
+    HANDLE_INST(Instruction::Call,      CallInst)
+    HANDLE_INST(Instruction::FCmp,      FCmpInst)
+    HANDLE_INST(Instruction::Select,    SelectInst)
+    HANDLE_INST(Instruction::Load,      LoadInst)
+    HANDLE_INST(Instruction::Alloca,    AllocaInst)
 
 #undef HANDLE_INST
 
@@ -341,6 +342,10 @@ ExprPtr InstToExpr::visitCastInst(const llvm::CastInst& cast)
         return mExprBuilder.FpToUnsigned(castOp, bvTy, llvm::APFloat::rmNearestTiesToEven);
     }
     
+    if (cast.getType()->isPointerTy()) {
+        return mMemoryModel.handlePointerCast(cast);
+    }
+
     if (castOp->getType().isBoolType()) {
         return integerCast(cast, castOp, 1);
     }
@@ -417,12 +422,17 @@ ExprPtr InstToExpr::visitCallInst(const llvm::CallInst& call)
 
 ExprPtr InstToExpr::visitLoadInst(const llvm::LoadInst& load)
 {
-    return nullptr;
+    return mMemoryModel.handleLoad(load);
+}
+
+ExprPtr InstToExpr::visitAllocaInst(const llvm::AllocaInst& alloc)
+{
+    return mMemoryModel.handleAlloca(alloc);
 }
 
 ExprPtr InstToExpr::visitGEPOperator(const llvm::GEPOperator& gep)
 {
-    return nullptr;
+    return mMemoryModel.handleGetElementPtr(gep);
 }
 
 ExprPtr InstToExpr::operand(const Value* value)
@@ -450,6 +460,10 @@ ExprPtr InstToExpr::operand(const Value* value)
         return mExprBuilder.FloatLit(cfp->getValueAPF());
     }
     
+    if (value->getType()->isPointerTy()) {
+        return mMemoryModel.handlePointerValue(value);
+    }
+
     if (isNonConstValue(value)) {
         auto result = this->lookupInlinedVariable(value);
         if (result != nullptr) {
