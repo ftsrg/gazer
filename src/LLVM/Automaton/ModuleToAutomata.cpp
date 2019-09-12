@@ -94,8 +94,8 @@ static llvm::Loop* getNestedLoopOf(GenerationContext& genCtx, CfaGenInfo& genInf
     }
 
     if (std::holds_alternative<llvm::Loop*>(genInfo.Source)) {
-        // The parent procedure was obtained from a loop, see if 'nested' is actually a nested loop
-        // of our source.
+        // The parent procedure was obtained from a loop, see if 'nested'
+        // is actually a nested loop of our source.
         auto loop = std::get<llvm::Loop*>(genInfo.Source);
         assert(nested != loop);
 
@@ -171,10 +171,18 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
         // Do the actual encoding.
         blocksToCfa.encode();
     }
-
+    
     // CFAs must be connected graphs. Remove unreachable components now.
     for (auto& cfa : *mSystem) {
         cfa.removeUnreachableLocations();
+    }
+
+    // If there is a procedure called 'main', set it as the entry automaton.
+    Cfa* main = mSystem->getAutomatonByName("main");
+    if (main != nullptr) {
+        mSystem->setMainAutomaton(main);
+    } else {
+        llvm::errs() << "Warning: could not find a main automaton.\n";
     }
 
     return std::move(mSystem);
@@ -390,7 +398,7 @@ void BlocksToCfa::encode()
                 auto storeValue = this->operand(store->getValueOperand());
                 auto ptr = this->operand(store->getPointerOperand());
 
-                auto storeRes = mGenCtx.getMemoryModel().handleStore(*store, ptr, storeValue);
+                auto storeRes = mMemoryModel.handleStore(*store, ptr, storeValue);
                 if (storeRes.has_value()) {
                     assignments.push_back(*storeRes);
                 }

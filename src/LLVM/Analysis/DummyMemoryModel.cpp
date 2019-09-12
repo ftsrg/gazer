@@ -11,12 +11,22 @@ void DummyMemoryModel::findMemoryObjects(
 ) {
 }
 
-ExprRef<> DummyMemoryModel::handleLoad(const llvm::LoadInst& load)
+ExprPtr DummyMemoryModel::handleLoad(const llvm::LoadInst& load)
 {
     return UndefExpr::Get(mTypes.get(load.getType()));
 }
 
-ExprRef<> DummyMemoryModel::handleGetElementPtr(const llvm::GEPOperator& gep)
+ExprPtr DummyMemoryModel::handleGetElementPtr(const llvm::GEPOperator& gep)
+{
+    return UndefExpr::Get(BvType::Get(mContext, 32));
+}
+
+ExprPtr DummyMemoryModel::handleAlloca(const llvm::AllocaInst& alloc)
+{
+    return UndefExpr::Get(BvType::Get(mContext, 32));
+}
+
+ExprPtr DummyMemoryModel::handlePointerCast(const llvm::CastInst& cast)
 {
     return UndefExpr::Get(BvType::Get(mContext, 32));
 }
@@ -35,4 +45,9 @@ gazer::Type& DummyMemoryModel::handlePointerType(const llvm::PointerType* type)
 gazer::Type& DummyMemoryModel::handleArrayType(const llvm::ArrayType* type)
 {
     return ArrayType::Get(mContext, BvType::Get(mContext, 32), BvType::Get(mContext, 8));
+}
+
+ExprPtr DummyMemoryModel::handlePointerValue(const llvm::Value* value)
+{
+    return UndefExpr::Get(BvType::Get(mContext, 32));
 }
