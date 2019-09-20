@@ -14,93 +14,111 @@ using namespace gazer;
 namespace
 {
 
-class Z3AstHandle
+// Implementation based upon Z3NodeHandle in the KLEE project:
+// https://github.com/klee/klee/blob/master/lib/Solver/Z3Builder.h
+template<class T>
+class Z3Handle
 {
 public:
-    Z3AstHandle()
-        : mContext(nullptr), mAst(nullptr)
+    Z3Handle()
+        : mContext(nullptr), mNode(nullptr)
     {}
 
-    Z3AstHandle(Z3_context context, Z3_ast ast)
-        : mContext(context), mAst(ast)
+    Z3Handle(Z3_context context, T ast)
+        : mContext(context), mNode(ast)
     {
         assert(context != nullptr);
         assert(ast != nullptr);
-        Z3_inc_ref(mContext, mAst);
+        Z3_inc_ref(mContext, as_ast());
     }
 
-    Z3AstHandle(const Z3AstHandle& other)
-        : mContext(other.mContext), mAst(other.mAst)
+    Z3Handle(const Z3Handle& other)
+        : mContext(other.mContext), mNode(other.mNode)
     {
-        if (mContext != nullptr && mAst != nullptr) {
-            Z3_inc_ref(mContext, mAst);
+        if (mContext != nullptr && mNode != nullptr) {
+            Z3_inc_ref(mContext, as_ast());
         }
     }
     
-    Z3AstHandle(Z3AstHandle&& other)
-        : mContext(other.mContext), mAst(other.mAst)
+    Z3Handle(Z3Handle&& other)
+        : mContext(other.mContext), mNode(other.mNode)
     {
         other.mContext = nullptr;
-        other.mAst = nullptr;
+        other.mNode = nullptr;
     }
 
-    Z3AstHandle& operator=(const Z3AstHandle& other)
+    Z3Handle& operator=(const Z3Handle& other)
     {
         if (this != &other) {
-            if (mContext == nullptr && mAst == nullptr) {
+            if (mContext == nullptr && mNode == nullptr) {
                 mContext = other.mContext;
             }
 
             assert(mContext == other.mContext);
-            // If the ast is not null then the context should not be null either.
-            assert(mAst == nullptr || mContext != nullptr);
+            // If the node is not null then the context should not be null either.
+            assert(mNode == nullptr || mContext != nullptr);
 
-            if (mContext != nullptr && mAst != nullptr) {
-                Z3_dec_ref(mContext, mAst);
+            if (mContext != nullptr && mNode != nullptr) {
+                Z3_dec_ref(mContext, as_ast());
             }
-            mAst = other.mAst;
-            if (mContext != nullptr && mAst != nullptr) {
-                Z3_inc_ref(mContext, mAst);
+            mNode = other.mNode;
+            if (mContext != nullptr && mNode != nullptr) {
+                Z3_inc_ref(mContext, as_ast());
             }
         }
 
         return *this;
     }
 
-    Z3AstHandle& operator=(Z3AstHandle&& other)
+    Z3Handle& operator=(Z3Handle&& other)
     {
         if (this != &other) {
-            if (mContext != nullptr && mAst != nullptr) {
-                Z3_dec_ref(mContext, mAst);
+            if (mContext != nullptr && mNode != nullptr) {
+                Z3_dec_ref(mContext, as_ast());
             }
 
             mContext = other.mContext;
-            mAst = other.mAst;
+            mNode = other.mNode;
             other.mContext = nullptr;
-            other.mAst = nullptr;
+            other.mNode = nullptr;
         }
 
         return *this;
     }
 
-    /*implicit*/ operator Z3_ast()
+    /*implicit*/ operator T()
     {
         assert(mContext != nullptr);
-        assert(mAst != nullptr);
+        assert(mNode != nullptr);
 
-        return mAst;
+        return mNode;
     }
 
-    ~Z3AstHandle()
+    ~Z3Handle()
     {
-        if (mContext != nullptr && mAst != nullptr) {
-            Z3_dec_ref(mContext, mAst);
+        if (mContext != nullptr && mNode != nullptr) {
+            Z3_dec_ref(mContext, as_ast());
         }
     }
 private:
+    // Must be specialized
+    inline ::Z3_ast as_ast();
+
+private:
     Z3_context mContext;
-    Z3_ast mAst;
+    T mNode;
 };
+
+
+template<> inline Z3_ast Z3Handle<Z3_sort>::as_ast() {
+    return Z3_sort_to_ast(mContext, mNode);
+}
+
+template<> inline Z3_ast Z3Handle<Z3_ast>::as_ast() {
+    return mNode;
+}
+
+using Z3AstHandle = Z3Handle<Z3_ast>;
 
 class Z3Solver : public Solver
 {
@@ -141,43 +159,54 @@ public:
 protected:
     Z3AstHandle createHandle(Z3_ast ast)
     {
+        #ifndef NDEBUG
+        if (ast == nullptr) {
+            std::string errStr;
+            llvm::raw_string_ostream err{errStr};
+
+            err << "Invalid Z3_ast!\n"
+                << "Z3 error: " << Z3_get_error_msg(mZ3Context, Z3_get_error_code(mZ3Context))
+                << "\n";
+            llvm::report_fatal_error(err.str(), true);
+        }
+        #endif
+
         return Z3AstHandle{mZ3Context, ast};
     }
 
-    z3::sort typeToSort(const Type* type)
+    Z3Handle<Z3_sort> typeToSort(const Type* type)
     {
         switch (type->getTypeID()) {
             case Type::BoolTypeID:
-                return mZ3Context.bool_sort();
+                return Z3Handle<Z3_sort>{mZ3Context, Z3_mk_bool_sort(mZ3Context)};
             case Type::IntTypeID:
-                return mZ3Context.int_sort();
+                return Z3Handle<Z3_sort>{mZ3Context, Z3_mk_int_sort(mZ3Context)};
             case Type::BvTypeID: {
                 auto intTy = llvm::cast<BvType>(type);
-                return mZ3Context.bv_sort(intTy->getWidth());
+                return Z3Handle<Z3_sort>{mZ3Context, Z3_mk_bv_sort(mZ3Context, intTy->getWidth())};
             }
-            case Type::RealTypeID: {
-                return mZ3Context.real_sort();
-            }
+            case Type::RealTypeID:
+                return Z3Handle<Z3_sort>{mZ3Context, Z3_mk_real_sort(mZ3Context)};
             case Type::FloatTypeID: {
                 auto fltTy = llvm::cast<FloatType>(type);
                 switch (fltTy->getPrecision()) {
                     case FloatType::Half:
-                        return z3::sort(mZ3Context, Z3_mk_fpa_sort_half(mZ3Context));
+                        return Z3Handle<Z3_sort>(mZ3Context, Z3_mk_fpa_sort_half(mZ3Context));
                     case FloatType::Single:
-                        return z3::sort(mZ3Context, Z3_mk_fpa_sort_single(mZ3Context));
+                        return Z3Handle<Z3_sort>(mZ3Context, Z3_mk_fpa_sort_single(mZ3Context));
                     case FloatType::Double:
-                        return z3::sort(mZ3Context, Z3_mk_fpa_sort_double(mZ3Context));
+                        return Z3Handle<Z3_sort>(mZ3Context, Z3_mk_fpa_sort_double(mZ3Context));
                     case FloatType::Quad:
-                        return z3::sort(mZ3Context, Z3_mk_fpa_sort_quadruple(mZ3Context));
+                        return Z3Handle<Z3_sort>(mZ3Context, Z3_mk_fpa_sort_quadruple(mZ3Context));
                 }
                 llvm_unreachable("Invalid floating-point precision");
             }
             case Type::ArrayTypeID: {
                 auto arrTy = llvm::cast<ArrayType>(type);
-                return mZ3Context.array_sort(
+                return Z3Handle<Z3_sort>(mZ3Context, Z3_mk_array_sort(mZ3Context,
                     typeToSort(&arrTy->getIndexType()),
                     typeToSort(&arrTy->getElementType())
-                );
+                ));
             }
         }
 
@@ -507,7 +536,7 @@ public:
             mZ3Context,
             transformRoundingMode(expr->getRoundingMode()),
             getOperand(0),
-            typeToSort(&expr->getType())            
+            typeToSort(&expr->getType())  
         ));
     }
 
@@ -650,19 +679,19 @@ public:
     }
 
 protected:
-    Z3_ast transformRoundingMode(llvm::APFloat::roundingMode rm)
+    Z3AstHandle transformRoundingMode(llvm::APFloat::roundingMode rm)
     {
         switch (rm) {
             case llvm::APFloat::roundingMode::rmNearestTiesToEven:
-                return Z3_mk_fpa_round_nearest_ties_to_even(mZ3Context);
+                return createHandle(Z3_mk_fpa_round_nearest_ties_to_even(mZ3Context));
             case llvm::APFloat::roundingMode::rmNearestTiesToAway:
-                return Z3_mk_fpa_round_nearest_ties_to_away(mZ3Context);
+                return createHandle(Z3_mk_fpa_round_nearest_ties_to_away(mZ3Context));
             case llvm::APFloat::roundingMode::rmTowardPositive:
-                return Z3_mk_fpa_round_toward_positive(mZ3Context);
+                return createHandle(Z3_mk_fpa_round_toward_positive(mZ3Context));
             case llvm::APFloat::roundingMode::rmTowardNegative:
-                return Z3_mk_fpa_round_toward_negative(mZ3Context);
+                return createHandle(Z3_mk_fpa_round_toward_negative(mZ3Context));
             case llvm::APFloat::roundingMode::rmTowardZero:
-                return Z3_mk_fpa_round_toward_zero(mZ3Context);
+                return createHandle(Z3_mk_fpa_round_toward_zero(mZ3Context));
         }
 
         llvm_unreachable("Invalid rounding mode");

@@ -250,7 +250,7 @@ void ModuleToCfa::createAutomata()
                                     mMemoryModel.translateType(value->getType())
                                 );
                                 loopGenInfo.addInput(value, argVariable);
-                                mGenCtx.addExprValueIfTraceEnabled(nested, &inst, variable->getRefExpr());
+                                mGenCtx.addExprValueIfTraceEnabled(nested, &inst, argVariable->getRefExpr());
 
                                 LLVM_DEBUG(llvm::dbgs() << "  Added input variable " << *argVariable << "\n");
                             }
