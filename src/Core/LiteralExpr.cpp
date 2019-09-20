@@ -78,7 +78,7 @@ void FloatLiteralExpr::print(llvm::raw_ostream& os) const
     os << buffer;
 }
 
-ExprRef<LiteralExpr> gazer::LiteralFromLLVMConst(GazerContext& context, llvm::ConstantData* value, bool i1AsBool)
+ExprRef<LiteralExpr> gazer::LiteralFromLLVMConst(GazerContext& context, const llvm::ConstantData* value, bool i1AsBool)
 {
     if (auto ci = llvm::dyn_cast<llvm::ConstantInt>(value)) {
         unsigned width = ci->getType()->getIntegerBitWidth();

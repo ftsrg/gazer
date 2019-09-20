@@ -70,7 +70,7 @@ protected:
     std::unique_ptr<MemoryModel> memoryModel = nullptr;
 
     llvm::DenseMap<llvm::Value*, Variable*> vmap;
-    llvm::DenseMap<Location*, llvm::BasicBlock*> blocks;
+    CfaToLLVMTrace cfa2llvm;
     
 protected:
     std::unique_ptr<AutomataSystem> createSystemFromModule(
@@ -98,7 +98,7 @@ protected:
         }
 
         return translateModuleToAutomata(
-            *module, settings, loopInfoMap, context, *this->memoryModel, vmap, blocks
+            *module, settings, loopInfoMap, context, *this->memoryModel, vmap, cfa2llvm
         );
     }
 };

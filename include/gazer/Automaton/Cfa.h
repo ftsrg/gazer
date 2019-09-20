@@ -1,5 +1,5 @@
-#ifndef _GAZER_AUTOMATON_CFA_H
-#define _GAZER_AUTOMATON_CFA_H
+#ifndef GAZER_AUTOMATON_CFA_H
+#define GAZER_AUTOMATON_CFA_H
 
 #include "gazer/Core/Expr.h"
 

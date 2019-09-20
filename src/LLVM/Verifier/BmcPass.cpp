@@ -21,7 +21,7 @@ namespace gazer
         llvm::cl::init("")
     );
 
-    extern llvm::cl::opt<bool> Trace;
+    extern llvm::cl::opt<bool> PrintTrace;
 } // end namespace gazer
 
 using namespace gazer;
@@ -36,16 +36,14 @@ void BoundedModelCheckerPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
 
 bool BoundedModelCheckerPass::runOnModule(llvm::Module& module)
 {
-    AutomataSystem& system = getAnalysis<ModuleToAutomataPass>().getSystem();
+    ModuleToAutomataPass& moduleToCfa = getAnalysis<ModuleToAutomataPass>();
+
+    AutomataSystem& system = moduleToCfa.getSystem();
+    CfaToLLVMTrace cfaToLlvmTrace = moduleToCfa.getTraceInfo();
+
     Z3SolverFactory solverFactory;
 
-    LLVMTraceBuilder<Location*> traceBuilder(
-        system.getContext(),
-        [](Location* loc) -> llvm::BasicBlock* {
-            return nullptr;
-        },
-        getAnalysis<ModuleToAutomataPass>().getVariableMap()
-    );
+    LLVMTraceBuilder traceBuilder{system.getContext(), cfaToLlvmTrace};
 
     BoundedModelChecker bmc{solverFactory, &traceBuilder};
     mResult = bmc.check(system);
@@ -67,7 +65,7 @@ bool BoundedModelCheckerPass::runOnModule(llvm::Module& module)
         }
         llvm::outs() << ".\n";
 
-        if (Trace) {
+        if (PrintTrace) {
             auto writer = trace::CreateTextWriter(llvm::outs(), true);
             llvm::outs() << "Error trace:\n";
             llvm::outs() << "-----------\n";

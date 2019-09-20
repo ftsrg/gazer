@@ -4,9 +4,10 @@
 #include "gazer/Core/GazerContext.h"
 #include "gazer/Core/Expr/ExprBuilder.h"
 #include "gazer/Automaton/Cfa.h"
-#include "gazer/LLVM/Analysis/MemoryObject.h"
 
+#include "gazer/LLVM/Analysis/MemoryObject.h"
 #include "gazer/LLVM/Automaton/InstToExpr.h"
+#include "gazer/LLVM/LLVMTraceBuilder.h"
 
 #include <llvm/IR/Function.h>
 #include <llvm/IR/InstrTypes.h>
@@ -19,7 +20,10 @@
 namespace gazer
 {
 
-extern llvm::cl::opt<bool> Trace;
+extern llvm::cl::opt<bool> PrintTrace;
+
+namespace llvm2cfa
+{
 
 using ValueToVariableMap = llvm::DenseMap<llvm::Value*, Variable*>;
 
@@ -34,7 +38,6 @@ struct CfaGenInfo
     llvm::MapVector<const llvm::BasicBlock*, std::pair<Location*, Location*>> Blocks;
 
     llvm::DenseMap<llvm::Value*, Variable*> Locals;
-    llvm::DenseMap<Location*, llvm::BasicBlock*> ReverseBlockMap;
 
     Cfa* Automaton;
     std::variant<llvm::Function*, llvm::Loop*> Source;
@@ -74,7 +77,8 @@ public:
     void addPhiInput(llvm::Value* value, Variable* variable) { PhiInputs[value] = variable; }
     void addLocal(llvm::Value* value, Variable* variable) { Locals[value] = variable; }
 
-    Variable* findVariable(const llvm::Value* value) {
+    Variable* findVariable(const llvm::Value* value)
+    {
         Variable* result = Inputs.lookup(value);
         if (result != nullptr) { return result; }
 
@@ -100,14 +104,11 @@ public:
 
     bool hasInput(llvm::Value* value) { return Inputs.count(value) != 0; }
     bool hasLocal(const llvm::Value* value) { return Locals.count(value) != 0; }
-
-    //---------------------- Traces -----------------------//
-    void addReverseBlockIfTraceEnabled(llvm::BasicBlock* bb, Location* loc) {
-        if (Trace) {
-            this->ReverseBlockMap[loc] = bb;
-        }
-    }
+private:
 };
+
+class GenerationContext;
+
 
 /// Helper structure for CFA generation information.
 class GenerationContext
@@ -152,6 +153,21 @@ public:
         mVariables[value] = variable;
     }
 
+    void addReverseBlockIfTraceEnabled(
+        llvm::BasicBlock* bb, Location* loc, CfaToLLVMTrace::LocationKind kind
+    ) {
+        if (PrintTrace) {
+            mTraceInfo.mLocationsToBlocks[loc] = { bb, kind };
+        }
+    }
+
+    void addExprValueIfTraceEnabled(Cfa* cfa, const llvm::Value* value, ExprPtr expr)
+    {
+        if (PrintTrace) {
+            mTraceInfo.mValueMaps[cfa].values[value] = expr;
+        }
+    }
+
     CfaGenInfo& getLoopCfa(llvm::Loop* loop) { return getInfoFor(loop); }
     CfaGenInfo& getFunctionCfa(llvm::Function* function) { return getInfoFor(function); }
 
@@ -168,6 +184,7 @@ public:
     AutomataSystem& getSystem() const { return mSystem; }
     MemoryModel& getMemoryModel() const { return mMemoryModel; }
     LLVMFrontendSettings& getSettings() { return mSettings; }
+    CfaToLLVMTrace& getTraceInfo() { return mTraceInfo; }
 
 private:
     CfaGenInfo& getInfoFor(VariantT key)
@@ -177,6 +194,7 @@ private:
 
         return it->second;
     }
+    
 
 private:
     AutomataSystem& mSystem;
@@ -185,6 +203,7 @@ private:
     LLVMFrontendSettings mSettings;
     std::unordered_map<VariantT, CfaGenInfo> mProcedures;
     llvm::DenseMap<llvm::Value*, Variable*> mVariables;
+    CfaToLLVMTrace mTraceInfo;
 };
 
 class ModuleToCfa final
@@ -203,7 +222,7 @@ public:
 
     std::unique_ptr<AutomataSystem> generate(
         llvm::DenseMap<llvm::Value*, Variable*>& variables,
-        llvm::DenseMap<Location*, llvm::BasicBlock*>& blockEntries
+        CfaToLLVMTrace& cfa2llvm
     );
 
 protected:
@@ -287,16 +306,7 @@ private:
     llvm::BasicBlock* mEntryBlock;
 };
 
-class TraceFromCfaToLLVM
-{
-public:
-    llvm::BasicBlock* getBasicBlock(Location* loc);
-    llvm::Value* getValueFromVariable(Variable* variable);
-
-private:
-    Cfa* mCfa;
-
-};
+} // end namespace llvm2cfa
 
 } // end namespace gazer
 

@@ -32,7 +32,7 @@ llvm::cl::opt<bool> DumpSolver("dump-solver", llvm::cl::desc("Dump the solver in
 
 llvm::cl::opt<bool> PrintSolverStats("print-solver-stats", llvm::cl::desc("Print solver statistics information."));
 
-llvm::cl::opt<bool> Trace("trace", llvm::cl::desc("Print counterexample traces to stdout."));
+llvm::cl::opt<bool> PrintTrace("trace", llvm::cl::desc("Print counterexample traces to stdout."));
 
 llvm::cl::opt<bool> NoSimplifyExpr("no-simplify-expr", llvm::cl::desc("Do not simplify expessions."));
 
@@ -62,7 +62,7 @@ BoundedModelCheckerImpl::BoundedModelCheckerImpl(
     AutomataSystem& system,
     ExprBuilder& builder,
     SolverFactory& solverFactory,
-    TraceBuilder<Location*>* traceBuilder
+    TraceBuilder<Location*, std::vector<VariableAssignment>>* traceBuilder
 ) : mSystem(system),
     mExprBuilder(builder),
     mSolver(solverFactory.createSolver(system.getContext())),
@@ -245,20 +245,26 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                 llvm::outs() << "  Under-approximated formula is SAT.\n";
                 //LLVM_DEBUG(formula->print(llvm::dbgs()));
                 //mRoot->view();
+                
                 auto model = mSolver->getModel();
 
-                if (Trace) {
+                std::unique_ptr<Trace> trace;
+
+                if (PrintTrace) {
                     std::vector<Location*> states;
                     std::vector<std::vector<VariableAssignment>> actions;
 
                     ExprEvaluator eval{model};
 
-                    BmcCex cex{mError, *mRoot, eval, mPredecessors};
+                    bmc::BmcCex cex{mError, *mRoot, eval, mPredecessors};
                     for (auto state : cex) {
                         Location* loc = state.getLocation();
                         Transition* edge = state.getOutgoingTransition();
 
-                        states.push_back(loc);
+                        Location* origLoc = mInlinedLocations.lookup(loc);
+
+                        states.push_back(origLoc != nullptr ? origLoc : loc);
+
                         if (edge == nullptr) {
                             continue;
                         }
@@ -290,28 +296,11 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
 
                     std::reverse(states.begin(), states.end());
                     std::reverse(actions.begin(), actions.end());
-
-                    assert(states.size() == actions.size() + 1);
-
-                    for (size_t i = 0; i < actions.size(); ++i) {
-                        Location* state = states[i];
-                        Location* origState = mInlinedLocations.lookup(state);
-
-                        if (actions[i].empty()) {
-                            continue;
-                        }
-
-                        llvm::outs() << "State " << state->getId();
-                        if (origState != nullptr) {
-                            llvm::outs() << " (" << origState->getId() << " in " << origState->getAutomaton()->getName() << ")";
-                        }
-                        llvm::outs() << "\n";
-
-                        for (VariableAssignment assign : actions[i]) {
-                            llvm::outs() << "   " << assign << "\n";
-                        }
-                    }
                     //llvm::outs() << "State " << states.back()->getId() << "\n";
+
+                    trace = mTraceBuilder->build(states, actions);
+                } else {
+                    trace = std::make_unique<Trace>(std::vector<std::unique_ptr<TraceEvent>>());
                 }
 
                 ExprRef<LiteralExpr> errorExpr = model[mErrorFieldVariable];
@@ -319,9 +308,9 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
 
                 switch (errorExpr->getType().getTypeID()) {
                     case Type::BvTypeID:
-                        return SafetyResult::CreateFail(llvm::cast<BvLiteralExpr>(errorExpr)->getValue().getLimitedValue());
+                        return SafetyResult::CreateFail(llvm::cast<BvLiteralExpr>(errorExpr)->getValue().getLimitedValue(), std::move(trace));
                     case Type::IntTypeID:
-                        return SafetyResult::CreateFail(llvm::cast<IntLiteralExpr>(errorExpr)->getValue());
+                        return SafetyResult::CreateFail(llvm::cast<IntLiteralExpr>(errorExpr)->getValue(), std::move(trace));
                     default:
                         llvm_unreachable("Invalid error field type!");
                 }
@@ -509,7 +498,8 @@ ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Loc
             predExpr = nullptr;
             predVar = nullptr;
         } else if (preds.size() == 1) {
-            predExpr = mExprBuilder.BvLit(preds[0].first->getSource()->getId(), 32);
+            predExpr = mExprBuilder.IntLit(preds[0].first->getSource()->getId());
+            //predExpr = mExprBuilder.BvLit(preds[0].first->getSource()->getId(), 32);
             mPredecessors.insert(loc, {predVar, predExpr});
         } else if (preds.size() == 2) {
             predVar = mSystem.getContext().createVariable(
@@ -521,13 +511,15 @@ ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Loc
             unsigned second = preds[1].first->getSource()->getId();
             
             predExpr = mExprBuilder.Select(
-                predVar->getRefExpr(), mExprBuilder.BvLit(first, 32), mExprBuilder.BvLit(second, 32)
+                //predVar->getRefExpr(), mExprBuilder.BvLit(first, 32), mExprBuilder.BvLit(second, 32)
+                predVar->getRefExpr(), mExprBuilder.IntLit(first), mExprBuilder.IntLit(second)
             );
             mPredecessors.insert(loc, {predVar, predExpr});
         } else {
             predVar = mSystem.getContext().createVariable(
                 "__gazer_pred_" + std::to_string(mTmp++),
-                BvType::Get(mSystem.getContext(), 32)
+                //BvType::Get(mSystem.getContext(), 32)
+                IntType::Get(mSystem.getContext())
             );
             predExpr = predVar->getRefExpr();
             mPredecessors.insert(loc, {predVar, predExpr});
@@ -546,7 +538,8 @@ ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Loc
             } else {
                 predIdentification = mExprBuilder.Eq(
                     predVar->getRefExpr(),
-                    mExprBuilder.BvLit(preds[j].first->getSource()->getId(), 32)
+                    //mExprBuilder.BvLit(preds[j].first->getSource()->getId(), 32)
+                    mExprBuilder.IntLit(preds[j].first->getSource()->getId())
                 );
             }
 
@@ -635,7 +628,7 @@ Location* BoundedModelCheckerImpl::findCommonCallAncestor()
 void BoundedModelCheckerImpl::findOpenCallsInCex(Valuation& model, llvm::SmallVectorImpl<CallTransition*>& callsInCex)
 {
     ExprEvaluator eval{model};
-    auto cex = BmcCex{mError, *mRoot, eval, mPredecessors};
+    auto cex = bmc::BmcCex{mError, *mRoot, eval, mPredecessors};
 
     for (auto state : cex) {
         auto call = llvm::dyn_cast_or_null<CallTransition>(state.getOutgoingTransition());
@@ -849,35 +842,3 @@ void BoundedModelCheckerImpl::printStats(llvm::raw_ostream& os) {
     os << "\n";
 }
 
-void BoundedModelCheckerImpl::cex_iterator::advance()
-{
-    auto pred = mCex.mPredecessors.get(mState.getLocation());
-    if (!pred) {
-        // No predcessor information is available, this was the end of the counterexample trace.
-        mState = { nullptr, nullptr };
-        return;
-    }
-
-    Location* current = mState.getLocation();
-    auto predLit = llvm::dyn_cast_or_null<BvLiteralExpr>(
-        mCex.mEval.walk(pred->second).get()
-    );
-                            
-    assert((predLit != nullptr) && "Pred values should be evaluatable as bitvector literals!");
-    
-    size_t predId = predLit->getValue().getLimitedValue();
-    Location* source = mCex.mCfa.findLocationById(predId);
-
-    assert(source != nullptr && "Locations should be findable by their id!");
-
-    auto edge = std::find_if(
-        current->incoming_begin(),
-        current->incoming_end(),
-        [source](Transition* e) { return e->getSource() == source; }
-    );
-
-    assert(edge != current->incoming_end()
-        && "There must be an edge between a location and its direct predecessor!");
-
-    mState = { source, *edge };
-}

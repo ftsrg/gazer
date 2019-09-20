@@ -1,6 +1,8 @@
 #ifndef GAZER_LLVM_LLVMTRACEBUILDER_H
 #define GAZER_LLVM_LLVMTRACEBUILDER_H
 
+#include "gazer/Automaton/Cfa.h"
+
 #include "gazer/Trace/Trace.h"
 
 #include <llvm/ADT/DenseMap.h>
@@ -9,63 +11,26 @@
 namespace gazer
 {
 
-class LLVMTraceBuilderImpl
+class CfaToLLVMTrace;
+
+class LLVMTraceBuilder : public TraceBuilder<Location*, std::vector<VariableAssignment>>
 {
-    template<class State>
-    friend class LLVMTraceBuilder;
-private:
-    LLVMTraceBuilderImpl(
-        GazerContext& context,
-        const llvm::DenseMap<llvm::Value*, Variable*>& values
-    ) : mContext(context), mValueMap(values)
+public:
+    LLVMTraceBuilder(GazerContext& context, CfaToLLVMTrace& cfaToLlvmTrace)
+        : mContext(context), mCfaToLlvmTrace(cfaToLlvmTrace)
     {}
 
-protected:
-    std::vector<std::unique_ptr<TraceEvent>> buildEventsFromBlocks(
-        Valuation& model, const std::vector<llvm::BasicBlock*> blocks
-    );
+    std::unique_ptr<Trace> build(
+        std::vector<Location*>& states,
+        std::vector<std::vector<VariableAssignment>>& actions
+    ) override;
 
 private:
-    ExprRef<AtomicExpr> getLiteralFromValue(llvm::Value* value, Valuation& model);
+    ExprRef<AtomicExpr> getLiteralFromValue(Cfa* cfa, const llvm::Value* value, Valuation& model);
 
 private:
     GazerContext& mContext;
-    const llvm::DenseMap<llvm::Value*, Variable*>& mValueMap;
-};
-
-template<class State>
-class LLVMTraceBuilder final : public TraceBuilder<State>, LLVMTraceBuilderImpl
-{
-public:
-    LLVMTraceBuilder(
-        GazerContext& context,
-        std::function<llvm::BasicBlock*(State)> stateToBlock,
-        const llvm::DenseMap<llvm::Value*, Variable*>& values
-    ) : LLVMTraceBuilderImpl(context, values), mStateToBlock(stateToBlock)
-    {}
-
-    LLVMTraceBuilder(const LLVMTraceBuilder&) = delete;
-    LLVMTraceBuilder& operator=(const LLVMTraceBuilder&) = delete;
-
-protected:
-    std::vector<std::unique_ptr<TraceEvent>> buildEvents(
-        Valuation& model,
-        const std::vector<State>& states
-    ) override {
-        std::vector<llvm::BasicBlock*> blocks;
-        blocks.reserve(states.size());
-
-        for (const State& state : states) {
-            llvm::BasicBlock* result = mStateToBlock(state);
-            assert(result != nullptr && "Each state should map to a BasicBlock!");
-
-            blocks.push_back(result);
-        }
-
-        return this->buildEventsFromBlocks(model, blocks);
-    }
-private:
-    std::function<llvm::BasicBlock*(State)> mStateToBlock;
+    CfaToLLVMTrace& mCfaToLlvmTrace;
 };
 
 }

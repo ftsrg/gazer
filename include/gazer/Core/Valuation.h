@@ -11,7 +11,7 @@ namespace gazer
 /// Represents a simple mapping between variables and literal expressions.
 class Valuation
 {
-    using ValuationMapT = llvm::DenseMap<Variable*, ExprRef<LiteralExpr>>;
+    using ValuationMapT = llvm::DenseMap<const Variable*, ExprRef<LiteralExpr>>;
 public:
     class Builder
     {
@@ -33,17 +33,19 @@ public:
 
 private:
     Valuation(ValuationMapT map)
-        : mMap(map)
+        : mMap(std::move(map))
     {}
 public:
+    Valuation() = default;
     Valuation(const Valuation&) = default;
     Valuation& operator=(const Valuation&) = default;
     Valuation(Valuation&&) = default;
     Valuation& operator=(Valuation&&) = default;
+
 public:
     ExprRef<LiteralExpr> eval(const ExprPtr& expr);
-    ExprRef<LiteralExpr> operator[](const Variable& variable) const;
-    ExprRef<LiteralExpr> operator[](const Variable* variable) const {
+    ExprRef<LiteralExpr>& operator[](const Variable& variable);
+    ExprRef<LiteralExpr>& operator[](const Variable* variable) {
         return operator[](*variable);
     }
     
