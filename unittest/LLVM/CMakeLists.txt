@@ -1,5 +1,6 @@
 SET(TEST_SOURCES
     Analysis/MemoryObjectTest.cpp
+    Analysis/VariableRoleTest.cpp
     Automaton/ModuleToAutomataTest.cpp
     Automaton/InstToExprTest.cpp
     GazerLLVMTest_main.cpp

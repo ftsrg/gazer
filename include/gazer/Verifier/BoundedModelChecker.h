@@ -13,7 +13,10 @@ class AutomataSystem;
 class BoundedModelChecker : public VerificationAlgorithm<AutomataSystem>
 {
 public:
-    BoundedModelChecker(SolverFactory& solverFactory, TraceBuilder<Location*>* traceBuilder = nullptr)
+    BoundedModelChecker(
+        SolverFactory& solverFactory,
+        TraceBuilder<Location*, std::vector<VariableAssignment>>* traceBuilder = nullptr
+    )
         : mSolverFactory(solverFactory), mTraceBuilder(traceBuilder)
     {}
 
@@ -21,7 +24,7 @@ public:
 
 private:
     SolverFactory& mSolverFactory;
-    TraceBuilder<Location*>* mTraceBuilder;
+    TraceBuilder<Location*, std::vector<VariableAssignment>>* mTraceBuilder;
 };
 
 }

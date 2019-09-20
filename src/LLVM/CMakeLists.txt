@@ -1,6 +1,7 @@
 set(SOURCE_FILES
     Analysis/MemoryObject.cpp
     Analysis/DummyMemoryModel.cpp
+    Analysis/VariableRoles.cpp
     Transform/InlineGlobalVariablesPass.cpp
     Transform/CombineErrorCalls.cpp
     Transform/LiftErrorsPass.cpp

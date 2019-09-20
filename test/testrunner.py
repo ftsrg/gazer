@@ -8,6 +8,16 @@ import argparse
 import pathlib
 import operator
 
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
 class TestCase:
     '''Represents a simple test case which will be run by the test framework'''
     def __init__(self, filename, expected, flags):
@@ -92,7 +102,7 @@ if __name__ == '__main__':
 
     print("Running functional test suite in directory %s" % tests_path)
     print("    clang compiler is %s" % clang_cmd)
-    print("    gazer-bmc is at %s" % gazer_bmc_path)
+    print("    gazer-bmc is %s" % gazer_bmc_path)
 
     PASSED = 0
     FAILED = 1
@@ -103,9 +113,15 @@ if __name__ == '__main__':
 
     outputs_file = open("test_outputs.txt", "w")
 
+    num_tests = len(tests)
+    num_pass = 0
+    num_fail = 0
+    num_error = 0
+    num_timeout = 0
+
     for test in sorted(tests, key=operator.attrgetter('filename')):
         # Execute all tests
-        print("RUN {0} {1}".format(test.filename, test.flags), end=" ")
+        print("TEST {0} {1}".format(os.path.relpath(test.filename), test.flags), end=" ", flush=True)
         logging.debug("Compiling C program into LLVM bitcode")
 
         bc_file = pathlib.Path(test.filename).with_suffix(".bc")
@@ -152,36 +168,38 @@ if __name__ == '__main__':
                 verification_result = "success"
 
             if verification_result == "":
+                num_error += 1
                 results.append(tuple((test.filename, UNKNOWN, "Unknown value returned by gazer")))
-                print("UNKNOWN")
+                print(bcolors.FAIL + "ERROR" + bcolors.ENDC)
             elif verification_result == test.expect:
+                num_pass += 1
                 results.append(tuple((test.filename, PASSED, "")))
-                print("PASS")
+                print(bcolors.OKGREEN + "PASS" + bcolors.ENDC)
             else:
-                print("FAIL")
+                num_fail += 1
+                print(bcolors.FAIL + "FAIL" + bcolors.ENDC)
                 results.append(tuple((test.filename, FAILED, "Expected: {0} Actual: {1}".format(test.expect, verification_result))))
         except subprocess.CalledProcessError as err:
             print("ERROR")
             results.append(tuple((test.filename, ERROR, "gazer exited with an error")))
             continue
         except subprocess.TimeoutExpired as err:
-            print("TIMEOUT")
+            num_timeout += 1
+            print(bcolors.WARNING + "TIMEOUT" + bcolors.ENDC)
             results.append(tuple((test.filename, TIMEOUT, "")))
 
-    print("\n=========================")
-    print("-------- RESULTS --------")
-    print("=========================\n")
-    for result in results:
-        if result[1] == PASSED:
-            print("PASS    {0}".format(result[0]))
-        elif result[1] == FAILED:
-            print("FAIL    {0} ({1})".format(result[0], result[2]))
-        elif result[1] == ERROR:
-            print("ERROR   {0} ({1})".format(result[0], result[2]))
-        elif result[1] == SKIP:
-            print("SKIP    {0} ({1})".format(result[0], result[2]))
-        elif result[1] == TIMEOUT:
-            print("TIMEOUT {0}".format(result[0]))
-        else:
-            print("UNKNOWN {0} ({1})".format(result[0], result[2]))
-        
+    print("************************* RESULTS *************************")
+    print("Passed: {0:4}/{1}".format(num_pass, num_tests))
+    if num_fail != 0:
+        print("Failed: {0:4}/{1}".format(num_fail, num_tests))
+    if num_error != 0:
+        print("Error:  {0:4}/{1}".format(num_error, num_tests))
+    if num_timeout != 0:
+        print("Timout: {0:4}/{1}".format(num_timeout, num_tests))
+
+    if num_fail != 0 or num_error != 0:
+        print("   TEST FAILURES!")
+        exit(1)
+    else:
+        print("   TEST SUCCESSFUL")
+        exit(0)

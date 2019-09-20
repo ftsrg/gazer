@@ -1,5 +1,5 @@
-#ifndef _GAZER_TRACE_TRACE_H
-#define _GAZER_TRACE_TRACE_H
+#ifndef GAZER_TRACE_TRACE_H
+#define GAZER_TRACE_TRACE_H
 
 #include "gazer/Trace/Location.h"
 #include "gazer/Core/Expr.h"
@@ -51,11 +51,9 @@ private:
 
 /// Represents a detailed counterexample trace, possibly provided by
 /// a verification algorithm.
-class Trace final
+class Trace
 {
-    template<class State>
-    friend class TraceBuilder;
-private:
+public:
     Trace(std::vector<std::unique_ptr<TraceEvent>> events)
         : mEvents(std::move(events))
     {}
@@ -77,20 +75,17 @@ private:
     std::vector<std::unique_ptr<TraceEvent>> mEvents;
 };
 
-template<class State>
+template<class State, class Action>
 class TraceBuilder
 {
 public:
-    /// Builds a trace from a model.
-    std::unique_ptr<Trace> build(Valuation& model) {
-       return std::unique_ptr<Trace>(new Trace(this->buildEvents(model)));
-    }
-
-protected:
-    /// Generates a list of events from a model.
-    virtual std::vector<std::unique_ptr<TraceEvent>> buildEvents(
-        Valuation& model, const std::vector<State>& states
+    /// Builds a trace from a sequence of states and actions.
+    virtual std::unique_ptr<Trace> build(
+        std::vector<State>& states,
+        std::vector<Action>& actions
     ) = 0;
+    
+    virtual ~TraceBuilder() = default;
 };
 
 /// Indicates an assignment in the original program.
@@ -142,7 +137,7 @@ public:
         ExprRef<AtomicExpr> returnValue,
         LocationInfo location = {}
     ) : TraceEvent(TraceEvent::Event_FunctionReturn, location),
-    mFunctionName(functionName), mReturnValue(returnValue)
+        mFunctionName(functionName), mReturnValue(returnValue)
     {}
 
     std::string getFunctionName() const { return mFunctionName; }
@@ -169,7 +164,7 @@ public:
         ArgsVectorTy args = {},
         LocationInfo location = {}   
     ) : TraceEvent(TraceEvent::Event_FunctionCall, location),
-    mFunctionName(functionName), mReturnValue(returnValue), mArgs(args)
+        mFunctionName(functionName), mReturnValue(returnValue), mArgs(args)
     {}
 
     std::string getFunctionName() const { return mFunctionName; }
@@ -220,20 +215,6 @@ inline ReturnT TraceEvent::accept(TraceEventVisitor<ReturnT>& visitor)
 
     llvm_unreachable("Unknown TraceEvent kind!");
 }
-
-/*
-template<>
-inline void TraceEvent::accept<void>(TraceEventVisitor<void>& visitor)
-{
-    switch (mKind) {
-        case Event_Assign:
-            visitor.visit(*llvm::cast<AssignTraceEvent>(this));
-        case Event_FunctionEntry:
-            visitor.visit(*llvm::cast<FunctionEntryEvent>(this));
-        case Event_FunctionCall:
-            visitor.visit(*llvm::cast<FunctionCallEvent>(this));
-    }
-} */
 
 } // end namespace gazer
 

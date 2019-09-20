@@ -6,6 +6,7 @@
 #include "gazer/Core/Expr/ExprBuilder.h"
 #include "gazer/Core/Solver/Solver.h"
 #include "gazer/Automaton/Cfa.h"
+#include "gazer/Trace/Trace.h"
 
 #include "gazer/ADT/ScopedCache.h"
 
@@ -18,15 +19,9 @@
 namespace gazer
 {
 
-class BoundedModelCheckerImpl
+namespace bmc
 {
     using PredecessorMapT = ScopedCache<Location*, std::pair<Variable*, ExprPtr>>;
-
-    struct CallInfo
-    {
-        ExprPtr overApprox = nullptr;
-        unsigned cost = 0;
-    };
 
     class CexState
     {
@@ -96,7 +91,15 @@ class BoundedModelCheckerImpl
         ExprEvaluator& mEval;
         PredecessorMapT& mPredecessors;
     };
+}
 
+class BoundedModelCheckerImpl
+{
+    struct CallInfo
+    {
+        ExprPtr overApprox = nullptr;
+        unsigned cost = 0;
+    };
 public:
     struct Stats
     {
@@ -112,7 +115,7 @@ public:
         AutomataSystem& system,
         ExprBuilder& builder,
         SolverFactory& solverFactory,
-        TraceBuilder<Location*>* traceBuilder
+        TraceBuilder<Location*, std::vector<VariableAssignment>>* traceBuilder
     );
 
     std::unique_ptr<SafetyResult> check();
@@ -167,7 +170,7 @@ private:
     std::unordered_map<CallTransition*, CallInfo> mCalls;
     std::unordered_map<Cfa*, std::vector<Location*>> mTopoSortMap;
 
-    PredecessorMapT mPredecessors;
+    bmc::PredecessorMapT mPredecessors;
 
     llvm::DenseMap<Location*, Location*> mInlinedLocations;
     llvm::DenseMap<Variable*, Variable*> mInlinedVariables;
@@ -175,19 +178,14 @@ private:
     size_t mTmp = 0;
 
     Stats mStats;
-    TraceBuilder<Location*>* mTraceBuilder;
+    TraceBuilder<Location*, std::vector<VariableAssignment>>* mTraceBuilder;
     Variable* mErrorFieldVariable = nullptr;
 };
 
-/// An alternating sequence of {State, Action, ..., State, Action, State }
-/// representing a counterexample trace.
-class BmcTrace
-{
-public:
-private:
-    std::vector<Location*> mStates;
-    std::vector<VariableAssignment> mActions;
-};
+std::unique_ptr<Trace> buildBmcTrace(
+    const std::vector<Location*>& states,
+    const std::vector<std::vector<VariableAssignment>>& actions
+);
 
 #if 0
 class BmcTraceBuilder : public TraceBuilder

@@ -20,6 +20,7 @@
 #define DEBUG_TYPE "ModuleToCfa"
 
 using namespace gazer;
+using namespace gazer::llvm2cfa;
 using namespace llvm;
 
 static bool isDefinedInCaller(llvm::Value* value, llvm::ArrayRef<llvm::BasicBlock*> blocks)
@@ -153,7 +154,7 @@ ModuleToCfa::ModuleToCfa(
 
 std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
     llvm::DenseMap<llvm::Value*, Variable*>& variables,
-    llvm::DenseMap<Location*, llvm::BasicBlock*>& blockEntries
+    CfaToLLVMTrace& cfaToLlvmTrace
 ) {
     // Create all automata and interfaces.
     this->createAutomata();
@@ -185,6 +186,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
         llvm::errs() << "Warning: could not find a main automaton.\n";
     }
 
+    cfaToLlvmTrace = std::move(mGenCtx.getTraceInfo());
     return std::move(mSystem);
 }
 
@@ -235,6 +237,7 @@ void ModuleToCfa::createAutomata()
                         variable = nested->createInput(localName, mMemoryModel.translateType(inst.getType()));
                         loopGenInfo.addPhiInput(&inst, variable);
                         mGenCtx.addVariable(&inst, variable);
+                        mGenCtx.addExprValueIfTraceEnabled(nested, &inst, variable->getRefExpr());
                         
                         LLVM_DEBUG(llvm::dbgs() << "  Added PHI input variable " << *variable << "\n");
                     } else {
@@ -247,6 +250,7 @@ void ModuleToCfa::createAutomata()
                                     mMemoryModel.translateType(value->getType())
                                 );
                                 loopGenInfo.addInput(value, argVariable);
+                                mGenCtx.addExprValueIfTraceEnabled(nested, &inst, variable->getRefExpr());
 
                                 LLVM_DEBUG(llvm::dbgs() << "  Added input variable " << *argVariable << "\n");
                             }
@@ -264,6 +268,7 @@ void ModuleToCfa::createAutomata()
                             variable = nested->createLocal(localName, mMemoryModel.translateType(inst.getType()));
                             loopGenInfo.addLocal(&inst, variable);
                             mGenCtx.addVariable(&inst, variable);
+                            mGenCtx.addExprValueIfTraceEnabled(nested, &inst, variable->getRefExpr());
 
                             LLVM_DEBUG(llvm::dbgs() << "  Added local variable " << *variable << "\n");
                         } else {
@@ -296,8 +301,8 @@ void ModuleToCfa::createAutomata()
                 Location* exit = isErrorBlock(bb) ? nested->createErrorLocation() : nested->createLocation();
 
                 loopGenInfo.Blocks[bb] = std::make_pair(entry, exit);
-                loopGenInfo.addReverseBlockIfTraceEnabled(bb, entry);
-                loopGenInfo.addReverseBlockIfTraceEnabled(bb, exit);
+                mGenCtx.addReverseBlockIfTraceEnabled(bb, entry, CfaToLLVMTrace::Location_Entry);
+                mGenCtx.addReverseBlockIfTraceEnabled(bb, exit, CfaToLLVMTrace::Location_Exit);
             }
 
             // If the loop has multiple exits, add a selector output to disambiguate between these.
@@ -324,6 +329,7 @@ void ModuleToCfa::createAutomata()
             Variable* variable = cfa->createInput(argument.getName(), mMemoryModel.translateType(argument.getType()));
             genInfo.addInput(&argument, variable);
             mGenCtx.addVariable(&argument, variable);
+            mGenCtx.addExprValueIfTraceEnabled(cfa, &argument, variable->getRefExpr());
         }
 
         // TODO: Maybe add RET_VAL to genInfo outputs in some way?
@@ -357,6 +363,7 @@ void ModuleToCfa::createAutomata()
                     Variable* variable = cfa->createLocal(inst.getName(), mMemoryModel.translateType(inst.getType()));
                     genInfo.addLocal(&inst, variable);
                     mGenCtx.addVariable(&inst, variable);
+                    mGenCtx.addExprValueIfTraceEnabled(cfa, &inst, variable->getRefExpr());
                 }
             }
         }
@@ -366,8 +373,8 @@ void ModuleToCfa::createAutomata()
             Location* exit = isErrorBlock(bb) ? cfa->createErrorLocation() : cfa->createLocation();
 
             genInfo.Blocks[bb] = std::make_pair(entry, exit);
-            genInfo.addReverseBlockIfTraceEnabled(bb, entry);
-            genInfo.addReverseBlockIfTraceEnabled(bb, exit);
+            mGenCtx.addReverseBlockIfTraceEnabled(bb, entry, CfaToLLVMTrace::Location_Entry);
+            mGenCtx.addReverseBlockIfTraceEnabled(bb, exit, CfaToLLVMTrace::Location_Exit);
         }
     }
 }
@@ -569,6 +576,7 @@ bool BlocksToCfa::tryToEliminate(const Instruction& inst, ExprPtr expr)
     }
 
     mInlinedVars[&inst] = expr;
+    mGenCtx.addExprValueIfTraceEnabled(mGenInfo.Automaton, &inst, expr);
     return true;
 }
 
@@ -772,7 +780,7 @@ std::unique_ptr<AutomataSystem> gazer::translateModuleToAutomata(
     GazerContext& context,
     MemoryModel& memoryModel,
     llvm::DenseMap<llvm::Value*, Variable*>& variables,
-    llvm::DenseMap<Location*, llvm::BasicBlock*>& blockEntries
+    CfaToLLVMTrace& blockEntries
 ) {
     ModuleToCfa transformer(module, loopInfos, context, memoryModel, settings);
     return transformer.generate(variables, blockEntries);
@@ -804,10 +812,35 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
     DummyMemoryModel memoryModel(mContext, settings);
 
     llvm::outs() << "Translating module.\n";
-    mSystem = translateModuleToAutomata(module, settings, loops, mContext, memoryModel, mVariables, mBlocks);
+    mSystem = translateModuleToAutomata(
+        module, settings, loops, mContext, memoryModel, mVariables, mTraceInfo
+    );
 
     return false;
 }
 
-// Settings
+// Traceability support
 //-----------------------------------------------------------------------------
+
+ExprPtr CfaToLLVMTrace::getExpressionForValue(const Cfa* parent, const llvm::Value* value)
+{
+    auto it = mValueMaps.find(parent);
+    if (it == mValueMaps.end()) {
+        return nullptr;
+    }
+
+    ExprPtr expr = it->second.values.lookup(value);
+
+    return expr;
+}
+
+
+Variable* CfaToLLVMTrace::getVariableForValue(const Cfa* parent, const llvm::Value* value)
+{
+    auto expr = getExpressionForValue(parent, value);
+    if (auto varRef = dyn_cast_or_null<VarRefExpr>(expr)) {
+        return &varRef->getVariable();
+    }
+
+    return nullptr;
+}

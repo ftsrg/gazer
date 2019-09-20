@@ -7,8 +7,7 @@ using namespace gazer;
 void Valuation::print(llvm::raw_ostream& os)
 {
     for (auto it = mMap.begin(); it != mMap.end(); ++it) {
-        Variable* variable = it->first;
-        ExprPtr expr = it->second;
+        auto [variable, expr] = *it;
 
         os << variable->getName() << " = ";
         expr->print(os);
@@ -16,15 +15,9 @@ void Valuation::print(llvm::raw_ostream& os)
     }
 }
 
-ExprRef<LiteralExpr> Valuation::operator[](const Variable& variable) const
+ExprRef<LiteralExpr>& Valuation::operator[](const Variable& variable)
 {
-    auto result = this->find(&variable);
-    if (result == this->end()) {
-        // TODO: Maybe there should be check instead of returning a nullptr
-        return nullptr;
-    }
-
-    return result->second;
+    return mMap[&variable];
 }
 
 ExprRef<LiteralExpr> Valuation::eval(const ExprPtr& expr)

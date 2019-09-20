@@ -53,6 +53,8 @@ public:
         return value ? True(type) : False(type);
     }
 
+    BoolType& getType() const { return static_cast<BoolType&>(mType); }
+
     void print(llvm::raw_ostream& os) const override;
 
     bool getValue() const { return mValue; }
@@ -87,6 +89,8 @@ public:
 
     int64_t getValue() const { return mValue; }
 
+    IntType& getType() const { return static_cast<IntType&>(mType); }
+
     static bool classof(const Expr* expr) {
         return expr->getKind() == Literal && expr->getType().isIntType();
     }
@@ -116,6 +120,8 @@ public:
     virtual void print(llvm::raw_ostream& os) const override;
 
     boost::rational<long long int> getValue() const { return mValue; }
+
+    RealType& getType() const { return static_cast<RealType&>(mType); }
 
     static bool classof(const Expr* expr) {
         return expr->getKind() == Literal && expr->getType().isRealType();
@@ -147,9 +153,7 @@ public:
 
     llvm::APInt getValue() const { return mValue; }
 
-    BvType& getType() const {
-        return static_cast<BvType&>(mType);
-    }
+    BvType& getType() const { return static_cast<BvType&>(mType); }
 
     static bool classof(const Expr* expr) {
         return expr->getKind() == Literal && expr->getType().isBvType();
@@ -196,7 +200,7 @@ private:
 
 ExprRef<LiteralExpr> LiteralFromLLVMConst(
     GazerContext& context,
-    llvm::ConstantData* value,
+    const llvm::ConstantData* value,
     bool i1AsBool = true
 );
 
