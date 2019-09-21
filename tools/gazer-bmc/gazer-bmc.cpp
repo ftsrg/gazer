@@ -90,7 +90,7 @@ int main(int argc, char* argv[])
     pm->add(llvm::createPromoteMemoryToRegisterPass());
 
     // Perform error instrumentation
-    CheckRegistry checks;
+    CheckRegistry checks(llvmContext);
     checks.add(checks::CreateAssertionFailCheck());
     checks.add(checks::CreateDivisionByZeroCheck());
     checks.registerPasses(*pm);

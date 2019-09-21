@@ -48,7 +48,6 @@ public:
                     if (isErrorFunctionName(callee->getName())) {
                         BasicBlock* errorBB = this->createErrorBlock(
                             function,
-                            this->getRegistry().getErrorCodeValue(context, ID),
                             "error.assert_fail",
                             call
                         );
@@ -109,8 +108,7 @@ public:
         for (llvm::Instruction* inst : divs) {
             BasicBlock* errorBB = this->createErrorBlock(
                 function,
-                this->getRegistry().getErrorCodeValue(context, ID),
-                "error.divzero" + std::to_string(divCnt++),
+                "error.divzero" + llvm::Twine(divCnt++),
                 inst
             );
 
@@ -139,9 +137,7 @@ public:
     llvm::StringRef getErrorDescription() const override { return "Divison by zero"; }
 };
 
-/**
- * Checks for over- and underflow in signed integer operations.
- */
+/// Checks for over- and underflow in signed integer operations.
 class SignedIntegerOverflowCheck : public Check
 {
 public:
