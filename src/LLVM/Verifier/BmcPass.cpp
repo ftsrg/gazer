@@ -49,21 +49,11 @@ bool BoundedModelCheckerPass::runOnModule(llvm::Module& module)
     mResult = bmc.check(system);
 
     if (auto fail = llvm::dyn_cast<FailResult>(mResult.get())) {
-
         unsigned ec = fail->getErrorID();
         std::string msg = mChecks.messageForCode(ec);
-        auto location = fail->getLocation();
 
         llvm::outs() << "Verification FAILED.\n";
-        llvm::outs() << "  " << msg;
-        if (location) {
-            auto fname = location->getFileName();
-            llvm::outs()
-                << " in " << (fname != "" ? fname : "<unknown file>")
-                << " at line " << location->getLine()
-                << " column " << location->getColumn();
-        }
-        llvm::outs() << ".\n";
+        llvm::outs() << "  " << msg << "\n";
 
         if (PrintTrace) {
             auto writer = trace::CreateTextWriter(llvm::outs(), true);

@@ -40,17 +40,36 @@ protected:
 
     /// Creates an error block with a gazer.error_code(i16 code) call and a terminating unreachable instruction.
     llvm::BasicBlock* createErrorBlock(
-        llvm::Function& function, llvm::Value* errorCode,
-        const llvm::Twine& name = "", llvm::Instruction* location = nullptr
+        llvm::Function& function, const llvm::Twine& name = "", llvm::Instruction* location = nullptr
     );
 
     CheckRegistry& getRegistry() const;
 
 private:
-    void setCheckRegistry(CheckRegistry* registry);
+    void setCheckRegistry(CheckRegistry& registry);
 
 private:
     CheckRegistry* mRegistry;
+};
+
+class CheckViolation
+{
+public:
+    CheckViolation(Check* check, llvm::DebugLoc location)
+        : mCheck(check), mLocation(location)
+    {
+        assert(check != nullptr);
+    }
+
+    CheckViolation(const CheckViolation&) = default;
+    CheckViolation& operator=(const CheckViolation&) = default;
+
+    Check* getCheck() const { return mCheck; }
+    llvm::DebugLoc getDebugLoc() const { return mLocation; }
+
+private:
+    Check* mCheck;
+    llvm::DebugLoc mLocation;
 };
 
 class CheckRegistry
@@ -58,7 +77,9 @@ class CheckRegistry
 public:
     static constexpr char ErrorFunctionName[] = "gazer.error_code";
 public:
-    CheckRegistry() = default;
+    CheckRegistry(llvm::LLVMContext& context)
+        : mLlvmContext(context)
+    {}
 
     CheckRegistry(const CheckRegistry&) = delete;
     CheckRegistry& operator=(const CheckRegistry&) = delete;
@@ -74,35 +95,15 @@ public:
     void add(Check* check);
     void registerPasses(llvm::legacy::PassManager& pm);
 
-    unsigned getErrorCode(char& id);
-
-    llvm::Value* getErrorCodeValue(llvm::LLVMContext& context, char& id)
-    {
-        return llvm::ConstantInt::get(
-            llvm::Type::getInt16Ty(context), llvm::APInt(16, getErrorCode(id))
-        );
-    }
-
-    template<class CheckT>
-    unsigned getErrorCode() {
-        return getErrorCode(CheckT::ID);
-    }
-
-    template<class CheckT>
-    llvm::Value* getErrorCodeValue(llvm::LLVMContext& context)
-    {
-        unsigned code = getErrorCode<CheckT>();
-        return llvm::ConstantInt::get(
-            llvm::Type::getInt16Ty(context), llvm::APInt(16, code)
-        );
-    }
+    /// Creates a new check violation with a unique error code for a given check and location.
+    /// \return An LLVM value representing the error code.
+    llvm::Value* createCheckViolation(Check* check, llvm::DebugLoc loc);
 
     std::string messageForCode(unsigned ec);
-
 private:
+    llvm::LLVMContext& mLlvmContext;
     std::vector<Check*> mChecks;
-    llvm::DenseMap<const void*, unsigned> mErrorCodes;
-    llvm::DenseMap<unsigned, Check*> mCheckMap;
+    llvm::DenseMap<unsigned, CheckViolation> mCheckMap;
     llvm::StringMap<Check*> mCheckNames;
 
     // Start with 1, zero stands for unknown errors.

@@ -159,6 +159,7 @@ private:
     AutomataSystem& mSystem;
     ExprBuilder& mExprBuilder;
     std::unique_ptr<Solver> mSolver;
+    bool mTraceEnabled;
 
     Cfa* mRoot;
     Location* mError;
