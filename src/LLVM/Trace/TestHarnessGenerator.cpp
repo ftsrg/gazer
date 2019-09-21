@@ -1,4 +1,4 @@
-#include "gazer/LLVM/TestGenerator/TestGenerator.h"
+#include "gazer/LLVM/Trace/TestHarnessGenerator.h"
 #include "gazer/LLVM/Utils/LLVMType.h"
 #include "gazer/Core/LiteralExpr.h"
 
@@ -10,31 +10,36 @@
 using namespace gazer;
 using namespace llvm;
 
-static llvm::Constant* exprToLLVMValue(ExprRef<AtomicExpr>& expr, LLVMContext& context)
+static llvm::Constant* exprToLLVMValue(ExprRef<AtomicExpr>& expr, LLVMContext& context, llvm::Type* targetTy)
 {
+    // For bitvectors, integers, booleans we want integer as the target type.
+    assert(targetTy->isIntegerTy()
+        || (!expr->getType().isBvType() && !expr->getType().isIntType() && !expr->getType().isBoolType())
+        && "Bitvectors, integers, and booleans may only have integer as their target type!"
+    );
+
     if (expr->getKind() == Expr::Undef) {
-        return llvm::UndefValue::get(llvmTypeFromType(context, expr->getType()));
+        return llvm::UndefValue::get(targetTy);
     }
 
-    if (expr->getType().isBvType()) {
-        auto BvLit = llvm::cast<BvLiteralExpr>(expr.get());
-        return llvm::ConstantInt::get(context, BvLit->getValue());
-    } else if (expr->getType().isBoolType()) {
-        auto boolLit = llvm::cast<BoolLiteralExpr>(expr.get());
+    if (auto bvLit = llvm::dyn_cast<BvLiteralExpr>(expr)) {
+        return llvm::ConstantInt::get(context, bvLit->getValue());
+    } else if (auto intLit = llvm::dyn_cast<IntLiteralExpr>(expr)) {
+        return llvm::ConstantInt::get(context, llvm::APInt{targetTy->getIntegerBitWidth(), static_cast<uint64_t>(intLit->getValue())});
+    } else if (auto boolLit =llvm::dyn_cast<BoolLiteralExpr>(expr)) {
         if (boolLit->getValue()) {
             return llvm::ConstantInt::getTrue(context);
-        } else {
-            return llvm::ConstantInt::getFalse(context);
         }
-    } else if (expr->getType().isFloatType()) {
-        auto fltLit = llvm::cast<FloatLiteralExpr>(expr.get());
+        
+        return llvm::ConstantInt::getFalse(context);
+    } else if (auto fltLit = llvm::dyn_cast<FloatLiteralExpr>(expr)) {
         return llvm::ConstantFP::get(context, fltLit->getValue());    
     }
     
     llvm_unreachable("Unsupported expression kind");
 }
 
-std::unique_ptr<Module> TestGenerator::generateModuleFromTrace(
+std::unique_ptr<Module> gazer::GenerateTestHarnessModuleFromTrace(
     Trace& trace, LLVMContext& context, const llvm::Module& module
 ) {
     const DataLayout& dl = module.getDataLayout();
@@ -55,27 +60,26 @@ std::unique_ptr<Module> TestGenerator::generateModuleFromTrace(
     std::unique_ptr<Module> test = std::make_unique<Module>("test", context);
     test->setDataLayout(dl);
 
-    for (auto& pair : calls) {
-        llvm::Function* function = pair.first;
-        std::vector<ExprRef<AtomicExpr>>& vec = pair.second;
-
+    for (auto& [function, vec] : calls) {
+        auto retTy = function->getReturnType();
         llvm::SmallVector<llvm::Constant*, 10> values;
         std::transform(vec.begin(), vec.end(), std::back_inserter(values),
-            [&context](auto& expr) { return exprToLLVMValue(expr, context); }
+            [&context, retTy](auto& expr) { return exprToLLVMValue(expr, context, retTy); }
         );
 
-        auto arrTy = llvm::ArrayType::get(function->getReturnType(), values.size());
+        auto arrTy = llvm::ArrayType::get(retTy, values.size());
         auto array = llvm::ConstantArray::get(arrTy, values);
 
         llvm::GlobalVariable* valueArray = new GlobalVariable(
-            *test, arrTy, true, GlobalValue::PrivateLinkage, array
+            *test, arrTy, true, GlobalValue::PrivateLinkage, array, "gazer.trace_value." + function->getName()
         );
 
         // Create a global variable counting the calls to this function
         auto counterTy = llvm::Type::getInt32Ty(context);
         llvm::GlobalVariable* counter = new GlobalVariable(
             *test, counterTy, false, GlobalValue::PrivateLinkage,
-            llvm::ConstantInt::get(counterTy, 0)
+            llvm::ConstantInt::get(counterTy, 0),
+            "gazer.trace_counter." + function->getName()
         );
 
         llvm::Function* testFun = Function::Create(
