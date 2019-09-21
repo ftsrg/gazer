@@ -9,7 +9,7 @@ set(SOURCE_FILES
     Instrumentation/Check.cpp
     Instrumentation/DefaultChecks.cpp
     Instrumentation/Intrinsics.cpp
-    TestGenerator/TestGenerator.cpp
+    Trace/TestHarnessGenerator.cpp
     Utils/LLVMType.cpp
     Automaton/ModuleToAutomata.cpp
     Automaton/InstToExpr.cpp

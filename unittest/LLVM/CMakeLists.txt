@@ -3,6 +3,7 @@ SET(TEST_SOURCES
     Analysis/VariableRoleTest.cpp
     Automaton/ModuleToAutomataTest.cpp
     Automaton/InstToExprTest.cpp
+    Trace/TestHarnessGeneratorTest.cpp
     GazerLLVMTest_main.cpp
 )
 

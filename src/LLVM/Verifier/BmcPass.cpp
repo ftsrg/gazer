@@ -3,7 +3,7 @@
 #include "gazer/LLVM/LLVMTraceBuilder.h"
 #include "gazer/LLVM/Instrumentation/Check.h"
 #include "gazer/Trace/TraceWriter.h"
-#include "gazer/LLVM/TestGenerator/TestGenerator.h"
+#include "gazer/LLVM/Trace/TestHarnessGenerator.h"
 
 #include "gazer/Z3Solver/Z3Solver.h"
 
@@ -74,8 +74,7 @@ bool BoundedModelCheckerPass::runOnModule(llvm::Module& module)
 
         if (TestHarnessFile != "") {
             llvm::outs() << "Generating test harness.\n";
-            TestGenerator testGen;
-            auto test = testGen.generateModuleFromTrace(
+            auto test = GenerateTestHarnessModuleFromTrace(
                 fail->getTrace(), 
                 module.getContext(),
                 module
