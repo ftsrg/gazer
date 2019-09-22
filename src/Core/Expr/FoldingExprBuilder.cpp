@@ -49,6 +49,10 @@ public:
             return ConstantFolder::BvSGtEq(e1, e2);
         }
 
+        if (match(op, m_Lt(m_Expr(e1), m_Expr(e2)))) {
+            return this->GtEq(e1, e2);
+        }
+
         // Not(Or(V1, Not(And(V2)))) --> And(Not(V1), V2)
 
         return ConstantFolder::Not(op);
