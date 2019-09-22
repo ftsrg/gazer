@@ -72,6 +72,7 @@ class ClangCommand(Command):
         parser.add_argument("inputs", metavar='FILE', help="Input file name", nargs='+')
         parser.add_argument('-m', '--machine', type=int,
             dest='machine', choices=[32, 64], help='Machine architecture', default=32)
+        parser.add_argument('-o', dest='output_file')
         parser.add_argument('--clang-path', help='Path to the clang executable')
         parser.add_argument('--clang-flags', nargs='+')
 
@@ -111,7 +112,11 @@ class ClangCommand(Command):
                 error_msg(str(ex))
                 return (1, {})
 
-        result_file = wd.joinpath('gazer_llvm_output.bc')
+        result_file = None
+        if args.output_file != None:
+            result_file = pathlib.Path(args.output_file)
+        else:
+            result_file = wd.joinpath('gazer_llvm_output.bc')
 
         try:
             self.llvm_link_files(bc_files, result_file)
@@ -130,6 +135,7 @@ class ClangCommand(Command):
             llvm_link_cmd,
             "-o", output_file.absolute()
         ]
+
         llvm_link_argv.extend(bc_files)
 
         llvm_link_success = subprocess.call(llvm_link_argv)
@@ -196,6 +202,7 @@ class GazerBmcCommand(Command):
         add_gazer_frontend_args(parser)
         parser.add_argument("-bound", type=int, help="Unwind count", default=100, nargs=None)
         parser.add_argument("-trace", help="Print counterexample trace", default=False, action='store_true')
+        parser.add_argument("-test-harness", help="Test harness file")
         return parser
 
     def find_gazer_bmc(self, args) -> pathlib.Path:
@@ -225,6 +232,9 @@ class GazerBmcCommand(Command):
 
         if args.math_int:
             gazer_argv.append("-math-int")
+
+        if args.test_harness != None:
+            gazer_argv.append("-test-harness={0}".format(args.test_harness))
 
         gazer_argv.append(bc_file)
 
