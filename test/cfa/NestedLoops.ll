@@ -1,3 +1,5 @@
+; RUN: %gazer print-cfa -no-simplify-expr -elim-vars=off "%s" | diff -B -Z "%p/Expected/NestedLoops.cfa" -
+
 declare i32 @__VERIFIER_nondet_int()
 
 define i32 @main() {

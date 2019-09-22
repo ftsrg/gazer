@@ -20,7 +20,7 @@ TEST(TestHarnessGeneratorTest, SmokeTest1)
     events.emplace_back(new FunctionCallEvent("__VERIFIER_nondet_int", BvLiteralExpr::Get(bv32Ty, llvm::APInt{32, 2})));
     events.emplace_back(new FunctionCallEvent("__VERIFIER_nondet_int", BvLiteralExpr::Get(bv32Ty, llvm::APInt{32, 3})));
 
-    auto trace = new Trace(std::move(events));
+    auto trace = std::make_unique<Trace>(std::move(events));
 
     llvm::LLVMContext llvmContext;
     auto module = std::make_unique<llvm::Module>("test1", llvmContext);
@@ -31,8 +31,6 @@ TEST(TestHarnessGeneratorTest, SmokeTest1)
     auto harness = GenerateTestHarnessModuleFromTrace(*trace, llvmContext, *module);
 
     auto func = harness->getFunction("__VERIFIER_nondet_int");
-
-    llvm::errs() << *harness << "\n";
 
     ASSERT_TRUE(func != nullptr);
 
