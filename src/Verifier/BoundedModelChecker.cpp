@@ -150,6 +150,13 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
 
     // Initialize error field
     bool hasErrorLocation = this->initializeErrorField();
+
+    if (ViewCfa) {
+        for (Cfa& cfa : mSystem) {
+            cfa.view();
+        }
+    }
+
     if (!hasErrorLocation) {
         return SafetyResult::CreateSuccess();
     }
@@ -159,12 +166,6 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
         if (auto call = llvm::dyn_cast<CallTransition>(edge.get())) {
             mCalls[call].overApprox = mExprBuilder.False();
             mCalls[call].cost = 1;
-        }
-    }
-
-    if (ViewCfa) {
-        for (Cfa& cfa : mSystem) {
-            cfa.view();
         }
     }
 

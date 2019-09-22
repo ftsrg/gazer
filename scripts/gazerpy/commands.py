@@ -19,7 +19,7 @@ class Colors:
     UNDERLINE = '\033[4m'
 
 def error_msg(message):
-    print(Colors.FAIL + "ERROR: " + Colors.ENDC + message)
+    print(Colors.BOLD + Colors.FAIL + "error: " + Colors.ENDC + message)
 
 def is_executable(file) -> bool:
     '''Returns true if the given file exists and is an executable'''
@@ -51,6 +51,7 @@ class Command:
             result = cmd.run(args, wd)
             if result[0] != 0:
                 error_msg("{0}: previous command `{1}` exited with an error.".format(self.name, cmd.name))
+                return (1, {})
 
             deps.update(result[1])
 
@@ -63,14 +64,12 @@ class Command:
         raise NotImplementedError
 
 class ClangCommand(Command):
-    '''
-    Compiles a set of C or C++ files into LLVM bitcode using clang.
-    '''
+    '''Compiles a set of C or C++ files into LLVM bitcode using clang.'''
     def __init__(self):
         super().__init__('clang', 'Compile C/C++ sources into LLVM bitcode')
 
     def fill_arguments(self, parser):
-        parser.add_argument("filename", help="Input C file name")
+        parser.add_argument("inputs", metavar='FILE', help="Input file name", nargs='+')
         parser.add_argument('-m', '--machine', type=int,
             dest='machine', choices=[32, 64], help='Machine architecture', default=32)
         parser.add_argument('--clang-path', help='Path to the clang executable')
@@ -90,12 +89,60 @@ class ClangCommand(Command):
         #    error_msg("clang executable `{0}` was not found or lacks sufficient permissions.".format(clang_cmd))
         #    return 1
 
-        filename = pathlib.Path(args.filename)
-        bc_file = wd.joinpath(filename.with_suffix(".bc").name)
+        bc_files = []
 
+        for inputf in args.inputs:
+            filename = pathlib.Path(inputf)
+            extension = filename.suffix
+
+            if extension == '.bc' or extension == '.ll':
+                bc_files.append(filename)
+                continue
+            elif extension != '.c':
+                error_msg("Cannot compile source file '{0}'. Supported extensions are: .c, .bc, .ll".format(filename))
+                return (1, {})
+
+            clang_bc_file = wd.joinpath(filename.with_suffix(".bc").name)
+
+            try:
+                self.clang_compile(filename, clang_bc_file, clang_cmd, args.machine)
+                bc_files.append(clang_bc_file)
+            except RuntimeError as ex:
+                error_msg(str(ex))
+                return (1, {})
+
+        result_file = wd.joinpath('gazer_llvm_output.bc')
+
+        try:
+            self.llvm_link_files(bc_files, result_file)
+        except RuntimeError as ex:
+            error_msg(str(ex))
+            return (1, {})
+
+        return (0, {
+            "clang.output_file": result_file
+        })
+
+    def llvm_link_files(self, bc_files, output_file):
+        llvm_link_cmd = 'llvm-link'
+        
+        llvm_link_argv = [
+            llvm_link_cmd,
+            "-o", output_file.absolute()
+        ]
+        llvm_link_argv.extend(bc_files)
+
+        llvm_link_success = subprocess.call(llvm_link_argv)
+        if llvm_link_success != 0:
+            raise RuntimeError("llvm-link exited with a failure")
+
+
+    def clang_compile(self, input_file, output_file, clang_cmd, machine):
         clang_argv = [
             clang_cmd,
-            "-m{0}".format(args.machine),
+            # TODO: Having some issues with this setting. Somewhy LLVM
+            # replaces error calls with indirect ones if -m32 is supplied.
+            # "-m{0}".format(machine),
             "-g",
             # In the newer (>=5.0) versions of clang, -O0 marks functions
             # with a 'not optimizable' flag, which can break the functionality
@@ -103,18 +150,37 @@ class ClangCommand(Command):
             # immediately by disabling all LLVM passes.
             "-O1", "-Xclang", "-disable-llvm-passes",
             "-c", "-emit-llvm",
-            filename,
-            "-o", bc_file.absolute()
+            input_file,
+            "-o", output_file.absolute()
         ]
-
+        
         clang_success = subprocess.call(clang_argv)
         if clang_success != 0:
-            error_msg("clang exited with a failure.")
-            return (1, {})
+            raise RuntimeError("clang exited with a failure")
 
-        return (0, {
-            "clang.output_file": bc_file
-        })
+def find_gazer_tools_dir() -> pathlib.Path:
+    gazer_tools_dir = None
+
+    env_path = os.getenv('GAZER_TOOLS_DIR')
+    if env_path != None:
+        gazer_tools_dir = pathlib.Path(env_path)
+    else:
+        # TODO: This should be something (much) more flexible
+        gazer_tools_dir = pathlib.Path("tools")
+
+    if not gazer_tools_dir.exists():
+        raise IOError("Could not find gazer_tools_dir!")
+
+    return gazer_tools_dir
+
+def add_gazer_llvm_pass_args(parser):
+    parser.add_argument("-inline", help="Inline non-recursive functions", default=False, action='store_true')
+    parser.add_argument("-inline-globals", help="Inline global variables into main", default=False, action='store_true')
+
+def add_gazer_frontend_args(parser):
+    parser.add_argument("-elim-vars", help="Variable elimination level", choices=["off", "normal", "aggressive"], default="normal")
+    parser.add_argument("-math-int", default=False, action='store_true', help="Represent integers as the arithmetic integer type instead of bitvectors")
+    parser.add_argument("-no-simplify-expr", default=False, action='store_true', help="Do not simplify expressions")
 
 class GazerBmcCommand(Command):
     '''
@@ -126,17 +192,15 @@ class GazerBmcCommand(Command):
         ])
 
     def fill_arguments(self, parser):
+        add_gazer_llvm_pass_args(parser)
+        add_gazer_frontend_args(parser)
         parser.add_argument("-bound", type=int, help="Unwind count", default=100, nargs=None)
-        parser.add_argument("-math-int", default=False, action='store_true', help="Represent integers as the arithmetic integer type instead of bitvectors")
-        parser.add_argument("-inline", help="Inline non-recursive functions", default=False, action='store_true')
-        parser.add_argument("-inline-globals", help="Inline global variables into main", default=False, action='store_true')
-        parser.add_argument("-elim-vars", help="Variable elimination level", choices=["off", "normal", "aggressive"], default="normal")
         parser.add_argument("-trace", help="Print counterexample trace", default=False, action='store_true')
         return parser
 
     def find_gazer_bmc(self, args) -> pathlib.Path:
-        #TODO
-        return pathlib.Path("tools/gazer-bmc/gazer-bmc")
+        gazer_tools_dir = find_gazer_tools_dir()
+        return gazer_tools_dir.joinpath("gazer-bmc/gazer-bmc")
 
     def execute(self, args, wd: pathlib.Path, deps) -> Tuple[int, dict]:
         bc_file = deps['clang.output_file']
@@ -145,11 +209,16 @@ class GazerBmcCommand(Command):
         gazer_argv = [
             gazer_bmc_path,
             "-bmc",
-            "-inline", "-inline-globals",
             "-no-optimize",
             "-bound", str(args.bound),
             "-elim-vars={0}".format(args.elim_vars)
         ]
+
+        if args.inline:
+            gazer_argv.append("-inline")
+
+        if args.inline_globals:
+            gazer_argv.append("-inline-globals")
 
         if args.trace:
             gazer_argv.append("-trace")
@@ -166,11 +235,49 @@ class GazerBmcCommand(Command):
 
         return (0, {})
 
+class PrintCfaCommand(Command):
+    def __init__(self):
+        super().__init__('print-cfa', 'Print gazer CFA to the standard output', depends=[
+            ClangCommand()
+        ])
+
+    def fill_arguments(self, parser):
+        add_gazer_frontend_args(parser)
+        return parser
+
+    def find_gazer_bmc(self, args) -> pathlib.Path:
+        gazer_tools_dir = find_gazer_tools_dir()
+        return gazer_tools_dir.joinpath("gazer-bmc/gazer-bmc")
+
+    def execute(self, args, wd: pathlib.Path, deps) -> Tuple[int, dict]:
+        bc_file = deps['clang.output_file']
+        gazer_bmc_path = self.find_gazer_bmc(args)
+
+        gazer_argv = [
+            gazer_bmc_path,
+            "-print-cfa",
+            "-no-optimize",
+            "-elim-vars={0}".format(args.elim_vars)
+        ]
+
+        if args.no_simplify_expr:
+            gazer_argv.append("-no-simplify-expr")
+
+        gazer_argv.append(bc_file)
+
+        gazer_success = subprocess.call(gazer_argv)
+        if gazer_success != 0:
+            error_msg("gazer-bmc exited with a failure.")
+            return (1, {})
+
+        return (0, {})
+
 def run_commands():
     # Register all commands
     commands = {
         'clang': ClangCommand(),
-        'bmc': GazerBmcCommand()
+        'bmc': GazerBmcCommand(),
+        'print-cfa': PrintCfaCommand()
     }
 
     if len(sys.argv) < 2:
@@ -191,4 +298,4 @@ def run_commands():
     # Create a temporary working directory
     wd = create_temp_dir()
 
-    result = current.run(args, wd)
+    current.run(args, wd)
