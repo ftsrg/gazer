@@ -42,7 +42,7 @@ public:
     template<class ReturnT>
     ReturnT accept(TraceEventVisitor<ReturnT>& visitor);
 
-    virtual ~TraceEvent() {}
+    virtual ~TraceEvent() = default;
 
 private:
     EventKind mKind;

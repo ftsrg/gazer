@@ -28,6 +28,8 @@ public:
 
     static std::unique_ptr<SafetyResult> CreateUnknown();
 
+    virtual ~SafetyResult() = default;
+
 private:
     Status mStatus;
 };
