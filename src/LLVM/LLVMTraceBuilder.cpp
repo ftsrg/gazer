@@ -46,15 +46,15 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
 
         // We might have some 'helper' locations, which do not correspond to any
         // basic blocks. We will have to skip these.
-        while (!shouldProcessEntry(entry) && stateIt != stateEnd) {
+        while (!shouldProcessEntry(entry) && actionIt != actionEnd) {
             entry = mCfaToLlvmTrace.getBlockFromLocation(*stateIt);
             updateCurrentValuation(currentVals, *actionIt);
             ++stateIt;
             ++actionIt;
         }
 
-        if (stateIt == stateEnd) {
-            // We have reached the last location - nothing else to do.
+        if (actionIt == actionEnd) {
+            // We have reached the last action - nothing else to do.
             return std::make_unique<Trace>(std::move(events));
         }
         

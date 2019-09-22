@@ -29,6 +29,7 @@ llvm::cl::opt<bool> ViewCfa("view-cfa", llvm::cl::desc("View the generated CFA."
 llvm::cl::opt<bool> DumpCfa("debug-dump-cfa", llvm::cl::desc("Dump the generated CFA after each inlining step."));
 llvm::cl::opt<bool> DumpFormula("dump-formula", llvm::cl::desc("Dump the solver formula to stderr."));
 llvm::cl::opt<bool> DumpSolver("dump-solver", llvm::cl::desc("Dump the solver instance to stderr."));
+llvm::cl::opt<bool> DumpSolverModel("dump-solver-model", llvm::cl::desc("Dump the raw model from the solver to stderr."));
 
 llvm::cl::opt<bool> PrintSolverStats("print-solver-stats", llvm::cl::desc("Print solver statistics information."));
 
@@ -248,6 +249,10 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                 
                 auto model = mSolver->getModel();
 
+                if (DumpSolverModel) {
+                    model.print(llvm::errs());
+                }
+
                 std::unique_ptr<Trace> trace;
 
                 if (PrintTrace) {
@@ -296,7 +301,6 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
 
                     std::reverse(states.begin(), states.end());
                     std::reverse(actions.begin(), actions.end());
-                    //llvm::outs() << "State " << states.back()->getId() << "\n";
 
                     trace = mTraceBuilder->build(states, actions);
                 } else {

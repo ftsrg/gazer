@@ -179,6 +179,21 @@ ExprPtr InstToExpr::visitSelectInst(const llvm::SelectInst& select)
     return mExprBuilder.Select(cond, then, elze);
 }
 
+ExprPtr InstToExpr::unsignedCompareOperand(const ExprPtr& expr, unsigned width)
+{
+    // If the number is negative, we must substract it from the maximum value
+    // of the given bit width to represent it as unsigned. Otherwise, we can
+    // just use the original value.
+    return mExprBuilder.Select(
+        mExprBuilder.Lt(expr, mExprBuilder.IntLit(0)),
+        mExprBuilder.Add(
+            mExprBuilder.IntLit(llvm::APInt::getMaxValue(width).getLimitedValue()),
+            expr
+        ),
+        expr
+    );
+}
+
 ExprPtr InstToExpr::visitICmpInst(const llvm::ICmpInst& icmp)
 {
     using llvm::CmpInst;
@@ -211,29 +226,47 @@ ExprPtr InstToExpr::visitICmpInst(const llvm::ICmpInst& icmp)
             HANDLE_PREDICATE(CmpInst::ICMP_SLT, BvSLt)
             HANDLE_PREDICATE(CmpInst::ICMP_SLE, BvSLtEq)
             default:
-                llvm_unreachable("Unhandled ICMP predicate.");
+                llvm_unreachable("Unknown ICMP predicate.");
         }
-
     }
 
+    #undef HANDLE_PREDICATE
+
     if (lhs->getType().isArithmetic()) {
+        unsigned bw = icmp.getOperand(0)->getType()->getIntegerBitWidth();
+
+        ExprPtr leftOp = lhs;
+        ExprPtr rightOp = rhs;
+
+        if (icmp.isUnsigned()) {
+            // We need to apply some extra care here as unsigned comparisons
+            // interpret the operands as unsigned values, changing some semantics.
+            // As an example, -5 < x would normally be true for x = 2. However,
+            // `ult i8 -5, %x` interprets -5 (0b11111011) as unsigned, thus
+            // it will be compared as 251, yielding false.
+            leftOp = unsignedCompareOperand(lhs, bw);
+            rightOp = unsignedCompareOperand(rhs, bw);
+        }
+
         switch (pred) {
-            HANDLE_PREDICATE(CmpInst::ICMP_UGT, Gt)
-            HANDLE_PREDICATE(CmpInst::ICMP_UGE, GtEq)
-            HANDLE_PREDICATE(CmpInst::ICMP_SGT, Gt)
-            HANDLE_PREDICATE(CmpInst::ICMP_SGE, GtEq)
-            HANDLE_PREDICATE(CmpInst::ICMP_ULT, Lt)
-            HANDLE_PREDICATE(CmpInst::ICMP_ULE, LtEq)
-            HANDLE_PREDICATE(CmpInst::ICMP_SLT, Lt)
-            HANDLE_PREDICATE(CmpInst::ICMP_SLE, LtEq)
+            case CmpInst::ICMP_UGT:
+            case CmpInst::ICMP_SGT:
+                return mExprBuilder.Gt(leftOp, rightOp);
+            case CmpInst::ICMP_UGE:
+            case CmpInst::ICMP_SGE:
+                return mExprBuilder.GtEq(leftOp, rightOp);
+            case CmpInst::ICMP_ULT:
+            case CmpInst::ICMP_SLT:
+                return mExprBuilder.Lt(leftOp, rightOp);
+            case CmpInst::ICMP_ULE:
+            case CmpInst::ICMP_SLE:
+                return mExprBuilder.LtEq(leftOp, rightOp);
             default:
-                llvm_unreachable("Unhandled ICMP predicate.");
+                llvm_unreachable("Unknown ICMP predicate.");
         }
     }
 
     llvm_unreachable("Invalid type for comparison instruction!");
-    
-    #undef HANDLE_PREDICATE
 }
 
 ExprPtr InstToExpr::visitFCmpInst(const llvm::FCmpInst& fcmp)
