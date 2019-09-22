@@ -1,3 +1,5 @@
+; RUN: %gazer print-cfa -no-simplify-expr -elim-vars=off "%s" | diff -B -Z "%p/Expected/locks_bug0.cfa" -
+
 declare i32 @__VERIFIER_nondet_int(...)
 
 declare void @__VERIFIER_error(...)
