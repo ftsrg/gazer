@@ -80,12 +80,22 @@ int main(int argc, char* argv[])
 
     // TODO: This should be more flexible.
     if (module->getFunction("main") == nullptr) {
-        llvm::errs() << "No 'main' function found.\n";
+        llvm::errs() << "ERROR: No 'main' function found.\n";
         return 1;
     }
 
     GazerContext context;
     auto pm = std::make_unique<llvm::legacy::PassManager>();
+
+    if (PrintCFA) {
+        pm->add(new gazer::ModuleToAutomataPass(context));
+        pm->add(gazer::createCfaPrinterPass());
+
+        pm->run(*module);
+        
+        llvm::llvm_shutdown();
+        return 0;
+    }
 
     pm->add(llvm::createPromoteMemoryToRegisterPass());
 
@@ -169,52 +179,16 @@ int main(int argc, char* argv[])
     pm->add(new MemorySSAWrapperPass());
     //pm->add(new MemoryObjectPass());
 
+    pm->add(llvm::createInstructionNamerPass());
+    pm->add(createCombineErrorCallsPass());
+
+    if (ShowUnrolledCFG) {
+        pm->add(llvm::createCFGPrinterLegacyPassPass());
+    }
+
+    pm->add(new gazer::ModuleToAutomataPass(context));
+
     if (RunBmc) {
-
-        // pm->add(new llvm::DominatorTreeWrapperPass());
-        // pm->add(new llvm::LoopInfoWrapperPass());
-        // pm->add(new llvm::ScalarEvolutionWrapperPass());
-        // pm->add(new llvm::AssumptionCacheTracker());
-        
-        //pm->add(new gazer::BoundedUnwindPass(bound));
-        pm->add(llvm::createInstructionNamerPass());
-
-        // bool NeedsPDG = BackwardSlice || PrintPDG;
-
-        // if (NeedsPDG) {
-        //     pm->add(llvm::createPostDomTree());
-        //     pm->add(gazer::createProgramDependenceWrapperPass());
-        // }
-        // if (PrintPDG) {
-        //     pm->add(gazer::createProgramDependencePrinterPass());
-        // }
-        // if (BackwardSlice) {
-        //     pm->add(gazer::createBackwardSlicerPass());
-        //     pm->add(llvm::createVerifierPass());
-        //     pm->add(llvm::createConstantPropagationPass());
-        //     pm->add(llvm::createDeadCodeEliminationPass());
-        //     pm->add(llvm::createCFGSimplificationPass());
-        // }
-
-        //pm->add(gazer::createPromoteUndefsPass());
-
-        // TODO: CFG Simplifcation seems to introduce some semantic changes, breaking verification.
-        //pm->add(llvm::createCFGSimplificationPass());
-        pm->add(createCombineErrorCallsPass());
-        //pm->add(createTopologicalSortPass());
-
-        if (ShowUnrolledCFG) {
-            pm->add(llvm::createCFGPrinterLegacyPassPass());
-        }
-
-        //pm->add(llvm::createVerifierPass());
-        //pm->add(new gazer::CfaBuilderPass(LargeBlockCFA));
-        //if (PrintCFA) {
-        //   pm->add(createCfaPrinterPass());
-        //}
-        //pm->add(new gazer::BmcPass());
-
-        pm->add(new gazer::ModuleToAutomataPass(context));
         pm->add(new gazer::BoundedModelCheckerPass(checks));
     }
 

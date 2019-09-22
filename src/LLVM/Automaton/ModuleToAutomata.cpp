@@ -199,6 +199,7 @@ void ModuleToCfa::createAutomata()
         }
 
         Cfa* cfa = mSystem->createCfa(function.getName());
+        LLVM_DEBUG(llvm::dbgs() << "Created CFA " << cfa->getName() << "\n");
         DenseSet<BasicBlock*> visitedBlocks;
 
         // Create a CFA for each loop nested in this function
@@ -207,6 +208,7 @@ void ModuleToCfa::createAutomata()
         auto loops = loopInfo->getLoopsInPreorder();
         for (Loop* loop : loops) {
             Cfa* nested = mSystem->createNestedCfa(cfa, loop->getName());
+            LLVM_DEBUG(llvm::dbgs() << "Created nested CFA " << nested->getName() << "\n");
             mGenCtx.createLoopCfaInfo(nested, loop);
         }
 
@@ -793,17 +795,21 @@ char ModuleToAutomataPass::ID;
 
 void ModuleToAutomataPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
 {
-    au.addRequired<llvm::LoopInfoWrapperPass>();
-    au.addRequired<llvm::DominatorTreeWrapperPass>();
     au.setPreservesAll();
 }
 
 bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
 {
-    GenerationContext::LoopInfoMapTy loops;
+    GenerationContext::LoopInfoMapTy loopInfoMap;
+    std::vector<std::unique_ptr<llvm::DominatorTree>> dominators;
+    std::vector<std::unique_ptr<llvm::LoopInfo>> loops;
+
     for (Function& function : module) {
         if (!function.isDeclaration()) {
-            loops[&function] = &getAnalysis<LoopInfoWrapperPass>(function).getLoopInfo();
+            auto& dt = dominators.emplace_back(std::make_unique<llvm::DominatorTree>(function));
+            auto& loop = loops.emplace_back(std::make_unique<llvm::LoopInfo>(*dt));
+
+            loopInfoMap[&function] = loop.get();
         }
     }
 
@@ -811,12 +817,49 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
 
     DummyMemoryModel memoryModel(mContext, settings);
 
-    llvm::outs() << "Translating module.\n";
     mSystem = translateModuleToAutomata(
-        module, settings, loops, mContext, memoryModel, mVariables, mTraceInfo
+        module, settings, loopInfoMap, mContext, memoryModel, mVariables, mTraceInfo
     );
 
     return false;
+}
+
+namespace
+{
+
+class PrintCfaPass : public llvm::ModulePass
+{
+public:
+    static char ID;
+
+    PrintCfaPass()
+        : ModulePass(ID)
+    {}
+
+    void getAnalysisUsage(llvm::AnalysisUsage& au) const override
+    {
+        au.addRequired<ModuleToAutomataPass>();
+        au.setPreservesAll();
+    }
+
+    bool runOnModule(llvm::Module& module) override
+    {
+        ModuleToAutomataPass& moduleToCfa = getAnalysis<ModuleToAutomataPass>();
+        AutomataSystem& system = moduleToCfa.getSystem();
+
+        system.print(llvm::outs());
+
+        return false;
+    }
+};
+
+} // end anonymous namespace
+
+char PrintCfaPass::ID;
+
+llvm::Pass* gazer::createCfaPrinterPass()
+{
+    return new PrintCfaPass();
 }
 
 // Traceability support

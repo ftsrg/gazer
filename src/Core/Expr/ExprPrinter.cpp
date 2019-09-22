@@ -68,7 +68,7 @@ public:
             }
             case Type::BvTypeID: {
                 auto bv = llvm::cast<BvLiteralExpr>(expr);
-                bv->getValue().toStringUnsigned(buffer, mRadix);
+                bv->getValue().toStringSigned(buffer, mRadix);
 
                 return (
                     getRadixPrefix() + Twine{buffer}

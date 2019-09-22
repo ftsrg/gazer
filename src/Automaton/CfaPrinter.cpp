@@ -224,7 +224,7 @@ void Cfa::print(llvm::raw_ostream& os) const
         os << "\n";
     }
 
-    os << "}";
+    os << "}\n";
 }
 
 void AutomataSystem::print(llvm::raw_ostream& os) const
