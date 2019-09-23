@@ -106,7 +106,7 @@ void CheckRegistry::registerPasses(llvm::legacy::PassManager& pm)
     }
 }
 
-std::string CheckRegistry::messageForCode(unsigned ec)
+std::string CheckRegistry::messageForCode(unsigned ec) const
 {
     auto result = mCheckMap.find(ec);
     assert(result != mCheckMap.end() && "Error code should be present in the check map!");

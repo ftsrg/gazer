@@ -4,7 +4,7 @@
 
 // CHECK: __VERIFIER_error executed
 
-// Due to an errenous encoding of unsigned comparisons, we have produced some
+// Due to an erroneous encoding of unsigned comparisons, we have produced some
 // false-positive counterexamples in -math-int mode. This test should evaluate
 // as a failure and the resulting counterexample is verified through lli.
 

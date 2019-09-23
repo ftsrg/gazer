@@ -182,6 +182,7 @@ def find_gazer_tools_dir() -> pathlib.Path:
 def add_gazer_llvm_pass_args(parser):
     parser.add_argument("-inline", help="Inline non-recursive functions", default=False, action='store_true')
     parser.add_argument("-inline-globals", help="Inline global variables into main", default=False, action='store_true')
+    parser.add_argument("-no-optimize", help="Disable non-crucial LLVM optimization passes.", default=False, action='store_true')
 
 def add_gazer_frontend_args(parser):
     parser.add_argument("-elim-vars", help="Variable elimination level", choices=["off", "normal", "aggressive"], default="normal")
@@ -215,8 +216,6 @@ class GazerBmcCommand(Command):
 
         gazer_argv = [
             gazer_bmc_path,
-            "-bmc",
-            "-no-optimize",
             "-bound", str(args.bound),
             "-elim-vars={0}".format(args.elim_vars)
         ]
@@ -232,6 +231,9 @@ class GazerBmcCommand(Command):
 
         if args.math_int:
             gazer_argv.append("-math-int")
+
+        if args.no_optimize:
+            gazer_argv.append("-no-optimize")
 
         if args.test_harness != None:
             gazer_argv.append("-test-harness={0}".format(args.test_harness))
@@ -255,29 +257,30 @@ class PrintCfaCommand(Command):
         add_gazer_frontend_args(parser)
         return parser
 
-    def find_gazer_bmc(self, args) -> pathlib.Path:
+    def find_gazer_cfa(self, args) -> pathlib.Path:
         gazer_tools_dir = find_gazer_tools_dir()
-        return gazer_tools_dir.joinpath("gazer-bmc/gazer-bmc")
+        return gazer_tools_dir.joinpath("gazer-cfa/gazer-cfa")
 
     def execute(self, args, wd: pathlib.Path, deps) -> Tuple[int, dict]:
         bc_file = deps['clang.output_file']
-        gazer_bmc_path = self.find_gazer_bmc(args)
+        gazer_cfa_path = self.find_gazer_cfa(args)
 
         gazer_argv = [
-            gazer_bmc_path,
-            "-print-cfa",
-            "-no-optimize",
+            gazer_cfa_path,
             "-elim-vars={0}".format(args.elim_vars)
         ]
 
         if args.no_simplify_expr:
             gazer_argv.append("-no-simplify-expr")
 
+        if args.math_int:
+            gazer_argv.append("-math-int")
+
         gazer_argv.append(bc_file)
 
         gazer_success = subprocess.call(gazer_argv)
         if gazer_success != 0:
-            error_msg("gazer-bmc exited with a failure.")
+            error_msg("gazer-cfa exited with a failure.")
             return (1, {})
 
         return (0, {})

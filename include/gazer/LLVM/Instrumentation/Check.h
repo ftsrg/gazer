@@ -1,3 +1,6 @@
+#ifndef GAZER_LLVM_INSTRUMENTATION_CHECK_H
+#define GAZER_LLVM_INSTRUMENTATION_CHECK_H
+
 #include <llvm/IR/Instructions.h>
 #include <llvm/Pass.h>
 #include <llvm/IR/LegacyPassManager.h>
@@ -99,7 +102,7 @@ public:
     /// \return An LLVM value representing the error code.
     llvm::Value* createCheckViolation(Check* check, llvm::DebugLoc loc);
 
-    std::string messageForCode(unsigned ec);
+    std::string messageForCode(unsigned ec) const;
 private:
     llvm::LLVMContext& mLlvmContext;
     std::vector<Check*> mChecks;
@@ -111,3 +114,5 @@ private:
 };
 
 } // end namespace gazer
+
+#endif
