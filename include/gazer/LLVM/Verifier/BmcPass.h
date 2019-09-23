@@ -15,7 +15,7 @@ class BoundedModelCheckerPass final : public llvm::ModulePass
 public:
     static char ID;
 
-    BoundedModelCheckerPass(CheckRegistry& checks)
+    BoundedModelCheckerPass(const CheckRegistry& checks)
         : ModulePass(ID), mChecks(checks)
     {}
 
@@ -27,7 +27,7 @@ public:
     }
 
 private:
-    CheckRegistry& mChecks;
+    const CheckRegistry& mChecks;
     std::unique_ptr<SafetyResult> mResult;
 };
 

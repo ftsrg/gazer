@@ -17,6 +17,7 @@ set(SOURCE_FILES
     LLVMTraceBuilder.cpp
     TypeTranslator.cpp
     LLVMFrontendSettings.cpp
+    LLVMFrontend.cpp
 )
 
 llvm_map_components_to_libnames(LLVM_LIBS support core irreader transformutils scalaropts ipo)

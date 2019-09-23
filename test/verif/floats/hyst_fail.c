@@ -1,3 +1,4 @@
+// XFAIL: memory
 // RUN: %gazer bmc -bound 1 "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED
