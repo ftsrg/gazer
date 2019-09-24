@@ -1,0 +1,119 @@
+procedure main() -> (main/RET_VAL : Bv32)
+{
+    var main/RET_VAL : Bv32
+    var main/_5 : Bv32
+    var main/.0 : Bv32
+
+    loc $0 entry 
+    loc $1 final 
+    loc $2
+    loc $3
+    loc $4
+    loc $5
+    loc $6
+    loc $7
+    loc $8
+    loc $9
+    loc $10
+
+    transition $0 -> $2
+        assume true
+    {
+    };
+
+    transition $2 -> $3
+        assume true
+    {
+        main/_5 := undef;
+    };
+
+    transition $3 -> $10
+        assume true
+        call main/__loop_0(0bv32, 0bv32, main/_5, main/.0 <= main/__loop_0/.0_out);
+
+    transition $10 -> $4
+        assume true
+    {
+    };
+
+    transition $4 -> $5
+        assume true
+    {
+    };
+
+    transition $5 -> $6
+        assume main/.0=0bv32
+    {
+    };
+
+    transition $5 -> $8
+        assume main/.0<>0bv32
+    {
+    };
+
+    transition $6 -> $7
+        assume true
+    {
+    };
+
+    transition $8 -> $9
+        assume true
+    {
+    };
+
+    transition $9 -> $1
+        assume true
+    {
+        main/RET_VAL := 0bv32;
+    };
+
+}
+
+procedure main/__loop_0(main/__loop_0/.01 : Bv32, main/__loop_0/.0 : Bv32, main/__loop_0/_1 : Bv32) -> (main/__loop_0/.0_out : Bv32)
+{
+    var main/__loop_0/.0_out : Bv32
+
+    loc $0 entry 
+    loc $1 final 
+    loc $2
+    loc $3
+    loc $4
+    loc $5
+    loc $6
+
+    transition $0 -> $2
+        assume true
+    {
+    };
+
+    transition $2 -> $3
+        assume true
+    {
+    };
+
+    transition $3 -> $4
+        assume slt(main/__loop_0/.01,main/__loop_0/_1)
+    {
+    };
+
+    transition $3 -> $1
+        assume sge(main/__loop_0/.01,main/__loop_0/_1)
+    {
+        main/__loop_0/.0_out := main/__loop_0/.0;
+    };
+
+    transition $4 -> $5
+        assume true
+    {
+    };
+
+    transition $5 -> $6
+        assume true
+    {
+    };
+
+    transition $6 -> $1
+        assume true
+        call main/__loop_0(main/__loop_0/.01 + 1bv32, main/__loop_0/.0 + main/__loop_0/.01, main/__loop_0/_1, main/__loop_0/.0_out <= main/__loop_0/.0_out);
+
+}

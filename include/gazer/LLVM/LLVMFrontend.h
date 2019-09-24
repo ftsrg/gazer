@@ -27,7 +27,7 @@ public:
 
     /// Registers the common preprocessing analyses and transforms of the 
     /// verification pipeline into the pass manager. After executing the
-    /// registered passes, the input LLVM module will be reduced, and the
+    /// registered passes, the input LLVM module will be optimized, and the
     /// translated automata system will be available.
     void registerVerificationPipeline();
 

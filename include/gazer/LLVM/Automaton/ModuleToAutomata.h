@@ -97,6 +97,8 @@ std::unique_ptr<AutomataSystem> translateModuleToAutomata(
 
 llvm::Pass* createCfaPrinterPass();
 
+llvm::Pass* createCfaViewerPass();
+
 }
 
 #endif //GAZER_MODULETOAUTOMATA_H

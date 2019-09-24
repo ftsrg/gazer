@@ -19,6 +19,11 @@ namespace
     cl::opt<std::string> InputFilename(cl::Positional, cl::desc("<input file>"), cl::Required);
 }
 
+namespace gazer
+{
+    extern cl::opt<bool> ViewCfa;
+}
+
 int main(int argc, char* argv[])
 {
     cl::ParseCommandLineOptions(argc, argv);
@@ -39,6 +44,9 @@ int main(int argc, char* argv[])
 
     frontend->registerPass(new gazer::ModuleToAutomataPass(context));
     frontend->registerPass(gazer::createCfaPrinterPass());
+    if (ViewCfa) {
+        frontend->registerPass(gazer::createCfaViewerPass());
+    }
 
     frontend->run();
 

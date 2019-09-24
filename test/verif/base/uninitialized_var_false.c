@@ -3,6 +3,8 @@
 
 // CHECK: Verification FAILED
 
+// This test checks that the enabled LLVM optimizations do not
+// strip away relevant code under an undefined value.
 void __VERIFIER_error(void) __attribute__((noreturn));
 
 int main(void)
