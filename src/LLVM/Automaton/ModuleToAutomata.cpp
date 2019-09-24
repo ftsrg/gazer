@@ -190,6 +190,15 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
     return std::move(mSystem);
 }
 
+std::string ModuleToCfa::uniqueValueName(const llvm::Value* value)
+{
+    if (value->hasName()) {
+        return value->getName();
+    }
+
+    return ("_" + llvm::Twine(++mValueCount)).str();
+}
+
 void ModuleToCfa::createAutomata()
 {
     // Create an automaton for each function definition and set the interfaces.
@@ -205,9 +214,21 @@ void ModuleToCfa::createAutomata()
         // Create a CFA for each loop nested in this function
         LoopInfo* loopInfo = mGenCtx.getLoopInfoFor(&function);
 
+        unsigned loopCount = 0;
         auto loops = loopInfo->getLoopsInPreorder();
+
         for (Loop* loop : loops) {
-            Cfa* nested = mSystem->createNestedCfa(cfa, loop->getName());
+            BasicBlock* header = loop->getHeader();
+            assert(header != nullptr && "Loop without a loop header?");
+
+            std::string name;
+            if (header->hasName()) {
+                name = header->getName();
+            } else {
+                name = ("__loop_" + llvm::Twine(loopCount++)).str();
+            }
+
+            Cfa* nested = mSystem->createNestedCfa(cfa, name);
             LLVM_DEBUG(llvm::dbgs() << "Created nested CFA " << nested->getName() << "\n");
             mGenCtx.createLoopCfaInfo(nested, loop);
         }
@@ -235,7 +256,7 @@ void ModuleToCfa::createAutomata()
 
                     if (inst.getOpcode() == Instruction::PHI && bb == loop->getHeader()) {
                         // PHI nodes of the entry block should also be inputs.
-                        localName = inst.getName();
+                        localName = uniqueValueName(&inst);
                         variable = nested->createInput(localName, mMemoryModel.translateType(inst.getType()));
                         loopGenInfo.addPhiInput(&inst, variable);
                         mGenCtx.addVariable(&inst, variable);
@@ -248,7 +269,7 @@ void ModuleToCfa::createAutomata()
                             llvm::Value* value = *oi;
                             if (isDefinedInCaller(value, loopBlocks) && !loopGenInfo.hasInput(value)) {
                                 auto argVariable = nested->createInput(
-                                    value->getName(),
+                                    uniqueValueName(value),
                                     mMemoryModel.translateType(value->getType())
                                 );
                                 loopGenInfo.addInput(value, argVariable);
@@ -266,7 +287,7 @@ void ModuleToCfa::createAutomata()
                         // If the instruction is defined in an already visited block, it is a local of
                         // a subloop rather than this loop.
                         if (visitedBlocks.count(bb) == 0 || hasUsesInBlockRange(&inst, loopOnlyBlocks)) {
-                            localName = inst.getName();
+                            localName = uniqueValueName(&inst);
                             variable = nested->createLocal(localName, mMemoryModel.translateType(inst.getType()));
                             loopGenInfo.addLocal(&inst, variable);
                             mGenCtx.addVariable(&inst, variable);
@@ -328,7 +349,8 @@ void ModuleToCfa::createAutomata()
 
         // Add function input and output parameters
         for (llvm::Argument& argument : function.args()) {
-            Variable* variable = cfa->createInput(argument.getName(), mMemoryModel.translateType(argument.getType()));
+            auto name = uniqueValueName(&argument);
+            Variable* variable = cfa->createInput(name, mMemoryModel.translateType(argument.getType()));
             genInfo.addInput(&argument, variable);
             mGenCtx.addVariable(&argument, variable);
             mGenCtx.addExprValueIfTraceEnabled(cfa, &argument, variable->getRefExpr());
@@ -360,9 +382,9 @@ void ModuleToCfa::createAutomata()
                     }
                 }
 
-                // FIXME: This requires the instnamer pass as a dependency, we should find another way around this.
-                if (inst.getName() != "") {
-                    Variable* variable = cfa->createLocal(inst.getName(), mMemoryModel.translateType(inst.getType()));
+                if (!inst.getType()->isVoidTy()) {
+                    auto name = uniqueValueName(&inst);
+                    Variable* variable = cfa->createLocal(name, mMemoryModel.translateType(inst.getType()));
                     genInfo.addLocal(&inst, variable);
                     mGenCtx.addVariable(&inst, variable);
                     mGenCtx.addExprValueIfTraceEnabled(cfa, &inst, variable->getRefExpr());
@@ -853,14 +875,41 @@ public:
     }
 };
 
+class ViewCfaPass : public llvm::ModulePass
+{
+public:
+    static char ID;
+
+    ViewCfaPass()
+        : ModulePass(ID)
+    {}
+
+    void getAnalysisUsage(llvm::AnalysisUsage& au) const override
+    {
+        au.addRequired<ModuleToAutomataPass>();
+        au.setPreservesAll();
+    }
+
+    bool runOnModule(llvm::Module& module) override
+    {
+        ModuleToAutomataPass& moduleToCfa = getAnalysis<ModuleToAutomataPass>();
+        AutomataSystem& system = moduleToCfa.getSystem();
+
+        for (Cfa& cfa : system) {
+            cfa.view();
+        }
+
+        return false;
+    }
+};
+
 } // end anonymous namespace
 
 char PrintCfaPass::ID;
+char ViewCfaPass::ID;
 
-llvm::Pass* gazer::createCfaPrinterPass()
-{
-    return new PrintCfaPass();
-}
+llvm::Pass* gazer::createCfaPrinterPass() { return new PrintCfaPass(); }
+llvm::Pass* gazer::createCfaViewerPass()  { return new ViewCfaPass();  }
 
 // Traceability support
 //-----------------------------------------------------------------------------

@@ -194,84 +194,67 @@ TEST_F(InstToExprTest, TransformBvCast)
     );
 }
 
+// A little helper macro to help us create and translate comparisons.
+#define TRANSLATE_COMPARE(PRED)                             \
+    (inst2expr->transform(*cast<Instruction>(               \
+        ir->CreateICmp(CmpInst::PRED, loadGv1, loadGv2)   \
+    )))
 
 TEST_F(InstToExprTest, TransformBvCmp)
 {
     auto loadGv1 = ir->CreateLoad(gv1->getValueType(), gv1);
     auto loadGv2 = ir->CreateLoad(gv2->getValueType(), gv2);
-    auto loadGv3 = ir->CreateLoad(gv3->getValueType(), gv3);
 
     auto gv1Var = context.createVariable("load_gv1", BvType::Get(context, 32));
     auto gv2Var = context.createVariable("load_gv2", BvType::Get(context, 32));
-    auto gv3Var = context.createVariable("load_gv3", BvType::Get(context, 32));
 
     auto inst2expr = createImpl({
         { loadGv1, gv1Var },
-        { loadGv2, gv2Var },
-        { loadGv3, gv3Var },
+        { loadGv2, gv2Var }
     });
 
     EXPECT_EQ(
-        inst2expr->transform(*cast<Instruction>(
-            ir->CreateICmpEQ(loadGv1, loadGv2)
-        )),
+        TRANSLATE_COMPARE(ICMP_EQ),
         builder->Eq(gv1Var->getRefExpr(), gv2Var->getRefExpr())
     );
     EXPECT_EQ(
-        inst2expr->transform(*cast<Instruction>(
-            ir->CreateICmpNE(loadGv1, loadGv2)
-        )),
+        TRANSLATE_COMPARE(ICMP_NE),
         builder->NotEq(gv1Var->getRefExpr(), gv2Var->getRefExpr())
     );
     EXPECT_EQ(
-        inst2expr->transform(*cast<Instruction>(
-            ir->CreateICmpUGT(loadGv1, loadGv2)
-        )),
+        TRANSLATE_COMPARE(ICMP_UGT),
         builder->BvUGt(gv1Var->getRefExpr(), gv2Var->getRefExpr())
     );
     EXPECT_EQ(
-        inst2expr->transform(*cast<Instruction>(
-            ir->CreateICmpUGE(loadGv1, loadGv2)
-        )),
+        TRANSLATE_COMPARE(ICMP_UGE),
         builder->BvUGtEq(gv1Var->getRefExpr(), gv2Var->getRefExpr())
     );
     EXPECT_EQ(
-        inst2expr->transform(*cast<Instruction>(
-            ir->CreateICmpULT(loadGv1, loadGv2)
-        )),
+        TRANSLATE_COMPARE(ICMP_ULT),
         builder->BvULt(gv1Var->getRefExpr(), gv2Var->getRefExpr())
     );
     EXPECT_EQ(
-        inst2expr->transform(*cast<Instruction>(
-            ir->CreateICmpULE(loadGv1, loadGv2)
-        )),
+        TRANSLATE_COMPARE(ICMP_ULE),
         builder->BvULtEq(gv1Var->getRefExpr(), gv2Var->getRefExpr())
     );
     EXPECT_EQ(
-        inst2expr->transform(*cast<Instruction>(
-            ir->CreateICmpSGT(loadGv1, loadGv2)
-        )),
+        TRANSLATE_COMPARE(ICMP_SGT),
         builder->BvSGt(gv1Var->getRefExpr(), gv2Var->getRefExpr())
     );
     EXPECT_EQ(
-        inst2expr->transform(*cast<Instruction>(
-            ir->CreateICmpSGE(loadGv1, loadGv2)
-        )),
+        TRANSLATE_COMPARE(ICMP_SGE),
         builder->BvSGtEq(gv1Var->getRefExpr(), gv2Var->getRefExpr())
     );
     EXPECT_EQ(
-        inst2expr->transform(*cast<Instruction>(
-            ir->CreateICmpSLT(loadGv1, loadGv2)
-        )),
+        TRANSLATE_COMPARE(ICMP_SLT),
         builder->BvSLt(gv1Var->getRefExpr(), gv2Var->getRefExpr())
     );
     EXPECT_EQ(
-        inst2expr->transform(*cast<Instruction>(
-            ir->CreateICmpSLE(loadGv1, loadGv2)
-        )),
+        TRANSLATE_COMPARE(ICMP_SLE),
         builder->BvSLtEq(gv1Var->getRefExpr(), gv2Var->getRefExpr())
     );
 }
 
+#undef TRANSLATE_COMPARE
 
 } // end anonymous namespace

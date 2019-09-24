@@ -31,7 +31,6 @@ def is_executable(file) -> bool:
 def create_temp_dir() -> pathlib.Path:
     return pathlib.Path(tempfile.mkdtemp(prefix="gazer_workdir_"))
 
-
 class Command:
     def __init__(self, name, help='', depends=[]):
         self.name = name
@@ -148,6 +147,7 @@ class ClangCommand(Command):
             clang_cmd,
             # TODO: Having some issues with this setting. Somewhy LLVM
             # replaces error calls with indirect ones if -m32 is supplied.
+        
             # "-m{0}".format(machine),
             "-g",
             # In the newer (>=5.0) versions of clang, -O0 marks functions
@@ -190,9 +190,7 @@ def add_gazer_frontend_args(parser):
     parser.add_argument("-no-simplify-expr", default=False, action='store_true', help="Do not simplify expressions")
 
 class GazerBmcCommand(Command):
-    '''
-    Execute gazer-bmc.
-    '''
+    '''Executes gazer-bmc.'''
     def __init__(self):
         super().__init__('bmc', 'Verify program with the built-in bounded model checking engine', depends=[
             ClangCommand()
@@ -255,6 +253,8 @@ class PrintCfaCommand(Command):
 
     def fill_arguments(self, parser):
         add_gazer_frontend_args(parser)
+        parser.add_argument("-view", help="View CFA", default=False, action='store_true')
+
         return parser
 
     def find_gazer_cfa(self, args) -> pathlib.Path:
@@ -269,6 +269,9 @@ class PrintCfaCommand(Command):
             gazer_cfa_path,
             "-elim-vars={0}".format(args.elim_vars)
         ]
+
+        if args.view:
+            gazer_argv.append("-view-cfa")
 
         if args.no_simplify_expr:
             gazer_argv.append("-no-simplify-expr")

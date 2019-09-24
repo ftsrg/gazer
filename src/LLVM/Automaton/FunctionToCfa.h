@@ -229,6 +229,9 @@ protected:
     void createAutomata();
 
 private:
+    std::string uniqueValueName(const llvm::Value* value);
+
+private:
     llvm::Module& mModule;
 
     GazerContext& mContext;
@@ -242,6 +245,8 @@ private:
     // Generation helpers
     std::unordered_map<llvm::Function*, Cfa*> mFunctionMap;
     std::unordered_map<llvm::Loop*, Cfa*> mLoopMap;
+
+    unsigned mValueCount = 0;
 };
 
 class BlocksToCfa : public InstToExpr
