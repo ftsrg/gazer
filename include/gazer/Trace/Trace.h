@@ -24,7 +24,8 @@ public:
         Event_Assign,
         Event_FunctionEntry,
         Event_FunctionReturn,
-        Event_FunctionCall
+        Event_FunctionCall,
+        Event_UndefinedBehavior
     };
 
 protected:
@@ -187,6 +188,26 @@ private:
     ArgsVectorTy mArgs;
 };
 
+/// Indicates that undefined behavior has occured.
+class UndefinedBehaviorEvent : public TraceEvent
+{
+public:
+    UndefinedBehaviorEvent(
+        ExprRef<AtomicExpr> pickedValue,
+        LocationInfo location = {}
+    ) : TraceEvent(TraceEvent::Event_UndefinedBehavior, location),
+        mPickedValue(pickedValue)
+    {}
+
+    ExprRef<AtomicExpr> getPickedValue() const { return mPickedValue; }
+
+    static bool classof(const TraceEvent* event) {
+        return event->getKind() == TraceEvent::Event_UndefinedBehavior;
+    }
+private:
+    ExprRef<AtomicExpr> mPickedValue;
+};
+
 template<class ReturnT>
 class TraceEventVisitor
 {
@@ -195,6 +216,7 @@ public:
     virtual ReturnT visit(FunctionEntryEvent& event) = 0;
     virtual ReturnT visit(FunctionReturnEvent& event) = 0;
     virtual ReturnT visit(FunctionCallEvent& event) = 0;
+    virtual ReturnT visit(UndefinedBehaviorEvent& event) = 0;
 
     virtual ~TraceEventVisitor() {}
 };
@@ -211,6 +233,8 @@ inline ReturnT TraceEvent::accept(TraceEventVisitor<ReturnT>& visitor)
             return visitor.visit(*llvm::cast<FunctionReturnEvent>(this));
         case Event_FunctionCall:
             return visitor.visit(*llvm::cast<FunctionCallEvent>(this));
+        case Event_UndefinedBehavior:
+            return visitor.visit(*llvm::cast<UndefinedBehaviorEvent>(this));
     }
 
     llvm_unreachable("Unknown TraceEvent kind!");

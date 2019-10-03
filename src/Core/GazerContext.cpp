@@ -238,10 +238,6 @@ void GazerContext::dumpStats(llvm::raw_ostream& os) const
 }
 
 //-------------------------------- Resources --------------------------------//
-void GazerContext::addManagedResouce(ManagedResource* resource)
-{
-    this->pImpl->ManagedResources.emplace_back(resource);
-}
 
 GazerContextImpl::GazerContextImpl(GazerContext& ctx)
     :

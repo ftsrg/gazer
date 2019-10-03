@@ -65,10 +65,10 @@ class Command:
 class ClangCommand(Command):
     '''Compiles a set of C or C++ files into LLVM bitcode using clang.'''
     def __init__(self):
-        super().__init__('clang', 'Compile C/C++ sources into LLVM bitcode')
+        super().__init__('clang', 'Compile and link C/C++ or LLVM IR sources into a single LLVM IR module')
 
     def fill_arguments(self, parser):
-        parser.add_argument("inputs", metavar='FILE', help="Input file name", nargs='+')
+        parser.add_argument("inputs", metavar='FILE', help="Input file names", nargs='+')
         parser.add_argument('-m', '--machine', type=int,
             dest='machine', choices=[32, 64], help='Machine architecture', default=32)
         parser.add_argument('-o', dest='output_file')
@@ -189,6 +189,25 @@ def add_gazer_frontend_args(parser):
     parser.add_argument("-math-int", default=False, action='store_true', help="Represent integers as the arithmetic integer type instead of bitvectors")
     parser.add_argument("-no-simplify-expr", default=False, action='store_true', help="Do not simplify expressions")
 
+def handle_gazer_llvm_args(args, gazer_argv):
+    if args.inline:
+        gazer_argv.append("-inline")
+
+    if args.inline_globals:
+        gazer_argv.append("-inline-globals")
+
+    if args.no_optimize:
+        gazer_argv.append("-no-optimize")
+
+def handle_gazer_frontend_args(args, gazer_argv):
+    gazer_argv.append("-elim-vars={0}".format(args.elim_vars))
+
+    if args.math_int:
+        gazer_argv.append("-math-int")
+
+    if args.no_simplify_expr:
+        gazer_argv.append("-no-simplify-expr")
+
 class GazerBmcCommand(Command):
     '''Executes gazer-bmc.'''
     def __init__(self):
@@ -215,23 +234,13 @@ class GazerBmcCommand(Command):
         gazer_argv = [
             gazer_bmc_path,
             "-bound", str(args.bound),
-            "-elim-vars={0}".format(args.elim_vars)
         ]
 
-        if args.inline:
-            gazer_argv.append("-inline")
-
-        if args.inline_globals:
-            gazer_argv.append("-inline-globals")
+        handle_gazer_llvm_args(args, gazer_argv)
+        handle_gazer_frontend_args(args, gazer_argv)
 
         if args.trace:
             gazer_argv.append("-trace")
-
-        if args.math_int:
-            gazer_argv.append("-math-int")
-
-        if args.no_optimize:
-            gazer_argv.append("-no-optimize")
 
         if args.test_harness != None:
             gazer_argv.append("-test-harness={0}".format(args.test_harness))
@@ -266,19 +275,13 @@ class PrintCfaCommand(Command):
         gazer_cfa_path = self.find_gazer_cfa(args)
 
         gazer_argv = [
-            gazer_cfa_path,
-            "-elim-vars={0}".format(args.elim_vars)
+            gazer_cfa_path
         ]
 
         if args.view:
             gazer_argv.append("-view-cfa")
 
-        if args.no_simplify_expr:
-            gazer_argv.append("-no-simplify-expr")
-
-        if args.math_int:
-            gazer_argv.append("-math-int")
-
+        handle_gazer_frontend_args(args, gazer_argv)
         gazer_argv.append(bc_file)
 
         gazer_success = subprocess.call(gazer_argv)
@@ -287,6 +290,13 @@ class PrintCfaCommand(Command):
             return (1, {})
 
         return (0, {})
+
+def print_help(commands):
+    print("usage: gazer <command> [<args>]\n")
+    print("available commands are:")
+    for name, cmd in commands.items():
+        print("    {0:<15}    {1}".format(name, cmd.help))
+
 
 def run_commands():
     # Register all commands
@@ -297,16 +307,17 @@ def run_commands():
     }
 
     if len(sys.argv) < 2:
-        print("USAGE: gazer <command>")
+        print_help(commands)
         return 1
 
     cmdname = sys.argv[1]
     if cmdname not in commands:
         print("Unknown command `{0}`.".format(cmdname))
-
+        print_help(commands)
+        
     current = commands[cmdname]
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(prog="gazer {0}".format(cmdname))
     current.configure_args(parser)
 
     args = parser.parse_args(sys.argv[2:])

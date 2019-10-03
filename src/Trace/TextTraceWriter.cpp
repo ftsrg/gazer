@@ -31,7 +31,7 @@ namespace
                 }
             } else {
                 expr->print(mOS);
-                if (mPrintBv) {
+                if (expr->getType().isBvType() && mPrintBv) {
                     std::bitset<64> bits;
 
                     if (expr->getType().isBvType()) {
@@ -40,6 +40,8 @@ namespace
                     } else if (expr->getType().isFloatType()) {
                         auto fltVal = llvm::dyn_cast<FloatLiteralExpr>(expr.get())->getValue();
                         bits = fltVal.bitcastToAPInt().getLimitedValue();
+                    } else {
+                        llvm_unreachable("Unknown bit-vector type!");
                     }
 
                     mOS << "\t(0b" << bits.to_string() << ")";
@@ -89,6 +91,28 @@ namespace
                 event.getReturnValue()->print(mOS);
             }
             mOS << "\t";
+
+            auto location = event.getLocation();
+            if (location.getLine() != 0) {
+                mOS << "\t at "
+                    << location.getLine()
+                    << ":"
+                    << location.getColumn()
+                    << "";
+            }
+            mOS << "\n";
+        }
+
+        void visit(UndefinedBehaviorEvent& event) override
+        {
+            mOS << INDENT << "Undefined behavior (read of an undefined value: ";
+            if (event.getPickedValue()->getKind() == Expr::Undef) {
+                mOS << "???";
+            } else {
+                event.getPickedValue()->print(mOS);
+            }
+
+            mOS << ")\t";
 
             auto location = event.getLocation();
             if (location.getLine() != 0) {

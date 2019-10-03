@@ -358,8 +358,6 @@ public:
     llvm::StringMap<std::unique_ptr<Variable>> VariableTable;
 
 private:
-    //---------------------- Others ----------------------//
-    std::vector<std::unique_ptr<ManagedResource>> ManagedResources;
 };
 
 } // end namespace gazer

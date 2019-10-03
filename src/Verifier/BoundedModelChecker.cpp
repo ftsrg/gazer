@@ -137,6 +137,7 @@ ERROR_TYPE_FOUND:
             });
         }
     }
+
     mLocNumbers[mError] = mTopo.size();
     mTopo.push_back(mError);
 
@@ -328,7 +329,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
             // start location.
             // TODO: We should also delete locations which have no reachable call descendants.
 
-            llvm::errs() << "  Attempting to set a new starting point...\n";
+            llvm::outs() << "  Attempting to set a new starting point...\n";
             Location* lca = this->findCommonCallAncestor();
 
             this->push();
@@ -793,17 +794,8 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
         before, locToLocMap[callee->getEntry()], call->getGuard()
     );
 
-    // Do the output assignments.
-    std::vector<VariableAssignment> outputAssigns;
-
-    //for (size_t i = 0; i < call->getNumOutputs(); ++i) {
-    //    VariableAssignment output = call->getOutputArgument(i);
-    //    LLVM_DEBUG(llvm::dbgs() << "Transforming output assignment " << i << ": " << output << "\n");
-    //    outputAssigns.emplace_back(output.getVariable(), rewrite.visit(output.getValue()));
-    //}
-
     mRoot->createAssignTransition(
-        locToLocMap[callee->getExit()], after , mExprBuilder.True(), outputAssigns
+        locToLocMap[callee->getExit()], after , mExprBuilder.True()
     );
 
     // Add the new locations to the topological sort.

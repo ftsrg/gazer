@@ -187,7 +187,7 @@ ExprPtr InstToExpr::unsignedCompareOperand(const ExprPtr& expr, unsigned width)
     return mExprBuilder.Select(
         mExprBuilder.Lt(expr, mExprBuilder.IntLit(0)),
         mExprBuilder.Add(
-            mExprBuilder.IntLit(llvm::APInt::getMaxValue(width).getLimitedValue()),
+            mExprBuilder.IntLit(llvm::APInt::getMaxValue(width).getZExtValue()),
             expr
         ),
         expr
@@ -380,7 +380,7 @@ ExprPtr InstToExpr::visitCastInst(const llvm::CastInst& cast)
     }
 
     if (castOp->getType().isBoolType()) {
-        return integerCast(cast, castOp, 1);
+        return boolToIntCast(cast, castOp);
     }
     
     // If the instruction truncates an integer to an i1 boolean, cast to boolean instead.
@@ -414,29 +414,74 @@ ExprPtr InstToExpr::integerCast(const llvm::CastInst& cast, const ExprPtr& opera
 {
     auto variable = getVariable(&cast);
 
-    if (variable->getType().isBvType()) {
-        auto bvTy = llvm::cast<gazer::BvType>(&variable->getType());
+    if (auto bvTy = llvm::dyn_cast<gazer::BvType>(&variable->getType())) {
         ExprPtr intOp = asBv(operand, width);
-        ExprPtr castOp = nullptr;
 
         switch (cast.getOpcode()) {
             case Instruction::ZExt:
-                castOp = mExprBuilder.ZExt(intOp, *bvTy);
-                break;
+                return mExprBuilder.ZExt(intOp, *bvTy);
             case Instruction::SExt:
-                castOp = mExprBuilder.SExt(intOp, *bvTy);
-                break;
+                return mExprBuilder.SExt(intOp, *bvTy);
             case Instruction::Trunc:
-                castOp = mExprBuilder.Trunc(intOp, *bvTy);
-                break;
+                return mExprBuilder.Trunc(intOp, *bvTy);
             default:
                 llvm_unreachable("Unhandled integer cast operation");
         }
-        
-        return castOp;
     }
 
     llvm_unreachable("Invalid bit-vector type!");
+}
+
+ExprPtr InstToExpr::boolToIntCast(const llvm::CastInst& cast, const ExprPtr& operand)
+{
+    auto variable = getVariable(&cast);
+
+    auto one  = llvm::APInt{1, 1};
+    auto zero = llvm::APInt{1, 0};
+
+    if (auto bvTy = dyn_cast<gazer::BvType>(&variable->getType())) {
+        switch (cast.getOpcode())
+        {
+            case Instruction::ZExt:
+                return mExprBuilder.Select(
+                    operand,
+                    mExprBuilder.BvLit(one.zext(bvTy->getWidth())),
+                    mExprBuilder.BvLit(zero.zext(bvTy->getWidth()))
+                );
+            case Instruction::SExt:
+                return mExprBuilder.Select(
+                    operand,
+                    mExprBuilder.BvLit(one.sext(bvTy->getWidth())),
+                    mExprBuilder.BvLit(zero.sext(bvTy->getWidth()))
+                );
+            default:
+                llvm_unreachable("Invalid integer cast operation");
+        }
+    }
+
+    if (auto intTy = dyn_cast<gazer::IntType>(&variable->getType())) {
+        switch (cast.getOpcode())
+        {
+            case Instruction::ZExt:
+                return mExprBuilder.Select(
+                    operand,
+                    mExprBuilder.IntLit(1),
+                    mExprBuilder.IntLit(0)
+                );
+            case Instruction::SExt: {
+                // In two's complement 111..11 corresponds to -1, 111..10 to -2
+                return mExprBuilder.Select(
+                    operand,
+                    mExprBuilder.IntLit(-1),
+                    mExprBuilder.IntLit(-2)
+                );
+            }
+            default:
+                llvm_unreachable("Invalid integer cast operation");
+        }
+    }
+    
+    llvm_unreachable("Invalid integer cast type!");
 }
 
 ExprPtr InstToExpr::visitCallInst(const llvm::CallInst& call)

@@ -185,6 +185,8 @@ public:
     Type& getType() const { return mType; }
     GazerContext& getContext() const { return mType.getContext(); }
 
+    bool isUndef() const { return mKind == Undef; }
+
     bool isNullary() const { return mKind < FirstUnary; }
     bool isUnary() const {
         return (FirstUnary <= mKind && mKind <= LastUnary)
@@ -329,7 +331,6 @@ private:
     ExprRef<VarRefExpr> mExpr;
 };
 
-/// Represents an assignment to a variable.
 class VarRefExpr final : public Expr
 {
     friend class Variable;
@@ -361,7 +362,6 @@ public:
     VariableAssignment(Variable *variable, ExprPtr value)
         : mVariable(variable), mValue(value)
     {
-        //llvm::errs() << variable->getName() << "  " << variable->getType() << " " << value->getType() << "  "  << *value << "\n";
         assert(variable->getType() == value->getType());
     }
 

@@ -3,8 +3,8 @@
 #include "gazer/LLVM/InstrumentationPasses.h"
 #include "gazer/LLVM/Transform/Passes.h"
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
+#include "gazer/LLVM/Transform/UndefToNondet.h"
 
-#include <llvm/IR/Module.h>
 #include <llvm/Analysis/AliasAnalysis.h>
 #include <llvm/Analysis/BasicAliasAnalysis.h>
 #include <llvm/Analysis/GlobalsModRef.h>
@@ -50,8 +50,10 @@ LLVMFrontend::LLVMFrontend(
 
 void LLVMFrontend::registerVerificationPipeline()
 {
-    // 1) Get rid of alloca's.
+    // 1) Do basic preprocessing: get rid of alloca's and turn undef's
+    //  into nondet function calls.
     mPassManager.add(llvm::createPromoteMemoryToRegisterPass());
+    mPassManager.add(new gazer::UndefToNondetCallPass());
 
     // 2) Execute early optimization passes.
     registerEarlyOptimizations();
@@ -65,18 +67,20 @@ void LLVMFrontend::registerVerificationPipeline()
     // 5) Execute late optimization passes.
     registerLateOptimizations();
 
-    // Display the final LLVM CFG now.
-    if (ShowUnrolledCFG) {
-        mPassManager.add(llvm::createCFGPrinterLegacyPassPass());
-    }
-
     // 6) Create memory models.
     mPassManager.add(new llvm::BasicAAWrapperPass());
     mPassManager.add(new llvm::GlobalsAAWrapperPass());
     mPassManager.add(new llvm::MemorySSAWrapperPass());
 
-    // 7) Perform module-to-automata translation.
+    // 7) Do an instruction namer pass.
     mPassManager.add(llvm::createInstructionNamerPass());
+
+    // Display the final LLVM CFG now.
+    if (ShowUnrolledCFG) {
+        mPassManager.add(llvm::createCFGPrinterLegacyPassPass());
+    }
+
+    // 8) Perform module-to-automata translation.
     mPassManager.add(new gazer::ModuleToAutomataPass(mContext));
 }
 
@@ -110,7 +114,6 @@ void LLVMFrontend::registerInliningIfEnabled()
         if (InlineGlobals) {
             mPassManager.add(createInlineGlobalVariablesPass());
         }
-        mPassManager.add(llvm::createGlobalDCEPass());
 
         // Transform the generated alloca instructions into registers
         mPassManager.add(llvm::createPromoteMemoryToRegisterPass());
@@ -132,6 +135,10 @@ void LLVMFrontend::registerEarlyOptimizations()
     if (!NoOptimize) {
         mPassManager.add(llvm::createCFGSimplificationPass());
         mPassManager.add(llvm::createSROAPass());
+    
+        mPassManager.add(llvm::createIPSCCPPass());
+        mPassManager.add(llvm::createGlobalOptimizerPass());
+        mPassManager.add(llvm::createDeadArgEliminationPass());
     }
 }
 
@@ -139,6 +146,11 @@ void LLVMFrontend::registerLateOptimizations()
 {
     if (!NoOptimize) {
         mPassManager.add(llvm::createFloat2IntPass());
+
+        mPassManager.add(llvm::createIndVarSimplifyPass());
+        mPassManager.add(llvm::createLoopDeletionPass());
+        mPassManager.add(llvm::createLICMPass());
+        mPassManager.add(llvm::createLoopUnswitchPass());
     }
 
     // Currently loop simplify must be applied for ModuleToAutomata

@@ -270,6 +270,8 @@ void Cfa::clearDisconnectedElements()
     }), mTransitions.end());
 }
 
+Cfa::~Cfa() {}
+
 // Support code for locations
 //-----------------------------------------------------------------------------
 

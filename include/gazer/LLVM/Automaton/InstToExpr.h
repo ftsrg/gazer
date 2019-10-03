@@ -58,6 +58,7 @@ protected:
 
     ExprPtr integerCast(const llvm::CastInst& cast, const ExprPtr& operand, unsigned int width);
     ExprPtr castResult(const ExprPtr& expr, const Type& type);
+    ExprPtr boolToIntCast(const llvm::CastInst& cast, const ExprPtr& operand);
 
     gazer::Type& translateType(const llvm::Type* type);
 
