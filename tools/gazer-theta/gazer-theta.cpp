@@ -1,28 +1,16 @@
-#include "gazer/LLVM/Analysis/BmcPass.h"
-#include "gazer/LLVM/Transform/Passes.h"
-#include "gazer/LLVM/Instrumentation/DefaultChecks.h"
+#include "lib/ThetaCfaGenerator.h"
 
-#include "gazer/LLVM/InstrumentationPasses.h"
-#include "gazer/LLVM/Verifier/BmcPass.h"
-
-#include "gazer/LLVM/Automaton/ModuleToAutomata.h"
 #include "gazer/LLVM/LLVMFrontend.h"
+#include "gazer/Core/GazerContext.h"
+#include "gazer/LLVM/Automaton/ModuleToAutomata.h"
 
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/LegacyPassManager.h>
-#include <llvm/IR/Verifier.h>
+#include <llvm/IR/Module.h>
 
-#include <llvm/Analysis/CFGPrinter.h>
-
-#include <llvm/AsmParser/Parser.h>
-#include <llvm/IRReader/IRReader.h>
-#include <llvm/Support/raw_ostream.h>
-#include <llvm/Support/CommandLine.h>
+#ifndef NDEBUG
+#include <llvm/Support/Debug.h>
 #include <llvm/Support/PrettyStackTrace.h>
 #include <llvm/Support/Signals.h>
-
-#include <string>
-#include <filesystem>
+#endif
 
 using namespace gazer;
 using namespace llvm;
@@ -30,6 +18,30 @@ using namespace llvm;
 namespace
 {
     cl::opt<std::string> InputFilename(cl::Positional, cl::desc("<input file>"), cl::Required);
+
+    struct ThetaCfaWriterPass : llvm::ModulePass
+    {
+        char ID;
+
+        ThetaCfaWriterPass()
+            : ModulePass(ID)
+        {}
+
+        void getAnalysisUsage(llvm::AnalysisUsage& au) const override
+        {
+            au.addRequired<ModuleToAutomataPass>();
+            au.setPreservesAll();
+        }
+
+        bool runOnModule(llvm::Module& module) override
+        {
+            auto& system = getAnalysis<ModuleToAutomataPass>().getSystem();
+            theta::ThetaCfaGenerator generator{system};
+            generator.write(llvm::outs());
+
+            return false;
+        }
+    };
 }
 
 int main(int argc, char* argv[])
@@ -57,7 +69,7 @@ int main(int argc, char* argv[])
     }
 
     frontend->registerVerificationPipeline();
-    frontend->registerPass(new gazer::BoundedModelCheckerPass(frontend->getChecks()));
+    frontend->registerPass(new ThetaCfaWriterPass());
 
     frontend->run();
 

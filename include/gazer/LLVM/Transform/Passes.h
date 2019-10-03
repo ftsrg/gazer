@@ -6,11 +6,15 @@
 namespace gazer
 {
 
+/// InlineGlobalVariables - This pass inlines all global variables into
+/// the main function of the program.
 llvm::Pass* createInlineGlobalVariablesPass();
 
-llvm::Pass* createBackwardSlicerPass();
-
+/// This pass combines each 'gazer.error_code' call within the function
+/// into a single one.
 llvm::Pass* createCombineErrorCallsPass();
+
+llvm::Pass* createBackwardSlicerPass();
 
 }
 

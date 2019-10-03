@@ -77,37 +77,3 @@ void FloatLiteralExpr::print(llvm::raw_ostream& os) const
     mValue.toString(buffer);
     os << buffer;
 }
-
-ExprRef<LiteralExpr> gazer::LiteralFromLLVMConst(GazerContext& context, const llvm::ConstantData* value, bool i1AsBool)
-{
-    if (auto ci = llvm::dyn_cast<llvm::ConstantInt>(value)) {
-        unsigned width = ci->getType()->getIntegerBitWidth();
-        if (width == 1 && i1AsBool) {
-            return BoolLiteralExpr::Get(BoolType::Get(context), ci->isZero() ? false : true);
-        }
-
-        return BvLiteralExpr::Get(BvType::Get(context, width), ci->getValue());
-    }
-    
-    if (auto cfp = llvm::dyn_cast<llvm::ConstantFP>(value)) {
-        auto fltTy = cfp->getType();
-        FloatType::FloatPrecision precision;
-        if (fltTy->isHalfTy()) {
-            precision = FloatType::Half;
-        } else if (fltTy->isFloatTy()) {
-            precision = FloatType::Single;
-        } else if (fltTy->isDoubleTy()) {
-            precision = FloatType::Double;
-        } else if (fltTy->isFP128Ty()) {
-            precision = FloatType::Quad;
-        } else {
-            llvm_unreachable("Unsupported floating-point type.");
-        }
-
-        return FloatLiteralExpr::Get(FloatType::Get(context, precision), cfp->getValueAPF());
-    }
-
-    // TODO: We do not support undefs here.
-    llvm_unreachable("Unsupported LLVM constant value.");
-}
-

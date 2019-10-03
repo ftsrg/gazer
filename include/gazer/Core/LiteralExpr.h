@@ -198,12 +198,6 @@ private:
     llvm::APFloat mValue;
 };
 
-ExprRef<LiteralExpr> LiteralFromLLVMConst(
-    GazerContext& context,
-    const llvm::ConstantData* value,
-    bool i1AsBool = true
-);
-
 namespace detail
 {
 

@@ -71,7 +71,7 @@ static bool hasUsesInBlockRange(const llvm::Instruction* inst, Range&& range)
 
 static bool isErrorBlock(llvm::BasicBlock* bb)
 {
-    auto inst = bb->getFirstInsertionPt();
+    auto inst = bb->getFirstNonPHIOrDbgOrLifetime();
     // In error blocks, the first instruction should be the 'gazer.error_code' call.
 
     if (auto call = llvm::dyn_cast<CallInst>(inst)) {
@@ -175,6 +175,11 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
     
     // CFAs must be connected graphs. Remove unreachable components now.
     for (auto& cfa : *mSystem) {
+        // We do not want to remove the exit location - if it is unreachable,
+        // create a dummy 'false' edge from the entry location to the exit.
+        if (cfa.getExit()->getNumIncoming() == 0) {
+            cfa.createAssignTransition(cfa.getEntry(), cfa.getExit(), mExprBuilder->False());
+        }
         cfa.removeUnreachableLocations();
     }
 

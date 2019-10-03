@@ -376,6 +376,8 @@ public:
         );
     }
 
+    ~Cfa();
+
 private:
     Variable* createMemberVariable(llvm::StringRef name, Type& type);
     Variable* findVariableByName(const std::vector<Variable*>& vec, llvm::StringRef name) const;
@@ -390,24 +392,22 @@ private:
 
     std::vector<std::unique_ptr<Location>> mLocations;
     std::vector<std::unique_ptr<Transition>> mTransitions;
-    llvm::SmallVector<Location*, 1> mErrorLocations;
 
+    llvm::SmallVector<Location*, 1> mErrorLocations;
     llvm::SmallDenseMap<Location*, ExprPtr, 1> mErrorFieldExprs;
 
     std::vector<Variable*> mInputs;
     std::vector<Variable*> mOutputs;
     std::vector<Variable*> mLocals;
 
-    llvm::DenseMap<Variable*, std::string> mSymbolNames;
-
     Location* mEntry;
     Location* mExit;
 
+    llvm::DenseMap<Variable*, std::string> mSymbolNames;
     llvm::DenseMap<unsigned, Location*> mLocationNumbers;
 
     Cfa* mParentAutomaton = nullptr;
     std::vector<Cfa*> mNestedAutomata;
-    ExprVector mPostConditions;
 
     unsigned int mLocationIdx = 0;
 };

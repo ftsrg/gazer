@@ -36,8 +36,6 @@ public:
 
     void removeVariable(Variable* variable);
 
-    void addManagedResouce(ManagedResource* resource);
-
     void dumpStats(llvm::raw_ostream& os) const;
 
 public:
@@ -52,24 +50,6 @@ inline bool operator==(const GazerContext& lhs, const GazerContext& rhs) {
 inline bool operator!=(const GazerContext& lhs, const GazerContext& rhs) {
     return !(lhs == rhs);
 }
-
-/// Represents a resouce which is managed by a GazerContext object.
-///
-/// These objects are owned by their enclosing context and are destructed
-/// automatically when their parent context dies.
-class ManagedResource
-{
-protected:
-    explicit ManagedResource(GazerContext& context)
-        : mContext(context)
-    {}
-
-public:
-    virtual ~ManagedResource() {}
-
-protected:
-    GazerContext& mContext;
-};
 
 } // end namespace gazer
 

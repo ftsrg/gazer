@@ -1,4 +1,5 @@
 #include "gazer/Core/Valuation.h"
+#include "gazer/Core/LiteralExpr.h"
 
 #include <llvm/Support/raw_ostream.h>
 
@@ -20,17 +21,16 @@ ExprRef<LiteralExpr>& Valuation::operator[](const Variable& variable)
     return mMap[&variable];
 }
 
-ExprRef<LiteralExpr> Valuation::eval(const ExprPtr& expr)
+ExprRef<AtomicExpr> Valuation::eval(const ExprPtr& expr)
 {
     if (auto varRef = llvm::dyn_cast<VarRefExpr>(expr.get())) {
         auto lit = this->operator[](varRef->getVariable());
-        return lit;
+        return lit != nullptr ? boost::static_pointer_cast<AtomicExpr>(lit) : UndefExpr::Get(expr->getType());
     }
     
     if (expr->getKind() == Expr::Literal) {
         return llvm::cast<LiteralExpr>(expr);
     }
 
-    // TODO: Some better error checking would be good in here.
-    return nullptr;
+    return UndefExpr::Get(expr->getType());
 }

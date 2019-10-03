@@ -1,6 +1,10 @@
-// RUN: %gazer bmc -inline -inline-globals -math-int -trace -test-harness %t1.ll "%s"
+// RUN: %gazer bmc -inline -inline-globals -no-optimize -math-int -trace -test-harness %t1.ll "%s"
 // RUN: %gazer clang -o %t2.bc %s %t1.ll %errors
 // RUN: lli "%t2.bc" | FileCheck "%s"
+
+// RUN: %gazer bmc -inline -inline-globals -math-int -trace -test-harness %t3.ll "%s"
+// RUN: %gazer clang -o %t4.bc %s %t3.ll %errors
+// RUN: lli "%t4.bc" | FileCheck "%s"
 
 // CHECK: __VERIFIER_error executed
 
