@@ -113,7 +113,6 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
     }
 
     // Clone the edges
-
     for (auto& origEdge : callee->edges()) {
         Location* source = locToLocMap[origEdge->getSource()];
         Location* target = locToLocMap[origEdge->getTarget()];
@@ -152,12 +151,8 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
                     source, locToLocMap[callee->getEntry()],
                     nestedCall->getGuard(), recursiveInputArgs
                 );
-            } else if (mCallGraph.isTailRecursive(nestedCall->getCalledAutomaton())) {
-                // If the call is to another tail-recursive automaton, we add it
-                // to the worklist.
-                mTailRecursiveCalls.push_back(nestedCall);
             } else {
-                // Otherwise we inline it as a regular call.
+                // Inline it as a normal call.
                 ExprVector newArgs;
                 std::vector<VariableAssignment> newOuts;
 
@@ -181,12 +176,18 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
                     }
                 );
 
-                mRoot->createCallTransition(
+                auto newCall = mRoot->createCallTransition(
                     source, target,
                     rewrite.walk(nestedCall->getGuard()),
                     nestedCall->getCalledAutomaton(),
                     newArgs, newOuts
                 );
+
+                if (mCallGraph.isTailRecursive(nestedCall->getCalledAutomaton())) {
+                    // If the call is to another tail-recursive automaton, we add it
+                    // to the worklist.
+                    mTailRecursiveCalls.push_back(newCall);
+                }
             }
         }
     }
