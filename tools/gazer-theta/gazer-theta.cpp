@@ -36,6 +36,9 @@ namespace
         bool runOnModule(llvm::Module& module) override
         {
             auto& system = getAnalysis<ModuleToAutomataPass>().getSystem();
+            //for (auto& cfa : system) {
+            //    cfa.view();
+            //}
             theta::ThetaCfaGenerator generator{system};
             generator.write(llvm::outs());
 
