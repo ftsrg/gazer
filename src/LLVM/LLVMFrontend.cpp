@@ -41,11 +41,13 @@ namespace
 
 LLVMFrontend::LLVMFrontend(
     std::unique_ptr<llvm::Module> module,
-    GazerContext& context
+    GazerContext& context,
+    LLVMFrontendSettings settings
 )
     : mContext(context),
     mModule(std::move(module)),
-    mChecks(mModule->getContext())
+    mChecks(mModule->getContext()),
+    mSettings(settings)
 {}
 
 void LLVMFrontend::registerVerificationPipeline()
@@ -81,7 +83,7 @@ void LLVMFrontend::registerVerificationPipeline()
     }
 
     // 8) Perform module-to-automata translation.
-    mPassManager.add(new gazer::ModuleToAutomataPass(mContext));
+    mPassManager.add(new gazer::ModuleToAutomataPass(mContext, mSettings));
 }
 
 void LLVMFrontend::registerEnabledChecks()
@@ -162,7 +164,9 @@ void LLVMFrontend::registerLateOptimizations()
 auto LLVMFrontend::FromInputFile(
     llvm::StringRef input,
     GazerContext& context,
-    llvm::LLVMContext& llvmContext) -> std::unique_ptr<LLVMFrontend>
+    llvm::LLVMContext& llvmContext,
+    LLVMFrontendSettings settings
+) -> std::unique_ptr<LLVMFrontend>
 {
     llvm::SMDiagnostic err;
 
@@ -185,5 +189,5 @@ auto LLVMFrontend::FromInputFile(
         return nullptr;
     }
 
-    return std::make_unique<LLVMFrontend>(std::move(module), context);
+    return std::make_unique<LLVMFrontend>(std::move(module), context, settings);
 }

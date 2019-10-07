@@ -3,9 +3,12 @@
 #include "gazer/Automaton/CfaTransforms.h"
 
 #include <llvm/ADT/Twine.h>
+#include <llvm/ADT/DenseSet.h>
 
 #include <boost/algorithm/cxx11/any_of.hpp>
+#include <boost/range/join.hpp>
 
+#include <regex>
 #include <variant>
 
 using namespace gazer;
@@ -65,7 +68,7 @@ struct ThetaLocDecl : ThetaAst
 
 struct ThetaStmt : ThetaAst
 {
-    using VariantTy = std::variant<ExprPtr, VariableAssignment, Variable*>;
+    using VariantTy = std::variant<ExprPtr, std::pair<std::string, ExprPtr>, std::string>;
 
     /* implicit */ ThetaStmt(VariantTy content)
         : mContent(content)
@@ -78,16 +81,19 @@ struct ThetaStmt : ThetaAst
         return VariantTy{expr};
     }
 
-    static ThetaStmt Assign(VariableAssignment assign)
+    static ThetaStmt Assign(std::string variableName, ExprPtr value)
     {
-        assert(!llvm::isa<UndefExpr>(assign.getValue())
+        assert(!llvm::isa<UndefExpr>(value)
             && "Cannot assign an undef value to a variable."
             "Use ::Havoc() to represent a nondetermistic value assignment."
         );
-        return VariantTy{assign};
+
+        std::pair<std::string, ExprPtr> pair = { variableName, value };
+
+        return VariantTy{pair};
     }
 
-    static ThetaStmt Havoc(Variable* variable)
+    static ThetaStmt Havoc(std::string variable)
     {
         return VariantTy{variable};
     }
@@ -99,10 +105,14 @@ struct ThetaStmt : ThetaAst
 
 struct ThetaEdgeDecl : ThetaAst
 {
+    ThetaEdgeDecl(ThetaLocDecl& source, ThetaLocDecl& target, std::vector<ThetaStmt> stmts)
+        : mSource(source), mTarget(target), mStmts(std::move(stmts))
+    {}
+
     void print(llvm::raw_ostream& os) const override;
 
-    std::string mSource;
-    std::string mTarget;
+    ThetaLocDecl& mSource;
+    ThetaLocDecl& mTarget;
     std::vector<ThetaStmt> mStmts;
 };
 
@@ -115,21 +125,14 @@ public:
 
     llvm::StringRef getName() { return mName; }
 
-    void print(llvm::raw_ostream& os) const override;
+    void print(llvm::raw_ostream& os) const override
+    {
+        os << "var " << mName << " : " << mType;
+    }
 
 private:
     std::string mName;
     std::string mType;
-};
-
-class ThetaProcess : public ThetaAst
-{
-public:
-    void print(llvm::raw_ostream& os) const override;
-private:
-    std::string mName;
-    std::vector<ThetaLocDecl>  mLocs;
-    std::vector<ThetaEdgeDecl> mEdges;
 };
 
 } // end anonymous namespace
@@ -146,13 +149,13 @@ void ThetaStmt::print(llvm::raw_ostream& os) const
             mOS << theta::printThetaExpr(expr);
         }
 
-        void operator()(const VariableAssignment& assign) {
-            mOS << assign.getVariable() << " := ";
-            mOS << theta::printThetaExpr(assign.getValue());
+        void operator()(const std::pair<std::string, ExprPtr>& assign) {
+            mOS << assign.first << " := ";
+            mOS << theta::printThetaExpr(assign.second);
         }
 
-        void operator()(const Variable* variable) {
-            mOS << "havoc " << variable->getName();
+        void operator()(const std::string& variable) {
+            mOS << "havoc " << variable;
         }
     } visitor(os);
 
@@ -161,29 +164,13 @@ void ThetaStmt::print(llvm::raw_ostream& os) const
 
 void ThetaEdgeDecl::print(llvm::raw_ostream& os) const
 {
-    os << mSource << " -> " << mTarget << "{\n";
+    os << mSource.mName << " -> " << mTarget.mName << " {\n";
     for (auto& stmt : mStmts) {
         os << "    ";
         stmt.print(os);
         os << "\n";
     }
-    os << "}";
-}
-
-void ThetaProcess::print(llvm::raw_ostream& os) const
-{
-    os << "process " << mName << "{";
-    for (auto& loc : mLocs) {
-        loc.print(os);
-        os << "\n";
-    }
-
-    for (auto& edge : mEdges) {
-        edge.print(os);
-        os << "\n";
-    }
-
-    os << "}";
+    os << "}\n";
 }
 
 static std::string typeName(Type& type)
@@ -202,44 +189,159 @@ static std::string typeName(Type& type)
 
 void ThetaCfaGenerator::write(llvm::raw_ostream& os)
 {
+    //for (auto& cfa : mSystem) {
+    //    cfa.view();
+    //}
+
     Cfa* main = mSystem.getMainAutomaton();
-    TransformRecursiveToCyclic(main);
+    auto recursiveToCyclicResult = TransformRecursiveToCyclic(main);
 
-    main->view();
-#if 0
+    //main->view();
+
+    llvm::DenseMap<Location*, std::unique_ptr<ThetaLocDecl>> locs;
+    llvm::DenseMap<Variable*, std::unique_ptr<ThetaVarDecl>> vars;
+    std::vector<std::unique_ptr<ThetaEdgeDecl>> edges;
+
     // Create a closure to test variable names
-    auto isValidVarName = [&vars](llvm::StringRef name) -> bool {
-        // The variable name should not be a reserved theta keyword.
-        bool valid = !boost::algorithm::any_of_equal(ThetaKeywords, name);
-
+    auto isValidVarName = [&vars](const std::string& name) -> bool {
         // The variable name should not be present in the variable list.
-        valid &= std::find_if(vars.begin(), vars.end(), [name](auto& v1) {
-            return name == v1.getName();
+        return std::find_if(vars.begin(), vars.end(), [name](auto& v1) {
+            return name == v1.second->getName();
         }) == vars.end();
-
-        return valid;
     };
 
     // Add variables
     // TODO: We currently ignore inputs and outputs...
-    for (auto& variable : root->locals()) {
+    for (auto& variable : main->locals()) {
         auto name = validName(variable.getName(), isValidVarName);
         auto type = typeName(variable.getType());
 
-        vars.emplace_back(name, type);
+        vars.try_emplace(&variable, std::make_unique<ThetaVarDecl>(name, type));
     }
-#endif
+
+    for (auto& variable : main->inputs()) {
+        auto name = validName(variable.getName(), isValidVarName);
+        auto type = typeName(variable.getType());
+
+        vars.try_emplace(&variable, std::make_unique<ThetaVarDecl>(name, type));
+    }
+
+    // Add locations
+    for (auto& loc : main->nodes()) {
+        ThetaLocDecl::Flag flag = ThetaLocDecl::Loc_State;
+        if (&*loc == recursiveToCyclicResult.errorLocation) {
+            flag = ThetaLocDecl::Loc_Error;
+        } else if (main->getEntry() == &*loc) {
+            flag = ThetaLocDecl::Loc_Init;
+        } else if (main->getExit() == &*loc) {
+            flag = ThetaLocDecl::Loc_Final;
+        }
+
+        locs.try_emplace(&*loc, std::make_unique<ThetaLocDecl>("loc" + std::to_string(loc->getId()), flag));
+    }
+
+    // Add edges
+    for (auto& edge : main->edges()) {
+        ThetaLocDecl& source = *locs[edge->getSource()];
+        ThetaLocDecl& target = *locs[edge->getTarget()];
+        
+        std::vector<ThetaStmt> stmts;
+        stmts.push_back(ThetaStmt::Assume(edge->getGuard()));
+
+        if (auto assignEdge = dyn_cast<AssignTransition>(&*edge)) {
+            for (auto& assignment : *assignEdge) {
+                auto lhsName = vars[assignment.getVariable()]->getName();
+
+                if (llvm::isa<UndefExpr>(assignment.getValue())) {
+                    stmts.push_back(ThetaStmt::Havoc(lhsName));
+                } else {
+                    stmts.push_back(ThetaStmt::Assign(lhsName, assignment.getValue()));
+                }
+            }
+        } else if (auto callEdge = dyn_cast<CallTransition>(&*edge)) {
+            // ...
+        }
+
+        edges.emplace_back(std::make_unique<ThetaEdgeDecl>(source, target, std::move(stmts)));
+    }
+
+    auto INDENT  = "    ";
+    auto INDENT2 = "        ";
+
+    auto canonizeName = [&vars](Variable* variable) -> std::string {
+        if (vars.count(variable) == 0) {
+            return variable->getName();
+        }
+
+        return vars[variable]->getName();
+    };
+
+    os
+        << "main process __gazer_main_process {\n";
+        //<< INDENT  << "main procedure __gazer_main_entry {\n";
+    
+    for (auto& varEntry : vars) {
+        os << INDENT;
+        varEntry.second->print(os);
+        os << "\n";
+    }
+
+    for (auto& locEntry : locs) {
+        os << INDENT;
+        locEntry.second->print(os);
+        os << "\n";
+    }
+
+    for (auto& edge : edges) {
+        os << INDENT << edge->mSource.mName << " -> " << edge->mTarget.mName << " {\n";
+        for (auto& stmt : edge->mStmts) {
+            os << INDENT2;
+            struct PrintVisitor
+            {
+                llvm::raw_ostream& mOS;
+                std::function<std::string(Variable*)> mCanonizeName;
+
+                PrintVisitor(llvm::raw_ostream& os, std::function<std::string(Variable*)> canonizeName)
+                    : mOS(os), mCanonizeName(canonizeName)
+                {}
+
+                void operator()(const ExprPtr& expr) {
+                    mOS << "assume ";
+                    mOS << theta::printThetaExpr(expr, mCanonizeName);
+                }
+
+                void operator()(const std::pair<std::string, ExprPtr>& assign) {
+                    mOS << assign.first << " := ";
+                    mOS << theta::printThetaExpr(assign.second, mCanonizeName);
+                }
+
+                void operator()(const std::string& variable) {
+                    mOS << "havoc " << variable;
+                }
+            } visitor(os, canonizeName);
+
+            std::visit(visitor, stmt.mContent);
+            os << "\n";
+        }
+        os << INDENT << "}\n";
+        os << "\n";
+    }
+
+    os << "}\n";
 }
 
-std::string ThetaCfaGenerator::validName(llvm::Twine basename, std::function<bool(llvm::StringRef)> isValid)
+std::string ThetaCfaGenerator::validName(std::string name, std::function<bool(const std::string&)> isUnique)
 {
-    llvm::SmallVector<char, 32> buffer;
+    name = std::regex_replace(name, std::regex("[^a-zA-Z0-9_]"), "_");
 
-    llvm::StringRef name = basename.toStringRef(buffer);
-    while (!isValid(name)) {
-        llvm::Twine nextTry = basename + llvm::Twine(mTmpCount++);
-        name = nextTry.toStringRef(buffer);
+    if (std::find(ThetaKeywords.begin(), ThetaKeywords.end(), name) != ThetaKeywords.end()) {
+        name += "_gazer";
     }
 
-    return name.str();
+    while (!isUnique(name)) {
+        llvm::Twine nextTry = name + llvm::Twine(mTmpCount++);
+        name = nextTry.str();
+    }
+
+    return name;
 }

@@ -17,6 +17,8 @@ using namespace llvm;
 namespace
 {
     cl::opt<std::string> InputFilename(cl::Positional, cl::desc("<input file>"), cl::Required);
+    cl::opt<bool> CyclicCfa("cyclic", cl::desc("Represent loops as cycles instead of recursive calls."));
+    cl::opt<bool> RunPipeline("run-pipeline", cl::desc("Run the early stages of the verification pipeline, such as instrumentation."));
 }
 
 namespace gazer
@@ -37,12 +39,17 @@ int main(int argc, char* argv[])
     GazerContext context;
     llvm::LLVMContext llvmContext;
 
-    auto frontend = LLVMFrontend::FromInputFile(InputFilename, context, llvmContext);
+    auto settings = LLVMFrontendSettings::initFromCommandLine();
+    if (CyclicCfa) {
+        settings.setLoopRepresentation(LoopRepresentation::Cycle);
+    }
+
+    auto frontend = LLVMFrontend::FromInputFile(InputFilename, context, llvmContext, settings);
     if (frontend == nullptr) {
         return 1;
     }
 
-    frontend->registerPass(new gazer::ModuleToAutomataPass(context));
+    frontend->registerPass(new gazer::ModuleToAutomataPass(context, settings));
     frontend->registerPass(gazer::createCfaPrinterPass());
     if (ViewCfa) {
         frontend->registerPass(gazer::createCfaViewerPass());

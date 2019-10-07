@@ -18,10 +18,11 @@ using namespace llvm;
 namespace
 {
     cl::opt<std::string> InputFilename(cl::Positional, cl::desc("<input file>"), cl::Required);
+    cl::opt<std::string> OutputFilename("o", cl::desc("Output filename"), cl::Required);
 
     struct ThetaCfaWriterPass : llvm::ModulePass
     {
-        char ID;
+        static char ID;
 
         ThetaCfaWriterPass()
             : ModulePass(ID)
@@ -36,16 +37,24 @@ namespace
         bool runOnModule(llvm::Module& module) override
         {
             auto& system = getAnalysis<ModuleToAutomataPass>().getSystem();
-            //for (auto& cfa : system) {
-            //    cfa.view();
-            //}
+
+            std::error_code ec;
+            llvm::raw_fd_ostream output(OutputFilename, ec);
+
+            if (ec) {
+                llvm::errs() << ec.message();
+                return false;
+            }
+
             theta::ThetaCfaGenerator generator{system};
-            generator.write(llvm::outs());
+            generator.write(output);
 
             return false;
         }
     };
-}
+} // end anonymous namespace
+
+char ThetaCfaWriterPass::ID;
 
 int main(int argc, char* argv[])
 {
@@ -60,7 +69,11 @@ int main(int argc, char* argv[])
     GazerContext context;
     llvm::LLVMContext llvmContext;
 
-    auto frontend = LLVMFrontend::FromInputFile(InputFilename, context, llvmContext);
+    // Force -math-int
+    auto settings = LLVMFrontendSettings::initFromCommandLine();
+    settings.setIntRepresentation(IntRepresentation::Integers);
+
+    auto frontend = LLVMFrontend::FromInputFile(InputFilename, context, llvmContext, settings);
     if (frontend == nullptr) {
         return 1;
     }

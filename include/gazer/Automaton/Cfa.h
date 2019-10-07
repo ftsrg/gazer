@@ -295,12 +295,6 @@ public:
         return llvm::make_range(edge_begin(), edge_end());
     }
 
-    // Nested automata support
-    using nested_automata_iterator = std::vector<Cfa*>::iterator;
-    llvm::iterator_range<nested_automata_iterator> nestedAutomata() {
-        return llvm::make_range(mNestedAutomata.begin(), mNestedAutomata.end());
-    }
-
     // Variable iterators
     using var_iterator = boost::indirect_iterator<std::vector<Variable*>::iterator>;
 
@@ -335,8 +329,6 @@ public:
     size_t getNumInputs() const { return mInputs.size(); }
     size_t getNumOutputs() const { return mOutputs.size(); }
     size_t getNumLocals() const { return mLocals.size(); }
-
-    size_t getNumNestedAutomata() const { return mNestedAutomata.size(); }
 
     /// Returns the index of a given input variable in the input list of this automaton.
 
@@ -382,9 +374,6 @@ private:
     Variable* createMemberVariable(llvm::StringRef name, Type& type);
     Variable* findVariableByName(const std::vector<Variable*>& vec, llvm::StringRef name) const;
 
-    /// Inserts the given automaton into this object as nested automaton.
-    void addNestedAutomaton(Cfa* cfa);
-
 private:
     std::string mName;
     GazerContext& mContext;
@@ -407,7 +396,6 @@ private:
     llvm::DenseMap<unsigned, Location*> mLocationNumbers;
 
     Cfa* mParentAutomaton = nullptr;
-    std::vector<Cfa*> mNestedAutomata;
 
     unsigned int mLocationIdx = 0;
 };

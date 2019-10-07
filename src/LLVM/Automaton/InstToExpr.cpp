@@ -407,6 +407,10 @@ ExprPtr InstToExpr::visitCastInst(const llvm::CastInst& cast)
         return mExprBuilder.Undef(castOp->getType());
     }
 
+    if (cast.getOpcode() == Instruction::BitCast) {
+        // TODO...
+    }
+
     llvm_unreachable("Unsupported cast operation");
 }
 

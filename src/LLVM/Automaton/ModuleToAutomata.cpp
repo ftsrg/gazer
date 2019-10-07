@@ -1,5 +1,6 @@
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
 #include "gazer/Automaton/Cfa.h"
+#include "gazer/Automaton/CfaTransforms.h"
 #include "gazer/Core/Expr/ExprBuilder.h"
 #include "gazer/ADT/StringUtils.h"
 #include "gazer/LLVM/Instrumentation/Check.h"
@@ -226,14 +227,15 @@ void ModuleToCfa::createAutomata()
             BasicBlock* header = loop->getHeader();
             assert(header != nullptr && "Loop without a loop header?");
 
-            std::string name;
+            std::string name = cfa->getName();
+            name += "/";
             if (header->hasName()) {
-                name = header->getName();
+                name += header->getName();
             } else {
-                name = ("__loop_" + llvm::Twine(loopCount++)).str();
+                name += "__loop_" + std::to_string(loopCount++);
             }
 
-            Cfa* nested = mSystem->createNestedCfa(cfa, name);
+            Cfa* nested = mSystem->createCfa(name);
             LLVM_DEBUG(llvm::dbgs() << "Created nested CFA " << nested->getName() << "\n");
             mGenCtx.createLoopCfaInfo(nested, loop);
         }
@@ -840,13 +842,21 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
         }
     }
 
-    auto settings = LLVMFrontendSettings::initFromCommandLine();
-
-    DummyMemoryModel memoryModel(mContext, settings);
+    DummyMemoryModel memoryModel(mContext, mSettings);
 
     mSystem = translateModuleToAutomata(
-        module, settings, loopInfoMap, mContext, memoryModel, mVariables, mTraceInfo
+        module, mSettings, loopInfoMap, mContext, memoryModel, mVariables, mTraceInfo
     );
+
+    if (mSettings.getLoopRepresentation() == LoopRepresentation::Cycle) {
+        // Transform the main automaton into a cyclic CFA if requested.
+        // Note: This yields an invalid CFA, which will not be recognizable by
+        // most analysis algorithms. Use it only if you are going to translate
+        // it to the format of another verifier immediately.
+
+        // TODO: We should translate automata other than the main in this case.
+        TransformRecursiveToCyclic(mSystem->getMainAutomaton());
+    }
 
     return false;
 }

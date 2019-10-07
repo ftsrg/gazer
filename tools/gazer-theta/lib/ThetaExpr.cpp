@@ -2,16 +2,16 @@
 #include "gazer/Core/Expr/ExprWalker.h"
 #include "gazer/ADT/StringUtils.h"
 
-#include <llvm/ADT/DenseMap.h>
-
 #include <boost/range/irange.hpp>
+
+#include <functional>
 
 using namespace gazer;
 
 class ThetaExprPrinter : public ExprWalker<ThetaExprPrinter, std::string>
 {
 public:
-    ThetaExprPrinter(const llvm::DenseMap<Variable*, std::string>& replacedNames)
+    ThetaExprPrinter(std::function<std::string(Variable*)> replacedNames)
         : mReplacedNames(replacedNames)
     {}
 
@@ -47,7 +47,7 @@ public:
     }
 
     std::string visitVarRef(const ExprRef<VarRefExpr>& expr) {
-        std::string newName = mReplacedNames.lookup(&expr->getVariable());
+        std::string newName = mReplacedNames(&expr->getVariable());
         if (!newName.empty()) {
             return newName;
         }
@@ -147,13 +147,18 @@ public:
 
 private:
     ExprPtr mUnhandledExpr = nullptr;
-    const llvm::DenseMap<Variable*, std::string>& mReplacedNames;
+    std::function<std::string(Variable*)> mReplacedNames;
 };
 
 std::string gazer::theta::printThetaExpr(const ExprPtr& expr)
 {
-    llvm::DenseMap<Variable*, std::string> names;
-    ThetaExprPrinter printer(names);
+    auto getName = [](Variable* var) -> std::string { return var->getName(); };
+    return printThetaExpr(expr, getName);
+}
+
+std::string gazer::theta::printThetaExpr(const ExprPtr& expr, std::function<std::string(Variable*)> variableNames)
+{
+    ThetaExprPrinter printer(variableNames);
 
     return printer.walk(expr);
 }
