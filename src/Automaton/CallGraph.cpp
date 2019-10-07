@@ -31,7 +31,7 @@ bool CallGraph::isTailRecursive(Cfa* cfa)
     bool isRecursive = false;
     bool isTail = true;
 
-    for (auto& call : node->mCalls) {
+    for (auto& call : node->mCallsToOthers) {
         if (call.first->getCalledAutomaton() == cfa) {
             isRecursive = true;
             if (call.first->getTarget() != cfa->getExit()) {
@@ -42,6 +42,11 @@ bool CallGraph::isTailRecursive(Cfa* cfa)
     }
 
     return isRecursive && isTail;
+}
+
+void CallGraph::removeAutomaton(Cfa* cfa)
+{
+    auto& node = mNodes[cfa];
 }
 
 CallGraph::~CallGraph()

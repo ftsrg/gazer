@@ -29,17 +29,22 @@ public:
             assert(call != nullptr);
             assert(node != nullptr);
 
-            mCalls.emplace_back(call, node);
+            mCallsToOthers.emplace_back(call, node);
+            node->mCallsToThis.emplace_back(call);
         }
 
     private:
         Cfa* mCfa;
-        std::vector<CallSite> mCalls;
+        std::vector<CallSite> mCallsToOthers;
+        std::vector<CallTransition*> mCallsToThis;
     };
 public:
     explicit CallGraph(AutomataSystem& system);
 
     ~CallGraph();
+
+    /// Notify the call graph of the removal of an automaton.
+    void removeAutomaton(Cfa* cfa);
 
     /// Returns true if the given procedure is tail-recursive. That is,
     /// if it is recursive and the recursive calls only occur in

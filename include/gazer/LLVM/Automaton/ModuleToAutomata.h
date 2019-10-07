@@ -58,8 +58,8 @@ class ModuleToAutomataPass : public llvm::ModulePass
 public:
     static char ID;
 
-    ModuleToAutomataPass(GazerContext& context)
-        : ModulePass(ID), mContext(context)
+    ModuleToAutomataPass(GazerContext& context, LLVMFrontendSettings settings)
+        : ModulePass(ID), mContext(context), mSettings(settings)
     {}
 
     void getAnalysisUsage(llvm::AnalysisUsage& au) const override;
@@ -83,6 +83,7 @@ private:
     llvm::DenseMap<llvm::Value*, Variable*> mVariables;
     CfaToLLVMTrace mTraceInfo;
     GazerContext& mContext;
+    LLVMFrontendSettings mSettings;
 };
 
 std::unique_ptr<AutomataSystem> translateModuleToAutomata(

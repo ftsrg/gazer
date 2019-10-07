@@ -262,7 +262,9 @@ class PrintCfaCommand(Command):
 
     def fill_arguments(self, parser):
         add_gazer_frontend_args(parser)
+        add_gazer_llvm_pass_args(parser)
         parser.add_argument("-view", help="View CFA", default=False, action='store_true')
+        parser.add_argument("-cyclic", help="Represent loops as cycles instead of recursion.", action='store_true')
 
         return parser
 
@@ -281,6 +283,10 @@ class PrintCfaCommand(Command):
         if args.view:
             gazer_argv.append("-view-cfa")
 
+        if args.cyclic:
+            gazer_argv.append("-cyclic")
+
+        handle_gazer_llvm_args(args, gazer_argv)
         handle_gazer_frontend_args(args, gazer_argv)
         gazer_argv.append(bc_file)
 
@@ -290,6 +296,85 @@ class PrintCfaCommand(Command):
             return (1, {})
 
         return (0, {})
+
+class ThetaCommand(Command):
+    '''Executes gazer-bmc.'''
+    def __init__(self):
+        super().__init__('theta', 'Verify program using the theta verifier', depends=[
+            ClangCommand()
+        ])
+
+    def fill_arguments(self, parser):
+        add_gazer_llvm_pass_args(parser)
+        add_gazer_frontend_args(parser)
+        parser.add_argument("--theta-path", help="Path to the theta CFA tool jar.")
+        parser.add_argument("--z3-path", help="Path to the Z3 object files.")
+        parser.add_argument("--domain", help="Abstract domain", default="PRED_CART", choices=["EXPL", "PRED_BOOL", "PRED_CART", "PRED_SPLIT"])
+        parser.add_argument("--encoding", help="Block encoding", default="LBE", choices=["SBE", "LBE"])
+        parser.add_argument("--initprec", help="Initial precision of abstraction", default="EMPTY", choices=["EMPTY", "ALLVARS"])
+        parser.add_argument("--theta-log", help="Detailedness of logging", default="SUBSTEP", choices=["RESULT", "MAINSTEP", "SUBSTEP", "INFO", "DETAIL", "VERBOSE"])
+        parser.add_argument("--precgranularity", help="Precision granularity", default="GLOBAL", choices=["GLOBAL", "LOCAL"])
+        parser.add_argument("--predsplit", help="Predicate splitting (for predicate abstraction)", default="WHOLE", choices=["WHOLE", "CONJUNCTS", "ATOMS"])
+        parser.add_argument("--refinement", help="Refinement strategy", default="SEQ_ITP", choices=["FW_BIN_ITP", "BW_BIN_ITP", "SEQ_ITP", "MULTI_SEQ", "UNSAT_CORE"])
+        parser.add_argument("--search", help="Search strategy", default="BFS", choices=["BFS", "DFS", "ERR"])
+        return parser
+
+    def find_gazer_theta(self, args) -> pathlib.Path:
+        gazer_tools_dir = find_gazer_tools_dir()
+        return gazer_tools_dir.joinpath("gazer-theta/gazer-theta")
+
+    def find_theta(self, args) -> pathlib.Path:
+        if args.theta_path != None:
+            return pathlib.Path(args.theta_path)
+        
+        if os.getenv("THETA_CFA_PATH") != None:
+            return pathlib.Path(os.getenv("THETA_CFA_PATH"))
+
+        return None
+
+    def execute(self, args, wd: pathlib.Path, deps) -> Tuple[int, dict]:
+        bc_file = deps['clang.output_file']
+
+        gazer_theta_path = self.find_gazer_theta(args)
+        theta_cfa_path = self.find_theta(args)
+
+        if theta_cfa_path == None:
+            error_msg("Could not find the theta-cfa tool.")
+            return (1, {})
+
+        theta_input = wd.joinpath('gazer_theta_cfa.theta')
+
+        gazer_argv = [
+            gazer_theta_path,
+            "-o", theta_input
+        ]
+
+        handle_gazer_llvm_args(args, gazer_argv)
+        handle_gazer_frontend_args(args, gazer_argv)
+
+        gazer_argv.append(bc_file)
+
+        gazer_success = subprocess.run(gazer_argv)
+        if gazer_success.returncode != 0:
+            error_msg("gazer-theta exited with a failure.")
+            return (1, {})
+
+        theta_argv = [
+            "java", "-jar", theta_cfa_path,
+            "--model", theta_input
+        ]
+
+        args_dict = vars(args)
+        for option in ["domain", "encoding", "initprec", "precgranularity", "predsplit", "refinement", "search"]:
+            theta_argv.extend(["--{0}".format(option), args_dict[option]])
+
+        theta_success = subprocess.run(theta_argv, env={'LD_LIBRARY_PATH': "$LD_LIBRARY_PATH:{0}".format(args.z3_path)})
+        if theta_success.returncode != 0:
+            error_msg("theta exited with a failure.")
+            return (1, {})
+
+        return (0, {})
+
 
 def print_help(commands):
     print("usage: gazer <command> [<args>]\n")
@@ -303,7 +388,8 @@ def run_commands():
     commands = {
         'clang': ClangCommand(),
         'bmc': GazerBmcCommand(),
-        'print-cfa': PrintCfaCommand()
+        'print-cfa': PrintCfaCommand(),
+        'theta': ThetaCommand()
     }
 
     if len(sys.argv) < 2:

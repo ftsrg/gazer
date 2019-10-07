@@ -150,15 +150,6 @@ Variable *Cfa::createMemberVariable(llvm::StringRef name, Type &type)
     return variable;
 }
 
-void Cfa::addNestedAutomaton(Cfa* cfa)
-{
-    assert(cfa != nullptr);
-    assert(cfa->mParentAutomaton == nullptr);
-
-    mNestedAutomata.push_back(cfa);
-    cfa->mParentAutomaton = this;
-}
-
 size_t Cfa::getInputNumber(gazer::Variable* variable) const
 {
     auto it = std::find(mInputs.begin(), mInputs.end(), variable);
@@ -328,17 +319,6 @@ Cfa *AutomataSystem::createCfa(std::string name)
 {
     Cfa* cfa = new Cfa(mContext, name, *this);
     mAutomata.emplace_back(cfa);
-
-    return cfa;
-}
-
-Cfa* AutomataSystem::createNestedCfa(Cfa* parent, std::string name)
-{
-    auto fullName = (parent->getName() + "/" + name).str();
-    Cfa* cfa = new Cfa(mContext, fullName, *this);
-    mAutomata.emplace_back(cfa);
-
-    parent->addNestedAutomaton(cfa);
 
     return cfa;
 }

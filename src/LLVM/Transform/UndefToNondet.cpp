@@ -31,8 +31,6 @@ static bool replaceUndefsWithCalls(llvm::Function& function)
                 if (auto undef = llvm::dyn_cast<llvm::UndefValue>(operand)) {
                     llvm::FunctionCallee func = getUndefFunction(undef->getType(), module);
 
-                    llvm::errs() << inst << "\n";
-
                     // Found an undef, insert an instruction.
                     llvm::CallInst* call = llvm::CallInst::Create(func.getFunctionType(), func.getCallee(), "undefv");
                     call->copyMetadata(inst);

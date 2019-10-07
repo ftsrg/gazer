@@ -14,11 +14,16 @@ namespace gazer
 /// CFA shall be the same in the cloned one.
 Cfa* CloneAutomaton(Cfa* cfa, llvm::StringRef name);
 
+struct RecursiveToCyclicResult
+{
+    Location* errorLocation;
+};
+
 /// Transforms the given recursive CFA into a cyclic one, by inlining all
 /// tail-recursive calls and adding latch edges.
 /// Note that cyclic CFAs are non-canon, and should only be used if they are
 /// transformed into the input format of a different verifier.
-void TransformRecursiveToCyclic(Cfa* cfa);
+RecursiveToCyclicResult TransformRecursiveToCyclic(Cfa* cfa);
 
 struct InlineResult
 {

@@ -45,7 +45,8 @@ int main(int argc, char* argv[])
     GazerContext context;
     llvm::LLVMContext llvmContext;
 
-    auto frontend = LLVMFrontend::FromInputFile(InputFilename, context, llvmContext);
+    auto settings = LLVMFrontendSettings::initFromCommandLine();
+    auto frontend = LLVMFrontend::FromInputFile(InputFilename, context, llvmContext, settings);
     if (frontend == nullptr) {
         return 1;
     }

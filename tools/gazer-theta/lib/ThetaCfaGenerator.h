@@ -11,6 +11,8 @@ namespace gazer::theta
 
 std::string printThetaExpr(const ExprPtr& expr);
 
+std::string printThetaExpr(const ExprPtr& expr, std::function<std::string(Variable*)> variableNames);
+
 class ThetaCfaGenerator
 {
 public:
@@ -21,7 +23,7 @@ public:
     void write(llvm::raw_ostream& os);
 
 private:
-    std::string validName(llvm::Twine basename, std::function<bool(llvm::StringRef)> isValid);
+    std::string validName(std::string name, std::function<bool(const std::string&)> isUnique);
 
 private:
     AutomataSystem& mSystem;
@@ -29,7 +31,6 @@ private:
     unsigned mTmpCount = 0;
     unsigned mLocCount = 0;
 };
-
 
 }
 

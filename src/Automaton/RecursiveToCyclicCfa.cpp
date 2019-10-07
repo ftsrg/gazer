@@ -7,6 +7,7 @@
 
 #include <llvm/ADT/Twine.h>
 #include <llvm/ADT/DenseSet.h>
+#include <llvm/Support/raw_ostream.h>
 
 using namespace gazer;
 
@@ -21,7 +22,7 @@ public:
         mExprBuilder(CreateExprBuilder(cfa->getParent().getContext()))
     {}
 
-    void transform();
+    RecursiveToCyclicResult transform();
 
 private:
     void addUniqueErrorLocation();
@@ -39,7 +40,7 @@ private:
 
 } // end anonymous namespace
 
-void RecursiveToCyclicTransformer::transform()
+RecursiveToCyclicResult RecursiveToCyclicTransformer::transform()
 {
     this->addUniqueErrorLocation();
 
@@ -59,6 +60,11 @@ void RecursiveToCyclicTransformer::transform()
         this->inlineCallIntoRoot(call, "_inlined" + llvm::Twine(mInlineCnt++));
     }
     mRoot->clearDisconnectedElements();
+
+    // Calculate the new call graph and remove unneeded automata.
+    //mCallGraph = CallGraph(mRoot->getParent());
+
+    return { mError };
 }
 
 void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm::Twine suffix)
@@ -70,7 +76,6 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
     ExprRewrite rewrite(*mExprBuilder);
     llvm::DenseMap<Location*, Location*> locToLocMap;
     llvm::DenseMap<Variable*, Variable*> oldVarToNew;
-
 
     // Clone all local variables into the parent
     for (Variable& local : callee->locals()) {
@@ -98,7 +103,7 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
         Variable* output = callee->getOutput(i);
         auto newOutput = call->getOutputArgument(i).getVariable();
         oldVarToNew[output] = newOutput;
-        rewrite[output] = call->getOutputArgument(i).getVariable()->getRefExpr();
+        rewrite[output] = newOutput->getRefExpr();
     }
 
     // Insert all locations
@@ -142,7 +147,7 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
                     Variable* input = callee->getInput(i);
                     recursiveInputArgs.push_back({
                         oldVarToNew[input],
-                        nestedCall->getInputArgument(i)
+                        rewrite.walk(nestedCall->getInputArgument(i))
                     });
                 }
 
@@ -250,8 +255,8 @@ void RecursiveToCyclicTransformer::addUniqueErrorLocation()
     }
 }
 
-void gazer::TransformRecursiveToCyclic(Cfa* cfa)
+RecursiveToCyclicResult gazer::TransformRecursiveToCyclic(Cfa* cfa)
 {
     RecursiveToCyclicTransformer transformer(cfa);
-    transformer.transform();
+    return transformer.transform();
 }

@@ -2,6 +2,7 @@
 #define GAZER_LLVM_LLVMFRONTEND_H
 
 #include "gazer/LLVM/Instrumentation/Check.h"
+#include "gazer/LLVM/LLVMFrontendSettings.h"
 
 #include <llvm/Pass.h>
 #include <llvm/IR/LegacyPassManager.h>
@@ -16,13 +17,15 @@ class LLVMFrontend
 public:
     LLVMFrontend(
         std::unique_ptr<llvm::Module> module,
-        GazerContext& context
+        GazerContext& context,
+        LLVMFrontendSettings settings
     );
 
     static std::unique_ptr<LLVMFrontend> FromInputFile(
         llvm::StringRef input,
         GazerContext& context,
-        llvm::LLVMContext& llvmContext
+        llvm::LLVMContext& llvmContext,
+        LLVMFrontendSettings settings
     );
 
     /// Registers the common preprocessing analyses and transforms of the 
@@ -55,6 +58,8 @@ private:
 
     CheckRegistry mChecks;
     llvm::legacy::PassManager mPassManager;
+
+    LLVMFrontendSettings mSettings;
 };
 
 }
