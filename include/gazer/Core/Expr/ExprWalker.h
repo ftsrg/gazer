@@ -214,6 +214,12 @@ public:
     ReturnT visitDiv(const ExprRef<DivExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitNonNullary(expr);
     }
+    ReturnT visitMod(const ExprRef<ModExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitRem(const ExprRef<RemExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
 
     ReturnT visitBvSDiv(const ExprRef<BvSDivExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitNonNullary(expr);

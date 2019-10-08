@@ -196,8 +196,6 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os)
     Cfa* main = mSystem.getMainAutomaton();
     auto recursiveToCyclicResult = TransformRecursiveToCyclic(main);
 
-    //main->view();
-
     llvm::DenseMap<Location*, std::unique_ptr<ThetaLocDecl>> locs;
     llvm::DenseMap<Variable*, std::unique_ptr<ThetaVarDecl>> vars;
     std::vector<std::unique_ptr<ThetaEdgeDecl>> edges;

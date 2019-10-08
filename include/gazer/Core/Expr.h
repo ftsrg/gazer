@@ -40,13 +40,15 @@ public:
     // If you wish to add a new expression type, make sure to do the following:
     //      (1) Update ExprKind.inc with the new kind.
     //      (2) Update ExprKindPrimes in Expr.cpp with a new unique prime number.
-    //      (3) If your implementation class is atomic or a non-trivial descendant of 
+    //      (3) Create an implementation class. If you use a template, explicitly
+    //          instantiate it in Expr.cpp.
+    //      (4) If your implementation class is atomic or a non-trivial descendant of 
     //          NonNullaryExpr, update expr_hasher in GazerContextImpl.h with a specialization
     //          for your implementation.
-    //      (4) Update the ExprWalker interface. Note that this also means the possible
+    //      (5) Update the ExprWalker interface. Note that this also means the possible
     //          update of their implementations (such as solvers).
     //  Things will work without the following changes, but they are highly recommended:
-    //      (5) Add a corresponding method to ExprBuilder and ConstantFolder.
+    //      (6) Add a corresponding method to ExprBuilder and ConstantFolder.
     enum ExprKind
     {
         // Nullary
@@ -67,6 +69,8 @@ public:
         Sub,
         Mul,
         Div,    ///< division operator for arithmetic types
+        Mod,    ///< modulo operator for arithmetic types
+        Rem,    ///< remainder operator for arithmetic types
         BvSDiv, ///< signed division for bitvectors
         BvUDiv, ///< signed division for bitvectors
         BvSRem, ///< signed remainder for bitvectors

@@ -23,7 +23,7 @@ std::size_t gazer::expr_kind_prime(Expr::ExprKind kind)
         290623u, 241291u, 579499u, 384287u, 125287u, 920273u, 485833u, 326449u,
         972683u, 485167u, 882599u, 535727u, 383651u, 159833u, 796001u, 218479u,
         163993u, 622561u, 938881u, 692467u, 851971u, 478427u, 653969u, 650329u,
-        645187u, 830827u
+        645187u, 830827u, 431729u, 497663u
     };
 
     static_assert(
@@ -286,6 +286,8 @@ template class ArithmeticExpr<Expr::Add>;
 template class ArithmeticExpr<Expr::Sub>;
 template class ArithmeticExpr<Expr::Mul>;
 template class ArithmeticExpr<Expr::Div>;
+template class ArithmeticExpr<Expr::Mod>;
+template class ArithmeticExpr<Expr::Rem>;
 template class ArithmeticExpr<Expr::BvSDiv>;
 template class ArithmeticExpr<Expr::BvUDiv>;
 template class ArithmeticExpr<Expr::BvSRem>;

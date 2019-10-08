@@ -85,6 +85,12 @@ public:
     virtual ExprPtr Div(const ExprPtr& left, const ExprPtr& right) {
         return DivExpr::Create(left, right);
     }
+    virtual ExprPtr Mod(const ExprPtr& left, const ExprPtr& right) {
+        return ModExpr::Create(left, right);
+    }
+    virtual ExprPtr Rem(const ExprPtr& left, const ExprPtr& right) {
+        return RemExpr::Create(left, right);
+    }
 
     virtual ExprPtr BvSDiv(const ExprPtr& left, const ExprPtr& right) {
         return BvSDivExpr::Create(left, right);

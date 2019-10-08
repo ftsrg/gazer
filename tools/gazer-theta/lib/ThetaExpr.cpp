@@ -2,6 +2,8 @@
 #include "gazer/Core/Expr/ExprWalker.h"
 #include "gazer/ADT/StringUtils.h"
 
+#include <llvm/Support/raw_ostream.h>
+
 #include <boost/range/irange.hpp>
 
 #include <functional>
@@ -24,6 +26,7 @@ public:
 public:
     std::string visitExpr(const ExprPtr& expr) {
         mUnhandledExpr = expr;
+        llvm::errs() << "Unhandled expr " << *expr << "\n";
         return "???";
     }
 
@@ -74,6 +77,10 @@ public:
 
     std::string visitDiv(const ExprRef<DivExpr>& expr) {
         return "(" + getOperand(0) + " / " + getOperand(1) + ")";
+    }
+
+    std::string visitMod(const ExprRef<ModExpr>& expr) {
+        return "(" + getOperand(0) + " mod " + getOperand(1) + ")";
     }
 
     std::string visitAnd(const ExprRef<AndExpr>& expr)

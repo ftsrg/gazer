@@ -39,6 +39,9 @@ ExprPtr ExprRewrite::visitNonNullary(const ExprRef<NonNullaryExpr>& expr)
         case Expr::Add: return mExprBuilder.Add(ops[0], ops[1]);
         case Expr::Sub: return mExprBuilder.Sub(ops[0], ops[1]);
         case Expr::Mul: return mExprBuilder.Mul(ops[0], ops[1]);
+        case Expr::Div: return mExprBuilder.Div(ops[0], ops[1]);
+        case Expr::Mod: return mExprBuilder.Mod(ops[0], ops[1]);
+        case Expr::Rem: return mExprBuilder.Rem(ops[0], ops[1]);
         case Expr::BvSDiv: return mExprBuilder.BvSDiv(ops[0], ops[1]);
         case Expr::BvUDiv: return mExprBuilder.BvUDiv(ops[0], ops[1]);
         case Expr::BvSRem: return mExprBuilder.BvSRem(ops[0], ops[1]);
