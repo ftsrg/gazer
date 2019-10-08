@@ -360,6 +360,21 @@ public:
         return createHandle(Z3_mk_mul(mZ3Context, 2, ops));
     }
 
+    Z3AstHandle visitDiv(const ExprRef<DivExpr>& expr)
+    {
+        return createHandle(Z3_mk_div(mZ3Context, getOperand(0), getOperand(1)));
+    }
+
+    Z3AstHandle visitMod(const ExprRef<ModExpr>& expr)
+    {
+        return createHandle(Z3_mk_mod(mZ3Context, getOperand(0), getOperand(1)));
+    }
+
+    Z3AstHandle visitRem(const ExprRef<RemExpr>& expr)
+    {
+        return createHandle(Z3_mk_rem(mZ3Context, getOperand(0), getOperand(1)));
+    }
+
     Z3AstHandle visitBvSDiv(const ExprRef<BvSDivExpr>& expr)
     {
         return createHandle(Z3_mk_bvsdiv(mZ3Context, getOperand(0), getOperand(1)));

@@ -183,6 +183,7 @@ def add_gazer_llvm_pass_args(parser):
     parser.add_argument("-inline", help="Inline non-recursive functions", default=False, action='store_true')
     parser.add_argument("-inline-globals", help="Inline global variables into main", default=False, action='store_true')
     parser.add_argument("-no-optimize", help="Disable non-crucial LLVM optimization passes.", default=False, action='store_true')
+    parser.add_argument("-show-final-cfg", help="Display the CFG after optimization", default=False, action='store_true')
 
 def add_gazer_frontend_args(parser):
     parser.add_argument("-elim-vars", help="Variable elimination level", choices=["off", "normal", "aggressive"], default="normal")
@@ -198,6 +199,9 @@ def handle_gazer_llvm_args(args, gazer_argv):
 
     if args.no_optimize:
         gazer_argv.append("-no-optimize")
+
+    if args.show_final_cfg:
+        gazer_argv.append("-show-unrolled-cfg")
 
 def handle_gazer_frontend_args(args, gazer_argv):
     gazer_argv.append("-elim-vars={0}".format(args.elim_vars))

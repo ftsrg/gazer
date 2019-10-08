@@ -218,15 +218,6 @@ private:
     static FloatType HalfTy, SingleTy, DoubleTy, QuadTy;
 };
 
-class FunctionType final : public Type
-{
-public:
-    
-private:
-    Type* mReturnType;
-    const std::vector<Type*> mArgumentTypes;
-};
-
 /// Represents an array type with arbitrary index and element types.
 class ArrayType final : public Type
 {

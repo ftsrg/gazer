@@ -403,7 +403,36 @@ ExprPtr InstToExpr::visitCastInst(const llvm::CastInst& cast)
             return castOp;
         }
 
-        // Trunc is transformed to undef at the moment
+        if (cast.getOpcode() == Instruction::Trunc) {
+            // We can get the lower 'w' bits of 'n' if we do 'n mod 2^w'.
+            // However, due to LLVM's two's complement representation, this
+            // could turn into a signed number.
+            // For example:
+            //  trunc i6 51 to i4: 11|0011 --> 3
+            //  trunc i6 60 to i4: 11|1100 --> -4
+            // To overcome this, we check the sign bit of the resulting value
+            // and if it set, we substract '2^w' from the result.
+            auto maxVal = mExprBuilder.IntLit(
+                llvm::APInt::getMaxValue(cast.getType()->getIntegerBitWidth()).getZExtValue()
+            );
+            auto maxValDiv2 = mExprBuilder.IntLit(
+                llvm::APInt::getMaxValue(cast.getType()->getIntegerBitWidth() - 1).getZExtValue()
+            );
+            auto modVal = mExprBuilder.Mod(castOp, maxVal);
+
+            return mExprBuilder.Select(
+                mExprBuilder.Eq(
+                    mExprBuilder.Mod(
+                        mExprBuilder.Div(castOp, maxValDiv2),
+                        mExprBuilder.IntLit(2)
+                    ),
+                    mExprBuilder.IntLit(0)
+                ),
+                modVal,
+                mExprBuilder.Sub(modVal, maxVal)
+            );
+        }
+
         return mExprBuilder.Undef(castOp->getType());
     }
 
