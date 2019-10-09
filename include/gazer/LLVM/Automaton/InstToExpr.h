@@ -71,7 +71,7 @@ protected:
         return *llvm::cast<Ty>(&gazerTy);
     }
 private:
-    ExprPtr unsignedCompareOperand(const ExprPtr& expr, unsigned width);
+    ExprPtr unsignedLessThan(const ExprPtr& left, const ExprPtr& right);
 
 protected:
     ExprBuilder& mExprBuilder;

@@ -33,6 +33,9 @@ public:
     ExprRef<LiteralExpr> visitAdd(const ExprRef<AddExpr>& expr);
     ExprRef<LiteralExpr> visitSub(const ExprRef<SubExpr>& expr);
     ExprRef<LiteralExpr> visitMul(const ExprRef<MulExpr>& expr);
+    ExprRef<LiteralExpr> visitDiv(const ExprRef<DivExpr>& expr);
+    ExprRef<LiteralExpr> visitMod(const ExprRef<ModExpr>& expr);
+    ExprRef<LiteralExpr> visitRem(const ExprRef<RemExpr>& expr);
 
     ExprRef<LiteralExpr> visitBvSDiv(const ExprRef<BvSDivExpr>& expr);
     ExprRef<LiteralExpr> visitBvUDiv(const ExprRef<BvUDivExpr>& expr);

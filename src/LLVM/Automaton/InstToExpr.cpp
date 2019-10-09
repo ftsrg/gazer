@@ -178,19 +178,23 @@ ExprPtr InstToExpr::visitSelectInst(const llvm::SelectInst& select)
 
     return mExprBuilder.Select(cond, then, elze);
 }
-
-ExprPtr InstToExpr::unsignedCompareOperand(const ExprPtr& expr, unsigned width)
+    
+ExprPtr InstToExpr::unsignedLessThan(const ExprPtr& left, const ExprPtr& right)
 {
-    // If the number is negative, we must substract it from the maximum value
-    // of the given bit width to represent it as unsigned. Otherwise, we can
-    // just use the original value.
+    auto zero = mExprBuilder.IntLit(0);
+
     return mExprBuilder.Select(
-        mExprBuilder.Lt(expr, mExprBuilder.IntLit(0)),
-        mExprBuilder.Add(
-            mExprBuilder.IntLit(llvm::APInt::getMaxValue(width).getZExtValue()),
-            expr
+        mExprBuilder.GtEq(left, zero),
+        mExprBuilder.Select(
+            mExprBuilder.GtEq(right, zero),
+            mExprBuilder.Lt(left, right),
+            mExprBuilder.True()
         ),
-        expr
+        mExprBuilder.Select(
+            mExprBuilder.Lt(right, zero),
+            mExprBuilder.Lt(left, right),
+            mExprBuilder.False()
+        )
     );
 }
 
@@ -200,22 +204,22 @@ ExprPtr InstToExpr::visitICmpInst(const llvm::ICmpInst& icmp)
 
     auto pred = icmp.getPredicate();
 
-    auto lhs = operand(icmp.getOperand(0));
-    auto rhs = operand(icmp.getOperand(1));
+    auto left = operand(icmp.getOperand(0));
+    auto right = operand(icmp.getOperand(1));
 
     if (pred == CmpInst::ICMP_EQ) {
-        return mExprBuilder.Eq(lhs, rhs);
+        return mExprBuilder.Eq(left, right);
     }
 
     if (pred == CmpInst::ICMP_NE) {
-        return mExprBuilder.NotEq(lhs, rhs);
+        return mExprBuilder.NotEq(left, right);
     }
 
     #define HANDLE_PREDICATE(PREDNAME, EXPRNAME)                \
         case PREDNAME:                                          \
-            return mExprBuilder.EXPRNAME(lhs, rhs);             \
+            return mExprBuilder.EXPRNAME(left, right);          \
 
-    if (lhs->getType().isBvType()) {
+    if (left->getType().isBvType()) {
         switch (pred) {
             HANDLE_PREDICATE(CmpInst::ICMP_UGT, BvUGt)
             HANDLE_PREDICATE(CmpInst::ICMP_UGE, BvUGtEq)
@@ -232,35 +236,32 @@ ExprPtr InstToExpr::visitICmpInst(const llvm::ICmpInst& icmp)
 
     #undef HANDLE_PREDICATE
 
-    if (lhs->getType().isArithmetic()) {
+    if (left->getType().isArithmetic()) {
         unsigned bw = icmp.getOperand(0)->getType()->getIntegerBitWidth();
-
-        ExprPtr leftOp = lhs;
-        ExprPtr rightOp = rhs;
-
-        if (icmp.isUnsigned()) {
-            // We need to apply some extra care here as unsigned comparisons
-            // interpret the operands as unsigned values, changing some semantics.
-            // As an example, -5 < x would normally be true for x = 2. However,
-            // `ult i8 -5, %x` interprets -5 (0b11111011) as unsigned, thus
-            // it will be compared as 251, yielding false.
-            leftOp = unsignedCompareOperand(lhs, bw);
-            rightOp = unsignedCompareOperand(rhs, bw);
-        }
 
         switch (pred) {
             case CmpInst::ICMP_UGT:
+                return unsignedLessThan(right, left);
             case CmpInst::ICMP_SGT:
-                return mExprBuilder.Gt(leftOp, rightOp);
+                return mExprBuilder.Gt(left, right);
             case CmpInst::ICMP_UGE:
+                return mExprBuilder.Or(
+                    mExprBuilder.Eq(left, right),
+                    unsignedLessThan(right, left)
+                );
             case CmpInst::ICMP_SGE:
-                return mExprBuilder.GtEq(leftOp, rightOp);
+                return mExprBuilder.GtEq(left, right);
             case CmpInst::ICMP_ULT:
+                return unsignedLessThan(left, right);
             case CmpInst::ICMP_SLT:
-                return mExprBuilder.Lt(leftOp, rightOp);
+                return mExprBuilder.Lt(left, right);
             case CmpInst::ICMP_ULE:
+                return mExprBuilder.Or(
+                    mExprBuilder.Eq(left, right),
+                    unsignedLessThan(left, right)
+                );
             case CmpInst::ICMP_SLE:
-                return mExprBuilder.LtEq(leftOp, rightOp);
+                return mExprBuilder.LtEq(left, right);
             default:
                 llvm_unreachable("Unknown ICMP predicate.");
         }
