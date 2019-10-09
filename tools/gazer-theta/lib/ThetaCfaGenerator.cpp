@@ -244,7 +244,10 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os)
         ThetaLocDecl& target = *locs[edge->getTarget()];
         
         std::vector<ThetaStmt> stmts;
-        stmts.push_back(ThetaStmt::Assume(edge->getGuard()));
+
+        if (edge->getGuard() != BoolLiteralExpr::True(edge->getGuard()->getContext())) {
+            stmts.push_back(ThetaStmt::Assume(edge->getGuard()));
+        }
 
         if (auto assignEdge = dyn_cast<AssignTransition>(&*edge)) {
             for (auto& assignment : *assignEdge) {
