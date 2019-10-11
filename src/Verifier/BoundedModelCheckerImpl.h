@@ -115,10 +115,10 @@ public:
         AutomataSystem& system,
         ExprBuilder& builder,
         SolverFactory& solverFactory,
-        TraceBuilder<Location*, std::vector<VariableAssignment>>* traceBuilder
+        TraceBuilder<Location*, std::vector<VariableAssignment>>& traceBuilder
     );
 
-    std::unique_ptr<SafetyResult> check();
+    std::unique_ptr<VerificationResult> check();
 
     void printStats(llvm::raw_ostream& os);
 
@@ -177,9 +177,10 @@ private:
     llvm::DenseMap<Variable*, Variable*> mInlinedVariables;
 
     size_t mTmp = 0;
+    bool mHasValidErrorField;
 
     Stats mStats;
-    TraceBuilder<Location*, std::vector<VariableAssignment>>* mTraceBuilder;
+    TraceBuilder<Location*, std::vector<VariableAssignment>>& mTraceBuilder;
     Variable* mErrorFieldVariable = nullptr;
 };
 

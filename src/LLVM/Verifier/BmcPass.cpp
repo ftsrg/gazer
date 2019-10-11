@@ -45,8 +45,8 @@ bool BoundedModelCheckerPass::runOnModule(llvm::Module& module)
 
     LLVMTraceBuilder traceBuilder{system.getContext(), cfaToLlvmTrace};
 
-    BoundedModelChecker bmc{solverFactory, &traceBuilder};
-    mResult = bmc.check(system);
+    BoundedModelChecker bmc(solverFactory);
+    mResult = bmc.check(system, traceBuilder);
 
     if (auto fail = llvm::dyn_cast<FailResult>(mResult.get())) {
         unsigned ec = fail->getErrorID();

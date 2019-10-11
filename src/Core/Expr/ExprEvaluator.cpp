@@ -79,7 +79,35 @@ static ExprRef<LiteralExpr> EvalBinaryArithmetic(
             case Expr::BvOr: return BvLiteralExpr::Get(type, left | right);
             case Expr::BvXor: return BvLiteralExpr::Get(type, left ^ right);
             default:
+                llvm_unreachable("Unknown binary expression kind!");
+        }
+    }
+    
+    if (lhs->getType().isIntType()) {
+        auto left  = llvm::cast<IntLiteralExpr>(lhs)->getValue();
+        auto right = llvm::cast<IntLiteralExpr>(rhs)->getValue();
+
+        auto& intTy = llvm::cast<IntType>(lhs->getType());
+
+        switch (kind) {
+            case Expr::Add: return IntLiteralExpr::Get(intTy, left + right);
+            case Expr::Sub: return IntLiteralExpr::Get(intTy, left - right);
+            case Expr::Mul: return IntLiteralExpr::Get(intTy, left * right);
+            case Expr::Div: return IntLiteralExpr::Get(intTy, left / right);
+            default:
                 break;
+            /*
+            case Expr::Mod: {
+                return IntLiteralExpr::Get(intTy, left * right);
+            }
+            case Expr::Rem: {
+                // Division remainder, for example:
+                //  5 rem  3 = 2
+                //  5 rem -3 = 2
+                // -5 rem  3 = -2
+                // -5 rem -3 = -2
+                return IntLiteralExpr::Get(intTy, left % right);
+            } */
         }
     }
     
@@ -98,6 +126,21 @@ ExprRef<LiteralExpr> ExprEvaluatorBase::visitSub(const ExprRef<SubExpr>& expr)
 }
 
 ExprRef<LiteralExpr> ExprEvaluatorBase::visitMul(const ExprRef<MulExpr>& expr)
+{
+    return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
+}
+
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitDiv(const ExprRef<DivExpr>& expr)
+{
+    return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
+}
+
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitMod(const ExprRef<ModExpr>& expr)
+{
+    return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
+}
+
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitRem(const ExprRef<RemExpr>& expr)
 {
     return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
 }

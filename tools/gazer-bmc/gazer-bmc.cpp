@@ -1,12 +1,12 @@
 #include "gazer/LLVM/Analysis/BmcPass.h"
 #include "gazer/LLVM/Transform/Passes.h"
 #include "gazer/LLVM/Instrumentation/DefaultChecks.h"
-
 #include "gazer/LLVM/InstrumentationPasses.h"
 #include "gazer/LLVM/Verifier/BmcPass.h"
-
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
 #include "gazer/LLVM/LLVMFrontend.h"
+
+#include "gazer/Z3Solver/Z3Solver.h"
 
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/LegacyPassManager.h>
@@ -57,8 +57,10 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+    Z3SolverFactory solverFactory;
+
+    frontend->setBackendAlgorithm(new BoundedModelChecker(solverFactory));
     frontend->registerVerificationPipeline();
-    frontend->registerPass(new gazer::BoundedModelCheckerPass(frontend->getChecks()));
 
     frontend->run();
 

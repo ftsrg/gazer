@@ -14,7 +14,7 @@ set(SOURCE_FILES
     Utils/LLVMType.cpp
     Automaton/ModuleToAutomata.cpp
     Automaton/InstToExpr.cpp
-    Verifier/BmcPass.cpp
+    #Verifier/BmcPass.cpp
     LLVMTraceBuilder.cpp
     TypeTranslator.cpp
     LLVMFrontendSettings.cpp

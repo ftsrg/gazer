@@ -594,6 +594,11 @@ bool BlocksToCfa::tryToEliminate(const Instruction& inst, ExprPtr expr)
         return false;
     }
 
+    // Do not eliminate undef's.
+    if (expr->getKind() == Expr::Undef) {
+        return false;
+    }
+
     // On 'Normal' level, we do not want to inline expressions which have multiple uses and have already inlined operands.
     if (
         !mGenCtx.getSettings().isElimVarsAggressive() &&

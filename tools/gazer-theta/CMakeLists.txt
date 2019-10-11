@@ -1,6 +1,7 @@
 set(LIB_SOURCE_FILES
     lib/ThetaCfaGenerator.cpp
     lib/ThetaExpr.cpp
+    lib/ThetaVerifier.cpp
 )
 
 set(TOOL_SOURCE_FILES

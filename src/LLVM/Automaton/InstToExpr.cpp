@@ -160,6 +160,8 @@ ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop)
                 // TODO: Some magic could be applied here to transform operations on
                 // certain bit-patterns, e.g. all-ones, single-one, all-zero, single-zero, etc.
                 return mExprBuilder.Undef(variable->getType());
+            default:
+                llvm_unreachable("Unsupported binary operator!");
         }
 
     }
@@ -181,6 +183,18 @@ ExprPtr InstToExpr::visitSelectInst(const llvm::SelectInst& select)
     
 ExprPtr InstToExpr::unsignedLessThan(const ExprPtr& left, const ExprPtr& right)
 {
+    // We need to apply some extra care here as unsigned comparisons
+    // interpret the operands as unsigned values, changing some semantics.
+    // As an example, -5 < x would normally be true for x = 2. However,
+    // `ult i8 -5, %x` interprets -5 (0b11111011) as unsigned, thus
+    // it will be compared as 251, yielding false.
+
+    // Given an instruction `ult(X, Y)`, this formula does the following:
+    //  a) If X and Y have the same sign, then its value is X < Y.
+    //  b) If X >= 0 and Y < 0, then the sign bit of X must be 0, the sign bit
+    //     of Y must be 1, therefore Y will always be greater than X, thus
+    //     return value is True.
+    //  c) The same logic applies for the inverse case, yielding False.
     auto zero = mExprBuilder.IntLit(0);
 
     return mExprBuilder.Select(
@@ -237,8 +251,6 @@ ExprPtr InstToExpr::visitICmpInst(const llvm::ICmpInst& icmp)
     #undef HANDLE_PREDICATE
 
     if (left->getType().isArithmetic()) {
-        unsigned bw = icmp.getOperand(0)->getType()->getIntegerBitWidth();
-
         switch (pred) {
             case CmpInst::ICMP_UGT:
                 return unsignedLessThan(right, left);
@@ -346,9 +358,6 @@ ExprPtr InstToExpr::visitFCmpInst(const llvm::FCmpInst& fcmp)
 ExprPtr InstToExpr::visitCastInst(const llvm::CastInst& cast)
 {
     auto castOp = operand(cast.getOperand(0));
-    //if (cast.getOperand(0)->getType()->isPointerTy()) {
-    //    return mMemoryModel.handlePointerCast(cast, castOp);
-    //}
 
     if (cast.getType()->isFloatingPointTy()) {
         auto& fltTy = this->translateTypeTo<FloatType>(cast.getType());
@@ -371,7 +380,7 @@ ExprPtr InstToExpr::visitCastInst(const llvm::CastInst& cast)
         return mExprBuilder.FpToSigned(castOp, bvTy, llvm::APFloat::rmNearestTiesToEven);
     }
     
-    if (cast.getOpcode() == Instruction::UIToFP) {
+    if (cast.getOpcode() == Instruction::FPToUI) {
         auto& bvTy = this->translateTypeTo<BvType>(cast.getType());
         return mExprBuilder.FpToUnsigned(castOp, bvTy, llvm::APFloat::rmNearestTiesToEven);
     }
