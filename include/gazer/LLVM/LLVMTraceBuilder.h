@@ -1,9 +1,9 @@
 #ifndef GAZER_LLVM_LLVMTRACEBUILDER_H
 #define GAZER_LLVM_LLVMTRACEBUILDER_H
 
-#include "gazer/Automaton/Cfa.h"
-
 #include "gazer/Trace/Trace.h"
+#include "gazer/Automaton/Cfa.h"
+#include "gazer/Verifier/VerificationAlgorithm.h"
 
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/IR/Value.h>
@@ -13,7 +13,7 @@ namespace gazer
 
 class CfaToLLVMTrace;
 
-class LLVMTraceBuilder : public TraceBuilder<Location*, std::vector<VariableAssignment>>
+class LLVMTraceBuilder : public CfaTraceBuilder
 {
 public:
     LLVMTraceBuilder(GazerContext& context, CfaToLLVMTrace& cfaToLlvmTrace)

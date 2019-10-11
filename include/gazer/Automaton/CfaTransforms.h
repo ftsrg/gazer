@@ -9,11 +9,14 @@
 namespace gazer
 {
 
+//===----------------------------------------------------------------------===//
 /// Creates a clone of the given CFA with the given name.
 /// Note that the clone shall be shallow one: automata called by the source
 /// CFA shall be the same in the cloned one.
 Cfa* CloneAutomaton(Cfa* cfa, llvm::StringRef name);
 
+
+//===----------------------------------------------------------------------===//
 struct RecursiveToCyclicResult
 {
     Location* errorLocation;
@@ -25,6 +28,14 @@ struct RecursiveToCyclicResult
 /// transformed into the input format of a different verifier.
 RecursiveToCyclicResult TransformRecursiveToCyclic(Cfa* cfa);
 
+//===----------------------------------------------------------------------===//
+/// Performs error code instrumentation on the given automata system.
+/// Each procedure receives and additional output variable, the error code.
+/// Procedure call target locations will have a new outgoing edge to the error
+/// location, guarded by a valid error code.
+void PerformErrorCodeInstrumentation(AutomataSystem& system);
+
+//===----------------------------------------------------------------------===//
 struct InlineResult
 {
     llvm::DenseMap<Variable*, Variable*> VariableMap;

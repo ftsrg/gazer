@@ -41,7 +41,7 @@ llvm::cl::opt<bool> NoSimplifyExpr("no-simplify-expr", llvm::cl::desc("Do not si
 
 using namespace gazer;
 
-std::unique_ptr<SafetyResult> BoundedModelChecker::check(AutomataSystem& system)
+std::unique_ptr<VerificationResult> BoundedModelChecker::check(AutomataSystem& system, CfaTraceBuilder& traceBuilder)
 {
     std::unique_ptr<ExprBuilder> builder;
 
@@ -50,7 +50,7 @@ std::unique_ptr<SafetyResult> BoundedModelChecker::check(AutomataSystem& system)
     } else {
         builder = CreateExprBuilder(system.getContext());
     }
-    BoundedModelCheckerImpl impl{system, *builder, mSolverFactory, mTraceBuilder};
+    BoundedModelCheckerImpl impl{system, *builder, mSolverFactory, traceBuilder};
 
     auto result = impl.check();
 
@@ -63,7 +63,7 @@ BoundedModelCheckerImpl::BoundedModelCheckerImpl(
     AutomataSystem& system,
     ExprBuilder& builder,
     SolverFactory& solverFactory,
-    TraceBuilder<Location*, std::vector<VariableAssignment>>* traceBuilder
+    CfaTraceBuilder& traceBuilder
 ) : mSystem(system),
     mExprBuilder(builder),
     mSolver(solverFactory.createSolver(system.getContext())),
@@ -128,7 +128,7 @@ ERROR_TYPE_FOUND:
         // A dummy error location will be used as a goal.
         mRoot->createAssignTransition(mRoot->getEntry(), mError, mExprBuilder.False(), {
             VariableAssignment{ mErrorFieldVariable, mExprBuilder.BvLit(0, 16) }
-        });        
+        });
     } else {
         // The error location which will be directly reachable from already existing error locations.
         for (Location* err : errors) {
@@ -144,7 +144,7 @@ ERROR_TYPE_FOUND:
     return true;
 }
 
-std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
+std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
 {
     // Create the topological sorts
     this->createTopologicalSorts();
@@ -159,7 +159,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
     }
 
     if (!hasErrorLocation) {
-        return SafetyResult::CreateSuccess();
+        return VerificationResult::CreateSuccess();
     }
 
     // Insert initial call approximations.
@@ -180,7 +180,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
 
     if (EagerUnroll > MaxBound) {
         llvm::errs() << "ERROR: Eager unrolling bound is larger than maximum bound.\n";
-        return SafetyResult::CreateUnknown();
+        return VerificationResult::CreateUnknown();
     }
 
     unsigned tmp = 0;
@@ -304,7 +304,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                     std::reverse(states.begin(), states.end());
                     std::reverse(actions.begin(), actions.end());
 
-                    trace = mTraceBuilder->build(states, actions);
+                    trace = mTraceBuilder.build(states, actions);
                 } else {
                     trace = std::make_unique<Trace>(std::vector<std::unique_ptr<TraceEvent>>());
                 }
@@ -314,9 +314,9 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
 
                 switch (errorExpr->getType().getTypeID()) {
                     case Type::BvTypeID:
-                        return SafetyResult::CreateFail(llvm::cast<BvLiteralExpr>(errorExpr)->getValue().getLimitedValue(), std::move(trace));
+                        return VerificationResult::CreateFail(llvm::cast<BvLiteralExpr>(errorExpr)->getValue().getLimitedValue(), std::move(trace));
                     case Type::IntTypeID:
-                        return SafetyResult::CreateFail(llvm::cast<IntLiteralExpr>(errorExpr)->getValue(), std::move(trace));
+                        return VerificationResult::CreateFail(llvm::cast<IntLiteralExpr>(errorExpr)->getValue(), std::move(trace));
                     default:
                         llvm_unreachable("Invalid error field type!");
                 }
@@ -423,7 +423,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                     mStats.NumEndLocs = mRoot->getNumLocations();
                     mStats.NumEndLocals = mRoot->getNumLocals();
 
-                    return SafetyResult::CreateSuccess();
+                    return VerificationResult::CreateSuccess();
                 }  else if (bound == MaxBound) {
                     // The maximum bound was reached.
                     llvm::outs() << "Maximum bound is reached.\n";
@@ -431,7 +431,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
                     mStats.NumEndLocs = mRoot->getNumLocations();
                     mStats.NumEndLocals = mRoot->getNumLocals();
 
-                    return SafetyResult::CreateSuccess();
+                    return VerificationResult::CreateSuccess();
                 } else {
                     // Try with an increased bound.
                     llvm::outs() << "    Open call sites still present. Increasing bound.\n";
@@ -445,7 +445,7 @@ std::unique_ptr<SafetyResult> BoundedModelCheckerImpl::check()
         }
     }
 
-    return SafetyResult::CreateSuccess();
+    return VerificationResult::CreateSuccess();
 }
 
 ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Location* target)

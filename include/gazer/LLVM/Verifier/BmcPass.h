@@ -28,7 +28,7 @@ public:
 
 private:
     const CheckRegistry& mChecks;
-    std::unique_ptr<SafetyResult> mResult;
+    std::unique_ptr<VerificationResult> mResult;
 };
 
 }

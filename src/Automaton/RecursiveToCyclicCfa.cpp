@@ -145,10 +145,17 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
                 std::vector<VariableAssignment> recursiveInputArgs;
                 for (size_t i = 0; i < callee->getNumInputs(); ++i) {
                     Variable* input = callee->getInput(i);
-                    recursiveInputArgs.push_back({
-                        oldVarToNew[input],
-                        rewrite.walk(nestedCall->getInputArgument(i))
-                    });
+
+                    auto variable = oldVarToNew[input];
+                    auto value = rewrite.walk(nestedCall->getInputArgument(i));
+
+                    if (variable->getRefExpr() != value) {
+                        // Do not add unneeded assignments (X := X).
+                        recursiveInputArgs.push_back({
+                            oldVarToNew[input],
+                            value
+                        });
+                    }
                 }
 
                 // Create the assignment back-edge.

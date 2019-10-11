@@ -1,6 +1,6 @@
 set(SOURCE_FILES
     TextTraceWriter.cpp
-    SafetyResult.cpp
+    VerificationResult.cpp
 )
 
 add_library(GazerTrace ${SOURCE_FILES})

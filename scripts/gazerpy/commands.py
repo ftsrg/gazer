@@ -321,6 +321,8 @@ class ThetaCommand(Command):
         parser.add_argument("--predsplit", help="Predicate splitting (for predicate abstraction)", default="WHOLE", choices=["WHOLE", "CONJUNCTS", "ATOMS"])
         parser.add_argument("--refinement", help="Refinement strategy", default="SEQ_ITP", choices=["FW_BIN_ITP", "BW_BIN_ITP", "SEQ_ITP", "MULTI_SEQ", "UNSAT_CORE"])
         parser.add_argument("--search", help="Search strategy", default="BFS", choices=["BFS", "DFS", "ERR"])
+        parser.add_argument("--maxenum", default="0")
+        parser.add_argument("-trace", help="Print counterexample trace", default=False, action='store_true')
         return parser
 
     def find_gazer_theta(self, args) -> pathlib.Path:
@@ -369,8 +371,11 @@ class ThetaCommand(Command):
         ]
 
         args_dict = vars(args)
-        for option in ["domain", "encoding", "initprec", "precgranularity", "predsplit", "refinement", "search"]:
+        for option in ["domain", "encoding", "initprec", "precgranularity", "predsplit", "refinement", "search", "maxenum"]:
             theta_argv.extend(["--{0}".format(option), args_dict[option]])
+
+        if args.trace:
+            theta_argv.append("--cex")
 
         theta_success = subprocess.run(theta_argv, env={'LD_LIBRARY_PATH': "$LD_LIBRARY_PATH:{0}".format(args.z3_path)})
         if theta_success.returncode != 0:
@@ -414,5 +419,6 @@ def run_commands():
 
     # Create a temporary working directory
     wd = create_temp_dir()
+    print("Working directory is {0}".format(wd))
 
     current.run(args, wd)

@@ -10,21 +10,20 @@ class Location;
 class SolverFactory;
 class AutomataSystem;
 
-class BoundedModelChecker : public VerificationAlgorithm<AutomataSystem>
+class BoundedModelChecker : public VerificationAlgorithm
 {
 public:
-    BoundedModelChecker(
-        SolverFactory& solverFactory,
-        TraceBuilder<Location*, std::vector<VariableAssignment>>* traceBuilder = nullptr
-    )
-        : mSolverFactory(solverFactory), mTraceBuilder(traceBuilder)
+    BoundedModelChecker(SolverFactory& solverFactory)
+        : mSolverFactory(solverFactory)
     {}
 
-    std::unique_ptr<SafetyResult> check(AutomataSystem& system) override;
+    std::unique_ptr<VerificationResult> check(
+        AutomataSystem& system,
+        CfaTraceBuilder& traceBuilder
+    ) override;
 
 private:
     SolverFactory& mSolverFactory;
-    TraceBuilder<Location*, std::vector<VariableAssignment>>* mTraceBuilder;
 };
 
 }

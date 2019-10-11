@@ -3,6 +3,7 @@
 
 #include "gazer/LLVM/Instrumentation/Check.h"
 #include "gazer/LLVM/LLVMFrontendSettings.h"
+#include "gazer/Verifier/VerificationAlgorithm.h"
 
 #include <llvm/Pass.h>
 #include <llvm/IR/LegacyPassManager.h>
@@ -31,11 +32,21 @@ public:
     /// Registers the common preprocessing analyses and transforms of the 
     /// verification pipeline into the pass manager. After executing the
     /// registered passes, the input LLVM module will be optimized, and the
-    /// translated automata system will be available.
+    /// translated automata system will be available, and if there is a set
+    /// backend algorithm, it will be run.
     void registerVerificationPipeline();
 
-    /// Register an arbitrary pass into the pipeline.
+    /// Registers an arbitrary pass into the pipeline.
     void registerPass(llvm::Pass* pass);
+
+    /// Sets the backend algorithm to be used in the verification process.
+    /// The LLVMFrontend instance will take ownership of the backend object.
+    /// Note: this function *must* be called before `registerVerificationPipeline`!
+    void setBackendAlgorithm(VerificationAlgorithm* backend)
+    {
+        assert(mBackendAlgorithm == nullptr && "Can only register one backend algorithm!");
+        mBackendAlgorithm.reset(backend);
+    }
 
     /// Runs the registered LLVM pass pipeline.
     void run();
@@ -51,6 +62,7 @@ private:
     void registerLateOptimizations();
     void registerInliningIfEnabled();
     void registerAutomataTranslation();
+    void runVerificationBackend();
 
 private:
     GazerContext& mContext;
@@ -60,6 +72,7 @@ private:
     llvm::legacy::PassManager mPassManager;
 
     LLVMFrontendSettings mSettings;
+    std::unique_ptr<VerificationAlgorithm> mBackendAlgorithm = nullptr; 
 };
 
 }

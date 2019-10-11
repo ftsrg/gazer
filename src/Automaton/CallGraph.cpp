@@ -7,6 +7,7 @@
 using namespace gazer;
 
 CallGraph::CallGraph(AutomataSystem& system)
+    : mSystem(system)
 {
     // Create a call graph node for every procedure
     for (Cfa& cfa : system) {
@@ -44,9 +45,9 @@ bool CallGraph::isTailRecursive(Cfa* cfa)
     return isRecursive && isTail;
 }
 
-void CallGraph::removeAutomaton(Cfa* cfa)
+auto CallGraph::lookupNode(Cfa* cfa) -> Node*
 {
-    auto& node = mNodes[cfa];
+    return mNodes[cfa].get();
 }
 
 CallGraph::~CallGraph()
