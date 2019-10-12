@@ -7,12 +7,8 @@
 namespace gazer::theta
 {
 
-class ThetaSettings
+struct ThetaSettings
 {
-public:
-    static ThetaSettings initFromCommandLine();
-
-public:
     // Environment
     std::string thetaCfaPath;
     std::string z3Path;
@@ -32,7 +28,13 @@ public:
 class ThetaVerifier : public VerificationAlgorithm
 {
 public:
+    ThetaVerifier(ThetaSettings settings)
+        : mSettings(std::move(settings))
+    {}
+
     std::unique_ptr<VerificationResult> check(AutomataSystem& system, CfaTraceBuilder& traceBuilder) override;
+private:
+    ThetaSettings mSettings;
 };
 
 } // end namespace gazer

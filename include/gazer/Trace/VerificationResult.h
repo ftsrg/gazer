@@ -9,6 +9,9 @@ namespace gazer
 class VerificationResult
 {
 public:
+    static constexpr unsigned InvalidErrorCode = 0;
+    static constexpr unsigned GeneralFailure = 1;
+
     enum Status { Success, Fail, Timeout, Unknown, BoundReached, InternalError };
 protected:
     VerificationResult(Status status)

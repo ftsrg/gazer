@@ -19,7 +19,10 @@ Cfa* CloneAutomaton(Cfa* cfa, llvm::StringRef name);
 //===----------------------------------------------------------------------===//
 struct RecursiveToCyclicResult
 {
-    Location* errorLocation;
+    Location* errorLocation = nullptr;
+    Variable* errorFieldVariable = nullptr;
+    llvm::DenseMap<Location*, Location*> inlinedLocations;
+    llvm::DenseMap<Variable*, Variable*> inlinedVariables;
 };
 
 /// Transforms the given recursive CFA into a cyclic one, by inlining all
