@@ -187,7 +187,7 @@ static std::string typeName(Type& type)
     }
 }
 
-void ThetaCfaGenerator::write(llvm::raw_ostream& os)
+void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace)
 {
     //for (auto& cfa : mSystem) {
     //    cfa.view();
@@ -195,6 +195,11 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os)
 
     Cfa* main = mSystem.getMainAutomaton();
     auto recursiveToCyclicResult = TransformRecursiveToCyclic(main);
+
+    nameTrace.errorLocation = recursiveToCyclicResult.errorLocation;
+    nameTrace.errorFieldVariable = recursiveToCyclicResult.errorFieldVariable;
+    nameTrace.inlinedLocations = std::move(recursiveToCyclicResult.inlinedLocations);
+    nameTrace.inlinedVariables = std::move(recursiveToCyclicResult.inlinedVariables);
 
     llvm::DenseMap<Location*, std::unique_ptr<ThetaLocDecl>> locs;
     llvm::DenseMap<Variable*, std::unique_ptr<ThetaVarDecl>> vars;
@@ -209,11 +214,11 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os)
     };
 
     // Add variables
-    // TODO: We currently ignore inputs and outputs...
     for (auto& variable : main->locals()) {
         auto name = validName(variable.getName(), isValidVarName);
         auto type = typeName(variable.getType());
-
+        
+        nameTrace.variables[name] = &variable;
         vars.try_emplace(&variable, std::make_unique<ThetaVarDecl>(name, type));
     }
 
@@ -221,6 +226,7 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os)
         auto name = validName(variable.getName(), isValidVarName);
         auto type = typeName(variable.getType());
 
+        nameTrace.variables[name] = &variable;
         vars.try_emplace(&variable, std::make_unique<ThetaVarDecl>(name, type));
     }
 
@@ -235,7 +241,10 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os)
             flag = ThetaLocDecl::Loc_Final;
         }
 
-        locs.try_emplace(&*loc, std::make_unique<ThetaLocDecl>("loc" + std::to_string(loc->getId()), flag));
+        auto locName = "loc" + std::to_string(loc->getId());
+
+        nameTrace.locations[locName] = &*loc;
+        locs.try_emplace(&*loc, std::make_unique<ThetaLocDecl>(locName, flag));
     }
 
     // Add edges
@@ -260,7 +269,7 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os)
                 }
             }
         } else if (auto callEdge = dyn_cast<CallTransition>(&*edge)) {
-            // ...
+            llvm_unreachable("CallTransitions are not supported in theta CFAs!");
         }
 
         edges.emplace_back(std::make_unique<ThetaEdgeDecl>(source, target, std::move(stmts)));
@@ -329,6 +338,7 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os)
     }
 
     os << "}\n";
+    os.flush();
 }
 
 std::string ThetaCfaGenerator::validName(std::string name, std::function<bool(const std::string&)> isUnique)

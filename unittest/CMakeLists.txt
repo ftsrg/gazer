@@ -10,6 +10,7 @@ add_subdirectory(Core)
 add_subdirectory(Automaton)
 add_subdirectory(SolverZ3)
 add_subdirectory(LLVM)
+add_subdirectory(Support)
 add_subdirectory(tools/gazer-theta)
 
 add_custom_target(check-unit

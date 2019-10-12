@@ -33,7 +33,9 @@ private:
     CallGraph mCallGraph;
     llvm::SmallVector<CallTransition*, 8> mTailRecursiveCalls;
     Location* mError;
-    Variable* mErrorFieldVariable;
+    Variable* mErrorFieldVariable;;
+    llvm::DenseMap<Location*, Location*> mInlinedLocations;
+    llvm::DenseMap<Variable*, Variable*> mInlinedVariables;
     std::unique_ptr<ExprBuilder> mExprBuilder;
     unsigned mInlineCnt = 0;
 };
@@ -64,7 +66,12 @@ RecursiveToCyclicResult RecursiveToCyclicTransformer::transform()
     // Calculate the new call graph and remove unneeded automata.
     //mCallGraph = CallGraph(mRoot->getParent());
 
-    return { mError };
+    return {
+        mError,
+        mErrorFieldVariable,
+        std::move(mInlinedLocations),
+        std::move(mInlinedVariables)
+    };
 }
 
 void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm::Twine suffix)
@@ -83,6 +90,7 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
             auto varname = (local.getName() + suffix).str();
             auto newLocal = mRoot->createLocal(varname, local.getType());
             oldVarToNew[&local] = newLocal;
+            mInlinedVariables[newLocal] = &local;
             rewrite[&local] = newLocal->getRefExpr();
         }
     }
@@ -95,6 +103,7 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
             auto varname = (input->getName() + suffix).str();
             auto newInput = mRoot->createLocal(varname, input->getType());
             oldVarToNew[input] = newInput;
+            mInlinedVariables[newInput] = input;
             rewrite[input] = newInput->getRefExpr();
         }
     }
@@ -103,6 +112,7 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
         Variable* output = callee->getOutput(i);
         auto newOutput = call->getOutputArgument(i).getVariable();
         oldVarToNew[output] = newOutput;
+        mInlinedVariables[newOutput] = output;
         rewrite[output] = newOutput->getRefExpr();
     }
 
@@ -110,6 +120,7 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
     for (auto& origLoc : callee->nodes()) {
         auto newLoc = mRoot->createLocation();
         locToLocMap[&*origLoc] = newLoc;
+        mInlinedLocations[newLoc] = &*origLoc;
         if (origLoc->isError()) {
             mRoot->createAssignTransition(newLoc, mError, mExprBuilder->True(), {
                 { mErrorFieldVariable, callee->getErrorFieldExpr(origLoc.get()) }
@@ -240,7 +251,7 @@ void RecursiveToCyclicTransformer::addUniqueErrorLocation()
     }
     
     mError = mRoot->createErrorLocation();
-    Variable* mErrorFieldVariable = mRoot->createLocal("__gazer_error_field", intTy);
+    mErrorFieldVariable = mRoot->createLocal("__gazer_error_field", intTy);
 
     if (errors.empty()) {
         // If there are no error locations in the main automaton, they might still exist in a called CFA.
