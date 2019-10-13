@@ -126,7 +126,7 @@ public:
     using CacheMapT = ScopedCache<ExprPtr, Z3AstHandle, std::unordered_map<ExprPtr, Z3AstHandle>>;
     
 public:
-    Z3Solver(GazerContext& context)
+    explicit Z3Solver(GazerContext& context)
         : Solver(context), mSolver(mZ3Context)
     {}
 

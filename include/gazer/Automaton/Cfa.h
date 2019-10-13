@@ -217,24 +217,20 @@ public:
     Cfa& operator=(const Cfa&) = delete;
 
 public:
-    //------------------------- Locations and edges -------------------------//
+    //===----------------------------------------------------------------------===//
+    // Locations and edges
     Location* createLocation();
     Location* createErrorLocation();
 
-    AssignTransition* createAssignTransition(Location* source, Location* target);
-
     AssignTransition* createAssignTransition(
-        Location* source, Location* target,
-        const ExprPtr& guard, std::vector<VariableAssignment> assignments
+        Location* source, Location* target, ExprPtr guard = nullptr, std::vector<VariableAssignment> assignments = {}
     );
 
     AssignTransition* createAssignTransition(
         Location* source, Location* target, std::vector<VariableAssignment> assignments
-    );
-
-    AssignTransition* createAssignTransition(
-        Location* source, Location* target, const ExprPtr& guard
-    );
+    ) {
+        return createAssignTransition(source, target, nullptr, assignments);
+    }
 
     CallTransition* createCallTransition(
         Location* source, Location* target, const ExprPtr& guard,
@@ -246,18 +242,20 @@ public:
         Cfa* callee, std::vector<ExprPtr> inputArgs, std::vector<VariableAssignment> outputArgs
     );
 
+    //===----------------------------------------------------------------------===//
     // Variable handling
 
     Variable* createInput(llvm::StringRef name, Type& type);
     Variable* createLocal(llvm::StringRef name, Type& type);
 
-    /// Mark an already existing variable as an output.
+    /// Marks an already existing variable as an output.
     void addOutput(Variable* variable);
 
     void addErrorCode(Location* location, ExprPtr errorCodeExpr);
     ExprPtr getErrorFieldExpr(Location* location);
 
-    //-------------------------- Iterator support ---------------------------//
+    //===----------------------------------------------------------------------===//
+    // Iterator support
     using node_iterator = std::vector<std::unique_ptr<Location>>::iterator;
     using const_node_iterator = std::vector<std::unique_ptr<Location>>::const_iterator;
 
@@ -321,7 +319,8 @@ public:
         return llvm::make_range(local_begin(), local_end());
     }
 
-    //------------------------------- Others --------------------------------//
+    //===----------------------------------------------------------------------===//
+    // Others
     llvm::StringRef getName() const { return mName; }
     Location* getEntry() const { return mEntry; }
     Location* getExit() const { return mExit; }
@@ -416,7 +415,6 @@ public:
 
 public:
     Cfa* createCfa(std::string name);
-    Cfa* createNestedCfa(Cfa* parent, std::string name);
 
     using iterator = boost::indirect_iterator<std::vector<std::unique_ptr<Cfa>>::iterator>;
     using const_iterator = boost::indirect_iterator<std::vector<std::unique_ptr<Cfa>>::const_iterator>;

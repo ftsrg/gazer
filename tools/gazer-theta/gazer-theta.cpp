@@ -1,10 +1,7 @@
-#include "lib/ThetaCfaGenerator.h"
 #include "lib/ThetaVerifier.h"
 
 #include "gazer/LLVM/LLVMFrontend.h"
 #include "gazer/Core/GazerContext.h"
-#include "gazer/LLVM/Automaton/ModuleToAutomata.h"
-
 
 #include <llvm/IR/Module.h>
 

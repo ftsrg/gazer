@@ -1,5 +1,5 @@
-#ifndef _GAZER_CORE_SOLVER_SOLVER_H
-#define _GAZER_CORE_SOLVER_SOLVER_H
+#ifndef GAZER_CORE_SOLVER_SOLVER_H
+#define GAZER_CORE_SOLVER_SOLVER_H
 
 #include "gazer/Core/Expr.h"
 #include "gazer/Core/Valuation.h"
@@ -19,7 +19,7 @@ public:
     };
 
 public:
-    Solver(GazerContext& context)
+    explicit Solver(GazerContext& context)
         : mContext(context)
     {}
 
@@ -33,7 +33,7 @@ public:
         }
     }
 
-    void add(ExprPtr expr) {
+    void add(const ExprPtr& expr) {
         assert(expr->getType().isBoolType() && "Can only add bool expressions to a solver.");
         mStatCount++;
         addConstraint(expr);
@@ -54,7 +54,7 @@ public:
     virtual void push() = 0;
     virtual void pop() = 0;
 
-    virtual ~Solver() {}
+    virtual ~Solver() = default;
 
 protected:
     virtual void addConstraint(ExprPtr expr) = 0;

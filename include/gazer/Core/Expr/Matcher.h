@@ -45,7 +45,7 @@
 
 #include <bitset>
 
-namespace gazer { namespace PatternMatch {
+namespace gazer::PatternMatch {
 
 /// Match a given expression to a pattern
 template<typename ExprTy, typename Pattern>
@@ -544,7 +544,6 @@ m_And(const FirstTy& first, const SecondTy& second, const Ts&... patterns)
     >(std::make_tuple(first, second, patterns...));
 }
 
-} // end namespace PatternMatch
 } // end namespace gazer
 
 #endif

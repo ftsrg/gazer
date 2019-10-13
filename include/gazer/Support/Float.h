@@ -1,5 +1,5 @@
-#ifndef _GAZER_SUPPORT_FLOAT_H
-#define _GAZER_SUPPORT_FLOAT_H
+#ifndef GAZER_SUPPORT_FLOAT_H
+#define GAZER_SUPPORT_FLOAT_H
 
 #include <cstdint>
 #include <cstring>

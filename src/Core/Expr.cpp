@@ -1,10 +1,4 @@
-#include "gazer/Core/Expr.h"
-#include "gazer/Core/ExprTypes.h"
-
 #include "GazerContextImpl.h"
-
-#include <llvm/Support/raw_ostream.h>
-#include <gazer/Core/ExprTypes.h>
 
 using namespace gazer;
 
@@ -36,7 +30,7 @@ std::size_t gazer::expr_kind_prime(Expr::ExprKind kind)
     }
 
     llvm_unreachable("Invalid expression kind.");
-};
+}
 
 //------------------- Expression creation and destruction -------------------//
 
@@ -117,9 +111,9 @@ auto ArithmeticExpr<Kind>::Create(const ExprPtr& left, const ExprPtr& right) -> 
     assert(leftTy == right->getType() && "Arithmetic expression operand types must match!");
     if constexpr (is_bv_only(Kind)) {
         assert(leftTy.isBvType() && "Can only perform bitvector arithmetic on Bv types!");
-    } else if constexpr (is_arithmetic_only(Kind)) {
+    } else if constexpr (is_arithmetic_only(Kind)) { // NOLINT
         assert(leftTy.isArithmetic() && "Can only perform bitvector arithmetic on Bv types!");
-    } else {
+    } else { // NOLINT
         assert(
             (leftTy.isBvType() || leftTy.isIntType() || leftTy.isRealType())
             && "Can only perform arithmetic operations on Bv, Int or Real types!"
@@ -205,10 +199,10 @@ auto BvFpCastExpr<Kind>::Create(const ExprPtr& operand, Type& type, const llvm::
     if constexpr (is_bv_to_fp(Kind)) {
         assert(operand->getType().isBvType() && "Can only do BvToFp cast on bitvector inputs!");
         assert(type.isFloatType() && "Can only do BvToFp casts to floating-point targets!");
-    } else if constexpr (is_fp_to_bv(Kind)) {
+    } else if constexpr (is_fp_to_bv(Kind)) {   // NOLINT
         assert(operand->getType().isFloatType() && "Can only do FpToBv cast on floating-point inputs!");
         assert(type.isBvType() && "Can only do FpToBv casts to bitvector targets!");
-    } else if constexpr (Kind == Expr::FCast) {
+    } else if constexpr (Kind == Expr::FCast) { // NOLINT
         assert(operand->getType().isFloatType() && "Can only do FCast cast on float inputs!");
         assert(type.isFloatType() && "Can only do FCast casts to floating-point targets!");
 
@@ -256,7 +250,7 @@ ExprRef<ArrayReadExpr> ArrayReadExpr::Create(
     ExprPtr array, ExprPtr index
 ) {
     assert(array->getType().isArrayType() && "ArrayRead only works on arrays.");
-    ArrayType* arrTy = llvm::cast<ArrayType>(&array->getType());
+    auto arrTy = llvm::cast<ArrayType>(&array->getType());
     assert(arrTy->getIndexType() == index->getType() &&
         "Array index type and index types must match.");
 
@@ -268,7 +262,7 @@ ExprRef<ArrayWriteExpr> ArrayWriteExpr::Create(
     ExprPtr array, ExprPtr index, ExprPtr value
 ) {
     assert(array->getType().isArrayType() && "ArrayRead only works on arrays.");
-    ArrayType* arrTy = llvm::cast<ArrayType>(&array->getType());
+    auto arrTy = llvm::cast<ArrayType>(&array->getType());
     assert(arrTy->getIndexType() == index->getType() &&
         "Array index type and index types must match.");
     auto& context = arrTy->getContext();

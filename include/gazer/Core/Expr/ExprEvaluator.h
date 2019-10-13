@@ -1,5 +1,5 @@
-#ifndef _GAZER_CORE_EXPR_EXPREVALUATOR_H
-#define _GAZER_CORE_EXPR_EXPREVALUATOR_H
+#ifndef GAZER_CORE_EXPR_EXPREVALUATOR_H
+#define GAZER_CORE_EXPR_EXPREVALUATOR_H
 
 #include "gazer/Core/Expr/ExprWalker.h"
 #include "gazer/Core/Expr/ExprBuilder.h"
@@ -100,7 +100,7 @@ protected:
 class ExprEvaluator : public ExprEvaluatorBase
 {
 public:
-    ExprEvaluator(Valuation valuation)
+    explicit ExprEvaluator(Valuation valuation)
         : mValuation(std::move(valuation))
     {}
 

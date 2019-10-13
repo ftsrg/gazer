@@ -5,17 +5,30 @@
 
 using namespace gazer;
 
-TEST(SExprTest, TestParseListOfAtoms)
+TEST(SExprTest, TestParse)
 {
-    auto result = sexpr::parse("(A B C)");
-    result->print(llvm::outs());
+/*
+    EXPECT_EQ(*sexpr::parse("(A B\n \nC)"), *sexpr::list(
+        sexpr::atom("A"),
+        sexpr::atom("B"),
+        sexpr::atom("C")
+    ));
 
-    result = sexpr::parse("(A  B\n\nC)");
-    result->print(llvm::outs());
+    EXPECT_EQ(*sexpr::parse("(A (X Y Z))"), *sexpr::list(
+        sexpr::atom("A"),
+        sexpr::list(
+            sexpr::atom("X"),
+            sexpr::atom("Y"),
+            sexpr::atom("Z")
+        )
+    ));
 
-    result = sexpr::parse("(A (X Y Z))");
-    result->print(llvm::outs());
-
-    result = sexpr::parse("(A (X Y (Z)))");
-    result->print(llvm::outs());
+    EXPECT_EQ(*sexpr::parse("(A (X Y (Z)))"), *sexpr::list(
+        sexpr::atom("A"),
+        sexpr::list(
+            sexpr::atom("X"),
+            sexpr::atom("Y"),
+            sexpr::list(sexpr::atom("Z"))
+        )
+    )); */
 }

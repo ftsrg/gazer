@@ -19,6 +19,8 @@ using namespace gazer::theta;
 namespace
 {
 
+llvm::cl::opt<bool> PrintRawCex("print-raw-cex", llvm::cl::desc("Print the raw counterexample from theta."));
+
 class ThetaVerifierImpl
 {
 public:
@@ -31,13 +33,13 @@ public:
     /// Runs the theta model checker on the input file.
     std::unique_ptr<VerificationResult> execute(llvm::StringRef input);
 
-    std::unique_ptr<VerificationResult> parseResult(llvm::StringRef str);
-
 private:
     AutomataSystem& mSystem;
     ThetaSettings mSettings;
     CfaTraceBuilder& mTraceBuilder;
     ThetaNameMapping mNameMapping;
+
+    std::unique_ptr<Trace> parseCex(llvm::StringRef cex, unsigned* errorCode);
 };
 
 } // end anonymous namespace
@@ -139,116 +141,19 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
         auto cexPos = thetaOutput.find("(Trace");
         if (cexPos == llvm::StringRef::npos) {
             llvm::errs() << "Theta returned no parseable counterexample.\n";
-            return VerificationResult::CreateFail(1, nullptr);
+            return VerificationResult::CreateFail(VerificationResult::GeneralFailureCode, nullptr);
         }
 
         auto cex = thetaOutput.substr(cexPos).trim();
-        auto trace = sexpr::parse(cex);
 
-        std::vector<Location*> states;
-        std::vector<std::vector<VariableAssignment>> actions;
-
-        assert(trace->isList());
-
-        llvm::StringRef initLocName = trace->asList()[1]->asList()[1]->asAtom();
-
-        Location* initLoc = mNameMapping.locations[initLocName];
-
-        states.push_back(mNameMapping.locations[initLocName]);
-
-        for (size_t i = 3; i < trace->asList().size(); i += 2) {
-            auto& stateList = trace->asList()[i]->asList();
-            if (stateList[0]->asAtom() != "CfaState") {
-                llvm::errs() << "Could not parse theta counterexample.\n";
-                llvm::errs() << "Raw counterexample is: " << thetaOutput << "\n";
-                return VerificationResult::CreateFail(VerificationResult::GeneralFailure, nullptr);
-            }
-
-            // Theta may insert unnamed locations, thus the format is either
-            // (CfaState locName (ExplState ...)) or (CfaState (ExplState ...)).
-            // In the latter case, we must skip this location as it is not present anywhere.
-            if (stateList[1]->isList()) {
-                continue;
-            }
-
-            auto& actionList = stateList[2]->asList();
-
-            if (actionList.size() < 2) {
-                actions.push_back({});
-            } else {
-                std::vector<VariableAssignment> assigns;
-                for (size_t j = 1; j < actionList.size(); ++j) {
-                    llvm::StringRef varName = actionList[j]->asList()[0]->asAtom();
-                    llvm::StringRef value = actionList[j]->asList()[1]->asAtom();
-
-                    Variable* variable = mNameMapping.variables.lookup(varName);
-                    assert(variable != nullptr && "Each variable must be present in the theta name mapping!");
-
-                    Variable* origVariable = mNameMapping.inlinedVariables.lookup(variable);
-                    if (origVariable == nullptr) {
-                        origVariable = variable;
-                    }
-
-                    ExprPtr rhs;
-
-                    llvm::APInt intVal;
-                    if (!value.getAsInteger(10, intVal)) {
-                        if (auto intTy = llvm::dyn_cast<IntType>(&origVariable->getType())) {
-                            rhs = IntLiteralExpr::Get(*intTy, intVal.getSExtValue());
-                        } else if (auto bvTy = llvm::dyn_cast<BvType>(&origVariable->getType())) {
-                            rhs = BvLiteralExpr::Get(*bvTy, intVal.zextOrTrunc(bvTy->getWidth()));
-                        } else {
-                            llvm_unreachable("Invalid integral type!");
-                        }
-                    } else if (value == "true" || value == "false") {
-                        assert(origVariable->getType().isBoolType());
-                        rhs = BoolLiteralExpr::Get(origVariable->getContext(), value == "true");
-                    } else {
-                        llvm::errs() << "Could not parse theta counterexample.\n";
-                        llvm::errs() << "Raw counterexample is: " << thetaOutput << "\n";
-                        return VerificationResult::CreateFail(VerificationResult::GeneralFailure, nullptr);
-                    }
-
-                    assigns.push_back({origVariable, rhs});
-                }
-
-                actions.push_back(assigns);
-            }
-
-            llvm::StringRef locName = stateList[1]->asAtom();
-
-            Location* loc = mNameMapping.locations.lookup(locName);
-            Location* origLoc = mNameMapping.inlinedLocations.lookup(loc);
-
-            if (origLoc == nullptr) {
-                origLoc = loc;
-            }
-
-            states.push_back(origLoc);
+        if (PrintRawCex) {
+            llvm::outs() << cex << "\n";
         }
 
-        // Find the value of the error field variable and extract the error code.
-        auto& lastAction = actions.back();
-        auto errAssign = std::find_if(lastAction.begin(), lastAction.end(), [this](VariableAssignment& assignment) {
-            return assignment.getVariable() == mNameMapping.errorFieldVariable;
-        });
+        unsigned ec = VerificationResult::GeneralFailureCode;
+        auto trace = this->parseCex(cex, &ec);
 
-        assert(errAssign != lastAction.end()
-            && "The error field variable must be present in the last element of the trace!");
-
-        auto errorExpr = llvm::dyn_cast_or_null<LiteralExpr>(errAssign->getValue());
-        assert(errorExpr != nullptr && "The error field must be present in the trace as a literal expression!");
-
-        unsigned ec = 0;
-        if (auto bvLit = llvm::dyn_cast<BvLiteralExpr>(errorExpr)) {
-            ec = bvLit->getValue().getLimitedValue();
-        } else if (auto intLit = llvm::dyn_cast<IntLiteralExpr>(errorExpr)) {
-            ec = intLit->getValue();
-        } else {
-            llvm_unreachable("Invalid error field type!");
-        }
-
-        return VerificationResult::CreateFail(ec, mTraceBuilder.build(states, actions));
+        return VerificationResult::CreateFail(ec, std::move(trace));
     }
 
     return VerificationResult::CreateUnknown();
@@ -258,6 +163,122 @@ void ThetaVerifierImpl::writeSystem(llvm::raw_ostream& os)
 {
     theta::ThetaCfaGenerator generator{mSystem};
     generator.write(os, mNameMapping);
+}
+
+static void reportInvalidCex(llvm::StringRef cex)
+{
+    llvm::errs() << "Could not parse theta counterexample.\n";
+    llvm::errs() << "Raw counterexample is: " << cex << "\n";
+}
+
+std::unique_ptr<Trace> ThetaVerifierImpl::parseCex(llvm::StringRef cex, unsigned* errorCode)
+{
+    // TODO: The whole parsing process is very fragile. We should introduce some proper error cheks.
+    auto trace = sexpr::parse(cex);
+    assert(trace->isList());
+
+    std::vector<Location*> states;
+    std::vector<std::vector<VariableAssignment>> actions;
+    llvm::StringRef initLocName = trace->asList()[1]->asList()[1]->asAtom();
+
+    states.push_back(mNameMapping.locations[initLocName]);
+
+    for (size_t i = 3; i < trace->asList().size(); i += 2) {
+        auto& stateList = trace->asList()[i]->asList();
+        if (stateList[0]->asAtom() != "CfaState") {
+            reportInvalidCex(cex);
+            return nullptr;
+        }
+
+        // Theta may insert unnamed locations, thus the format is either
+        // (CfaState locName (ExplState ...)) or (CfaState (ExplState ...)).
+        // In the latter case, we must skip this location as it is not present.
+        // anywhere within gazer.
+        if (stateList[1]->isList()) {
+            continue;
+        }
+
+        auto& actionList = stateList[2]->asList();
+
+        if (actionList.size() < 2) {
+            // `(CfaState (ExplState))`, nothing to do here.
+            actions.push_back({});
+        } else {
+            std::vector<VariableAssignment> assigns;
+            for (size_t j = 1; j < actionList.size(); ++j) {
+                llvm::StringRef varName = actionList[j]->asList()[0]->asAtom();
+                llvm::StringRef value = actionList[j]->asList()[1]->asAtom();
+
+                Variable* variable = mNameMapping.variables.lookup(varName);
+                assert(variable != nullptr && "Each variable must be present in the theta name mapping!");
+
+                Variable* origVariable = mNameMapping.inlinedVariables.lookup(variable);
+                if (origVariable == nullptr) {
+                    origVariable = variable;
+                }
+
+                ExprPtr rhs;
+
+                llvm::APInt intVal;
+                if (!value.getAsInteger(10, intVal)) {
+                    if (auto intTy = llvm::dyn_cast<IntType>(&origVariable->getType())) {
+                        rhs = IntLiteralExpr::Get(*intTy, intVal.getSExtValue());
+                    } else if (auto bvTy = llvm::dyn_cast<BvType>(&origVariable->getType())) {
+                        rhs = BvLiteralExpr::Get(*bvTy, intVal.zextOrTrunc(bvTy->getWidth()));
+                    } else {
+                        llvm_unreachable("Invalid integral type!");
+                    }
+                } else if (value == "true" || value == "false") {
+                    assert(origVariable->getType().isBoolType());
+                    rhs = BoolLiteralExpr::Get(origVariable->getContext(), value == "true");
+                } else {
+                    llvm::errs() << "Could not parse theta counterexample.\n";
+                    llvm::errs() << "Raw counterexample is: " << cex << "\n";
+                    return nullptr;
+                }
+
+                assigns.push_back({origVariable, rhs});
+            }
+
+            actions.push_back(assigns);
+        }
+
+        llvm::StringRef locName = stateList[1]->asAtom();
+
+        Location* loc = mNameMapping.locations.lookup(locName);
+        Location* origLoc = mNameMapping.inlinedLocations.lookup(loc);
+
+        if (origLoc == nullptr) {
+            origLoc = loc;
+        }
+
+        states.push_back(origLoc);
+    }
+
+    // Find the value of the error field variable and extract the error code.
+    auto& lastAction = actions.back();
+    auto errAssign = std::find_if(lastAction.begin(), lastAction.end(), [this](VariableAssignment& assignment) {
+        return assignment.getVariable() == mNameMapping.errorFieldVariable;
+    });
+
+    assert(errAssign != lastAction.end()
+        && "The error field variable must be present in the last element of the trace!");
+
+    auto errorExpr = llvm::dyn_cast_or_null<LiteralExpr>(errAssign->getValue());
+    assert(errorExpr != nullptr && "The error field must be present in the trace as a literal expression!");
+
+    unsigned ec = 0;
+    if (auto bvLit = llvm::dyn_cast<BvLiteralExpr>(errorExpr)) {
+        ec = bvLit->getValue().getLimitedValue();
+    } else if (auto intLit = llvm::dyn_cast<IntLiteralExpr>(errorExpr)) {
+        ec = intLit->getValue();
+    } else {
+        llvm_unreachable("Invalid error field type!");
+    }
+
+    *errorCode = ec;
+
+    return mTraceBuilder.build(states, actions);
 }
 
 auto ThetaVerifier::check(AutomataSystem& system, CfaTraceBuilder& traceBuilder)

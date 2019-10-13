@@ -1,7 +1,7 @@
 /// \file This file defines the different base classes for expressions.
 /// For implementing classes, see gazer/Core/ExprTypes.h and gazer/Core/LiteralExpr.h.
-#ifndef _GAZER_CORE_EXPR_H
-#define _GAZER_CORE_EXPR_H
+#ifndef GAZER_CORE_EXPR_H
+#define GAZER_CORE_EXPR_H
 
 #include "gazer/Core/Type.h"
 
@@ -233,7 +233,7 @@ public:
     std::size_t getHashCode() const;
 
     virtual void print(llvm::raw_ostream& os) const = 0;
-    virtual ~Expr() {}
+    virtual ~Expr() = default;
 
 public:
     static llvm::StringRef getKindName(ExprKind kind);
@@ -323,11 +323,11 @@ public:
     bool operator==(const Variable& other) const;
     bool operator!=(const Variable& other) const { return !operator==(other); }
 
-    std::string getName() const { return mName; }
-    Type& getType() const { return mType; }
-    ExprRef<VarRefExpr> getRefExpr() const { return mExpr; }
+    [[nodiscard]] std::string getName() const { return mName; }
+    [[nodiscard]] Type& getType() const { return mType; }
+    [[nodiscard]] ExprRef<VarRefExpr> getRefExpr() const { return mExpr; }
 
-    GazerContext& getContext() const { return mType.getContext(); }
+    [[nodiscard]] GazerContext& getContext() const { return mType.getContext(); }
 
 private:
     std::string mName;
@@ -340,12 +340,12 @@ class VarRefExpr final : public Expr
     friend class Variable;
     friend class ExprStorage;
 private:
-    VarRefExpr(Variable* variable);
+    explicit VarRefExpr(Variable* variable);
 
 public:
     Variable& getVariable() const { return *mVariable; }
 
-    virtual void print(llvm::raw_ostream& os) const override;
+    void print(llvm::raw_ostream& os) const override;
 
     static bool classof(const Expr* expr) {
         return expr->getKind() == Expr::VarRef;
@@ -364,9 +364,9 @@ public:
     {}
 
     VariableAssignment(Variable *variable, ExprPtr value)
-        : mVariable(variable), mValue(value)
+        : mVariable(variable), mValue(std::move(value))
     {
-        assert(variable->getType() == value->getType());
+        assert(variable->getType() == mValue->getType());
     }
 
     bool operator==(const VariableAssignment& other) const {
@@ -375,8 +375,8 @@ public:
 
     bool operator!=(const VariableAssignment& other) const { return !operator==(other); }
 
-    Variable* getVariable() const { return mVariable; }
-    ExprPtr getValue() const { return mValue; }
+    [[nodiscard]] Variable* getVariable() const { return mVariable; }
+    [[nodiscard]] ExprPtr getValue() const { return mValue; }
 
     void print(llvm::raw_ostream& os) const;
 
@@ -398,8 +398,8 @@ protected:
     NonNullaryExpr(ExprKind kind, Type& type, InputIterator begin, InputIterator end)
         : Expr(kind, type), mOperands(begin, end)
     {
-        assert(mOperands.size() >= 1 && "Non-nullary expressions must have at least one operand.");
-        assert(std::none_of(begin, end, [](ExprPtr elem) { return elem == nullptr; })
+        assert(!mOperands.empty() && "Non-nullary expressions must have at least one operand.");
+        assert(std::none_of(begin, end, [](const ExprPtr& elem) { return elem == nullptr; })
             && "Non-nullary expression operands cannot be null!"
         );
     }

@@ -1,5 +1,4 @@
 #include "gazer/LLVM/Trace/TestHarnessGenerator.h"
-#include "gazer/LLVM/Utils/LLVMType.h"
 #include "gazer/Core/LiteralExpr.h"
 
 #include <llvm/ADT/SmallVector.h>

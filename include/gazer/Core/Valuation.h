@@ -1,5 +1,5 @@
-#ifndef _GAZER_CORE_VALUATION_H
-#define _GAZER_CORE_VALUATION_H
+#ifndef GAZER_CORE_VALUATION_H
+#define GAZER_CORE_VALUATION_H
 
 #include "gazer/Core/Expr.h"
 

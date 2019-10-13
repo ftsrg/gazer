@@ -259,7 +259,7 @@ void ModuleToCfa::createAutomata()
             for (BasicBlock* bb : loopBlocks) {
                 for (Instruction& inst : *bb) {
                     Variable* variable = nullptr;
-                    std::string localName = "";
+                    std::string localName;
 
                     if (inst.getOpcode() == Instruction::PHI && bb == loop->getHeader()) {
                         // PHI nodes of the entry block should also be inputs.
@@ -458,7 +458,7 @@ void BlocksToCfa::encode()
             }
         }
 
-        mCfa->createAssignTransition(entry, exit, assignments);
+        mCfa->createAssignTransition(entry, exit, mExprBuilder.True(), assignments);
 
         // Handle the outgoing edges
         this->handleTerminator(bb, entry, exit);
@@ -561,10 +561,10 @@ void BlocksToCfa::handleTerminator(const llvm::BasicBlock* bb, Location* entry, 
         handleSuccessor(swi->getDefaultDest(), prevConds, bb, exit);
     } else if (auto ret = llvm::dyn_cast<ReturnInst>(terminator)) {
         if (ret->getReturnValue() == nullptr) {
-            mCfa->createAssignTransition(exit, mCfa->getExit(), mExprBuilder.True());
+            mCfa->createAssignTransition(exit, mCfa->getExit());
         } else {
             Variable* retval = mCfa->findOutputByName(ModuleToCfa::FunctionReturnValueName);
-            mCfa->createAssignTransition(exit, mCfa->getExit(), mExprBuilder.True(), {
+            mCfa->createAssignTransition(exit, mCfa->getExit(), {
                 VariableAssignment{ retval, operand(ret->getReturnValue()) }
             });
         }
@@ -886,7 +886,7 @@ public:
 
     bool runOnModule(llvm::Module& module) override
     {
-        ModuleToAutomataPass& moduleToCfa = getAnalysis<ModuleToAutomataPass>();
+        auto& moduleToCfa = getAnalysis<ModuleToAutomataPass>();
         AutomataSystem& system = moduleToCfa.getSystem();
 
         system.print(llvm::outs());
@@ -912,7 +912,7 @@ public:
 
     bool runOnModule(llvm::Module& module) override
     {
-        ModuleToAutomataPass& moduleToCfa = getAnalysis<ModuleToAutomataPass>();
+        auto& moduleToCfa = getAnalysis<ModuleToAutomataPass>();
         AutomataSystem& system = moduleToCfa.getSystem();
 
         for (Cfa& cfa : system) {
@@ -945,7 +945,6 @@ ExprPtr CfaToLLVMTrace::getExpressionForValue(const Cfa* parent, const llvm::Val
 
     return expr;
 }
-
 
 Variable* CfaToLLVMTrace::getVariableForValue(const Cfa* parent, const llvm::Value* value)
 {

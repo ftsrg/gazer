@@ -1,5 +1,5 @@
-#ifndef _GAZER_SUPPORT_DENSEMAPKEYINFO_H
-#define _GAZER_SUPPORT_DENSEMAPKEYINFO_H
+#ifndef GAZER_SUPPORT_DENSEMAPKEYINFO_H
+#define GAZER_SUPPORT_DENSEMAPKEYINFO_H
 
 #include <llvm/ADT/APInt.h>
 #include <llvm/ADT/Hashing.h>
@@ -7,17 +7,15 @@
 namespace gazer
 {
 
-/**
- * A DenseMap key information struct for APInt keys.
- * 
- * NOTE: this class does not allow 1-width APInts as keys,
- * as they are used for empty and tombstone identifications.
- * 
- * In the LLVM libraries, DenseMap key information for APInts
- * is hidden in LLVMContextImpl.
- * Furthermore, constructors which would allow the construction
- * of 0-width APInts are also unaccessible from the outside.
- */
+/// \brief A DenseMap key information struct for APInt keys.
+///
+/// NOTE: this class does not allow 1-width APInts as keys,
+/// as they are used for empty and tombstone identifications.
+///
+/// In the LLVM libraries, DenseMap key information for APInts
+/// is hidden in LLVMContextImpl.
+/// Furthermore, constructors which would allow the construction
+/// of 0-width APInts are also unaccessible from the outside.
 struct DenseMapAPIntKeyInfo
 {
     static inline llvm::APInt getEmptyKey()
@@ -41,11 +39,9 @@ struct DenseMapAPIntKeyInfo
     }
 };
 
-/**
- * A DenseMap key information struct for APFloat keys.
- * 
- * Based on the implementation found in LLVMContextImpl.h
- */
+/// \brief A DenseMap key information struct for APFloat keys.
+///
+/// Based on the implementation found in LLVMContextImpl.h
 struct DenseMapAPFloatKeyInfo
 {
     static inline llvm::APFloat getEmptyKey() {
@@ -64,6 +60,6 @@ struct DenseMapAPFloatKeyInfo
     }
 };
 
-}
+} // end namespace gazer
 
 #endif

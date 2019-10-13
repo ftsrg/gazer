@@ -7,16 +7,6 @@ using namespace llvm;
 
 namespace
 {
-    cl::opt<ElimVarsLevel> ElimVarsLevelOpt("elim-vars", cl::desc("Level for variable elimination:"),
-        cl::values(
-            clEnumValN(ElimVarsLevel::Off, "off", "Do not eliminate variables"),
-            clEnumValN(ElimVarsLevel::Normal, "normal", "Eliminate variables having only one use"),
-            clEnumValN(ElimVarsLevel::Aggressive, "aggressive", "Eliminate all eligible variables")
-        ),
-        cl::init(ElimVarsLevel::Normal)
-    );
-
-    cl::opt<bool> ArithInts("math-int", cl::desc("Use mathematical unbounded integers instead of bitvectors."));
 } // end anonymous namespace
 
 namespace gazer
@@ -24,21 +14,6 @@ namespace gazer
     // NoSimplifyExpr is a global setting, defined in BoundedModelChecker.cpp
     extern cl::opt<bool> NoSimplifyExpr;
 } // end namespace gazer
-
-LLVMFrontendSettings LLVMFrontendSettings::initFromCommandLine()
-{
-    LLVMFrontendSettings settings;
-    settings.setElimVarsLevel(ElimVarsLevelOpt);
-    settings.setSimplifyExpr(!NoSimplifyExpr);
-
-    if (ArithInts) {
-        settings.setIntRepresentation(IntRepresentation::Integers);
-    } else {
-        settings.setIntRepresentation(IntRepresentation::BitVectors);
-    }
-
-    return settings;
-}
 
 std::string LLVMFrontendSettings::toString() const
 {

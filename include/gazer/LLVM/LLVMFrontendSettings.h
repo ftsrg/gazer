@@ -35,14 +35,16 @@ enum class ElimVarsLevel
 class LLVMFrontendSettings
 {
 public:
-    LLVMFrontendSettings(
+    explicit LLVMFrontendSettings(
         ElimVarsLevel elimVars = ElimVarsLevel::Off,
         LoopRepresentation loops = LoopRepresentation::Recursion,
         IntRepresentation ints = IntRepresentation::BitVectors,
         FloatRepresentation floats = FloatRepresentation::Fpa,
-        bool simplifyExpr = true
+        bool simplifyExpr = true,
+        bool trace = true
     )
-        : mElimVars(elimVars), mLoops(loops), mInts(ints), mFloats(floats), mSimplifyExpr(simplifyExpr)
+        : mElimVars(elimVars), mLoops(loops), mInts(ints), mFloats(floats),
+        mSimplifyExpr(simplifyExpr), mTrace(trace)
     {}
 
     static LLVMFrontendSettings initFromCommandLine();
@@ -57,11 +59,13 @@ public:
     void setIntRepresentation(IntRepresentation value) { mInts = value; }
     void setFloatRepresentation(FloatRepresentation value) { mFloats = value; }
     void setSimplifyExpr(bool value) { mSimplifyExpr = value; }
+    void setTrace(bool trace) { mTrace = trace; }
 
     bool isElimVarsOff() const { return mElimVars == ElimVarsLevel::Off; }
     bool isElimVarsNormal() const { return mElimVars == ElimVarsLevel::Normal; }
     bool isElimVarsAggressive() const { return mElimVars == ElimVarsLevel::Aggressive; }
     bool isSimplifyExpr() const { return mSimplifyExpr; }
+    bool isTraceEnabled() const { return mTrace; }
 
     std::string toString() const;
 
@@ -71,6 +75,7 @@ private:
     IntRepresentation mInts;
     FloatRepresentation mFloats;
     bool mSimplifyExpr;
+    bool mTrace;
 };
 
 } // end namespace gazer

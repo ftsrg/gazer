@@ -17,7 +17,7 @@ class Z3SolverFactory : public SolverFactory
 public:
     Z3SolverFactory() = default;
 
-    virtual std::unique_ptr<Solver> createSolver(GazerContext& context) override;
+    std::unique_ptr<Solver> createSolver(GazerContext& context) override;
 };
 
 /// Utility function which transforms an arbitrary Z3 bitvector into LLVM's APInt.

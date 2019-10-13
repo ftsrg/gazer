@@ -16,41 +16,18 @@
 
 #define DEBUG_TYPE "BoundedModelChecker"
 
-namespace gazer
-{
-
-llvm::cl::opt<unsigned> MaxBound("bound", llvm::cl::desc("Maximum iterations for the bounded model checker."), llvm::cl::init(1));
-llvm::cl::opt<unsigned> EagerUnroll("eager-unroll", llvm::cl::desc("Eager unrolling bound."), llvm::cl::init(0));
-
-llvm::cl::opt<bool> NoClearLocs("no-clear-locs", llvm::cl::desc("Do not clear unfeasable locations during verification. Use only for measuerments and debugging."));
-
-llvm::cl::opt<bool> VerifierDebug("debug-verif", llvm::cl::desc("Print verifier debug info"));
-llvm::cl::opt<bool> ViewCfa("view-cfa", llvm::cl::desc("View the generated CFA."));
-llvm::cl::opt<bool> DumpCfa("debug-dump-cfa", llvm::cl::desc("Dump the generated CFA after each inlining step."));
-llvm::cl::opt<bool> DumpFormula("dump-formula", llvm::cl::desc("Dump the solver formula to stderr."));
-llvm::cl::opt<bool> DumpSolver("dump-solver", llvm::cl::desc("Dump the solver instance to stderr."));
-llvm::cl::opt<bool> DumpSolverModel("dump-solver-model", llvm::cl::desc("Dump the raw model from the solver to stderr."));
-
-llvm::cl::opt<bool> PrintSolverStats("print-solver-stats", llvm::cl::desc("Print solver statistics information."));
-
-llvm::cl::opt<bool> PrintTrace("trace", llvm::cl::desc("Print counterexample traces to stdout."));
-
-llvm::cl::opt<bool> NoSimplifyExpr("no-simplify-expr", llvm::cl::desc("Do not simplify expessions."));
-
-} // end namespace gazer
-
 using namespace gazer;
 
 std::unique_ptr<VerificationResult> BoundedModelChecker::check(AutomataSystem& system, CfaTraceBuilder& traceBuilder)
 {
     std::unique_ptr<ExprBuilder> builder;
 
-    if (!NoSimplifyExpr) {
+    if (mSettings.simplifyExpr) {
         builder = CreateFoldingExprBuilder(system.getContext());
     } else {
         builder = CreateExprBuilder(system.getContext());
     }
-    BoundedModelCheckerImpl impl{system, *builder, mSolverFactory, traceBuilder};
+    BoundedModelCheckerImpl impl{system, *builder, mSolverFactory, traceBuilder, mSettings};
 
     auto result = impl.check();
 
@@ -63,11 +40,13 @@ BoundedModelCheckerImpl::BoundedModelCheckerImpl(
     AutomataSystem& system,
     ExprBuilder& builder,
     SolverFactory& solverFactory,
-    CfaTraceBuilder& traceBuilder
+    CfaTraceBuilder& traceBuilder,
+    BmcSettings settings
 ) : mSystem(system),
     mExprBuilder(builder),
     mSolver(solverFactory.createSolver(system.getContext())),
-    mTraceBuilder(traceBuilder)
+    mTraceBuilder(traceBuilder),
+    mSettings(settings)
 {
     // TODO: Clone the main automaton instead of modifying the original.
     mRoot = mSystem.getMainAutomaton();
@@ -152,12 +131,6 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
     // Initialize error field
     bool hasErrorLocation = this->initializeErrorField();
 
-    if (ViewCfa) {
-        for (Cfa& cfa : mSystem) {
-            cfa.view();
-        }
-    }
-
     if (!hasErrorLocation) {
         return VerificationResult::CreateSuccess();
     }
@@ -178,13 +151,13 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
     //  (1) dp[i] := Or(forall p in pred(i): And(dp[p], SMT(p,i)))
     // This way dp[err] will contain the SMT encoding of all bounded error paths.
 
-    if (EagerUnroll > MaxBound) {
+    if (mSettings.eagerUnroll > mSettings.maxBound) {
         llvm::errs() << "ERROR: Eager unrolling bound is larger than maximum bound.\n";
         return VerificationResult::CreateUnknown();
     }
 
     unsigned tmp = 0;
-    for (size_t bound = 0; bound < EagerUnroll; ++bound) {
+    for (size_t bound = 0; bound < mSettings.eagerUnroll; ++bound) {
         mOpenCalls.clear();
         for (auto& entry : mCalls) {
             CallTransition* call = entry.first;
@@ -208,7 +181,7 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
     Stopwatch<> sw;
 
     // Let's do some verification.
-    for (size_t bound = EagerUnroll + 1; bound <= MaxBound; ++bound) {
+    for (size_t bound = mSettings.eagerUnroll + 1; bound <= mSettings.maxBound; ++bound) {
         llvm::outs() << "Iteration " << bound << "\n";
 
         while (true) {
@@ -223,13 +196,13 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
 
             this->push();
             llvm::outs() << "    Transforming formula...\n";
-            if (DumpFormula) {
+            if (mSettings.dumpFormula) {
                 formula->print(llvm::errs());
             }
 
             mSolver->add(formula);
 
-            if (DumpSolver) {
+            if (mSettings.dumpSolver) {
                 mSolver->dump(llvm::errs());
             }
 
@@ -251,13 +224,13 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
                 
                 auto model = mSolver->getModel();
 
-                if (DumpSolverModel) {
+                if (mSettings.dumpSolverModel) {
                     model.print(llvm::errs());
                 }
 
                 std::unique_ptr<Trace> trace;
 
-                if (PrintTrace) {
+                if (mSettings.trace) {
                     std::vector<Location*> states;
                     std::vector<std::vector<VariableAssignment>> actions;
 
@@ -367,14 +340,14 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
 
             llvm::outs() << "    Calculating verification condition...\n";
             formula = this->forwardReachableCondition(lca, mError);
-            if (DumpFormula) {
+            if (mSettings.dumpFormula) {
                 formula->print(llvm::errs());
             }
 
             llvm::outs() << "    Transforming formula...\n";
             mSolver->add(formula);
 
-            if (DumpSolver) {
+            if (mSettings.dumpSolver) {
                 mSolver->dump(llvm::errs());
             }
             llvm::outs() << "    Running solver...\n";
@@ -409,7 +382,7 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
 
                 mStats.NumEndLocs = mRoot->getNumLocations();
                 mStats.NumEndLocals = mRoot->getNumLocals();
-                if (DumpCfa) {
+                if (mSettings.debugDumpCfa) {
                     mRoot->view();
                 }
 
@@ -424,7 +397,7 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
                     mStats.NumEndLocals = mRoot->getNumLocals();
 
                     return VerificationResult::CreateSuccess();
-                }  else if (bound == MaxBound) {
+                }  else if (bound == mSettings.maxBound) {
                     // The maximum bound was reached.
                     llvm::outs() << "Maximum bound is reached.\n";
                     
@@ -833,7 +806,7 @@ void BoundedModelCheckerImpl::printStats(llvm::raw_ostream& os) {
     os << "Number of variables on start: " << mStats.NumBeginLocals << "\n";
     os << "Number of variables on finish: " << mStats.NumEndLocals << "\n";
     os << "------------------------------\n";
-    if (PrintSolverStats) {
+    if (mSettings.printSolverStats) {
         mSolver->printStats(os);
     }
     os << "\n";

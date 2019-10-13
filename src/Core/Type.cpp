@@ -1,11 +1,9 @@
-#include "gazer/Core/Type.h"
-
 #include "GazerContextImpl.h"
+
+#include "gazer/Core/Type.h"
 
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/ADT/APFloat.h>
-#include <llvm/ADT/StringMap.h>
-#include <llvm/ADT/DenseMap.h>
 #include <llvm/Support/FormatVariadic.h>
 
 #include <algorithm>
@@ -117,6 +115,8 @@ auto BvType::Get(GazerContext& context, unsigned width) -> BvType&
         case 16: return pImpl->Bv16Ty;
         case 32: return pImpl->Bv32Ty;
         case 64: return pImpl->Bv64Ty;
+        default:
+            break;
     }
 
     auto result = pImpl->BvTypes.find(width);

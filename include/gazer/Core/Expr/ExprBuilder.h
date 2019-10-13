@@ -1,5 +1,5 @@
-#ifndef _GAZER_CORE_EXPR_EXPRBUILDER_H
-#define _GAZER_CORE_EXPR_EXPRBUILDER_H
+#ifndef GAZER_CORE_EXPR_EXPRBUILDER_H
+#define GAZER_CORE_EXPR_EXPRBUILDER_H
 
 #include "gazer/Core/Expr.h"
 #include "gazer/Core/ExprTypes.h"
@@ -15,14 +15,14 @@ namespace gazer
 class ExprBuilder
 {
 public:
-    ExprBuilder(GazerContext& context)
+    explicit ExprBuilder(GazerContext& context)
         : mContext(context)
     {}
 
-    GazerContext& getContext() const { return mContext; }
+    [[nodiscard]] GazerContext& getContext() const { return mContext; }
 
 public:
-    virtual ~ExprBuilder() {}
+    virtual ~ExprBuilder() = default;
 
     //--- Literals ---//
     ExprRef<BvLiteralExpr> BvLit(uint64_t value, unsigned bits) {
@@ -32,7 +32,7 @@ public:
     ExprRef<BvLiteralExpr> BvLit32(uint64_t value) { return BvLit(value, 32); }
     ExprRef<BvLiteralExpr> BvLit64(uint64_t value) { return BvLit(value, 64); }
 
-    ExprRef<BvLiteralExpr> BvLit(llvm::APInt value) {
+    ExprRef<BvLiteralExpr> BvLit(const llvm::APInt& value) {
         return BvLiteralExpr::Get(BvType::Get(mContext, value.getBitWidth()), value);
     }
 
@@ -45,7 +45,7 @@ public:
     ExprRef<BoolLiteralExpr> False() { return BoolLiteralExpr::False(BoolType::Get(mContext)); }
     ExprRef<UndefExpr> Undef(Type& type) { return UndefExpr::Get(type); }
 
-    ExprRef<FloatLiteralExpr> FloatLit(llvm::APFloat value) {
+    ExprRef<FloatLiteralExpr> FloatLit(const llvm::APFloat& value) {
         auto numbits = llvm::APFloat::getSizeInBits(value.getSemantics());
         auto& type = FloatType::Get(mContext, static_cast<FloatType::FloatPrecision>(numbits));
 
