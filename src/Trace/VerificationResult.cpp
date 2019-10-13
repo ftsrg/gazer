@@ -1,4 +1,3 @@
-    
 #include "gazer/Trace/VerificationResult.h"
 
 using namespace gazer;

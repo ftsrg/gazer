@@ -301,7 +301,7 @@ private:
             bucket = &getBucketForHash(hash);
         }
 
-        ExprTy* expr = new ExprTy(args...);
+        auto expr = new ExprTy(args...);
         expr->mHashCode = hash;
 
         GAZER_DEBUG(

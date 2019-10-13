@@ -51,7 +51,7 @@ std::unique_ptr<sexpr::Value> gazer::sexpr::parse(llvm::StringRef input)
     return doParse(trimmed);
 }
 
-auto gazer::sexpr::atom(std::string data) -> std::unique_ptr<sexpr::Value>
+auto gazer::sexpr::atom(llvm::StringRef data) -> std::unique_ptr<sexpr::Value>
 {
     return std::make_unique<sexpr::Value>(data);
 }
@@ -76,6 +76,25 @@ void sexpr::Value::print(llvm::raw_ostream& os) const
         os << ")";
     } else {
         llvm_unreachable("Unknown variant state!");
+    }
+}
+
+bool sexpr::Value::operator==(const gazer::sexpr::Value& rhs) const
+{
+    if (mData.index() != rhs.mData.index()) {
+        return false;
+    }
+
+    if (mData.index() == 0) {
+        return asAtom() == rhs.asAtom();
+    } else if (mData.index() == 1) {
+        auto& vec1 = asList();
+        auto& vec2 = rhs.asList();
+        return std::equal(vec1.begin(), vec1.end(), vec2.begin(), [](auto& v1, auto& v2) {
+           return *v1 == *v2;
+        });
+    } else {
+        llvm_unreachable("Invalid variant state!");
     }
 }
 

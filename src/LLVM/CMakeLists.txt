@@ -11,10 +11,8 @@ set(SOURCE_FILES
     Instrumentation/DefaultChecks.cpp
     Instrumentation/Intrinsics.cpp
     Trace/TestHarnessGenerator.cpp
-    Utils/LLVMType.cpp
     Automaton/ModuleToAutomata.cpp
     Automaton/InstToExpr.cpp
-    #Verifier/BmcPass.cpp
     LLVMTraceBuilder.cpp
     TypeTranslator.cpp
     LLVMFrontendSettings.cpp

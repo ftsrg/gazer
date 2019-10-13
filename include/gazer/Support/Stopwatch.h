@@ -1,14 +1,12 @@
-#ifndef _GAZER_SUPPORT_STOPWATCH_H
-#define _GAZER_SUPPORT_STOPWATCH_H
+#ifndef GAZER_SUPPORT_STOPWATCH_H
+#define GAZER_SUPPORT_STOPWATCH_H
 
 #include <llvm/Support/Chrono.h>
 
 namespace gazer
 {
 
-/**
- * Simple Stopwatch class for measuring execution times.
- */
+/// Simple Stopwatch class for measuring execution times.
 template<
     class TimeUnit = std::chrono::milliseconds,
     class Clock = std::chrono::high_resolution_clock

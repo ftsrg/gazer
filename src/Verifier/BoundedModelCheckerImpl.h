@@ -115,7 +115,8 @@ public:
         AutomataSystem& system,
         ExprBuilder& builder,
         SolverFactory& solverFactory,
-        TraceBuilder<Location*, std::vector<VariableAssignment>>& traceBuilder
+        TraceBuilder<Location*, std::vector<VariableAssignment>>& traceBuilder,
+        BmcSettings settings
     );
 
     std::unique_ptr<VerificationResult> check();
@@ -134,10 +135,6 @@ private:
     
     /// Calculates a the path condition expression between \p source and \p target.
     ExprPtr forwardReachableCondition(Location* source, Location* target);
-
-    /// Removes all locations starting from \p source which do not have a path to \p target that contains a call.
-    /// If source == target, this method will do nothing.
-    void clearLocationsWithoutCallDescendants(Location* lca, Location* target);
 
     /// Finds the closest common ancestor node for all call transitions.
     /// If no call transitions are present in the CFA, this function returns nullptr.
@@ -159,12 +156,13 @@ private:
     AutomataSystem& mSystem;
     ExprBuilder& mExprBuilder;
     std::unique_ptr<Solver> mSolver;
-    bool mTraceEnabled;
+    TraceBuilder<Location*, std::vector<VariableAssignment>>& mTraceBuilder;
+    BmcSettings mSettings;
 
     Cfa* mRoot;
-    Location* mError;
-
     std::vector<Location*> mTopo;
+
+    Location* mError = nullptr;
 
     llvm::DenseMap<Location*, size_t> mLocNumbers;
     llvm::DenseSet<CallTransition*> mOpenCalls;
@@ -177,10 +175,8 @@ private:
     llvm::DenseMap<Variable*, Variable*> mInlinedVariables;
 
     size_t mTmp = 0;
-    bool mHasValidErrorField;
 
     Stats mStats;
-    TraceBuilder<Location*, std::vector<VariableAssignment>>& mTraceBuilder;
     Variable* mErrorFieldVariable = nullptr;
 };
 
@@ -188,34 +184,6 @@ std::unique_ptr<Trace> buildBmcTrace(
     const std::vector<Location*>& states,
     const std::vector<std::vector<VariableAssignment>>& actions
 );
-
-#if 0
-class BmcTraceBuilder : public TraceBuilder
-{
-public:
-    BmcTraceBuilder(
-        GazerContext& context,
-        std::vector<Location*>& topo,
-        ScopedCache<Location*, std::pair<Variable*, ExprPtr>>& preds,
-        Location* error
-    ) :
-        mContext(context),
-        mTopo(topo), mPreds(preds),
-        mError(error)
-    {}
-
-protected:
-    std::vector<std::unique_ptr<TraceEvent>> buildEvents(Valuation& model) override;
-
-private:
-
-private:
-    GazerContext& mContext;
-    std::vector<Location*>& mTopo;
-    ScopedCache<Location*, std::pair<Variable*, ExprPtr>>&  mPreds;
-    Location* mError;
-};
-#endif
 
 } // end namespace gazer
 

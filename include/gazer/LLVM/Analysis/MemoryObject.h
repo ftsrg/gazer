@@ -11,7 +11,6 @@
 namespace gazer
 {
 
-
 /// Represents the allocation type of a memory object.
 enum class MemoryAllocType : unsigned
 {

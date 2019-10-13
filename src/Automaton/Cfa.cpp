@@ -46,29 +46,21 @@ Location* Cfa::findLocationById(unsigned id)
     return mLocationNumbers.lookup(id);
 }
 
-AssignTransition *Cfa::createAssignTransition(Location *source, Location *target, const ExprPtr& guard,
-        std::vector<VariableAssignment> assignments)
-{
-    auto edge = new AssignTransition(source, target, guard, std::move(assignments));
+AssignTransition *Cfa::createAssignTransition(
+    Location *source, Location *target,
+    ExprPtr guard,
+    std::vector<VariableAssignment> assignments
+) {
+    if (guard == nullptr) {
+        guard = BoolLiteralExpr::True(mContext);
+    }
+
+    auto edge = new AssignTransition(source, target, std::move(guard), std::move(assignments));
     mTransitions.emplace_back(edge);
     source->addOutgoing(edge);
     target->addIncoming(edge);
 
     return edge;
-}
-
-AssignTransition *Cfa::createAssignTransition(Location *source, Location *target) {
-    return createAssignTransition(source, target, BoolLiteralExpr::True(mContext), {});
-}
-
-AssignTransition *Cfa::createAssignTransition(Location *source, Location *target, std::vector<VariableAssignment> assignments)
-{
-    return createAssignTransition(source, target, BoolLiteralExpr::True(mContext), std::move(assignments));
-}
-
-AssignTransition *Cfa::createAssignTransition(Location *source, Location *target, const ExprPtr& guard)
-{
-    return createAssignTransition(source, target, guard, {});
 }
 
 CallTransition *Cfa::createCallTransition(Location *source, Location *target, const ExprPtr& guard,

@@ -79,7 +79,8 @@ void gazer::PerformErrorCodeInstrumentation(AutomataSystem& system)
 
         for (auto& edge : cfa->edges()) {
             if (auto call = llvm::dyn_cast<CallTransition>(&*edge)) {
-                if (cfa->getNumErrors() == 0) {
+                Cfa* callee = call->getCalledAutomaton();
+                if (callee->getNumErrors() == 0) {
                     continue;
                 }
             }

@@ -419,6 +419,6 @@ def run_commands():
 
     # Create a temporary working directory
     wd = create_temp_dir()
-    print("Working directory is {0}".format(wd))
+    #print("Working directory is {0}".format(wd))
 
     current.run(args, wd)

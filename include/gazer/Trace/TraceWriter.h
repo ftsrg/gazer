@@ -1,24 +1,19 @@
-#ifndef _GAZER_TRACE_TRACEWRITER_H
-#define _GAZER_TRACE_TRACEWRITER_H
+#ifndef GAZER_TRACE_TRACEWRITER_H
+#define GAZER_TRACE_TRACEWRITER_H
 
 #include "gazer/Trace/Trace.h"
 
 namespace gazer
 {
 
-/**
- * Writes the contents of a trace into an output stream.
- */
+/// Writes the contents of a trace into an output stream.
 class TraceWriter : public TraceEventVisitor<void>
 {
 public:
-    TraceWriter(llvm::raw_ostream& os)
+    explicit TraceWriter(llvm::raw_ostream& os)
         : mOS(os)
     {}
 
-    /**
-     * Writes a counterexample trace to the output stream.
-     */
     void write(Trace& trace) {
         for (auto& event : trace) {
             event->accept(*this);

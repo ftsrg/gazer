@@ -1,5 +1,5 @@
-#ifndef _GAZER_CORE_TYPE_H
-#define _GAZER_CORE_TYPE_H
+#ifndef GAZER_CORE_TYPE_H
+#define GAZER_CORE_TYPE_H
 
 #include "gazer/Core/GazerContext.h"
 
@@ -56,24 +56,24 @@ public:
     Type(const Type&) = delete;
     Type& operator=(const Type&) = delete;
 
-    GazerContext& getContext() const { return mContext; }
-    TypeID getTypeID() const { return mTypeID; }
+    [[nodiscard]] GazerContext& getContext() const { return mContext; }
+    [[nodiscard]] TypeID getTypeID() const { return mTypeID; }
     
-    bool isPrimitiveType() const {
+    [[nodiscard]] bool isPrimitiveType() const {
         return mTypeID >= FirstPrimitive && mTypeID <= LastPrimitive;
     }
-    bool isCompositeType() const {
+    [[nodiscard]] bool isCompositeType() const {
         return mTypeID >= FirstComposite && mTypeID <= LastComposite;
     }
 
-    bool isBoolType() const { return getTypeID() == BoolTypeID; }
-    bool isIntType() const { return getTypeID() == IntTypeID; }
-    bool isBvType() const { return getTypeID() == BvTypeID; }
-    bool isFloatType() const { return getTypeID() == FloatTypeID; }
-    bool isRealType() const { return getTypeID() == RealTypeID; }
-    bool isArrayType() const { return getTypeID() == ArrayTypeID; }
+    [[nodiscard]] bool isBoolType() const { return getTypeID() == BoolTypeID; }
+    [[nodiscard]] bool isIntType() const { return getTypeID() == IntTypeID; }
+    [[nodiscard]] bool isBvType() const { return getTypeID() == BvTypeID; }
+    [[nodiscard]] bool isFloatType() const { return getTypeID() == FloatTypeID; }
+    [[nodiscard]] bool isRealType() const { return getTypeID() == RealTypeID; }
+    [[nodiscard]] bool isArrayType() const { return getTypeID() == ArrayTypeID; }
 
-    bool isArithmetic() const { return isIntType() || isRealType(); }
+    [[nodiscard]] bool isArithmetic() const { return isIntType() || isRealType(); }
 
     //bool isPointerType() const { return getTypeID() == PointerTypeID; }
 
@@ -82,7 +82,7 @@ public:
     bool operator==(const Type& other) const { return equals(&other); }
     bool operator!=(const Type& other) const { return !equals(&other); }
 
-    std::string getName() const;
+    [[nodiscard]] std::string getName() const;
 
 private:
     GazerContext& mContext;
@@ -97,7 +97,7 @@ class BoolType final : public Type
 {
     friend class GazerContextImpl;
 protected:
-    BoolType(GazerContext& context)
+    explicit BoolType(GazerContext& context)
         : Type(context, BoolTypeID)
     {}
 public:
@@ -116,7 +116,7 @@ protected:
         : Type(context, BvTypeID), mWidth(width)
     {}
 public:
-    unsigned getWidth() const { return mWidth; }
+    [[nodiscard]] unsigned getWidth() const { return mWidth; }
 
     static BvType& Get(GazerContext& context, unsigned width);
 
@@ -136,7 +136,7 @@ class IntType final : public Type
 {
     friend class GazerContextImpl;
 protected:
-    IntType(GazerContext& context)
+    explicit IntType(GazerContext& context)
         : Type(context, IntTypeID)
     {}
 public:
@@ -156,7 +156,7 @@ class RealType final : public Type
 {
     friend class GazerContextImpl;
 protected:
-    RealType(GazerContext& context)
+    explicit RealType(GazerContext& context)
         : Type(context, RealTypeID)
     {}
 public:
@@ -200,9 +200,9 @@ protected:
     {}
 
 public:
-    FloatPrecision getPrecision() const { return mPrecision; }
-    const llvm::fltSemantics& getLLVMSemantics() const;
-    unsigned getWidth() const { return mPrecision; }
+    [[nodiscard]] FloatPrecision getPrecision() const { return mPrecision; }
+    [[nodiscard]] const llvm::fltSemantics& getLLVMSemantics() const;
+    [[nodiscard]] unsigned getWidth() const { return mPrecision; }
 
     static FloatType& Get(GazerContext& context, FloatPrecision precision);
 
@@ -229,8 +229,8 @@ class ArrayType final : public Type
     }
 
 public:
-    Type& getIndexType() const { return *mIndexType; }
-    Type& getElementType() const { return *mElementType; }
+    [[nodiscard]] Type& getIndexType() const { return *mIndexType; }
+    [[nodiscard]] Type& getElementType() const { return *mElementType; }
 
     static ArrayType& Get(GazerContext& context, Type& indexType, Type& elementType);
 

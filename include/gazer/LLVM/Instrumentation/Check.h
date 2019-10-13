@@ -16,14 +16,14 @@ class Check : public llvm::ModulePass
 {
     friend class CheckRegistry;
 public:
-    Check(char& id)
+    explicit Check(char& id)
         : ModulePass(id)
     {}
 
     Check(const Check&) = delete;
     Check& operator=(const Check&) = delete;
 
-    virtual bool runOnModule(llvm::Module& module) final;
+    bool runOnModule(llvm::Module& module) final;
 
     /// Returns this check's name. Names should be descriptive,
     /// but must not contain whitespaces,
@@ -52,7 +52,7 @@ private:
     void setCheckRegistry(CheckRegistry& registry);
 
 private:
-    CheckRegistry* mRegistry;
+    CheckRegistry* mRegistry = nullptr;
 };
 
 class CheckViolation
@@ -80,7 +80,7 @@ class CheckRegistry
 public:
     static constexpr char ErrorFunctionName[] = "gazer.error_code";
 public:
-    CheckRegistry(llvm::LLVMContext& context)
+    explicit CheckRegistry(llvm::LLVMContext& context)
         : mLlvmContext(context)
     {}
 
@@ -109,8 +109,8 @@ private:
     llvm::DenseMap<unsigned, CheckViolation> mCheckMap;
     llvm::StringMap<Check*> mCheckNames;
 
-    // Start with 1, zero stands for unknown errors.
-    unsigned mErrorCodeCnt = 1;
+    // 0 stands for success, 1 for unknown failures.
+    unsigned mErrorCodeCnt = 2;
 };
 
 } // end namespace gazer

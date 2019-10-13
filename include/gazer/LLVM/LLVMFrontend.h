@@ -61,8 +61,6 @@ private:
     void registerEarlyOptimizations();
     void registerLateOptimizations();
     void registerInliningIfEnabled();
-    void registerAutomataTranslation();
-    void runVerificationBackend();
 
 private:
     GazerContext& mContext;

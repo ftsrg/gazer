@@ -6,6 +6,7 @@
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <llvm/IR/DebugLoc.h>
 #include <llvm/IR/DebugInfoMetadata.h>
+#include <gazer/Trace/VerificationResult.h>
 
 using namespace gazer;
 using namespace llvm;
@@ -108,6 +109,12 @@ void CheckRegistry::registerPasses(llvm::legacy::PassManager& pm)
 
 std::string CheckRegistry::messageForCode(unsigned ec) const
 {
+    assert(ec != VerificationResult::SuccessErrorCode && "Error code must be non-zero for failures!");
+
+    if (ec == VerificationResult::GeneralFailureCode) {
+        return "Unknown failure.\n";
+    }
+
     auto result = mCheckMap.find(ec);
     assert(result != mCheckMap.end() && "Error code should be present in the check map!");
 

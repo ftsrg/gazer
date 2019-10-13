@@ -1,7 +1,5 @@
 #include "GazerContextImpl.h"
 
-#include <llvm/Support/raw_ostream.h>
-
 using namespace gazer;
 
 Variable::Variable(llvm::StringRef name, Type& type)

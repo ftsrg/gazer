@@ -6,6 +6,7 @@
 
 #include <llvm/Support/ErrorHandling.h>
 
+#include <utility>
 #include <vector>
 
 namespace gazer
@@ -29,7 +30,7 @@ public:
     };
 
 protected:
-    TraceEvent(EventKind kind, LocationInfo location = {})
+    explicit TraceEvent(EventKind kind, LocationInfo location = {})
         : mKind(kind), mLocation(location)
     {}
 public:
@@ -55,11 +56,11 @@ private:
 class Trace
 {
 public:
-    Trace(std::vector<std::unique_ptr<TraceEvent>> events)
+    explicit Trace(std::vector<std::unique_ptr<TraceEvent>> events)
         : mEvents(std::move(events))
     {}
 public:
-    Trace(const Trace&);
+    Trace(const Trace&) = delete;
     Trace& operator=(const Trace&) = delete;
 
 public:
@@ -98,7 +99,7 @@ public:
         ExprRef<AtomicExpr> expr,
         LocationInfo location = {}
     ) : TraceEvent(TraceEvent::Event_Assign, location),
-        mVariableName(variableName), mExpr(expr)
+        mVariableName(std::move(variableName)), mExpr(std::move(expr))
     {}
 
     std::string getVariableName() const { return mVariableName; }
@@ -116,9 +117,9 @@ private:
 class FunctionEntryEvent final : public TraceEvent
 {
 public:
-    FunctionEntryEvent(std::string functionName, LocationInfo location = {})
+    explicit FunctionEntryEvent(std::string functionName, LocationInfo location = {})
         : TraceEvent(TraceEvent::Event_FunctionEntry, location),
-        mFunctionName(functionName)
+        mFunctionName(std::move(functionName))
     {}
 
     std::string getFunctionName() const { return mFunctionName; }
@@ -138,7 +139,7 @@ public:
         ExprRef<AtomicExpr> returnValue,
         LocationInfo location = {}
     ) : TraceEvent(TraceEvent::Event_FunctionReturn, location),
-        mFunctionName(functionName), mReturnValue(returnValue)
+        mFunctionName(std::move(functionName)), mReturnValue(std::move(returnValue))
     {}
 
     std::string getFunctionName() const { return mFunctionName; }
@@ -192,11 +193,11 @@ private:
 class UndefinedBehaviorEvent : public TraceEvent
 {
 public:
-    UndefinedBehaviorEvent(
+    explicit UndefinedBehaviorEvent(
         ExprRef<AtomicExpr> pickedValue,
         LocationInfo location = {}
     ) : TraceEvent(TraceEvent::Event_UndefinedBehavior, location),
-        mPickedValue(pickedValue)
+        mPickedValue(std::move(pickedValue))
     {}
 
     ExprRef<AtomicExpr> getPickedValue() const { return mPickedValue; }
@@ -218,7 +219,7 @@ public:
     virtual ReturnT visit(FunctionCallEvent& event) = 0;
     virtual ReturnT visit(UndefinedBehaviorEvent& event) = 0;
 
-    virtual ~TraceEventVisitor() {}
+    virtual ~TraceEventVisitor() = default;
 };
 
 template<class ReturnT>

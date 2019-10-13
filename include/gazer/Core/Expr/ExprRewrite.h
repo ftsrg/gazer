@@ -10,7 +10,7 @@ namespace gazer
 class ExprRewrite : public ExprWalker<ExprRewrite, ExprPtr>
 {
 public:
-    ExprRewrite(ExprBuilder& builder);
+    explicit ExprRewrite(ExprBuilder& builder);
     ExprPtr& operator[](Variable* variable);
 
 public:

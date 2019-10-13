@@ -60,8 +60,6 @@ static ExprRef<LiteralExpr> EvalBinaryArithmetic(
         auto left  = llvm::cast<BvLiteralExpr>(lhs)->getValue();
         auto right = llvm::cast<BvLiteralExpr>(rhs)->getValue();
 
-        // TODO: Add support for Int types as well...
-
         auto& type = llvm::cast<BvType>(lhs->getType());
 
         switch (kind) {
@@ -266,7 +264,34 @@ static ExprRef<LiteralExpr> EvalBvCompare(
             break;
     }
 
-    llvm_unreachable("Unknown binary arithmetic expression kind.");
+    llvm_unreachable("Unknown bit-vector comparison kind.");
+}
+
+static ExprRef<LiteralExpr> EvalIntCompare(
+    Expr::ExprKind kind,
+    const ExprRef<LiteralExpr>& lhs,
+    const ExprRef<LiteralExpr>& rhs)
+{
+    assert(lhs->getType().isIntType());
+    assert(rhs->getType().isIntType());
+
+    auto left = llvm::cast<IntLiteralExpr>(lhs)->getValue();
+    auto right = llvm::cast<IntLiteralExpr>(rhs)->getValue();
+
+    BoolType& type = BoolType::Get(lhs->getContext());
+
+    switch (kind) {
+        case Expr::Eq: return BoolLiteralExpr::Get(type, left == right);
+        case Expr::NotEq: return BoolLiteralExpr::Get(type, left != right);
+        case Expr::Lt: return BoolLiteralExpr::Get(type, left < right);
+        case Expr::LtEq: return BoolLiteralExpr::Get(type, left <= right);
+        case Expr::Gt: return BoolLiteralExpr::Get(type, left > right);
+        case Expr::GtEq: return BoolLiteralExpr::Get(type, left >= right);
+        default:
+            break;
+    }
+
+    llvm_unreachable("Unknown integer comparison kind.");
 }
 
 // Compare
@@ -290,6 +315,10 @@ ExprRef<LiteralExpr> ExprEvaluatorBase::visitEq(const ExprRef<EqExpr>& expr)
                 boolTy,
                 cast<BoolLiteralExpr>(left)->getValue() == cast<BoolLiteralExpr>(right)->getValue()
             );
+        case Type::IntTypeID:
+            return EvalIntCompare(Expr::Eq, getOperand(0), getOperand(1));
+        default:
+            break;
     }
 
     llvm_unreachable("Invalid operand type in an EqExpr");
@@ -297,6 +326,7 @@ ExprRef<LiteralExpr> ExprEvaluatorBase::visitEq(const ExprRef<EqExpr>& expr)
 
 ExprRef<LiteralExpr> ExprEvaluatorBase::visitNotEq(const ExprRef<NotEqExpr>& expr)
 {
+
     return EvalBvCompare(expr->getKind(), getOperand(0), getOperand(1));
 }
 

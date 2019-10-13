@@ -12,7 +12,7 @@ namespace
     class TextTraceWriter : public TraceWriter
     {
     public:
-        TextTraceWriter(llvm::raw_ostream& os, bool printBv = true)
+        explicit TextTraceWriter(llvm::raw_ostream& os, bool printBv = true)
             : TraceWriter(os), mPrintBv(printBv), mFuncEntries(0)
         {}
 

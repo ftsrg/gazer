@@ -1,7 +1,7 @@
 /// \brief This file defines GazerContext, a container for all unique types,
 /// variables and expressions.
-#ifndef _GAZER_CORE_GAZERCONTEXT_H
-#define _GAZER_CORE_GAZERCONTEXT_H
+#ifndef GAZER_CORE_GAZERCONTEXT_H
+#define GAZER_CORE_GAZERCONTEXT_H
 
 #include <llvm/ADT/StringRef.h>
 
@@ -12,7 +12,6 @@ class Type;
 class Variable;
 class GazerContext;
 class GazerContextImpl;
-class ManagedResource;
 
 class GazerContext
 {
@@ -32,7 +31,7 @@ public:
     Variable* variableDecl(llvm::StringRef name, Type& type);
 
     Variable *getVariable(llvm::StringRef name);
-    Variable *createVariable(std::string name, Type &type);
+    Variable *createVariable(llvm::StringRef name, Type &type);
 
     void removeVariable(Variable* variable);
 

@@ -1,14 +1,8 @@
-#include "gazer/Core/LiteralExpr.h"
+#include "GazerContextImpl.h"
 #include "gazer/Support/DenseMapKeyInfo.h"
 
-#include "GazerContextImpl.h"
-
 #include <llvm/IR/Constants.h>
-#include <llvm/ADT/DenseMap.h>
-
 #include <llvm/Support/raw_ostream.h>
-
-#include <map>
 
 using namespace gazer;
 

@@ -1,5 +1,5 @@
-#ifndef _GAZER_TRACE_LOCATION_H
-#define _GAZER_TRACE_LOCATION_H
+#ifndef GAZER_TRACE_LOCATION_H
+#define GAZER_TRACE_LOCATION_H
 
 #include <string>
 

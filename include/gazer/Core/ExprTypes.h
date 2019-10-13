@@ -1,5 +1,5 @@
-#ifndef _GAZER_CORE_EXPRTYPES_H
-#define _GAZER_CORE_EXPRTYPES_H
+#ifndef GAZER_CORE_EXPRTYPES_H
+#define GAZER_CORE_EXPRTYPES_H
 
 #include "gazer/Core/Expr.h"
 
@@ -265,12 +265,11 @@ namespace detail
     class FpExprWithRoundingMode
     {
     public:
-        FpExprWithRoundingMode(const llvm::APFloat::roundingMode& rm) : mRoundingMode(rm) {}
-        llvm::APFloat::roundingMode getRoundingMode() const { return mRoundingMode; }
+        explicit FpExprWithRoundingMode(const llvm::APFloat::roundingMode& rm) : mRoundingMode(rm) {}
+        [[nodiscard]] llvm::APFloat::roundingMode getRoundingMode() const { return mRoundingMode; }
     protected:
         llvm::APFloat::roundingMode mRoundingMode;
     };
-
 } // end namespace detail
 
 template<Expr::ExprKind Kind>

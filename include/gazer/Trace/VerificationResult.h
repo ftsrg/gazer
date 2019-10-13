@@ -1,5 +1,7 @@
-#ifndef _GAZER_TRACE_VerificationResult_H
-#define _GAZER_TRACE_VerificationResult_H
+#ifndef GAZER_TRACE_VerificationResult_H
+#define GAZER_TRACE_VerificationResult_H
+
+#include <utility>
 
 #include "gazer/Trace/Trace.h"
 
@@ -9,21 +11,21 @@ namespace gazer
 class VerificationResult
 {
 public:
-    static constexpr unsigned InvalidErrorCode = 0;
-    static constexpr unsigned GeneralFailure = 1;
+    static constexpr unsigned SuccessErrorCode = 0;
+    static constexpr unsigned GeneralFailureCode = 1;
 
     enum Status { Success, Fail, Timeout, Unknown, BoundReached, InternalError };
 protected:
-    VerificationResult(Status status)
+    explicit VerificationResult(Status status)
         : mStatus(status)
     {}
 
 public:
-    bool isSuccess() const { return mStatus == Success; }
-    bool isFail() const { return mStatus == Fail; }
-    bool isUnknown() const { return mStatus == Unknown; }
+    [[nodiscard]] bool isSuccess() const { return mStatus == Success; }
+    [[nodiscard]] bool isFail() const { return mStatus == Fail; }
+    [[nodiscard]] bool isUnknown() const { return mStatus == Unknown; }
 
-    Status getStatus() const { return mStatus; }
+    [[nodiscard]] Status getStatus() const { return mStatus; }
 
     static std::unique_ptr<VerificationResult> CreateSuccess();
 
@@ -42,15 +44,16 @@ private:
 class FailResult final : public VerificationResult
 {
 public:
-    FailResult(
+    explicit FailResult(
         unsigned errorCode,
         std::unique_ptr<Trace> trace = nullptr
     ) : VerificationResult(VerificationResult::Fail), mErrorID(errorCode),
         mTrace(std::move(trace))
     {}
 
-    Trace& getTrace() const { return *mTrace; }
-    unsigned getErrorID() const { return mErrorID; }
+    [[nodiscard]] bool hasTrace() const { return mTrace != nullptr; }
+    [[nodiscard]] Trace& getTrace() const { return *mTrace; }
+    [[nodiscard]] unsigned getErrorID() const { return mErrorID; }
 
     static bool classof(const VerificationResult* result) {
         return result->getStatus() == VerificationResult::Fail;
@@ -72,11 +75,11 @@ public:
 class UnknownResult final : public VerificationResult
 {
 public:
-    UnknownResult(std::string message = "")
-        : VerificationResult(VerificationResult::Unknown), mMessage(message)
+    explicit UnknownResult(std::string message = "")
+        : VerificationResult(VerificationResult::Unknown), mMessage(std::move(message))
     {}
 
-    llvm::StringRef getMessage() const { return mMessage; }
+    [[nodiscard]] llvm::StringRef getMessage() const { return mMessage; }
 
 private:
     std::string mMessage;
@@ -96,6 +99,6 @@ private:
     std::string mMessage;
 };
 
-}
+} // end namespace gazer
 
 #endif

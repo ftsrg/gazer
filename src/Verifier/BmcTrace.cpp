@@ -21,7 +21,7 @@ void bmc::cex_iterator::advance()
         mCex.mEval.walk(pred->second).get()
     );
                             
-    assert((predLit != nullptr) && "Pred values should be evaluatable as bitvector literals!");
+    assert((predLit != nullptr) && "Pred values should be evaluatable as integer literals!");
     
     size_t predId = predLit->getValue();//.getLimitedValue();
     Location* source = mCex.mCfa.findLocationById(predId);

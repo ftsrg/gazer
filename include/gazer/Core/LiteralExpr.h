@@ -1,5 +1,5 @@
-#ifndef _GAZER_CORE_LITERALEXPR_H
-#define _GAZER_CORE_LITERALEXPR_H
+#ifndef GAZER_CORE_LITERALEXPR_H
+#define GAZER_CORE_LITERALEXPR_H
 
 #include "gazer/Core/Expr.h"
 
@@ -19,12 +19,12 @@ class UndefExpr final : public AtomicExpr
 {
     friend class ExprStorage;
 private:
-    UndefExpr(Type& type)
+    explicit UndefExpr(Type& type)
         : AtomicExpr(Expr::Undef, type)
     {}
 public:
     static ExprRef<UndefExpr> Get(Type& type);
-    virtual void print(llvm::raw_ostream& os) const override;
+    void print(llvm::raw_ostream& os) const override;
 
     static bool classof(const Expr* expr) {
         return expr->getKind() == Undef;
@@ -85,7 +85,7 @@ public:
     static ExprRef<IntLiteralExpr> Get(IntType& type, long long int value);
 
 public:
-    virtual void print(llvm::raw_ostream& os) const override;
+    void print(llvm::raw_ostream& os) const override;
 
     int64_t getValue() const { return mValue; }
 
@@ -117,7 +117,7 @@ public:
     }
 
 public:
-    virtual void print(llvm::raw_ostream& os) const override;
+    void print(llvm::raw_ostream& os) const override;
 
     boost::rational<long long int> getValue() const { return mValue; }
 
@@ -141,12 +141,12 @@ class BvLiteralExpr final : public LiteralExpr
     friend class GazerContextImpl;
 private:
     BvLiteralExpr(BvType& type, llvm::APInt value)
-        : LiteralExpr(type), mValue(value)
+        : LiteralExpr(type), mValue(std::move(value))
     {
-        assert(type.getWidth() == value.getBitWidth() && "Type and literal bit width must match.");
+        assert(type.getWidth() == mValue.getBitWidth() && "Type and literal bit width must match.");
     }
 public:
-    virtual void print(llvm::raw_ostream& os) const override;
+    void print(llvm::raw_ostream& os) const override;
 
 public:
     static ExprRef<BvLiteralExpr> Get(BvType& type, const llvm::APInt& value);
@@ -173,7 +173,7 @@ class FloatLiteralExpr final : public LiteralExpr
     friend class ExprStorage;
 private:
     FloatLiteralExpr(FloatType& type, llvm::APFloat value)
-        : LiteralExpr(type), mValue(value)
+        : LiteralExpr(type), mValue(std::move(value))
     {}
 public:
     void print(llvm::raw_ostream& os) const override;

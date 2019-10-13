@@ -1,11 +1,8 @@
-
 #include "GazerContextImpl.h"
 
 #include <llvm/Support/Allocator.h>
 #include <llvm/Support/MathExtras.h>
 #include <llvm/Support/Debug.h>
-
-#include <unordered_set>
 
 // Disable exception handling in boost.
 #ifndef BOOST_NO_EXCEPTIONS
@@ -48,7 +45,7 @@ GazerContext::~GazerContext() = default;
 
 //-------------------------------- Variables --------------------------------//
 
-Variable* GazerContext::createVariable(std::string name, Type &type)
+Variable* GazerContext::createVariable(llvm::StringRef name, Type &type)
 {
     LLVM_DEBUG(llvm::dbgs() << "Adding variable with name " << name << " and type " << type << "\n");
     GAZER_DEBUG_ASSERT(pImpl->VariableTable.count(name) == 0);
@@ -185,7 +182,7 @@ void ExprStorage::destroy(Expr *expr)
 void ExprStorage::rehashTable(size_t newSize)
 {
     GAZER_DEBUG(llvm::errs() << "[ExprStorage] Extending table " << newSize << "\n")
-    Bucket* newStorage = new Bucket[newSize];
+    auto newStorage = new Bucket[newSize];
 
     size_t copied = 0;
     for (size_t i = 0; i < mBucketCount; ++i) {
