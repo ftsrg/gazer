@@ -3,7 +3,7 @@
 
 #include "gazer/Core/Expr.h"
 #include "gazer/Core/Expr/ExprBuilder.h"
-#include "gazer/LLVM/Analysis/MemoryObject.h"
+#include "gazer/LLVM/Memory/MemoryObject.h"
 
 #include <llvm/IR/Operator.h>
 #include <llvm/IR/Instructions.h>

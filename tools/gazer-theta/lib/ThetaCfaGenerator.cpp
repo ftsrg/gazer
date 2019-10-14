@@ -10,6 +10,7 @@
 
 #include <regex>
 #include <variant>
+#include <llvm/Pass.h>
 
 using namespace gazer;
 using namespace gazer::theta;

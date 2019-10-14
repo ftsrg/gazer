@@ -13,6 +13,7 @@ struct ThetaSettings
     std::string thetaCfaPath;
     std::string z3Path;
     unsigned timeout = 0;
+    std::string modelPath;
 
     // Algorithm settings
     std::string domain;
@@ -28,7 +29,7 @@ struct ThetaSettings
 class ThetaVerifier : public VerificationAlgorithm
 {
 public:
-    ThetaVerifier(ThetaSettings settings)
+    explicit ThetaVerifier(ThetaSettings settings)
         : mSettings(std::move(settings))
     {}
 

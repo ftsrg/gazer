@@ -5,7 +5,7 @@
 #include "gazer/Core/Expr/ExprBuilder.h"
 #include "gazer/Automaton/Cfa.h"
 
-#include "gazer/LLVM/Analysis/MemoryObject.h"
+#include "gazer/LLVM/Memory/MemoryObject.h"
 #include "gazer/LLVM/Automaton/InstToExpr.h"
 #include "gazer/LLVM/LLVMTraceBuilder.h"
 

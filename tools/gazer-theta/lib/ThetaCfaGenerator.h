@@ -6,6 +6,11 @@
 
 #include <llvm/Support/raw_ostream.h>
 
+namespace llvm
+{
+    class Pass;
+} // end namespace llvm
+
 namespace gazer::theta
 {
 
@@ -41,6 +46,8 @@ private:
     unsigned mTmpCount = 0;
 };
 
-}
+llvm::Pass* createThetaCfaWriterPass(llvm::raw_ostream& os);
+
+} // end namespace gazer::theta
 
 #endif

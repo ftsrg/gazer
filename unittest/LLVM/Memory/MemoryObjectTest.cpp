@@ -1,4 +1,5 @@
-#include "gazer/LLVM/Analysis/MemoryObject.h"
+#include "gazer/LLVM/Memory/MemoryObject.h"
+#include "gazer/LLVM/Memory/MemoryModel.h"
 
 #include <llvm/AsmParser/Parser.h>
 #include <llvm/Support/SourceMgr.h>
@@ -90,10 +91,20 @@ bb8:                                              ; preds = %bb6
 }
 )ASM");
 
+    GazerContext context;
+    LLVMFrontendSettings settings;
+
+    auto basicMemModel = CreateBasicMemoryModel(context, settings);
+    MemorySSABuilder builder(module->getDataLayout());
+
+    llvm::Function* main = module->getFunction("main");
+    basicMemModel->findMemoryObjects(*main, builder);
+
     // We should have two scalar memory objects, 'a' and 'b'.
-    
-
-
+    for (auto& obj : builder.mObjects) {
+        obj->print(llvm::outs());
+        llvm::outs() << "\n";
+    }
 }
 
 } // end anonymous namespace

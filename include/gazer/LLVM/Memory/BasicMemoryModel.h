@@ -1,0 +1,9 @@
+#ifndef GAZER_BASICMEMORYMODEL_H
+#define GAZER_BASICMEMORYMODEL_H
+
+namespace gazer
+{
+
+}
+
+#endif //GAZER_BASICMEMORYMODEL_H

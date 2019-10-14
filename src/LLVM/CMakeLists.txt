@@ -1,6 +1,4 @@
 set(SOURCE_FILES
-    Analysis/MemoryObject.cpp
-    Analysis/DummyMemoryModel.cpp
     Analysis/VariableRoles.cpp
     Transform/InlineGlobalVariablesPass.cpp
     Transform/CombineErrorCalls.cpp
@@ -17,6 +15,9 @@ set(SOURCE_FILES
     TypeTranslator.cpp
     LLVMFrontendSettings.cpp
     LLVMFrontend.cpp
+    Memory/MemoryObject.cpp
+    Memory/BasicMemoryModel.cpp
+    Memory/DummyMemoryModel.cpp
 )
 
 llvm_map_components_to_libnames(LLVM_LIBS support core irreader transformutils scalaropts ipo)

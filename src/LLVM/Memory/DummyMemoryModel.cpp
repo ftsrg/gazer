@@ -1,13 +1,13 @@
-#include "gazer/LLVM/Analysis/MemoryObject.h"
-#include "gazer/Core/LiteralExpr.h"
+#include "gazer/LLVM/Memory/MemoryModel.h"
 
+#include "gazer/Core/LiteralExpr.h"
 #include "gazer/LLVM/TypeTranslator.h"
 
 using namespace gazer;
 
 void DummyMemoryModel::findMemoryObjects(
     llvm::Function& function,
-    std::vector<MemoryObject*>& objects
+    MemorySSABuilder& objects
 ) {
 }
 
