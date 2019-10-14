@@ -300,9 +300,9 @@ auto LLVMFrontend::FromInputFile(
 
     std::unique_ptr<llvm::Module> module = nullptr;
 
-    if (boost::algorithm::ends_with(input, ".bc")) {
+    if (input.endswith(".bc")) {
         module = llvm::parseIRFile(input, err, llvmContext);
-    } else if (boost::algorithm::ends_with(input, ".ll")) {
+    } else if (input.endswith(".ll")) {
         module = llvm::parseAssemblyFile(input, err, llvmContext);
     } else {
         err = SMDiagnostic(

@@ -15,6 +15,7 @@ set(SOURCE_FILES
     TypeTranslator.cpp
     LLVMFrontendSettings.cpp
     LLVMFrontend.cpp
+    ClangFrontend.cpp
     Memory/MemoryObject.cpp
     Memory/BasicMemoryModel.cpp
     Memory/DummyMemoryModel.cpp

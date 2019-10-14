@@ -1,4 +1,4 @@
-// RUN: %gazer bmc -bound 10 -math-int "%s" | FileCheck "%s"
+// RUN: %bmc -bound 10 -math-int "%s" | FileCheck "%s"
 
 // CHECK: Verification SUCCESSFUL
 

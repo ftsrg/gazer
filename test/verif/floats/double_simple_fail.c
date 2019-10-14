@@ -1,4 +1,4 @@
-// RUN: %gazer bmc -bound 1 "%s" | FileCheck "%s"
+// RUN: %bmc -bound 1 "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED
 extern void __VERIFIER_error(void);

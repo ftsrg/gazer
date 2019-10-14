@@ -1,4 +1,4 @@
-; RUN: %gazer print-cfa -no-simplify-expr -elim-vars=off "%s" | diff -B -Z "%p/Expected/LoopMultipleExits.cfa" -
+; RUN: %cfa -no-simplify-expr -elim-vars=off "%s" | diff -B -Z "%p/Expected/LoopMultipleExits.cfa" -
 
 declare i32 @__VERIFIER_nondet_int()
 

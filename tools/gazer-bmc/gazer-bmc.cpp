@@ -1,6 +1,7 @@
 #include "gazer/LLVM/Instrumentation/DefaultChecks.h"
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
 #include "gazer/LLVM/LLVMFrontend.h"
+#include "gazer/LLVM/ClangFrontend.h"
 
 #include "gazer/Z3Solver/Z3Solver.h"
 #include "gazer/Verifier/BoundedModelChecker.h"
@@ -28,12 +29,12 @@ namespace gazer
 
 namespace
 {
-    cl::opt<std::string> InputFilename(cl::Positional, cl::desc("<input file>"), cl::Required);
+    cl::list<std::string> InputFilenames(cl::Positional, cl::OneOrMore, cl::desc("<input files>"));
 
     cl::OptionCategory BmcAlgorithmCategory("Bounded model checker algorithm settings");
 
     cl::opt<unsigned> MaxBound("bound", cl::desc("Maximum iterations for the bounded model checker."),
-        cl::init(1), cl::cat(BmcAlgorithmCategory));
+        cl::init(100), cl::cat(BmcAlgorithmCategory));
     cl::opt<unsigned> EagerUnroll("eager-unroll", cl::desc("Eager unrolling bound."), cl::init(0),
         cl::cat(BmcAlgorithmCategory));
 
@@ -69,10 +70,14 @@ int main(int argc, char* argv[])
     llvm::LLVMContext llvmContext;
 
     auto settings = LLVMFrontendSettings::initFromCommandLine();
-    auto frontend = LLVMFrontend::FromInputFile(InputFilename, context, llvmContext, settings);
-    if (frontend == nullptr) {
+
+    // Run the clang frontend
+    auto module = ClangCompileAndLink(InputFilenames, llvmContext);
+    if (module == nullptr) {
         return 1;
     }
+
+    auto frontend = std::make_unique<LLVMFrontend>(std::move(module), context, settings);
 
     // TODO: This should be more flexible.
     if (frontend->getModule().getFunction("main") == nullptr) {

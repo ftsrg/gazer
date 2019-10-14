@@ -1,5 +1,5 @@
-// RUN: %gazer bmc -bound 10 "%s" | FileCheck "%s"
-// RUN: %gazer bmc -bound 10 -math-int "%s" | FileCheck "%s"
+// RUN: %bmc -bound 10 "%s" | FileCheck "%s"
+// RUN: %bmc -bound 10 -math-int "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED
 extern void __VERIFIER_error() __attribute__ ((__noreturn__));
