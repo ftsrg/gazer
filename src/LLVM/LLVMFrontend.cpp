@@ -23,8 +23,6 @@
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Bitcode/BitcodeWriter.h>
 
-#include <boost/algorithm/string/predicate.hpp>
-
 using namespace gazer;
 using namespace llvm;
 
