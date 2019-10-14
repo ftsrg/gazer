@@ -1,5 +1,5 @@
-// RUN: %gazer bmc -bound 1 -no-optimize "%s" | FileCheck "%s"
-// RUN: %gazer bmc -bound 1 "%s" | FileCheck "%s"
+// RUN: %bmc -bound 1 -no-optimize "%s" | FileCheck "%s"
+// RUN: %bmc -bound 1 "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED
 

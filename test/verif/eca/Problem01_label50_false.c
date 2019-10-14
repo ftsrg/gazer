@@ -1,5 +1,5 @@
-// RUN: %gazer bmc -bound 10 -inline -inline-globals "%s" | FileCheck "%s"
-// RUN: %gazer bmc -bound 10 -inline -inline-globals -math-int "%s" | FileCheck "%s"
+// RUN: %bmc -bound 10 -inline -inline-globals "%s" | FileCheck "%s"
+// RUN: %bmc -bound 10 -inline -inline-globals -math-int "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED
 

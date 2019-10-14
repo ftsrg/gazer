@@ -1,4 +1,4 @@
-; RUN: %gazer print-cfa "%s" | diff -B -Z "%p/Expected/loops1_unnamed.cfa" -
+; RUN: %cfa "%s" | diff -B -Z "%p/Expected/loops1_unnamed.cfa" -
 
 ; This test aims to verify that the CFA translation works even if the instructions
 ; in the LLVM IR source have no names.

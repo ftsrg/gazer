@@ -1,8 +1,9 @@
 #include "lib/ThetaVerifier.h"
+#include "lib/ThetaCfaGenerator.h"
 
+#include "gazer/LLVM/ClangFrontend.h"
 #include "gazer/LLVM/LLVMFrontend.h"
 #include "gazer/Core/GazerContext.h"
-#include "lib/ThetaCfaGenerator.h"
 
 #include <llvm/IR/Module.h>
 
@@ -10,8 +11,6 @@
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/PrettyStackTrace.h>
 #include <llvm/Support/Signals.h>
-#include <gazer/LLVM/Automaton/ModuleToAutomata.h>
-
 #endif
 
 using namespace gazer;
@@ -20,7 +19,7 @@ using namespace llvm;
 
 namespace
 {
-    cl::opt<std::string> InputFilename(cl::Positional, cl::desc("<input file>"), cl::Required);
+    cl::list<std::string> InputFilenames(cl::Positional, cl::OneOrMore, cl::desc("<input files>"));
     cl::opt<std::string> ModelPath("o", cl::desc("Model output path (will use a unique location if not set)"), cl::init(""));
     cl::opt<bool> ModelOnly("model-only", cl::desc("Do not run verifier algorithm, just write the theta CFA"));
 
@@ -54,15 +53,18 @@ int main(int argc, char* argv[])
 
     // Set up settings
     theta::ThetaSettings backendSettings = initSettingsFromCommandLine();
+    auto settings = LLVMFrontendSettings::initFromCommandLine();
 
     // Force -math-int
-    auto settings = LLVMFrontendSettings::initFromCommandLine();
     settings.setIntRepresentation(IntRepresentation::Integers);
 
-    auto frontend = LLVMFrontend::FromInputFile(InputFilename, context, llvmContext, settings);
-    if (frontend == nullptr) {
+    // Run the clang frontend
+    auto module = ClangCompileAndLink(InputFilenames, llvmContext);
+    if (module == nullptr) {
         return 1;
     }
+
+    auto frontend = std::make_unique<LLVMFrontend>(std::move(module), context, settings);
 
     // TODO: This should be more flexible.
     if (frontend->getModule().getFunction("main") == nullptr) {

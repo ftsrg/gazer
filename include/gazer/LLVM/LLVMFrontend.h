@@ -22,6 +22,9 @@ public:
         LLVMFrontendSettings settings
     );
 
+    LLVMFrontend(const LLVMFrontend&) = delete;
+    LLVMFrontend& operator=(const LLVMFrontend&) = delete;
+
     static std::unique_ptr<LLVMFrontend> FromInputFile(
         llvm::StringRef input,
         GazerContext& context,

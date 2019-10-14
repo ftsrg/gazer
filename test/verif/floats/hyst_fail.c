@@ -1,5 +1,5 @@
 // XFAIL: memory
-// RUN: %gazer bmc -bound 1 "%s" | FileCheck "%s"
+// RUN: %bmc -bound 1 "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED
 extern float __VERIFIER_nondet_float(void);
