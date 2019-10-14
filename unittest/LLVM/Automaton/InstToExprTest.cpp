@@ -1,4 +1,5 @@
 #include "gazer/LLVM/Automaton/InstToExpr.h"
+#include "gazer/LLVM/Memory/MemoryModel.h"
 
 #include <llvm/IR/IRBuilder.h>
 

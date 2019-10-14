@@ -1,6 +1,7 @@
 #include "gazer/LLVM/TypeTranslator.h"
 
-#include "gazer/LLVM/Analysis/MemoryObject.h"
+#include "gazer/LLVM/Memory/MemoryObject.h"
+#include "gazer/LLVM/Memory/MemoryModel.h"
 
 using namespace gazer;
 

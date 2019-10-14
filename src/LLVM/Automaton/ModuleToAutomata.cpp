@@ -5,6 +5,7 @@
 #include "gazer/ADT/StringUtils.h"
 #include "gazer/LLVM/Instrumentation/Check.h"
 #include "gazer/Core/Expr/ExprUtils.h"
+#include "gazer/LLVM/Memory/MemoryModel.h"
 
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Instructions.h>
@@ -14,7 +15,6 @@
 #include <llvm/IR/InstIterator.h>
 #include <llvm/IR/Dominators.h>
 #include <llvm/ADT/StringExtras.h>
-#include <llvm/IR/CallSite.h>
 
 #include "FunctionToCfa.h"
 
