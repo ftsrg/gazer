@@ -1,6 +1,5 @@
-// RUN: %bmc -m 32 -inline -bound 10 -trace -test-harness "%t1.ll" "%s" | FileCheck --check-prefix=RESULT "%s"
-// RUN: %gazer clang -o %t2.bc "%s" "%t1.ll" %errors
-// RUN: lli "%t2.bc" | FileCheck --check-prefix=LLI "%s"
+// RUN: %bmc -inline -bound 10 -trace -test-harness="%t1.ll" "%s" | FileCheck --check-prefix=RESULT "%s"
+// RUN: %check-cex "%s" "%t1.ll" %errors | FileCheck --check-prefix=LLI "%s"
 
 // RESULT: Verification FAILED
 

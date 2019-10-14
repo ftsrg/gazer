@@ -1,8 +1,8 @@
 // RUN: %bmc -inline -inline-globals -no-optimize -math-int -trace -test-harness %t1.ll "%s"
 // RUN: %check-cex "%s" "%t1.ll" "%errors" | FileCheck "%s"
 
-// XRUN: %bmc -inline -inline-globals -math-int -trace -test-harness %t3.ll "%s"
-// XRUN: %check-cex "%s" "%t3.ll" "%errors" | FileCheck "%s"
+// RUN: %bmc -inline -inline-globals -math-int -trace -test-harness %t3.ll "%s"
+// RUN: %check-cex "%s" "%t3.ll" "%errors" | FileCheck "%s"
 
 // CHECK: __VERIFIER_error executed
 
