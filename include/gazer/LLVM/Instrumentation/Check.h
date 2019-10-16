@@ -93,6 +93,7 @@ public:
     }
 
     static llvm::FunctionType* GetErrorFunctionType(llvm::LLVMContext& context);
+    static llvm::IntegerType* GetErrorCodeType(llvm::LLVMContext& context);
 
 public:
     void add(Check* check);

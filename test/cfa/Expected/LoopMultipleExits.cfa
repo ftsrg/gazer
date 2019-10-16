@@ -30,6 +30,11 @@ procedure main() -> (main/RET_VAL : Bv32)
         assume true
         call main/loop.header(0bv32, 0bv32, main/limit, main/sum <= main/loop.header/sum_out, main/__output_selector0 <= main/loop.header/__output_selector);
 
+    transition $8 -> $4
+        assume main/__output_selector0=1bv8
+    {
+    };
+
     transition $8 -> $6
         assume main/__output_selector0=0bv8
     {

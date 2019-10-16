@@ -12,9 +12,7 @@ llvm::Pass* createInlineGlobalVariablesPass();
 
 /// This pass combines each 'gazer.error_code' call within the function
 /// into a single one.
-llvm::Pass* createCombineErrorCallsPass();
-
-llvm::Pass* createBackwardSlicerPass();
+llvm::Pass* createLiftErrorCallsPass();
 
 }
 

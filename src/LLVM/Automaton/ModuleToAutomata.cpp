@@ -727,15 +727,22 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
         auto loc = mCfa->createLocation();
         mCfa->createCallTransition(exit, loc, succCondition, nestedCfa, loopArgs, outputArgs);
 
-        SmallVector<BasicBlock*, 4> exitBlocks;
-        loop->getUniqueExitBlocks(exitBlocks);
+        llvm::SmallVector<llvm::Loop::Edge, 4> exitEdges;
+        loop->getExitEdges(exitEdges);
 
-        for (BasicBlock* exitBlock : exitBlocks) {
+        for (llvm::Loop::Edge& exitEdge : exitEdges) {
+            const llvm::BasicBlock* inBlock = exitEdge.first;
+            const llvm::BasicBlock* exitBlock = exitEdge.second;
+
+            std::vector<VariableAssignment> phiAssignments;
+            insertPhiAssignments(inBlock, exitBlock, phiAssignments);
+
             auto result = mGenInfo.Blocks.find(exitBlock);
             if (result != mGenInfo.Blocks.end()) {
                 mCfa->createAssignTransition(
                     loc, result->second.first,
-                    getExitCondition(exitBlock, exitSelector, nestedLoopInfo)
+                    getExitCondition(exitBlock, exitSelector, nestedLoopInfo),
+                    phiAssignments
                 );
             } else {
                 createExitTransition(succ, exit, succCondition);

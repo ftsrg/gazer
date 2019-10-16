@@ -79,9 +79,14 @@ llvm::FunctionType* CheckRegistry::GetErrorFunctionType(llvm::LLVMContext& conte
 {
     return llvm::FunctionType::get(
         llvm::Type::getVoidTy(context),
-        llvm::Type::getInt16Ty(context),
+        GetErrorCodeType(context),
         /*isVarArg=*/false
     );
+}
+
+llvm::IntegerType* CheckRegistry::GetErrorCodeType(llvm::LLVMContext& context)
+{
+    return llvm::Type::getInt16Ty(context);
 }
 
 llvm::FunctionCallee CheckRegistry::GetErrorFunction(llvm::Module& module)

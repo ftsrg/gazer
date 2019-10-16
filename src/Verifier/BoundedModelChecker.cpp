@@ -143,6 +143,12 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
         }
     }
 
+    if (mSettings.debugDumpCfa) {
+        for (Cfa& cfa : mSystem) {
+            cfa.view();
+        }
+    }
+
     // We are using a dynamic programming-based approach.
     // As the CFA is required to be a DAG, we have a topological sort
     // of its locations. Then we create an array with the size of numLocs, and
@@ -223,18 +229,17 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
                 //mRoot->view();
                 
                 auto model = mSolver->getModel();
+                ExprEvaluator eval{model};
 
                 if (mSettings.dumpSolverModel) {
                     model.print(llvm::errs());
                 }
 
                 std::unique_ptr<Trace> trace;
-
                 if (mSettings.trace) {
                     std::vector<Location*> states;
                     std::vector<std::vector<VariableAssignment>> actions;
 
-                    ExprEvaluator eval{model};
 
                     bmc::BmcCex cex{mError, *mRoot, eval, mPredecessors};
                     for (auto state : cex) {
@@ -282,7 +287,7 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
                     trace = std::make_unique<Trace>(std::vector<std::unique_ptr<TraceEvent>>());
                 }
 
-                ExprRef<LiteralExpr> errorExpr = model[mErrorFieldVariable];
+                ExprRef<LiteralExpr> errorExpr = eval.walk(mErrorFieldVariable->getRefExpr());
                 assert(errorExpr != nullptr && "The error field must be present in the model as a literal expression!");
 
                 switch (errorExpr->getType().getTypeID()) {
