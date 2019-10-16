@@ -1,7 +1,6 @@
 set(SOURCE_FILES
     Analysis/VariableRoles.cpp
     Transform/InlineGlobalVariablesPass.cpp
-    Transform/CombineErrorCalls.cpp
     Transform/UndefToNondet.cpp
     Transform/LiftErrorsPass.cpp
     Instrumentation/MarkFunctionEntries.cpp

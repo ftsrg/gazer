@@ -57,7 +57,7 @@ static BmcSettings initBmcSettingsFromCommandLine();
 
 int main(int argc, char* argv[])
 {
-    cl::HideUnrelatedOptions({&LLVMFrontendCategory, &IrToCfaCategory, &TraceCategory});
+    cl::HideUnrelatedOptions({&LLVMFrontendCategory, &BmcAlgorithmCategory, &IrToCfaCategory, &TraceCategory});
     cl::ParseCommandLineOptions(argc, argv);
 
     #ifndef NDEBUG

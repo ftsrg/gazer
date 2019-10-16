@@ -130,15 +130,19 @@ void LLVMFrontend::registerVerificationPipeline()
     // 4) Inline functions and global variables if requested.
     registerInliningIfEnabled();
 
-    // 5) Execute late optimization passes.
+    // 5) Run assertion lifting.
+    mPassManager.add(new llvm::CallGraphWrapperPass());
+    mPassManager.add(gazer::createLiftErrorCallsPass());
+
+    // 6) Execute late optimization passes.
     registerLateOptimizations();
 
-    // 6) Create memory models.
+    // 7) Create memory models.
     mPassManager.add(new llvm::BasicAAWrapperPass());
     mPassManager.add(new llvm::GlobalsAAWrapperPass());
     mPassManager.add(new llvm::MemorySSAWrapperPass());
 
-    // 7) Do an instruction namer pass.
+    // 8) Do an instruction namer pass.
     mPassManager.add(llvm::createInstructionNamerPass());
 
     // Display the final LLVM CFG now.
@@ -146,10 +150,10 @@ void LLVMFrontend::registerVerificationPipeline()
         mPassManager.add(llvm::createCFGPrinterLegacyPassPass());
     }
 
-    // 8) Perform module-to-automata translation.
+    // 9) Perform module-to-automata translation.
     mPassManager.add(new gazer::ModuleToAutomataPass(mContext, mSettings));
 
-    // 9) Execute the verifier backend if there is one.
+    // 10) Execute the verifier backend if there is one.
     if (mBackendAlgorithm != nullptr) {
         mPassManager.add(new RunVerificationBackendPass(mChecks, *mBackendAlgorithm));
     }
