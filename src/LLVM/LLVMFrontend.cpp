@@ -46,6 +46,9 @@ namespace
         "no-optimize", cl::desc("Do not run optimization passes"), cl::cat(LLVMFrontendCategory));
     cl::opt<bool> ShowFinalCFG(
         "show-final-cfg", cl::desc("Display the final CFG"), cl::cat(LLVMFrontendCategory));
+    cl::opt<bool> NoAssertLift(
+        "no-assert-lift", cl::desc("Do not lift assertions into the main procedure"), cl::cat(LLVMFrontendCategory)
+    );
 
     // LLVM IR to CFA translation options
     cl::opt<ElimVarsLevel> ElimVarsLevelOpt("elim-vars", cl::desc("Level for variable elimination:"),
@@ -131,8 +134,14 @@ void LLVMFrontend::registerVerificationPipeline()
     registerInliningIfEnabled();
 
     // 5) Run assertion lifting.
-    mPassManager.add(new llvm::CallGraphWrapperPass());
-    mPassManager.add(gazer::createLiftErrorCallsPass());
+    if (!NoAssertLift) {
+        mPassManager.add(new llvm::CallGraphWrapperPass());
+        mPassManager.add(gazer::createLiftErrorCallsPass());
+
+        // Assertion lifting creates a lot of dead code. Run a lightweight DCE pass to clean up.
+        // FIXME: Maybe this should be a DeadInstEliminationPass?
+        mPassManager.add(llvm::createDeadCodeEliminationPass());
+    }
 
     // 6) Execute late optimization passes.
     registerLateOptimizations();

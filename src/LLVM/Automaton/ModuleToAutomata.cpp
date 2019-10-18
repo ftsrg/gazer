@@ -72,8 +72,13 @@ static bool hasUsesInBlockRange(const llvm::Instruction* inst, Range&& range)
 
 static bool isErrorBlock(llvm::BasicBlock* bb)
 {
-    auto inst = bb->getFirstNonPHIOrDbgOrLifetime();
-    // In error blocks, the first instruction should be the 'gazer.error_code' call.
+    if (!llvm::isa<UnreachableInst>(bb->getTerminator())) {
+        // Error blocks must be terminated by an unreachable
+        return false;
+    }
+
+    // In error blocks, the last instruction before a terminator should be the 'gazer.error_code' call.
+    auto inst = bb->getTerminator()->getPrevNonDebugInstruction();
 
     if (auto call = llvm::dyn_cast<CallInst>(inst)) {
         Function* function = call->getCalledFunction();
