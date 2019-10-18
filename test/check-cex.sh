@@ -6,4 +6,5 @@ do
   clang -c -emit-llvm "$INPUTF" -o "$TEMP_DIR/$(basename $INPUTF).bc"
 done
 
-llvm-link $TEMP_DIR/*.bc -o - | lli
+llvm-link "$TEMP_DIR"/*.bc -o - | lli
+rm -r "$TEMP_DIR"
