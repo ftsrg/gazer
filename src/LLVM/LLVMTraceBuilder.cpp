@@ -3,6 +3,7 @@
 #include "gazer/Core/Expr/ExprEvaluator.h"
 #include "gazer/LLVM/Instrumentation/Intrinsics.h"
 
+#include <llvm/IR/Module.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/IntrinsicInst.h>
@@ -103,6 +104,7 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
         }
         
         loc = *stateIt;
+        updateCurrentValuation(currentVals, *actionIt);
         BasicBlock* bb = entry.block;
 
         for (llvm::Instruction& inst : *bb) {
@@ -149,18 +151,20 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
                     llvm::Value* value = dvi->getValue();
                     llvm::DILocalVariable* diVar = dvi->getVariable();
 
+                    llvm::DebugLoc debugLoc = nullptr;
                     LocationInfo location = { 0, 0 };
                     if (auto valInst = llvm::dyn_cast<llvm::Instruction>(value)) {
-                        llvm::DebugLoc debugLoc = nullptr;
                         if (valInst->getDebugLoc()) {
                             debugLoc = valInst->getDebugLoc();
-                        } else if (dvi->getDebugLoc()) {
-                            debugLoc = dvi->getDebugLoc();
                         }
+                    }
 
-                        if (debugLoc) {
-                            location = { debugLoc->getLine(), debugLoc->getColumn() };
-                        }
+                    if (!debugLoc && dvi->getDebugLoc()) {
+                        debugLoc = dvi->getDebugLoc();
+                    }
+
+                    if (debugLoc) {
+                        location = { debugLoc->getLine(), debugLoc->getColumn() };
                     }
 
                     auto lit = this->getLiteralFromValue(loc->getAutomaton(), value, currentVals);
@@ -265,7 +269,6 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
         }
 
         prevBB = bb;
-        updateCurrentValuation(currentVals, *actionIt);
         ++stateIt;
         ++actionIt;
     }
@@ -280,6 +283,12 @@ ExprRef<AtomicExpr> LLVMTraceBuilder::getLiteralFromValue(Cfa* cfa, const llvm::
     }
 
     auto expr = mCfaToLlvmTrace.getExpressionForValue(cfa, value);
+//    llvm::errs() << *value << " ==> ";
+//    if (expr != nullptr) {
+//        llvm::errs() << *expr << "  " << *model.eval(expr) << "\n";
+//    } else {
+//        llvm::errs() << "expr is nullptr" << "\n";
+//    }
     
     if (expr != nullptr) {
         return model.eval(expr);

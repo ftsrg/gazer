@@ -16,6 +16,9 @@
 using namespace gazer;
 using namespace gazer::theta;
 
+using llvm::cast;
+using llvm::dyn_cast;
+
 namespace
 {
 
@@ -43,6 +46,7 @@ private:
 };
 
 } // end anonymous namespace
+
 
 auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<VerificationResult>
 {
@@ -165,9 +169,14 @@ void ThetaVerifierImpl::writeSystem(llvm::raw_ostream& os)
     generator.write(os, mNameMapping);
 }
 
-static void reportInvalidCex(llvm::StringRef cex)
+static void reportInvalidCex(llvm::StringRef message, llvm::StringRef cex, sexpr::Value* value = nullptr)
 {
-    llvm::errs() << "Could not parse theta counterexample.\n";
+    llvm::errs() << "Could not parse theta counterexample: " <<  message << "\n";
+    if (value != nullptr) {
+        llvm::errs() << "Value is: ";
+        value->print(llvm::errs());
+        llvm::errs() << "\n";
+    }
     llvm::errs() << "Raw counterexample is: " << cex << "\n";
 }
 
@@ -186,7 +195,7 @@ std::unique_ptr<Trace> ThetaVerifierImpl::parseCex(llvm::StringRef cex, unsigned
     for (size_t i = 3; i < trace->asList().size(); i += 2) {
         auto& stateList = trace->asList()[i]->asList();
         if (stateList[0]->asAtom() != "CfaState") {
-            reportInvalidCex(cex);
+            reportInvalidCex("expected 'CfaState' atom in list", cex, &*(trace->asList()[i]));
             return nullptr;
         }
 
@@ -218,22 +227,35 @@ std::unique_ptr<Trace> ThetaVerifierImpl::parseCex(llvm::StringRef cex, unsigned
                 }
 
                 ExprPtr rhs;
+                Type& varTy = origVariable->getType();
 
-                llvm::APInt intVal;
-                if (!value.getAsInteger(10, intVal)) {
-                    if (auto intTy = llvm::dyn_cast<IntType>(&origVariable->getType())) {
-                        rhs = IntLiteralExpr::Get(*intTy, intVal.getSExtValue());
-                    } else if (auto bvTy = llvm::dyn_cast<BvType>(&origVariable->getType())) {
-                        rhs = BvLiteralExpr::Get(*bvTy, intVal.zextOrTrunc(bvTy->getWidth()));
-                    } else {
-                        llvm_unreachable("Invalid integral type!");
+                switch (varTy.getTypeID()) {
+                    case Type::IntTypeID: {
+                        long long int intVal;
+                        if (!value.getAsInteger(10, intVal)) {
+                            rhs = IntLiteralExpr::Get(cast<IntType>(varTy), intVal);
+                        }
+                        break;
                     }
-                } else if (value == "true" || value == "false") {
-                    assert(origVariable->getType().isBoolType());
-                    rhs = BoolLiteralExpr::Get(origVariable->getContext(), value == "true");
-                } else {
-                    llvm::errs() << "Could not parse theta counterexample.\n";
-                    llvm::errs() << "Raw counterexample is: " << cex << "\n";
+                    case Type::BvTypeID: {
+                        llvm::APInt intVal;
+                        if (!value.getAsInteger(10, intVal)) {
+                            auto& bvTy = cast<BvType>(varTy);
+                            rhs = BvLiteralExpr::Get(bvTy, intVal.zextOrTrunc(bvTy.getWidth()));
+                        }
+                        break;
+                    }
+                    case Type::BoolTypeID: {
+                        if (value.equals_lower("true")) {
+                            rhs = BoolLiteralExpr::True(varTy.getContext());
+                        } else if (value.equals_lower("false")) {
+                            rhs = BoolLiteralExpr::False(varTy.getContext());
+                        }
+                    }
+                }
+
+                if (rhs == nullptr) {
+                    reportInvalidCex("expected a valid integer or boolean value", cex, &*(actionList[j]->asList()[1]));
                     return nullptr;
                 }
 

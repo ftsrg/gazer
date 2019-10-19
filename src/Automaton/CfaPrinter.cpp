@@ -117,9 +117,9 @@ void Transition::print(llvm::raw_ostream &os) const
                 << "Call "
                 << call->getCalledAutomaton()->getName()
                 << "(";
-            for (const ExprPtr& expr : call->inputs()) {
-                expr->print(os);
-                os << ", ";
+            for (size_t i = 0; i < call->getNumInputs(); ++i) {
+                os << call->getCalledAutomaton()->getInput(i)->getName()
+                << " := " << *call->getInputArgument(i) << ", ";
             }
             os << ") -> {";
             for (const VariableAssignment& varAssignment : call->outputs()) {
