@@ -7,6 +7,7 @@ import tempfile
 import shutil
 import os
 
+
 class VerifierConfig:
     def __init__(self, tool, file, flags):
         self.tool = tool
@@ -32,6 +33,7 @@ def create_false_cex_test(verif: VerifierConfig, gazer_build_path: pathlib.Path)
 
     return output
 
+
 def create_invalid_fail_test(verif: VerifierConfig, safe: VerifierConfig):
     output = verif.call_str() + ' | grep "FAILED"\n'
     output += 'RES1=$?\n'
@@ -46,6 +48,7 @@ def create_invalid_fail_test(verif: VerifierConfig, safe: VerifierConfig):
 
     return output
 
+
 def find_tool(toolname, gazer_dir):
     if toolname == "bmc":
         return pathlib.Path(gazer_dir).joinpath("tools/gazer-bmc/gazer-bmc")
@@ -53,6 +56,7 @@ def find_tool(toolname, gazer_dir):
         return pathlib.Path(gazer_dir).joinpath("tools/gazer-theta/gazer-theta")
 
     raise ValueError("Unknown toolname")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -67,7 +71,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     tool = find_tool(args.tool, args.gazer_dir)
-
 
     if args.target == 'false-cex':
         fcopy = pathlib.Path(args.file).name + "_credue.c"

@@ -3,7 +3,6 @@ set(SOURCE_FILES
     CfaPrinter.cpp
     CallGraph.cpp
     RecursiveToCyclicCfa.cpp
-    ErrorCodeInstrumentation.cpp
 )
 
 add_library(GazerAutomaton ${SOURCE_FILES})

@@ -1,5 +1,5 @@
-#ifndef _GAZER_CORE_Z3SOLVER_H
-#define _GAZER_CORE_Z3SOLVER_H
+#ifndef GAZER_CORE_Z3SOLVER_H
+#define GAZER_CORE_Z3SOLVER_H
 
 #include "gazer/Core/Solver/Solver.h"
 

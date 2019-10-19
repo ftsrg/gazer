@@ -240,7 +240,6 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
                     std::vector<Location*> states;
                     std::vector<std::vector<VariableAssignment>> actions;
 
-
                     bmc::BmcCex cex{mError, *mRoot, eval, mPredecessors};
                     for (auto state : cex) {
                         Location* loc = state.getLocation();
@@ -270,7 +269,7 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
                             if (model.find(assignment.getVariable()) == model.end()) {
                                 value = UndefExpr::Get(variable->getType());
                             } else {
-                                value = eval.walk(variable->getRefExpr());
+                                value = eval.walk(assignment.getVariable()->getRefExpr());
                             }
 
                             traceAction.emplace_back(origVariable, value);
@@ -668,7 +667,8 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
             auto newInput = mRoot->createLocal(varname, input->getType());
             oldVarToNew[input] = newInput;
             vmap[newInput] = input;
-            rewrite[input] = call->getInputArgument(i);
+            //rewrite[input] = call->getInputArgument(i);
+            rewrite[input] = newInput->getRefExpr();
         }
     }
 
@@ -768,8 +768,13 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     Location* before = call->getSource();
     Location* after  = call->getTarget();
 
+    std::vector<VariableAssignment> inputAssigns;
+    for (int i = 0; i < call->getNumInputs(); ++i) {
+        inputAssigns.push_back({ oldVarToNew[callee->getInput(i)], call->getInputArgument(i) });
+    }
+
     mRoot->createAssignTransition(
-        before, locToLocMap[callee->getEntry()], call->getGuard()
+        before, locToLocMap[callee->getEntry()], call->getGuard(), inputAssigns
     );
 
     mRoot->createAssignTransition(
