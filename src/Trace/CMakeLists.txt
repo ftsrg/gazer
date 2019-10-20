@@ -3,5 +3,5 @@ set(SOURCE_FILES
     VerificationResult.cpp
 )
 
-add_library(GazerTrace ${SOURCE_FILES})
+add_library(GazerTrace SHARED ${SOURCE_FILES})
 target_link_libraries(GazerTrace GazerCore)

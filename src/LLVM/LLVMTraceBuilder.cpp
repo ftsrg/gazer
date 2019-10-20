@@ -170,7 +170,8 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
                     auto lit = this->getLiteralFromValue(loc->getAutomaton(), value, currentVals);
                     if (lit == nullptr) {
                         // This is possible if the assignment was not required
-                        // by the model checking engine to produce a counterexample.
+                        // by the model checking engine to produce a counterexample
+                        // or if the value was stripped away by an optimization.
                         // Insert an undef expression to mark this case.
                         // XXX: Currently we are using a dummy 1-bit Bv type, this should be updated.
                         events.push_back(std::make_unique<AssignTraceEvent>(
@@ -282,16 +283,11 @@ ExprRef<AtomicExpr> LLVMTraceBuilder::getLiteralFromValue(Cfa* cfa, const llvm::
         return LiteralFromLLVMConst(mContext, cd);
     }
 
+    ExprEvaluator eval(model);
+
     auto expr = mCfaToLlvmTrace.getExpressionForValue(cfa, value);
-//    llvm::errs() << *value << " ==> ";
-//    if (expr != nullptr) {
-//        llvm::errs() << *expr << "  " << *model.eval(expr) << "\n";
-//    } else {
-//        llvm::errs() << "expr is nullptr" << "\n";
-//    }
-    
     if (expr != nullptr) {
-        return model.eval(expr);
+        return eval.walk(expr);
     }
 
     return nullptr;
