@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.8)
 project(gazer)
 
+include(ExternalProject)
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 # Project settings
@@ -29,17 +31,6 @@ message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
-
-# Z3
-find_package(Z3 4.8 REQUIRED CONFIG)
-message(STATUS "Found Z3 ${Z3_VERSION_STRING}")
-message(STATUS "Using Z3 config in: ${Z3_DIR}")
-message(STATUS "Using Z3 libraries: ${Z3_LIBRARIES}")
-
-include_directories(${Z3_C_INCLUDE_DIRS})
-link_directories(${CMAKE_SOURCE_DIR}/lib)
-
-set(Z3_INCLUDE_DIR  ${Z3_C_INCLUDE_DIRS})
 
 # Get boost
 find_package(Boost REQUIRED)

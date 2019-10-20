@@ -5,5 +5,5 @@ set(SOURCE_FILES
     RecursiveToCyclicCfa.cpp
 )
 
-add_library(GazerAutomaton ${SOURCE_FILES})
+add_library(GazerAutomaton SHARED ${SOURCE_FILES})
 target_link_libraries(GazerAutomaton GazerCore)

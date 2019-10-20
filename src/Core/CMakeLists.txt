@@ -16,5 +16,5 @@ set(SOURCE_FILES
 
 llvm_map_components_to_libnames(LLVM_LIBS support)
 
-add_library(GazerCore ${SOURCE_FILES})
+add_library(GazerCore SHARED ${SOURCE_FILES})
 target_link_libraries(GazerCore ${LLVM_LIBS} GazerSupport)
