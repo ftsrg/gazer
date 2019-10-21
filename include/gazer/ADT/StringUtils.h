@@ -49,9 +49,11 @@ template<
 >
 void join_print(StreamT& os, Iterator begin, Iterator end, llvm::StringRef separator)
 {
-    if (begin != end) {
-        os << *begin;
+    if (begin == end) {
+        return;
     }
+
+    os << *begin;
 
     while (++begin != end) {
         os << separator;

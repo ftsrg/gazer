@@ -4,13 +4,27 @@
 
 using namespace gazer;
 
-llvm::FunctionCallee GazerIntrinsic::GetOrInsertFunctionEntry(llvm::Module& module)
+llvm::FunctionCallee GazerIntrinsic::GetOrInsertFunctionEntry(llvm::Module& module, llvm::ArrayRef<llvm::Type*> args)
 {
+    std::vector<llvm::Type*> funArgs;
+    funArgs.push_back(llvm::Type::getMetadataTy(module.getContext()));
+    funArgs.insert(funArgs.end(), args.begin(), args.end());
+
+    auto funTy = llvm::FunctionType::get(llvm::Type::getVoidTy(module.getContext()), funArgs, false);
+
+    std::string buffer;
+    llvm::raw_string_ostream rso{buffer};
+
+    rso << FunctionEntryPrefix;
+    for (auto& arg : args) {
+        rso << '.';
+        arg->print(rso, false, true);
+    }
+    rso.flush();
+
     return module.getOrInsertFunction(
-        FunctionEntryName,
-        llvm::Type::getVoidTy(module.getContext()),
-        llvm::Type::getMetadataTy(module.getContext()),
-        llvm::Type::getInt8Ty(module.getContext())
+        rso.str(),
+        funTy
     );
 }
 

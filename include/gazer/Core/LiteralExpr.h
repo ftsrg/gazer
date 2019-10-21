@@ -153,6 +153,9 @@ public:
 
     llvm::APInt getValue() const { return mValue; }
 
+    bool isOne() const { return mValue.isOneValue(); }
+    bool isZero() const { return mValue.isNullValue(); }
+
     BvType& getType() const { return static_cast<BvType&>(mType); }
 
     static bool classof(const Expr* expr) {
@@ -164,7 +167,6 @@ public:
     }
 
 private:
-    //uint64_t mValue;
     llvm::APInt mValue;
 };
 

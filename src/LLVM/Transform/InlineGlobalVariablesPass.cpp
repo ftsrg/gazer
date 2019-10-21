@@ -56,11 +56,9 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
     while (gvIt != module.global_end()) {
         GlobalVariable& gv = *(gvIt++);
 
-        // TODO: There is an issue with constant uses, just return early if that is the case.
-        for (auto& u : gv.uses()) {
-            if (llvm::isa<llvm::Constant>(&u)) {
-                continue;
-            }
+        if (gv.isConstant()) {
+            // Do not inline constants.
+            continue;
         }
 
         auto type = gv.getType()->getElementType();
