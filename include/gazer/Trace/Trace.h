@@ -90,26 +90,54 @@ public:
     virtual ~TraceBuilder() = default;
 };
 
+/// A simple wrapper for a trace variable
+class TraceVariable
+{
+public:
+    enum Representation
+    {
+        Rep_Unknown,
+        Rep_Bool,
+        Rep_Char,
+        Rep_Signed,
+        Rep_Unsigned,
+        Rep_Float
+    };
+
+    TraceVariable(std::string name, Representation representation, unsigned size = 0)
+        : mName(std::move(name)), mRepresentation(representation), mSize(size)
+    {}
+
+    [[nodiscard]] llvm::StringRef getName() const { return mName; }
+    [[nodiscard]] Representation getRepresentation() const { return mRepresentation; }
+    [[nodiscard]] unsigned getSize() const { return mSize; }
+
+private:
+    std::string mName;
+    Representation mRepresentation;
+    unsigned mSize;
+};
+
 /// Indicates an assignment in the original program.
 class AssignTraceEvent final : public TraceEvent
 {
 public:
     AssignTraceEvent(
-        std::string variableName,
+        TraceVariable variable,
         ExprRef<AtomicExpr> expr,
         LocationInfo location = {}
     ) : TraceEvent(TraceEvent::Event_Assign, location),
-        mVariableName(std::move(variableName)), mExpr(std::move(expr))
+        mVariable(std::move(variable)), mExpr(std::move(expr))
     {}
 
-    std::string getVariableName() const { return mVariableName; }
-    ExprRef<AtomicExpr> getExpr() const { return mExpr; }
+    [[nodiscard]] const TraceVariable& getVariable() const { return mVariable; }
+    [[nodiscard]] ExprRef<AtomicExpr> getExpr() const { return mExpr; }
 
     static bool classof(const TraceEvent* event) {
         return event->getKind() == TraceEvent::Event_Assign;
     }
 private:
-    std::string mVariableName;
+    TraceVariable mVariable;
     ExprRef<AtomicExpr> mExpr;
 };
 
@@ -117,18 +145,30 @@ private:
 class FunctionEntryEvent final : public TraceEvent
 {
 public:
-    explicit FunctionEntryEvent(std::string functionName, LocationInfo location = {})
-        : TraceEvent(TraceEvent::Event_FunctionEntry, location),
-        mFunctionName(std::move(functionName))
+    explicit FunctionEntryEvent(
+        std::string functionName,
+        std::vector<ExprRef<AtomicExpr>> args = {},
+        LocationInfo location = {}
+    ) : TraceEvent(TraceEvent::Event_FunctionEntry, location),
+        mFunctionName(std::move(functionName)),
+        mArgs(std::move(args))
     {}
 
-    std::string getFunctionName() const { return mFunctionName; }
+    [[nodiscard]] std::string getFunctionName() const { return mFunctionName; }
+
+    using arg_iterator = std::vector<ExprRef<AtomicExpr>>::const_iterator;
+    arg_iterator arg_begin() const { return mArgs.begin(); }
+    arg_iterator arg_end() const { return mArgs.end(); }
+    [[nodiscard]] llvm::iterator_range<arg_iterator> args() {
+        return llvm::make_range(arg_begin(), arg_end());
+    }
 
     static bool classof(const TraceEvent* event) {
         return event->getKind() == TraceEvent::Event_FunctionEntry;
     }
 private:
     std::string mFunctionName;
+    std::vector<ExprRef<AtomicExpr>> mArgs;
 };
 
 class FunctionReturnEvent : public TraceEvent

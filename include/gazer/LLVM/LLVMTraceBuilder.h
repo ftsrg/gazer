@@ -7,6 +7,7 @@
 
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/IR/Value.h>
+#include <llvm/IR/InstVisitor.h>
 
 namespace gazer
 {
@@ -26,11 +27,23 @@ public:
     ) override;
 
 private:
-    ExprRef<AtomicExpr> getLiteralFromValue(Cfa* cfa, const llvm::Value* value, Valuation& model);
+    void handleDbgValueInst(
+        const Location* loc, const llvm::DbgValueInst* dvi,
+        std::vector<std::unique_ptr<TraceEvent>>& events, Valuation& currentVals
+    );
+
+    Type* preferredTypeFromDIType(llvm::DIType* diTy);
+    ExprRef<AtomicExpr> getLiteralFromLLVMConst(const llvm::ConstantData* value, Type* preferredType = nullptr);
+    ExprRef<AtomicExpr> getLiteralFromValue(
+        Cfa* cfa, const llvm::Value* value, Valuation& model, Type* preferredType = nullptr
+    );
+
+    TraceVariable traceVarFromDIVar(const llvm::DIVariable* diVar);
 
 private:
     GazerContext& mContext;
     CfaToLLVMTrace& mCfaToLlvmTrace;
+
 };
 
 }

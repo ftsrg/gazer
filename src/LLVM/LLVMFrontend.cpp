@@ -131,6 +131,7 @@ void LLVMFrontend::registerVerificationPipeline()
     registerEnabledChecks();
 
     // 4) Inline functions and global variables if requested.
+    mPassManager.add(gazer::createMarkFunctionEntriesPass());
     registerInliningIfEnabled();
 
     // 5) Run assertion lifting.
@@ -251,7 +252,6 @@ void LLVMFrontend::registerInliningIfEnabled()
             gv.setLinkage(GlobalValue::InternalLinkage);
         }
 
-        mPassManager.add(gazer::createMarkFunctionEntriesPass());
         mPassManager.add(llvm::createAlwaysInlinerLegacyPass());
 
         if (InlineGlobals) {

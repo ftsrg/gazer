@@ -25,23 +25,45 @@ static void updateCurrentValuation(Valuation& val, const std::vector<VariableAss
     }
 }
 
-static bool handleUndefOperands(llvm::Instruction& inst, llvm::DenseSet<llvm::Value*> undefs, llvm::BasicBlock* prevBB)
+gazer::Type* LLVMTraceBuilder::preferredTypeFromDIType(llvm::DIType* diTy)
 {
-    return true;
+    assert(diTy != nullptr);
+
+    if (auto basicTy = dyn_cast<llvm::DIBasicType>(diTy)) {
+        switch (basicTy->getEncoding()) {
+            case dwarf::DW_ATE_boolean:
+                return &BoolType::Get(mContext);
+            case dwarf::DW_ATE_signed:
+            case dwarf::DW_ATE_signed_char:
+            case dwarf::DW_ATE_unsigned:
+            case dwarf::DW_ATE_unsigned_char:
+                return &BvType::Get(mContext, diTy->getSizeInBits());
+            case dwarf::DW_ATE_float:
+                switch (diTy->getSizeInBits()) {
+                    case 32: return &FloatType::Get(mContext, FloatType::Single);
+                    case 64: return &FloatType::Get(mContext, FloatType::Double);
+                    default:
+                        break;
+                }
+            default:
+               break;
+        }
+    }
+
+    return nullptr;
 }
 
-static ExprRef<AtomicExpr> LiteralFromLLVMConst(GazerContext& context, const llvm::ConstantData* value, bool i1AsBool = true)
-{
+ExprRef<AtomicExpr> LLVMTraceBuilder::getLiteralFromLLVMConst(
+    const llvm::ConstantData* value, gazer::Type* preferredType
+) {
     if (auto ci = llvm::dyn_cast<llvm::ConstantInt>(value)) {
         unsigned width = ci->getType()->getIntegerBitWidth();
-        if (width == 1 && i1AsBool) {
-            return BoolLiteralExpr::Get(BoolType::Get(context), ci->isZero() ? false : true);
-        }
-
-        return BvLiteralExpr::Get(BvType::Get(context, width), ci->getValue());
+        return BvLiteralExpr::Get(BvType::Get(mContext, width), ci->getValue());
     }
     
     if (auto cfp = llvm::dyn_cast<llvm::ConstantFP>(value)) {
+        assert((!preferredType || preferredType->isFloatType()) && "Non-float preferred for a float value!");
+
         auto fltTy = cfp->getType();
         FloatType::FloatPrecision precision;
         if (fltTy->isHalfTy()) {
@@ -56,10 +78,10 @@ static ExprRef<AtomicExpr> LiteralFromLLVMConst(GazerContext& context, const llv
             llvm_unreachable("Unsupported floating-point type.");
         }
 
-        return FloatLiteralExpr::Get(FloatType::Get(context, precision), cfp->getValueAPF());
+        return FloatLiteralExpr::Get(FloatType::Get(mContext, precision), cfp->getValueAPF());
     }
 
-    return UndefExpr::Get(BvType::Get(context, 1));
+    return UndefExpr::Get(BvType::Get(mContext, 1));
 }
 
 std::unique_ptr<Trace> LLVMTraceBuilder::build(
@@ -108,6 +130,10 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
         BasicBlock* bb = entry.block;
 
         for (llvm::Instruction& inst : *bb) {
+            // Passing through this instruction means that it's possible not undefined anymore.
+            // Remove from the undefined set, and place it back again if it turns out to be undef.
+            undefs.erase(&inst);
+
             // See if we have reads on undefined values.
             for (unsigned i = 0; i < inst.getNumOperands(); ++i) {
                 llvm::Value* operand = inst.getOperand(i);
@@ -122,6 +148,22 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
                         if (phi->getIncomingBlock(i) == prevBB) {
                             undefs.insert(phi);
                         }
+                    } else if (auto select = dyn_cast<SelectInst>(&inst)) {
+                        if (i == 0) {
+                            // The condition is undefined, this UB
+                            auto expr = mCfaToLlvmTrace.getExpressionForValue(loc->getAutomaton(), &inst);
+                            events.push_back(std::make_unique<UndefinedBehaviorEvent>(
+                                currentVals.eval(expr)
+                                // TODO: Add location
+                            ));
+                        } else {
+                            auto expr = this->getLiteralFromValue(loc->getAutomaton(), &inst, currentVals);
+                            if (i == 1 && expr == BoolLiteralExpr::True(mContext)) {
+                                undefs.insert(&inst);
+                            } else if (i == 2 && expr == BoolLiteralExpr::False(mContext)) {
+                                undefs.insert(&inst);
+                            }
+                        }
                     } else if (!llvm::isa<IntrinsicInst>(inst)) {
                         auto expr = mCfaToLlvmTrace.getExpressionForValue(loc->getAutomaton(), operand);
                         events.push_back(std::make_unique<UndefinedBehaviorEvent>(
@@ -132,14 +174,6 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
                 }
             }
 
-            if (auto phi = dyn_cast<PHINode>(&inst)) {
-                if (undefs.count(phi) != 0 && undefs.count(phi->getIncomingValueForBlock(prevBB)) == 0) {
-                    // If this PHI node was previosuly registered as an undef value,
-                    // but now has a different incoming value, remove it from the undef list.
-                    undefs.erase(phi);
-                }
-            }
-
             auto call = dyn_cast<CallInst>(&inst);
             if (!call || call->getCalledFunction() == nullptr) {
                 continue;
@@ -147,47 +181,7 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
 
             llvm::Function* callee = call->getCalledFunction();
             if (auto dvi = llvm::dyn_cast<llvm::DbgValueInst>(&inst)) {
-                if (dvi->getValue() && dvi->getVariable()) {
-                    llvm::Value* value = dvi->getValue();
-                    llvm::DILocalVariable* diVar = dvi->getVariable();
-
-                    llvm::DebugLoc debugLoc = nullptr;
-                    LocationInfo location = { 0, 0 };
-                    if (auto valInst = llvm::dyn_cast<llvm::Instruction>(value)) {
-                        if (valInst->getDebugLoc()) {
-                            debugLoc = valInst->getDebugLoc();
-                        }
-                    }
-
-                    if (!debugLoc && dvi->getDebugLoc()) {
-                        debugLoc = dvi->getDebugLoc();
-                    }
-
-                    if (debugLoc) {
-                        location = { debugLoc->getLine(), debugLoc->getColumn() };
-                    }
-
-                    auto lit = this->getLiteralFromValue(loc->getAutomaton(), value, currentVals);
-                    if (lit == nullptr) {
-                        // This is possible if the assignment was not required
-                        // by the model checking engine to produce a counterexample
-                        // or if the value was stripped away by an optimization.
-                        // Insert an undef expression to mark this case.
-                        // XXX: Currently we are using a dummy 1-bit Bv type, this should be updated.
-                        events.push_back(std::make_unique<AssignTraceEvent>(
-                            diVar->getName(),
-                            UndefExpr::Get(gazer::BvType::Get(mContext, 1)),
-                            location
-                        ));
-                        continue;
-                    }
-
-                    events.push_back(std::make_unique<AssignTraceEvent>(
-                        diVar->getName(),
-                        lit,
-                        location
-                    ));
-                }
+                this->handleDbgValueInst(loc, dvi, events, currentVals);
             } else if (callee->getName() == GazerIntrinsic::InlinedGlobalWriteName) {
                 auto mdValue = cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata();
                 auto value = cast<ValueAsMetadata>(mdValue)->getValue();
@@ -204,17 +198,25 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
                 }
 
                 events.push_back(std::make_unique<AssignTraceEvent>(
-                    mdGlobal->getName(),
+                    this->traceVarFromDIVar(mdGlobal),
                     lit,
                     location
                 ));
-            } else if (callee->getName() == GazerIntrinsic::FunctionEntryName) {
+            } else if (callee->getName().startswith(GazerIntrinsic::FunctionEntryPrefix)) {
                 auto diSP = dyn_cast<DISubprogram>(
                     cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata()
                 );
 
+                std::vector<ExprRef<AtomicExpr>> args;
+                for (size_t i = 1; i < call->getNumArgOperands(); ++i) {
+                    args.push_back(
+                        this->getLiteralFromValue(loc->getAutomaton(), call->getArgOperand(i), currentVals)
+                    );
+                }
+
                 events.push_back(std::make_unique<FunctionEntryEvent>(
-                    diSP->getName()
+                    diSP->getName(),
+                    args
                 ));
             } else if (callee->getName() == GazerIntrinsic::FunctionReturnVoidName) {
                 auto diSP = dyn_cast<DISubprogram>(
@@ -224,6 +226,16 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
                 events.push_back(std::make_unique<FunctionReturnEvent>(
                     diSP->getName(),
                     nullptr
+                ));
+            } else if (callee->getName().startswith(GazerIntrinsic::FunctionReturnValuePrefix))  {
+                auto diSP = dyn_cast<DISubprogram>(
+                    cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata()
+                );
+
+                auto expr = this->getLiteralFromValue(loc->getAutomaton(), call->getArgOperand(1), currentVals);
+                events.push_back(std::make_unique<FunctionReturnEvent>(
+                    diSP->getName(),
+                    expr
                 ));
             } else if (callee->getName() == GazerIntrinsic::FunctionCallReturnedName) {
                 auto diSP = dyn_cast<DISubprogram>(
@@ -238,6 +250,8 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
                 // Note that this does not necessarily mean undefined behavior,
                 // as UB only occurs if we actually read this value.
                 undefs.insert(call);
+            } else if (callee->getName().startswith("gazer.dummy")) {
+                // These functions are the part of an "invisible" instrumentation and should be ignored.
             } else if (callee->isDeclaration() && !call->getType()->isVoidTy()) {
                 // This is a function call to a nondetermistic function.
                 auto variable = mCfaToLlvmTrace.getVariableForValue(loc->getAutomaton(), call);
@@ -277,10 +291,49 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
     return std::make_unique<Trace>(std::move(events));
 }
 
-ExprRef<AtomicExpr> LLVMTraceBuilder::getLiteralFromValue(Cfa* cfa, const llvm::Value* value, Valuation& model)
-{
+void LLVMTraceBuilder::handleDbgValueInst(
+    const Location* loc,
+    const llvm::DbgValueInst* dvi,
+    std::vector<std::unique_ptr<TraceEvent>>& events,
+    Valuation& currentVals
+) {
+    if (dvi->getValue() && dvi->getVariable()) {
+        Value* value = dvi->getValue();
+        DILocalVariable* diVar = dvi->getVariable();
+
+        DebugLoc debugLoc = nullptr;
+        LocationInfo location = { 0, 0 };
+        if (auto valInst = dyn_cast<Instruction>(value)) {
+            if (valInst->getDebugLoc()) {
+                debugLoc = valInst->getDebugLoc();
+            }
+        }
+
+        if (!debugLoc && dvi->getDebugLoc()) {
+            debugLoc = dvi->getDebugLoc();
+        }
+
+        if (debugLoc) {
+            location = { debugLoc->getLine(), debugLoc->getColumn() };
+        }
+
+        DIType* diType = diVar->getType().resolve();
+        gazer::Type* preferredType = this->preferredTypeFromDIType(diType);
+
+        auto lit = getLiteralFromValue(loc->getAutomaton(), value, currentVals, preferredType);
+        events.push_back(std::make_unique<AssignTraceEvent>(
+            this->traceVarFromDIVar(diVar),
+            lit,
+            location
+        ));
+    }
+}
+
+ExprRef<AtomicExpr> LLVMTraceBuilder::getLiteralFromValue(
+    Cfa* cfa, const llvm::Value* value, Valuation& model, gazer::Type* preferredType
+) {
     if (auto cd = dyn_cast<ConstantData>(value)) {
-        return LiteralFromLLVMConst(mContext, cd);
+        return this->getLiteralFromLLVMConst(cd, preferredType);
     }
 
     ExprEvaluator eval(model);
@@ -290,5 +343,32 @@ ExprRef<AtomicExpr> LLVMTraceBuilder::getLiteralFromValue(Cfa* cfa, const llvm::
         return eval.walk(expr);
     }
 
-    return nullptr;
+    // This is possible if the assignment was not required
+    // by the model checking engine to produce a counterexample
+    // or if the value was stripped away by an optimization.
+    // Insert an undef expression to mark this case.
+    // XXX: Currently we are using a dummy 1-bit Bv type, this should be updated.
+    return UndefExpr::Get(BvType::Get(mContext, 1));
 }
+
+TraceVariable LLVMTraceBuilder::traceVarFromDIVar(const llvm::DIVariable* diVar)
+{
+    llvm::DIType* diType = diVar->getType().resolve();
+    TraceVariable::Representation rep = TraceVariable::Rep_Unknown;
+
+    if (auto basicDiType = dyn_cast<DIBasicType>(diType)) {
+        switch (basicDiType->getEncoding()) {
+            case dwarf::DW_ATE_boolean: rep = TraceVariable::Rep_Bool; break;
+            case dwarf::DW_ATE_signed: rep = TraceVariable::Rep_Signed; break;
+            case dwarf::DW_ATE_unsigned: rep = TraceVariable::Rep_Unsigned; break;
+            case dwarf::DW_ATE_signed_char: rep = TraceVariable::Rep_Signed; break;
+            case dwarf::DW_ATE_unsigned_char: rep = TraceVariable::Rep_Char; break;
+            case dwarf::DW_ATE_float: rep = TraceVariable::Rep_Float; break;
+            default:
+                break;
+        }
+    }
+
+    return TraceVariable(diVar->getName(), rep, diType->getSizeInBits());
+}
+

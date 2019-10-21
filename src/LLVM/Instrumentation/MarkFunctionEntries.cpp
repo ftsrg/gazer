@@ -26,8 +26,7 @@ public:
     {
         LLVMContext& context = module.getContext();
         llvm::DenseMap<llvm::Type*, llvm::Value*> returnValueMarks;
-       
-        auto mark = GazerIntrinsic::GetOrInsertFunctionEntry(module);
+
         auto retMarkVoid = GazerIntrinsic::GetOrInsertFunctionReturnVoid(module);        
         auto callReturnedMark = GazerIntrinsic::GetOrInsertFunctionCallReturned(module);
 
@@ -41,11 +40,16 @@ public:
 
             auto dsp = function.getSubprogram();
             if (dsp != nullptr) {
+                auto mark = GazerIntrinsic::GetOrInsertFunctionEntry(module, function.getFunctionType()->params());
                 builder.SetInsertPoint(&entry, entry.getFirstInsertionPt());
-                builder.CreateCall(mark, {
-                    MetadataAsValue::get(context, dsp),
-                    builder.getInt8(function.arg_size())
-                });
+
+                std::vector<llvm::Value*> args;
+                args.push_back(MetadataAsValue::get(context, dsp));
+                for (auto& arg : function.args()) {
+                    args.push_back(&arg);
+                }
+
+                builder.CreateCall(mark, args);
             } else {
                 llvm::errs()
                     << "Cannot insert function entry marks: "

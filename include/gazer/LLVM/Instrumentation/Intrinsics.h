@@ -16,7 +16,7 @@ class GazerIntrinsic
 public:
     // TODO: This might break some stuff, but the verifier pass only treats intrinsics
     // having their name start with "llvm." as such.
-    static constexpr char FunctionEntryName[] = "llvm.gazer.function.entry";
+    static constexpr char FunctionEntryPrefix[] = "llvm.gazer.function.entry";
     static constexpr char FunctionReturnVoidName[] = "llvm.gazer.function.return_void";
     static constexpr char FunctionCallReturnedName[] = "llvm.gazer.function.call_returned";
     static constexpr char FunctionReturnValuePrefix[] = "llvm.gazer.function.return_value.";
@@ -27,8 +27,8 @@ public:
     static llvm::CallInst* CreateFunctionEntry(llvm::Module& module, llvm::DISubprogram* dsp = nullptr);
 
 public:
-    /// Returns a 'gazer.function.entry(metadata fn_name, i8 num_args)' intrinsic.
-    static llvm::FunctionCallee GetOrInsertFunctionEntry(llvm::Module& module);
+    /// Returns a 'gazer.function.entry(metadata fn_name, args...)' intrinsic.
+    static llvm::FunctionCallee GetOrInsertFunctionEntry(llvm::Module& module, llvm::ArrayRef<llvm::Type*> args);
 
     /// Returns a 'gazer.function.return_void(metadata fn_name)' intrinsic.
     static llvm::FunctionCallee GetOrInsertFunctionReturnVoid(llvm::Module& module);
