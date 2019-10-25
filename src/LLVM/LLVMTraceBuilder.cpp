@@ -317,7 +317,7 @@ void LLVMTraceBuilder::handleDbgValueInst(
             location = { debugLoc->getLine(), debugLoc->getColumn() };
         }
 
-        DIType* diType = diVar->getType().resolve();
+        DIType* diType = diVar->getType();
         gazer::Type* preferredType = this->preferredTypeFromDIType(diType);
 
         auto lit = getLiteralFromValue(loc->getAutomaton(), value, currentVals, preferredType);
@@ -353,7 +353,7 @@ ExprRef<AtomicExpr> LLVMTraceBuilder::getLiteralFromValue(
 
 TraceVariable LLVMTraceBuilder::traceVarFromDIVar(const llvm::DIVariable* diVar)
 {
-    llvm::DIType* diType = diVar->getType().resolve();
+    llvm::DIType* diType = diVar->getType();
     TraceVariable::Representation rep = TraceVariable::Rep_Unknown;
 
     if (auto basicDiType = dyn_cast<DIBasicType>(diType)) {
