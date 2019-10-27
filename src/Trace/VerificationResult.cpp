@@ -1,5 +1,7 @@
 #include "gazer/Trace/VerificationResult.h"
 
+#include <llvm/ADT/Twine.h>
+
 using namespace gazer;
 
 std::unique_ptr<VerificationResult> VerificationResult::CreateSuccess()
@@ -17,7 +19,7 @@ std::unique_ptr<VerificationResult> VerificationResult::CreateUnknown()
     return std::make_unique<UnknownResult>();
 }
 
-std::unique_ptr<VerificationResult> VerificationResult::CreateInternalError(std::string message)
+std::unique_ptr<VerificationResult> VerificationResult::CreateInternalError(llvm::Twine message)
 {
     return std::make_unique<InternalErrorResult>(message);
 }

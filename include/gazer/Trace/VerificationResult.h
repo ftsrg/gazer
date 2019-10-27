@@ -1,9 +1,8 @@
 #ifndef GAZER_TRACE_VerificationResult_H
 #define GAZER_TRACE_VerificationResult_H
 
-#include <utility>
-
 #include "gazer/Trace/Trace.h"
+#include <llvm/ADT/Twine.h>
 
 namespace gazer
 {
@@ -33,7 +32,7 @@ public:
 
     static std::unique_ptr<VerificationResult> CreateUnknown();
     static std::unique_ptr<VerificationResult> CreateTimeout();
-    static std::unique_ptr<VerificationResult> CreateInternalError(std::string message);
+    static std::unique_ptr<VerificationResult> CreateInternalError(llvm::Twine message);
 
     virtual ~VerificationResult() = default;
 
@@ -70,6 +69,10 @@ public:
     SuccessResult()
         : VerificationResult(VerificationResult::Success)
     {}
+
+    static bool classof(const VerificationResult* result) {
+        return result->getStatus() == VerificationResult::Success;
+    }
 };
 
 class UnknownResult final : public VerificationResult
@@ -81,6 +84,10 @@ public:
 
     [[nodiscard]] llvm::StringRef getMessage() const { return mMessage; }
 
+    static bool classof(const VerificationResult* result) {
+        return result->getStatus() == VerificationResult::Unknown;
+    }
+
 private:
     std::string mMessage;
 };
@@ -88,12 +95,16 @@ private:
 class InternalErrorResult final : public VerificationResult
 {
 public:
-    InternalErrorResult(std::string message)
+    InternalErrorResult(llvm::Twine message)
         : VerificationResult(VerificationResult::InternalError),
-        mMessage(std::move(message))
+        mMessage(message.str())
     {}
 
     llvm::StringRef getMessage() const { return mMessage; }
+
+    static bool classof(const VerificationResult* result) {
+        return result->getStatus() == VerificationResult::InternalError;
+    }
 
 private:
     std::string mMessage;

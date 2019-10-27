@@ -85,6 +85,7 @@ public:
                 auto il = llvm::cast<IntLiteralExpr>(expr);
                 return std::to_string(il->getValue());
             }
+            // TODO: RealType and ArrayType
         }
 
         llvm_unreachable("Unknown literal expression kind.");

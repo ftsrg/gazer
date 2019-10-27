@@ -72,8 +72,9 @@ Error trace:
 
 The trace lists each step along an errenous execution path, with the values of each program variable.
 
-**Note:** Gazer attempts to speed up verification by optimizing and reducing the input program, and in doing so, it may strip away some of the values it proves to be irrelevant to the verification task.
-However, such removed values may still show up in the trace with an undefined value (indicated by `???`).
+**Note:** Gazer attempts to speed up verification by optimizing and reducing the input program, and in doing so,
+it may strip away some of the variables it proves to be irrelevant to the verification task.
+However, such removed variables may still show up in the trace as undefined values (indicated by `???`).
 This behavior can be turned off using the `-no-optimize` and `-elim-vars=off` flags.
 
 As we can see, the errenous behavior may occur if `ioread32` returns -11.

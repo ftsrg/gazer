@@ -48,7 +48,7 @@ llvm::BasicBlock* Check::createErrorBlock(
 
     auto errorCode = mRegistry->createCheckViolation(this, dbgLoc);
 
-    auto call = builder.CreateCall(
+    builder.CreateCall(
         CheckRegistry::GetErrorFunction(function.getParent()),
         { errorCode }
     );

@@ -3,4 +3,4 @@ set(SOURCE_FILES
 )
 
 add_executable(gazer-cfa ${SOURCE_FILES})
-target_link_libraries(gazer-cfa GazerCore GazerLLVM)
+target_link_libraries(gazer-cfa GazerLLVM)

@@ -30,8 +30,6 @@ public:
     
     bool mark(llvm::Function& function) override
     {
-        auto& context = function.getContext();
-
         for (BasicBlock& bb : function) {
             auto it = bb.begin();
             while (it != bb.end()) {

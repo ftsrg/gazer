@@ -6,10 +6,12 @@
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
 
 #include <llvm/IR/Module.h>
+
+#ifndef NDEBUG
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/Signals.h>
-#include <llvm/Support/CommandLine.h>
 #include <llvm/Support/PrettyStackTrace.h>
+#endif
 
 using namespace gazer;
 using namespace llvm;

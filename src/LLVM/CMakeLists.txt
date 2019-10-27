@@ -20,8 +20,8 @@ set(SOURCE_FILES
     Memory/DummyMemoryModel.cpp
 )
 
-llvm_map_components_to_libnames(LLVM_LIBS core irreader transformutils scalaropts ipo)
-message(STATUS "Using LLVM libraries: ${LLVM_LIBS}")
+llvm_map_components_to_libnames(GAZER_LLVM_LIBS core irreader transformutils scalaropts ipo)
+message(STATUS "Using LLVM libraries: ${GAZER_LLVM_LIBS}")
 
 add_library(GazerLLVM SHARED ${SOURCE_FILES})
-target_link_libraries(GazerLLVM ${LLVM_LIBS} GazerCore GazerTrace GazerZ3Solver GazerAutomaton GazerVerifier)
+target_link_libraries(GazerLLVM ${GAZER_LLVM_LIBS} GazerCore GazerTrace GazerZ3Solver GazerAutomaton GazerVerifier)

@@ -53,9 +53,6 @@ public:
 
     ~CallGraph();
 
-    /// Notify the call graph of the removal of an automaton.
-    void removeAutomaton(Cfa* cfa);
-
     /// Returns true if the given procedure is tail-recursive. That is,
     /// if it is recursive and the recursive calls only occur in
     /// the procedure directly before the exit.
@@ -102,6 +99,6 @@ struct GraphTraits<gazer::CallGraph::Node*>
     }
 };
 
-}
+} // end namespace llvm
 
 #endif
