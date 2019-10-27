@@ -57,6 +57,7 @@ public:
     {}
 
     void print(llvm::raw_ostream& os) const;
+    llvm::Type* getValueType() const { return mValueType; }
 
     ~MemoryObject();
 
@@ -88,12 +89,13 @@ public:
 
 protected:
     MemoryObjectDef(MemoryObject* object, unsigned version, Kind kind)
-        : mObject(object), mVersion(version), mKind(kind)
+        : mObject(object), mKind(kind), mVersion(version)
     {}
 
 public:
     MemoryObject* getObject() const { return mObject; }
     unsigned getVersion() const { return mVersion; }
+    Kind getKind() const { return mKind; }
 
 private:
     MemoryObject* mObject;

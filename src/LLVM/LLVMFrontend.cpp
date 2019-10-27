@@ -217,8 +217,9 @@ bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
         }
     } else if (mResult->isSuccess()) {
         llvm::outs() << "Verification SUCCESSFUL.\n";
-    } else if (mResult->getStatus() == VerificationResult::InternalError) {
+    } else if (auto internalError = llvm::dyn_cast<InternalErrorResult>(mResult.get())) {
         llvm::outs() << "Verification INTERNAL ERROR.\n";
+        llvm::outs() << "  " << internalError->getMessage() << "\n";
     } else if (mResult->getStatus() == VerificationResult::Timeout) {
         llvm::outs() << "Verification TIMEOUT\n";
     } else {

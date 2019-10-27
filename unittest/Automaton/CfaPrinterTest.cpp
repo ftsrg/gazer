@@ -32,7 +32,6 @@ TEST(CfaPrinter, TestPrint)
     auto l1 = cfa->createLocation();
     auto l2 = cfa->createLocation();
     auto l3 = cfa->createLocation();
-    auto lr = cfa->createErrorLocation();
 
     cfa->createAssignTransition(cfa->getEntry(), l1);
     cfa->createAssignTransition(l1, l2, BoolLiteralExpr::True(ctx), {

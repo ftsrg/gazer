@@ -73,6 +73,19 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
     llvm::sys::fs::make_absolute(thetaPath);
     llvm::sys::fs::make_absolute(z3Path);
 
+    if (!llvm::sys::fs::exists(thetaPath)) {
+        return VerificationResult::CreateInternalError(
+            "Could not execute theta verifier. Tool was not found in path '" + thetaPath + "'."
+        );
+    }
+
+    if (!llvm::sys::fs::exists(z3Path)) {
+        return VerificationResult::CreateInternalError(
+            "Could not execute theta verifier."
+            "Libraries required by theta (libz3.so) were not found in path '" + z3Path + "'."
+        );
+    }
+
     std::string javaLibPath = ("-Djava.library.path=" + z3Path).str();
 
     llvm::StringRef args[] = {
@@ -251,7 +264,10 @@ std::unique_ptr<Trace> ThetaVerifierImpl::parseCex(llvm::StringRef cex, unsigned
                         } else if (value.equals_lower("false")) {
                             rhs = BoolLiteralExpr::False(varTy.getContext());
                         }
+                        break;
                     }
+                    default:
+                        break;
                 }
 
                 if (rhs == nullptr) {
