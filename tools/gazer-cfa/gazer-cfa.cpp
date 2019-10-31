@@ -20,7 +20,7 @@ namespace
 {
     cl::opt<std::string> InputFilename(cl::Positional, cl::desc("<input file>"), cl::Required);
     cl::opt<bool> ViewCfa("view", cl::desc("View the CFA in the system's GraphViz viewier."));
-    cl::opt<bool> CyclicCfa("cyclic", cl::desc("Represent loops as cycles instead of recursive calls."));
+    cl::opt<bool> CyclicCfa("cyclic", cl::desc("Represent LoopRep as cycles instead of recursive calls."));
     cl::opt<bool> RunPipeline("run-pipeline", cl::desc("Run the early stages of the verification pipeline, such as instrumentation."));
 }
 
@@ -39,7 +39,7 @@ int main(int argc, char* argv[])
 
     auto settings = LLVMFrontendSettings::initFromCommandLine();
     if (CyclicCfa) {
-        settings.setLoopRepresentation(LoopRepresentation::Cycle);
+        settings.loops = LoopRepresentation::Cycle;
     }
 
     auto frontend = LLVMFrontend::FromInputFile(InputFilename, context, llvmContext, settings);

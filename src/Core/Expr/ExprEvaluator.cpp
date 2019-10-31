@@ -6,7 +6,8 @@ using llvm::dyn_cast;
 
 /// Checks for undefs among operands.
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitUndef(const ExprRef<UndefExpr>& expr) {
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitUndef(const ExprRef<UndefExpr>& expr)
+{
     llvm_unreachable("Invalid undef expression");
 }
 
@@ -193,7 +194,6 @@ ExprRef<LiteralExpr> ExprEvaluatorBase::visitBvXor(const ExprRef<BvXorExpr>& exp
     return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
 }
 
-
 // Logic
 //-----------------------------------------------------------------------------
 
@@ -294,40 +294,56 @@ static ExprRef<LiteralExpr> EvalIntCompare(
     llvm_unreachable("Unknown integer comparison kind.");
 }
 
-// Compare
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitEq(const ExprRef<EqExpr>& expr)
+static ExprRef<LiteralExpr> EvalBinaryCompare(
+    Expr::ExprKind kind, const ExprRef<LiteralExpr>& left, const ExprRef<LiteralExpr>& right)
 {
-    auto left = getOperand(0);
-    auto right = getOperand(1);
-
     Type& opTy = left->getType();
     assert(left->getType() == right->getType());
-
-    BoolType& boolTy = BoolType::Get(opTy.getContext());
-
     assert(!opTy.isFloatType() && "Float types must be compared using FEqExpr!");
 
     switch (opTy.getTypeID()) {
         case Type::BvTypeID:
-            return EvalBvCompare(Expr::Eq, getOperand(0), getOperand(1));
-        case Type::BoolTypeID:
+            return EvalBvCompare(kind, left, right);
+        case Type::BoolTypeID: {
+            BoolType& boolTy = BoolType::Get(opTy.getContext());
+            assert(kind == Expr::Eq || kind == Expr::NotEq);
+
             return BoolLiteralExpr::Get(
                 boolTy,
                 cast<BoolLiteralExpr>(left)->getValue() == cast<BoolLiteralExpr>(right)->getValue()
             );
+        }
         case Type::IntTypeID:
-            return EvalIntCompare(Expr::Eq, getOperand(0), getOperand(1));
+            return EvalIntCompare(kind, left, right);
         default:
             break;
     }
 
-    llvm_unreachable("Invalid operand type in an EqExpr");
+    llvm_unreachable("Invalid operand type in a comparison expression!");
+}
+
+// Compare
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitEq(const ExprRef<EqExpr>& expr)
+{
+    return EvalBinaryCompare(Expr::Eq, getOperand(0), getOperand(1));
 }
 
 ExprRef<LiteralExpr> ExprEvaluatorBase::visitNotEq(const ExprRef<NotEqExpr>& expr)
 {
+    return EvalBinaryCompare(Expr::NotEq, getOperand(0), getOperand(1));
+}
 
-    return EvalBvCompare(expr->getKind(), getOperand(0), getOperand(1));
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitLt(const ExprRef<LtExpr>& expr) {
+    return EvalIntCompare(Expr::Lt, getOperand(0), getOperand(1));
+}
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitLtEq(const ExprRef<LtEqExpr>& expr) {
+    return EvalIntCompare(Expr::LtEq, getOperand(0), getOperand(1));
+}
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitGt(const ExprRef<GtExpr>& expr) {
+    return EvalIntCompare(Expr::Gt, getOperand(0), getOperand(1));
+}
+ExprRef<LiteralExpr> ExprEvaluatorBase::visitGtEq(const ExprRef<GtEqExpr>& expr) {
+    return EvalIntCompare(Expr::GtEq, getOperand(0), getOperand(1));
 }
 
 ExprRef<LiteralExpr> ExprEvaluatorBase::visitBvSLt(const ExprRef<BvSLtExpr>& expr)

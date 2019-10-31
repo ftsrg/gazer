@@ -10,7 +10,7 @@ class MemoryModel
 {
 public:
     MemoryModel(GazerContext& context, LLVMFrontendSettings settings)
-        : mContext(context), mTypes(*this, settings.getIntRepresentation())
+        : mContext(context), mTypes(*this, settings.ints)
     {}
 
     MemoryModel(const MemoryModel&) = delete;

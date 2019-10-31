@@ -67,8 +67,8 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
     }
 
     // Make sure that we have the theta jar and the Z3 library.
-    llvm::SmallString<128> thetaPath("theta/theta-cfa-cli.jar");
-    llvm::SmallString<128> z3Path("theta/lib");
+    llvm::SmallString<128> thetaPath(mSettings.thetaCfaPath);
+    llvm::SmallString<128> z3Path(mSettings.thetaLibPath);
 
     llvm::sys::fs::make_absolute(thetaPath);
     llvm::sys::fs::make_absolute(z3Path);

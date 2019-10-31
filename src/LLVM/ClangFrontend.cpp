@@ -6,12 +6,40 @@
 #include <llvm/IR/Module.h>
 
 #include <llvm/Support/SourceMgr.h>
+#include <llvm/Support/CommandLine.h>
 #include <llvm/IRReader/IRReader.h>
+
+using namespace llvm;
+
+namespace gazer
+{
+    cl::OptionCategory ClangFrontendCategory("Clang compilation settings");
+}
+
+namespace
+{
+
+    // Add some common clang options
+    cl::list<std::string> Includes("I", cl::Prefix,cl::ZeroOrMore,
+        cl::desc("Add directory to include search path"),
+        cl::value_desc("dir"),
+        cl::cat(gazer::ClangFrontendCategory)
+    );
+    cl::list<std::string> Defines("D", cl::Prefix, cl::ZeroOrMore,
+        cl::desc("Define <macro> to <value> (or 1 if <value> omitted)"),
+        cl::value_desc("macro[=value]"),
+        cl::cat(gazer::ClangFrontendCategory)
+    );
+    cl::list<std::string> Warnings("W", cl::Prefix, cl::ZeroOrMore, cl::value_desc("warning"),
+        cl::desc("Enable the specified warning"),
+        cl::cat(gazer::ClangFrontendCategory)
+    );
+}
 
 static bool executeClang(llvm::StringRef clang, llvm::StringRef input, llvm::StringRef output)
 {
     // Build our clang configuration
-    llvm::StringRef clangArgs[] = {
+    std::vector<llvm::StringRef> clangArgs = {
         clang,
         "-g",
         // In the newer (>=5.0) versions of clang, -O0 marks functions
@@ -20,10 +48,25 @@ static bool executeClang(llvm::StringRef clang, llvm::StringRef input, llvm::Str
         // immediately by disabling all LLVM passes.
         "-O1", "-Xclang", "-disable-llvm-passes",
         "-c", "-emit-llvm",
-        input,
-        "-o",
-        output
     };
+
+    // Add -I and -D options correctly
+    std::vector<std::string> prefixedStrings;
+    for (auto& include : Includes) {
+        prefixedStrings.push_back("-I" + include);
+    }
+    for (auto& define : Defines) {
+        prefixedStrings.push_back("-D" + define);
+    }
+    for (auto& warning : Warnings) {
+        prefixedStrings.push_back("-W" + warning);
+    }
+
+    clangArgs.insert(clangArgs.end(), prefixedStrings.begin(), prefixedStrings.end());
+
+    clangArgs.insert(clangArgs.end(), {
+        input, "-o", output
+    });
 
     std::string clangErrors;
 

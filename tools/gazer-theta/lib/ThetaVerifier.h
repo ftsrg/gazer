@@ -11,7 +11,7 @@ struct ThetaSettings
 {
     // Environment
     std::string thetaCfaPath;
-    std::string z3Path;
+    std::string thetaLibPath;
     unsigned timeout = 0;
     std::string modelPath;
 

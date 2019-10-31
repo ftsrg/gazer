@@ -28,64 +28,24 @@ using namespace llvm;
 
 namespace gazer
 {
-    cl::OptionCategory LLVMFrontendCategory("LLVM frontend settings");
-    cl::OptionCategory IrToCfaCategory("LLVM IR translation settings");
-    cl::OptionCategory TraceCategory("Traceability settings");
-
+    extern cl::OptionCategory LLVMFrontendCategory;
 } // end namespace gazer
 
 namespace
 {
-    // LLVM frontend and transformation options
-    cl::opt<bool> InlineFunctions(
-        "inline", cl::desc("Inline function calls"), cl::cat(LLVMFrontendCategory));
-    cl::opt<bool> InlineGlobals(
-        "inline-globals", cl::desc("Inline global variables"), cl::cat(LLVMFrontendCategory));
-    
-    cl::opt<bool> NoOptimize(
-        "no-optimize", cl::desc("Do not run optimization passes"), cl::cat(LLVMFrontendCategory));
     cl::opt<bool> ShowFinalCFG(
         "show-final-cfg", cl::desc("Display the final CFG"), cl::cat(LLVMFrontendCategory));
-    cl::opt<bool> NoAssertLift(
-        "no-assert-lift", cl::desc("Do not lift assertions into the main procedure"), cl::cat(LLVMFrontendCategory)
-    );
-
-    // LLVM IR to CFA translation options
-    cl::opt<ElimVarsLevel> ElimVarsLevelOpt("elim-vars", cl::desc("Level for variable elimination:"),
-        cl::values(
-            clEnumValN(ElimVarsLevel::Off, "off", "Do not eliminate variables"),
-            clEnumValN(ElimVarsLevel::Normal, "normal", "Eliminate variables having only one use"),
-            clEnumValN(ElimVarsLevel::Aggressive, "aggressive", "Eliminate all eligible variables")
-        ),
-        cl::init(ElimVarsLevel::Normal),
-        cl::cat(IrToCfaCategory)
-    );
-    cl::opt<bool> ArithInts(
-        "math-int", cl::desc("Use mathematical unbounded integers instead of bitvectors"),
-        cl::cat(IrToCfaCategory));
-    cl::opt<bool> NoSimplifyExpr(
-        "no-simplify-expr", cl::desc("Do not simplify expressions"),
-        cl::cat(IrToCfaCategory)
-    );
-
-    // Traceability options
-    cl::opt<bool> PrintTrace(
-        "trace", cl::desc("Print counterexample trace"), cl::cat(LLVMFrontendCategory), cl::cat(TraceCategory));
-    cl::opt<std::string> TestHarnessFile(
-        "test-harness",
-        cl::desc("Write test harness to output file"),
-        cl::value_desc("filename"),
-        cl::init(""),
-        cl::cat(TraceCategory)
-    );
 
     class RunVerificationBackendPass : public llvm::ModulePass
     {
     public:
         static char ID;
 
-        RunVerificationBackendPass(const CheckRegistry& checks, VerificationAlgorithm& algorithm)
-            : ModulePass(ID), mChecks(checks), mAlgorithm(algorithm)
+        RunVerificationBackendPass(
+            const CheckRegistry& checks,
+            VerificationAlgorithm& algorithm,
+            const LLVMFrontendSettings& settings
+        ) : ModulePass(ID), mChecks(checks), mAlgorithm(algorithm), mSettings(settings)
         {}
 
         void getAnalysisUsage(llvm::AnalysisUsage& au) const override
@@ -99,6 +59,7 @@ namespace
     private:
         const CheckRegistry& mChecks;
         VerificationAlgorithm& mAlgorithm;
+        const LLVMFrontendSettings& mSettings;
         std::unique_ptr<VerificationResult> mResult;
     };
 
@@ -135,7 +96,7 @@ void LLVMFrontend::registerVerificationPipeline()
     registerInliningIfEnabled();
 
     // 5) Run assertion lifting.
-    if (!NoAssertLift) {
+    if (mSettings.liftAsserts) {
         mPassManager.add(new llvm::CallGraphWrapperPass());
         mPassManager.add(gazer::createLiftErrorCallsPass());
 
@@ -165,7 +126,7 @@ void LLVMFrontend::registerVerificationPipeline()
 
     // 10) Execute the verifier backend if there is one.
     if (mBackendAlgorithm != nullptr) {
-        mPassManager.add(new RunVerificationBackendPass(mChecks, *mBackendAlgorithm));
+        mPassManager.add(new RunVerificationBackendPass(mChecks, *mBackendAlgorithm, mSettings));
     }
 }
 
@@ -186,7 +147,7 @@ bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
         llvm::outs() << "Verification FAILED.\n";
         llvm::outs() << "  " << msg << "\n";
 
-        if (PrintTrace) {
+        if (mSettings.trace) {
             auto writer = trace::CreateTextWriter(llvm::outs(), true);
             llvm::outs() << "Error trace:\n";
             llvm::outs() << "------------\n";
@@ -197,7 +158,7 @@ bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
             }
         }
 
-        if (!TestHarnessFile.empty()) {
+        if (!mSettings.testHarnessFile.empty()) {
             llvm::outs() << "Generating test harness.\n";
             auto test = GenerateTestHarnessModuleFromTrace(
                 fail->getTrace(), 
@@ -205,7 +166,7 @@ bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
                 module
             );
 
-            llvm::StringRef filename(TestHarnessFile);
+            llvm::StringRef filename(mSettings.testHarnessFile);
             std::error_code osError;
             llvm::raw_fd_ostream testOS(filename, osError, llvm::sys::fs::OpenFlags::OF_None);
 
@@ -238,7 +199,7 @@ void LLVMFrontend::registerEnabledChecks()
 
 void LLVMFrontend::registerInliningIfEnabled()
 {
-    if (InlineFunctions) {
+    if (mSettings.inlineFunctions) {
         // Mark all functions but the main as 'always inline'
         for (auto &func : mModule->functions()) {
             // Ignore the main function and declaration-only functions
@@ -255,7 +216,7 @@ void LLVMFrontend::registerInliningIfEnabled()
 
         mPassManager.add(llvm::createAlwaysInlinerLegacyPass());
 
-        if (InlineGlobals) {
+        if (mSettings.inlineGlobals) {
             mPassManager.add(createInlineGlobalVariablesPass());
         }
 
@@ -276,7 +237,7 @@ void LLVMFrontend::run()
 
 void LLVMFrontend::registerEarlyOptimizations()
 {
-    if (!NoOptimize) {
+    if (mSettings.optimize) {
         mPassManager.add(llvm::createCFGSimplificationPass());
         mPassManager.add(llvm::createSROAPass());
     
@@ -288,7 +249,7 @@ void LLVMFrontend::registerEarlyOptimizations()
 
 void LLVMFrontend::registerLateOptimizations()
 {
-    if (!NoOptimize) {
+    if (mSettings.optimize) {
         mPassManager.add(llvm::createFloat2IntPass());
 
         mPassManager.add(llvm::createIndVarSimplifyPass());
@@ -330,21 +291,4 @@ auto LLVMFrontend::FromInputFile(
     }
 
     return std::make_unique<LLVMFrontend>(std::move(module), context, settings);
-}
-
-LLVMFrontendSettings LLVMFrontendSettings::initFromCommandLine()
-{
-    LLVMFrontendSettings settings;
-    settings.setElimVarsLevel(ElimVarsLevelOpt);
-    settings.setSimplifyExpr(!NoSimplifyExpr);
-
-    if (ArithInts) {
-        settings.setIntRepresentation(IntRepresentation::Integers);
-    } else {
-        settings.setIntRepresentation(IntRepresentation::BitVectors);
-    }
-
-    settings.setTrace(PrintTrace);
-
-    return settings;
 }

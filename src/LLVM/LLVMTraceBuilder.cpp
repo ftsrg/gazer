@@ -340,7 +340,10 @@ ExprRef<AtomicExpr> LLVMTraceBuilder::getLiteralFromValue(
 
     auto expr = mCfaToLlvmTrace.getExpressionForValue(cfa, value);
     if (expr != nullptr) {
-        return eval.walk(expr);
+        auto ret = eval.walk(expr);
+        if (ret != nullptr) {
+            return ret;
+        }
     }
 
     // This is possible if the assignment was not required
