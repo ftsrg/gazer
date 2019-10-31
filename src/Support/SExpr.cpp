@@ -7,7 +7,7 @@
 
 using namespace gazer;
 
-static std::unique_ptr<sexpr::Value> doParse(llvm::StringRef& input)
+static sexpr::Value* doParse(llvm::StringRef& input)
 {
     input = input.drop_while(&isspace);
     if (input.empty()) {
@@ -17,7 +17,7 @@ static std::unique_ptr<sexpr::Value> doParse(llvm::StringRef& input)
     }
 
     if (input.consume_front("(")) {
-        std::vector<std::unique_ptr<sexpr::Value>> slist;
+        std::vector<sexpr::Value*> slist;
         while (input.front() != ')') {
             slist.emplace_back(doParse(input));
         }
@@ -48,17 +48,20 @@ std::unique_ptr<sexpr::Value> gazer::sexpr::parse(llvm::StringRef input)
         return nullptr;
     }
 
-    return doParse(trimmed);
+    Value* tree = doParse(trimmed);
+
+    // Wrap the resulting raw pointer into a unique_ptr
+    return std::unique_ptr<sexpr::Value>(tree);
 }
 
-auto gazer::sexpr::atom(llvm::StringRef data) -> std::unique_ptr<sexpr::Value>
+auto gazer::sexpr::atom(llvm::StringRef data) -> sexpr::Value*
 {
-    return std::make_unique<sexpr::Value>(data);
+    return new sexpr::Value(data);
 }
 
-auto gazer::sexpr::list(std::vector<std::unique_ptr<sexpr::Value>> data) -> std::unique_ptr<sexpr::Value>
+auto gazer::sexpr::list(std::vector<Value*> data) -> sexpr::Value*
 {
-    return std::make_unique<sexpr::Value>(std::move(data));
+    return new sexpr::Value(std::move(data));
 }
 
 void sexpr::Value::print(llvm::raw_ostream& os) const
@@ -76,6 +79,15 @@ void sexpr::Value::print(llvm::raw_ostream& os) const
         os << ")";
     } else {
         llvm_unreachable("Unknown variant state!");
+    }
+}
+
+sexpr::Value::~Value()
+{
+    if (std::holds_alternative<ListTy>(mData)) {
+        for (Value* val : std::get<ListTy>(mData)) {
+            delete val;
+        }
     }
 }
 
