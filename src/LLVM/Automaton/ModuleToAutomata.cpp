@@ -151,7 +151,7 @@ ModuleToCfa::ModuleToCfa(
     mSystem(new AutomataSystem(context)),
     mGenCtx(*mSystem, mMemoryModel, loops, settings)
 {
-    if (mSettings.isSimplifyExpr()) {
+    if (mSettings.simplifyExpr) {
         mExprBuilder = CreateFoldingExprBuilder(mContext);
     } else {
         mExprBuilder = CreateExprBuilder(mContext);
@@ -344,7 +344,7 @@ void ModuleToCfa::createAutomata()
             llvm::SmallVector<llvm::BasicBlock*, 4> exitBlocks;
             loop->getUniqueExitBlocks(exitBlocks);
             if (exitBlocks.size() != 1) {
-                Type& selectorTy = getExitSelectorType(mSettings.getIntRepresentation(), mContext);
+                Type& selectorTy = getExitSelectorType(mSettings.ints, mContext);
                 loopGenInfo.ExitVariable = nested->createLocal(LoopOutputSelectorName, selectorTy);
                 nested->addOutput(loopGenInfo.ExitVariable);
                 for (size_t i = 0; i < exitBlocks.size(); ++i) {
@@ -720,7 +720,7 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
 
         Variable* exitSelector = nullptr;
         if (nestedLoopInfo.ExitVariable != nullptr) {
-            Type& selectorTy = getExitSelectorType(mSettings.getIntRepresentation(), mContext);
+            Type& selectorTy = getExitSelectorType(mSettings.ints, mContext);
 
             exitSelector = mCfa->createLocal(
                 Twine(ModuleToCfa::LoopOutputSelectorName).concat(Twine(mCounter++)).str(),
@@ -865,7 +865,7 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
         module, mSettings, loopInfoMap, mContext, memoryModel, mVariables, mTraceInfo
     );
 
-    if (mSettings.getLoopRepresentation() == LoopRepresentation::Cycle) {
+    if (mSettings.loops == LoopRepresentation::Cycle) {
         // Transform the main automaton into a cyclic CFA if requested.
         // Note: This yields an invalid CFA, which will not be recognizable by
         // most analysis algorithms. Use it only if you are going to translate

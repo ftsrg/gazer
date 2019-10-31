@@ -565,7 +565,7 @@ ExprPtr InstToExpr::operand(const Value* value)
             return ci->isZero() ? mExprBuilder.False() : mExprBuilder.True();
         }
 
-        switch (mSettings.getIntRepresentation()) {
+        switch (mSettings.ints) {
             case IntRepresentation::BitVectors:
                 return mExprBuilder.BvLit(
                     ci->getValue().getLimitedValue(),

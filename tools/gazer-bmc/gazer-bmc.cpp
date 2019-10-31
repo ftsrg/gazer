@@ -25,6 +25,7 @@ namespace gazer
     extern cl::OptionCategory LLVMFrontendCategory;
     extern cl::OptionCategory IrToCfaCategory;
     extern cl::OptionCategory TraceCategory;
+    extern cl::OptionCategory ClangFrontendCategory;
 }
 
 namespace
@@ -33,22 +34,22 @@ namespace
 
     cl::OptionCategory BmcAlgorithmCategory("Bounded model checker algorithm settings");
 
-    cl::opt<unsigned> MaxBound("bound", cl::desc("Maximum iterations for the bounded model checker."),
+    cl::opt<unsigned> MaxBound("bound", cl::desc("Maximum iterations for the bounded model checker"),
         cl::init(100), cl::cat(BmcAlgorithmCategory));
-    cl::opt<unsigned> EagerUnroll("eager-unroll", cl::desc("Eager unrolling bound."), cl::init(0),
+    cl::opt<unsigned> EagerUnroll("eager-unroll", cl::desc("Eager unrolling bound"), cl::init(0),
         cl::cat(BmcAlgorithmCategory));
 
-    cl::opt<bool> DumpCfa("debug-dump-cfa", cl::desc("Dump the generated CFA after each inlining step."),
+    cl::opt<bool> DumpCfa("debug-dump-cfa", cl::desc("Dump the generated CFA after each inlining step"),
         cl::cat(BmcAlgorithmCategory));
-    cl::opt<bool> DumpFormula("dump-formula", cl::desc("Dump the solver formula to stderr."),
+    cl::opt<bool> DumpFormula("dump-formula", cl::desc("Dump the solver formula to stderr"),
         cl::cat(BmcAlgorithmCategory));
-    cl::opt<bool> DumpSolver("dump-solver", cl::desc("Dump the solver instance to stderr."),
+    cl::opt<bool> DumpSolver("dump-solver", cl::desc("Dump the solver instance to stderr"),
         cl::cat(BmcAlgorithmCategory));
-    cl::opt<bool> DumpSolverModel("dump-solver-model", cl::desc("Dump the raw model from the solver to stderr."),
+    cl::opt<bool> DumpSolverModel("dump-solver-model", cl::desc("Dump the raw model from the solver to stderr"),
         cl::cat(BmcAlgorithmCategory));
 
     llvm::cl::opt<bool> PrintSolverStats("print-solver-stats",
-        llvm::cl::desc("Print solver statistics information."),
+        llvm::cl::desc("Print solver statistics information"),
         cl::cat(BmcAlgorithmCategory)
     );
 }
@@ -57,7 +58,14 @@ static BmcSettings initBmcSettingsFromCommandLine();
 
 int main(int argc, char* argv[])
 {
-    cl::HideUnrelatedOptions({&LLVMFrontendCategory, &BmcAlgorithmCategory, &IrToCfaCategory, &TraceCategory});
+    cl::HideUnrelatedOptions({
+        &LLVMFrontendCategory, &BmcAlgorithmCategory, &IrToCfaCategory, &TraceCategory, &ClangFrontendCategory
+    });
+    cl::SetVersionPrinter([](llvm::raw_ostream& os) {
+        os << "gazer - a formal verification frontend\n";
+        os << "   version 0.1\n";
+        os << "   LLVM version 9.0\n";
+    });
     cl::ParseCommandLineOptions(argc, argv);
 
     #ifndef NDEBUG
@@ -88,8 +96,8 @@ int main(int argc, char* argv[])
     Z3SolverFactory solverFactory;
 
     auto bmcSettings = initBmcSettingsFromCommandLine();
-    bmcSettings.simplifyExpr = settings.isSimplifyExpr();
-    bmcSettings.trace = settings.isTraceEnabled();
+    bmcSettings.simplifyExpr = settings.simplifyExpr;
+    bmcSettings.trace = settings.trace;
 
     frontend->setBackendAlgorithm(new BoundedModelChecker(solverFactory, bmcSettings));
     frontend->registerVerificationPipeline();

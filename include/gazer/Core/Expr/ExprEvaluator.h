@@ -58,7 +58,12 @@ public:
     // Compare
     ExprRef<LiteralExpr> visitEq(const ExprRef<EqExpr>& expr);
     ExprRef<LiteralExpr> visitNotEq(const ExprRef<NotEqExpr>& expr);
-    
+
+    ExprRef<LiteralExpr> visitLt(const ExprRef<LtExpr>& expr);
+    ExprRef<LiteralExpr> visitLtEq(const ExprRef<LtEqExpr>& expr);
+    ExprRef<LiteralExpr> visitGt(const ExprRef<GtExpr>& expr);
+    ExprRef<LiteralExpr> visitGtEq(const ExprRef<GtEqExpr>& expr);
+
     ExprRef<LiteralExpr> visitBvSLt(const ExprRef<BvSLtExpr>& expr);
     ExprRef<LiteralExpr> visitBvSLtEq(const ExprRef<BvSLtEqExpr>& expr);
     ExprRef<LiteralExpr> visitBvSGt(const ExprRef<BvSGtExpr>& expr);

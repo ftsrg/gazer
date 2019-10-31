@@ -156,14 +156,14 @@ public:
     void addReverseBlockIfTraceEnabled(
         llvm::BasicBlock* bb, Location* loc, CfaToLLVMTrace::LocationKind kind
     ) {
-        if (mSettings.isTraceEnabled()) {
+        if (mSettings.trace) {
             mTraceInfo.mLocationsToBlocks[loc] = { bb, kind };
         }
     }
 
     void addExprValueIfTraceEnabled(Cfa* cfa, const llvm::Value* value, ExprPtr expr)
     {
-        if (mSettings.isTraceEnabled()) {
+        if (mSettings.trace) {
             mTraceInfo.mValueMaps[cfa].values[value] = expr;
         }
     }

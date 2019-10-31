@@ -128,7 +128,9 @@ public:
         LocationInfo location = {}
     ) : TraceEvent(TraceEvent::Event_Assign, location),
         mVariable(std::move(variable)), mExpr(std::move(expr))
-    {}
+    {
+        assert(mExpr != nullptr);
+    }
 
     [[nodiscard]] const TraceVariable& getVariable() const { return mVariable; }
     [[nodiscard]] ExprRef<AtomicExpr> getExpr() const { return mExpr; }

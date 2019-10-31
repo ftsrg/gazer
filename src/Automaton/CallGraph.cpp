@@ -1,7 +1,6 @@
 #include "gazer/Automaton/CallGraph.h"
 #include "gazer/Automaton/Cfa.h"
 
-#include <llvm/Support/DOTGraphTraits.h>
 #include <llvm/Support/raw_ostream.h>
 
 using namespace gazer;
