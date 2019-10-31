@@ -47,22 +47,10 @@ add_subdirectory(tools)
 option(GAZER_ENABLE_UNIT_TESTS "Enable unit tests" ON)
 
 if (GAZER_ENABLE_UNIT_TESTS)
-    enable_testing()
-
-    set(GOOGLETEST_SOURCE_DIR "vendor/googletest")
-    set(GOOGLETEST_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/googletest-build")
-
-    add_subdirectory(${GOOGLETEST_SOURCE_DIR})
-
     add_subdirectory(unittest)
 endif()
 
 set(GAZER_CLANG_TEST_COMPILER "clang" CACHE STRING "Clang compiler path for functional tests")
-
-#add_custom_target(check-functional
-#    COMMAND ${CMAKE_CURRENT_LIST_DIR}/test/testrunner.py --clang-path ${GAZER_CLANG_TEST_COMPILER} --gazer-path $<TARGET_FILE:gazer-bmc> ${CMAKE_CURRENT_LIST_DIR}/test
-#    DEPENDS gazer-bmc
-#)
 
 add_custom_target(check-functional
     COMMAND GAZER_TOOLS_DIR=${CMAKE_BINARY_DIR}/tools GAZER_SCRIPT_PATH=${CMAKE_CURRENT_LIST_DIR}/scripts/gazer.py lit -v ${CMAKE_CURRENT_LIST_DIR}/test
