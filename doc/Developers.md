@@ -4,12 +4,13 @@
 
 1. Download and install CMake (3.6 is the minimum required).
 2. Download and install LLVM 9. Make sure you use the exact major version.
-3. Create a build directory.
+3. Install the Boost library (version 1.70 or later).
+4. Create a build directory.
     ```
     mkdir build
     cd build
     ```
-4. Run cmake and the build system of your choice in this build directory.
+5. Run cmake and the build system of your choice in this build directory.
     ```
     cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE="Debug" -DLLVM_DIR=<directory/of/LLVMConfig.cmake> ..
     make
