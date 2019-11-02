@@ -6,9 +6,8 @@ SET(TEST_SOURCES
     Expr/ExprPrinterTest.cpp
     Expr/ExprEvaluatorTest.cpp
     Expr/ExprWalkerTest.cpp
-    core_tests.cpp
 )
 
 add_test(GazerCoreTest GazerCoreTest)
 add_executable(GazerCoreTest ${TEST_SOURCES})
-target_link_libraries(GazerCoreTest GazerCore gtest)
+target_link_libraries(GazerCoreTest GazerCore gtest_main)

@@ -32,7 +32,8 @@ pm->run(module);
 
 ### Writing custom checks
 
-By implementation, checks are just [LLVM passes](http://llvm.org/docs/WritingAnLLVMPass.html#introduction-what-is-a-pass) with special additions for traceability support. To write your own check, create a new subclass deriving from `Check`:
+By implementation, checks are just [LLVM passes](http://llvm.org/docs/WritingAnLLVMPass.html#introduction-what-is-a-pass) with special additions for traceability support.
+To write your own check, create a new subclass deriving from `Check`:
 
 ```cpp
 class DivisionByZeroCheck : public gazer::Check
@@ -50,7 +51,8 @@ public:
 };
 ```
 
-The virtual function `mark` is used to insert the error calls into a function, while `getErrorDescription` should return a short, user-friendly error message if the check is violated (such as "Assertion failure", "Division by zero", etc.).
+The virtual function `mark` is used to insert the error calls into a function, while `getErrorDescription` should return a short,
+user-friendly error message if the check is violated (such as "Assertion failure", "Division by zero", etc.).
 The function `getCheckName` is used to identify checks through the command line.
 
 Error calls are represented with Gazer's `gazer.error_code` function.
@@ -127,4 +129,5 @@ bool DivisionByZeroCheck::mark(llvm::Function& function)
 }
 ```
 
-**NOTE:** Verification algorithms are not required to find a solution for each registered check seperately. They often combine all error calls (for example with an `CombineErrorCalls` pass) into a single one, which makes them stop after finding the first violated check.
+**NOTE:** Verification algorithms are not required to find a solution for each registered check seperately.
+They often combine all error calls (for example with an `CombineErrorCalls` pass) into a single one, which makes them stop after finding the first violated check.

@@ -1,6 +1,11 @@
 # About
 
 *Gazer* is formal a verification frontend for C programs.
+It provides a user-friendly end-to-end verification workflow, with support for multiple verification engines.
+
+Currently we support two verification backends:
+* `gazer-theta` leverages the power of the [theta](https://github.com/ftsrg/theta) model checking framework.
+* `gazer-bmc` is gazer's built-in bounded model checking engine.
 
 # Usage
 
@@ -28,7 +33,7 @@ int main(void) {
 ```
 
 The program above may attempt to divide by zero for certain values of `k`.
-We can verify this program either by using the `bmc` or `theta` verification backends:
+We can verify this program by using either verification backend:
 
 ```
 $ gazer-bmc example.c

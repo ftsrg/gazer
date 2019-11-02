@@ -1,6 +1,5 @@
 SET(TEST_SOURCES
     Memory/MemoryObjectTest.cpp
-    Analysis/VariableRoleTest.cpp
     Automaton/InstToExprTest.cpp
     Trace/TestHarnessGeneratorTest.cpp
 )
