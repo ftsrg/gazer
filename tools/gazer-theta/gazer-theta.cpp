@@ -130,11 +130,11 @@ int main(int argc, char* argv[])
         }
 
         if (backendSettings.thetaCfaPath.empty()) {
-            backendSettings.thetaCfaPath = pathToBinary.string() + "/theta/theta-cfa-cli.jar";
+            backendSettings.thetaCfaPath = pathToBinary.parent_path().string() + "/theta/theta-cfa-cli.jar";
         }
 
         if (backendSettings.thetaLibPath.empty()) {
-            backendSettings.thetaLibPath = pathToBinary.string() + "/theta/lib";
+            backendSettings.thetaLibPath = pathToBinary.parent_path().string() + "/theta/lib";
         }
     }
 
