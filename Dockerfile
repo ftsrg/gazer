@@ -28,20 +28,19 @@ ENV GAZER_DIR /home/user/gazer
 ENV THETA_DIR /home/user/theta
 
 ADD --chown=user:user . $GAZER_DIR
-ADD --chown=user:user . $THETA_DIR
+RUN mkdir $THETA_DIR
 
 WORKDIR $GAZER_DIR
 RUN cmake -DCMAKE_CXX_COMPILER=clang++-9 -DGAZER_ENABLE_UNIT_TESTS=On -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=On . && make
 
 # clone and build theta
-RUN rm -rf $THETA_DIR
-RUN git clone https://github.com/FTSRG/theta.git $THETA_DIR
 WORKDIR $THETA_DIR
-RUN ./gradlew build
+RUN git clone https://github.com/FTSRG/theta.git $THETA_DIR && \
+    ./gradlew build && \
 # copy binaries to gazer subdirectory
-RUN mkdir $GAZER_DIR/tools/gazer-theta/theta
-RUN mkdir $GAZER_DIR/tools/gazer-theta/theta/lib
-RUN cp $THETA_DIR/lib/*.so $GAZER_DIR/tools/gazer-theta/theta/lib
-RUN cp $THETA_DIR/subprojects/cfa-cli/build/libs/theta-cfa-cli-0.0.1-SNAPSHOT-all.jar $GAZER_DIR/tools/gazer-theta/theta/theta-cfa-cli.jar
+    mkdir $GAZER_DIR/tools/gazer-theta/theta && \
+    mkdir $GAZER_DIR/tools/gazer-theta/theta/lib && \
+    cp $THETA_DIR/lib/*.so $GAZER_DIR/tools/gazer-theta/theta/lib && \
+    cp $THETA_DIR/subprojects/cfa-cli/build/libs/theta-cfa-cli-0.0.1-SNAPSHOT-all.jar $GAZER_DIR/tools/gazer-theta/theta/theta-cfa-cli.jar
 
 WORKDIR $GAZER_DIR
