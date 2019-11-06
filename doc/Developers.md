@@ -26,12 +26,12 @@ Gazer's unit tests may be run by invoking:
 make check-unit
 ```
 
-To run the functional test suite, LLVM's lit tool must be installed:
+To run the functional test suite, LLVM's `lit` tool must be installed:
 ```
 pip install lit
 ```
 
-After install lit, you can run the functional test suite using:
+After installing `lit`, you can run the functional test suite using:
 ```
 make check-functional
 ```
