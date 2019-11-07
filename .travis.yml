@@ -1,0 +1,27 @@
+dist: bionic
+sudo: required
+addons:
+  apt:
+    packages:
+    - build-essential
+    - git
+    - cmake
+    - wget
+    - vim
+    - lsb-release
+    - software-properties-common
+    - zlib1g-dev
+script:
+- wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+- sudo add-apt-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main"
+- sudo apt-get update
+- sudo add-apt-repository ppa:mhier/libboost-latest -y
+- sudo apt-get update
+- sudo apt-get install -y clang-9 llvm-9-dev llvm-9-tools llvm-9-runtime libboost1.70-dev
+- sudo ln -s `which clang-9` /usr/bin/clang
+- sudo ln -s `which llvm-link-9` /usr/bin/llvm-link -f
+- cmake -DCMAKE_CXX_COMPILER=clang++-9 -DGAZER_ENABLE_UNIT_TESTS=On -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=On . && make
+notifications:
+  email:
+    on_success: change
+    on_failure: always
