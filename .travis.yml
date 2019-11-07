@@ -1,0 +1,42 @@
+dist: bionic
+sudo: required
+addons:
+  apt:
+    packages:
+    - build-essential
+    - git
+    - cmake
+    - wget
+    - vim
+    - lsb-release
+    - software-properties-common
+    - zlib1g-dev
+    - openjdk-11-jdk
+script:
+# fetch LLVM and other dependencies
+- wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+- sudo add-apt-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main"
+- sudo apt-get update
+- sudo add-apt-repository ppa:mhier/libboost-latest -y
+- sudo apt-get update
+- sudo apt-get install -y clang-9 llvm-9-dev llvm-9-tools llvm-9-runtime libboost1.70-dev
+- sudo ln -s `which clang-9` /usr/bin/clang
+- sudo ln -s `which llvm-link-9` /usr/bin/llvm-link -f
+# build
+- cmake -DCMAKE_CXX_COMPILER=clang++-9 -DGAZER_ENABLE_UNIT_TESTS=On -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=On . && make
+# clone and build theta
+- git clone https://github.com/FTSRG/theta.git $THETA_DIR
+- cd theta
+- ./gradlew build
+- cd ..
+# copy binaries to gazer subdirectory
+- mkdir tools/gazer-theta/theta
+- mkdir tools/gazer-theta/theta/lib
+- cp theta/lib/*.so tools/gazer-theta/theta/lib
+- cp theta/subprojects/cfa-cli/build/libs/theta-cfa-cli-0.0.1-SNAPSHOT-all.jar tools/gazer-theta/theta/theta-cfa-cli.jar
+# run simple check
+- ./tools/gazer-theta/gazer-theta test/verif/base/simple_fail.c -trace
+notifications:
+  email:
+    on_success: change
+    on_failure: always
