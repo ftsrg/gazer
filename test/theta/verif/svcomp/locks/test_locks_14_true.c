@@ -1,5 +1,4 @@
-// RUN: %bmc -bound 10 "%s" | FileCheck "%s"
-// RUN: %bmc -bound 10 -math-int "%s" | FileCheck "%s"
+// RUN: %theta "%s"  | FileCheck "%s"
 
 // CHECK: Verification SUCCESSFUL
 extern void __VERIFIER_error() __attribute__ ((__noreturn__));
@@ -34,6 +33,21 @@ int main()
     int p9 = __VERIFIER_nondet_int();  // condition variable
     int lk9; // lock variable
 
+    int p10 = __VERIFIER_nondet_int();  // condition variable
+    int lk10; // lock variable
+
+    int p11 = __VERIFIER_nondet_int();  // condition variable
+    int lk11; // lock variable
+
+    int p12 = __VERIFIER_nondet_int();  // condition variable
+    int lk12; // lock variable
+
+    int p13 = __VERIFIER_nondet_int();  // condition variable
+    int lk13; // lock variable
+
+    int p14 = __VERIFIER_nondet_int();  // condition variable
+    int lk14; // lock variable
+
 
     int cond;
 
@@ -59,6 +73,16 @@ int main()
         lk8 = 0; // initially lock is open
 
         lk9 = 0; // initially lock is open
+
+        lk10 = 0; // initially lock is open
+
+        lk11 = 0; // initially lock is open
+
+        lk12 = 0; // initially lock is open
+
+        lk13 = 0; // initially lock is open
+
+        lk14 = 0; // initially lock is open
 
 
     // lock phase
@@ -96,6 +120,26 @@ int main()
 
         if (p9 != 0) {
             lk9 = 1; // acquire lock
+        } else {}
+
+        if (p10 != 0) {
+            lk10 = 1; // acquire lock
+        } else {}
+
+        if (p11 != 0) {
+            lk11 = 1; // acquire lock
+        } else {}
+
+        if (p12 != 0) {
+            lk12 = 1; // acquire lock
+        } else {}
+
+        if (p13 != 0) {
+            lk13 = 1; // acquire lock
+        } else {}
+
+        if (p14 != 0) {
+            lk14 = 1; // acquire lock
         } else {}
 
 
@@ -143,6 +187,31 @@ int main()
         if (p9 != 0) {
             if (lk9 != 1) goto ERROR; // assertion failure
             lk9 = 0;
+        } else {}
+
+        if (p10 != 0) {
+            if (lk10 != 1) goto ERROR; // assertion failure
+            lk10 = 0;
+        } else {}
+
+        if (p11 != 0) {
+            if (lk11 != 1) goto ERROR; // assertion failure
+            lk11 = 0;
+        } else {}
+
+        if (p12 != 0) {
+            if (lk12 != 1) goto ERROR; // assertion failure
+            lk12 = 0;
+        } else {}
+
+        if (p13 != 0) {
+            if (lk13 != 1) goto ERROR; // assertion failure
+            lk13 = 0;
+        } else {}
+
+        if (p14 != 0) {
+            if (lk14 != 1) goto ERROR; // assertion failure
+            lk14 = 0;
         } else {}
 
     }

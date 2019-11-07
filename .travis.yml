@@ -12,6 +12,9 @@ addons:
     - software-properties-common
     - zlib1g-dev
     - openjdk-11-jdk
+    - python3
+    - python3-pip
+    - python3-setuptools
 script:
 # fetch LLVM and other dependencies
 - wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
@@ -22,6 +25,9 @@ script:
 - sudo apt-get install -y clang-9 llvm-9-dev llvm-9-tools llvm-9-runtime libboost1.70-dev
 - sudo ln -s `which clang-9` /usr/bin/clang
 - sudo ln -s `which llvm-link-9` /usr/bin/llvm-link -f
+- sudo ln -s `which opt-9` /usr/bin/opt -f
+- sudo ln -s `which FileCheck-9` /usr/bin/FileCheck
+- sudo pip3 install lit
 # build
 - cmake -DCMAKE_CXX_COMPILER=clang++-9 -DGAZER_ENABLE_UNIT_TESTS=On -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=On . && make
 # clone and build theta
@@ -34,8 +40,9 @@ script:
 - mkdir tools/gazer-theta/theta/lib
 - cp theta/lib/*.so tools/gazer-theta/theta/lib
 - cp theta/subprojects/cfa-cli/build/libs/theta-cfa-cli-0.0.1-SNAPSHOT-all.jar tools/gazer-theta/theta/theta-cfa-cli.jar
-# run simple check
-- ./tools/gazer-theta/gazer-theta test/verif/base/simple_fail.c -trace
+# run tests
+- make check-unit
+- make check-functional
 notifications:
   email:
     on_success: change
