@@ -27,7 +27,7 @@ script:
 # clone and build theta
 - git clone https://github.com/FTSRG/theta.git $THETA_DIR
 - cd theta
-- ./gradlew build
+- ./gradlew theta-cfa-cli:build
 - cd ..
 # copy binaries to gazer subdirectory
 - mkdir tools/gazer-theta/theta
