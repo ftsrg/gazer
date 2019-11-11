@@ -28,7 +28,6 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Analysis/LoopInfo.h>
-#include <llvm/Analysis/CallGraph.h>
 #include <llvm/IR/InstIterator.h>
 #include <llvm/IR/Dominators.h>
 #include <llvm/ADT/StringExtras.h>
@@ -347,6 +346,9 @@ void ModuleToCfa::createAutomata()
                 }
             }
 
+            // Insert memory objects defined/used by this loop.
+            mMemoryModel.declareProcedureVariables(*nested, loop);
+
             // Create locations for the blocks
             for (BasicBlock* bb : loopOnlyBlocks) {
                 Location* entry = nested->createLocation();
@@ -390,6 +392,10 @@ void ModuleToCfa::createAutomata()
             auto retval = cfa->createLocal(FunctionReturnValueName, mMemoryModel.translateType(function.getReturnType()));
             cfa->addOutput(retval);
         }
+
+        // Add all variables from the memory model.
+        mMemoryModel.declareProcedureVariables(*cfa, function);
+        cfa->printDeclaration(llvm::errs());
 
         // At this point, the loops are already encoded, we only need to handle the blocks outside of the loops.
         std::vector<BasicBlock*> functionBlocks;
@@ -858,6 +864,7 @@ char ModuleToAutomataPass::ID;
 
 void ModuleToAutomataPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
 {
+    au.addRequired<llvm::DominatorTreeWrapperPass>();
     au.setPreservesAll();
 }
 
@@ -876,17 +883,23 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
         }
     }
 
-    DummyMemoryModel memoryModel(mContext, mSettings);
+    //DummyMemoryModel memoryModel(mContext, mSettings, module.getDataLayout());
+    //memoryModel.initialize(module, ...)
+
+    auto memoryModel = CreateBasicMemoryModel(mContext, mSettings, module.getDataLayout());
+    memoryModel->initialize(module, [this](llvm::Function& function) -> llvm::DominatorTree& {
+        return getAnalysis<llvm::DominatorTreeWrapperPass>(function).getDomTree();
+    });
 
     mSystem = translateModuleToAutomata(
-        module, mSettings, loopInfoMap, mContext, memoryModel, mVariables, mTraceInfo
+        module, mSettings, loopInfoMap, mContext, *memoryModel, mVariables, mTraceInfo
     );
 
     if (mSettings.loops == LoopRepresentation::Cycle) {
         // Transform the main automaton into a cyclic CFA if requested.
         // Note: This yields an invalid CFA, which will not be recognizable by
-        // most analysis algorithms. Use it only if you are going to translate
-        // it to the format of another verifier immediately.
+        // most built-in analysis algorithms. Use it only if you are going to
+        // translate it to the format of another verifier immediately.
 
         // TODO: We should translate automata other than the main in this case.
         TransformRecursiveToCyclic(mSystem->getMainAutomaton());

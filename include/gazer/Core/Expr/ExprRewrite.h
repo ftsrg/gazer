@@ -26,11 +26,12 @@ namespace gazer
 
 class ExprRewrite : public ExprWalker<ExprRewrite, ExprPtr>
 {
+    friend class ExprWalker<ExprRewrite, ExprPtr>;
 public:
     explicit ExprRewrite(ExprBuilder& builder);
     ExprPtr& operator[](Variable* variable);
 
-public:
+private:
     ExprPtr visitExpr(const ExprPtr& expr);
     ExprPtr visitVarRef(const ExprRef<VarRefExpr>& expr);
     ExprPtr visitNonNullary(const ExprRef<NonNullaryExpr>& expr);

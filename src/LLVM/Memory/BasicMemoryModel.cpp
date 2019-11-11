@@ -16,11 +16,15 @@
 //
 //===----------------------------------------------------------------------===//
 #include "gazer/LLVM/Memory/MemoryModel.h"
+#include "gazer/LLVM/Memory/MemorySSA.h"
+#include "gazer/Core/LiteralExpr.h"
+#include "gazer/Automaton/Cfa.h"
 
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
 
 using namespace gazer;
+using namespace gazer::memory;
 
 namespace
 {
@@ -28,40 +32,36 @@ namespace
 class BasicMemoryModel : public MemoryModel
 {
 public:
-    BasicMemoryModel(GazerContext& context, const LLVMFrontendSettings& settings)
-        : MemoryModel(context, settings)
-    {}
-
-    void findMemoryObjects(llvm::Function& function, MemorySSABuilder& builder) override;
+    using MemoryModel::MemoryModel;
 
     ExprPtr handleLoad(const llvm::LoadInst& load) override
     {
-        return gazer::ExprPtr();
+        return UndefExpr::Get(mTypes.get(load.getType()));
     }
 
     ExprPtr handleGetElementPtr(const llvm::GEPOperator& gep) override
     {
-        return gazer::ExprPtr();
+        return UndefExpr::Get(BvType::Get(mContext, 32));
     }
 
     ExprPtr handleAlloca(const llvm::AllocaInst& alloc) override
     {
-        return gazer::ExprPtr();
+        return UndefExpr::Get(BvType::Get(mContext, 32));
     }
 
     ExprPtr handlePointerCast(const llvm::CastInst& cast) override
     {
-        return gazer::ExprPtr();
+        return UndefExpr::Get(BvType::Get(mContext, 32));
     }
 
     ExprPtr handlePointerValue(const llvm::Value* value) override
     {
-        return gazer::ExprPtr();
+        return UndefExpr::Get(BvType::Get(mContext, 32));
     }
 
     std::optional<VariableAssignment> handleStore(const llvm::StoreInst& store, ExprPtr pointer, ExprPtr value) override
     {
-        return std::optional<VariableAssignment>();
+        return std::nullopt;
     }
 
     Type& handlePointerType(const llvm::PointerType* type) override
@@ -73,26 +73,91 @@ public:
     {
         return BvType::Get(mContext, 32);
     }
+
+    void declareProcedureVariables(Cfa& cfa, llvm::Function& function) override;
+
+    void declareProcedureVariables(Cfa& cfa, llvm::Loop* loop) override;
+
+protected:
+    void initializeFunction(llvm::Function& function, MemorySSABuilder& builder) override;
+
+private:
+    llvm::DenseMap<llvm::Value*, MemoryObject*> mObjects;
 };
 
-void BasicMemoryModel::findMemoryObjects(llvm::Function& function, MemorySSABuilder& builder)
+} // end anonymous namespace
+
+void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABuilder& builder)
 {
     // Each function will have a memory object made from this global variable.
     for (llvm::GlobalVariable& gv : function.getParent()->globals()) {
         auto gvTy = gv.getType()->getPointerElementType();
-        builder.createMemoryObject(
-            MemoryAllocType::Global,
+        auto object = builder.createMemoryObject(
             MemoryObjectType::Scalar,
-            builder.getDataLayout().getTypeAllocSize(gvTy),
+            getDataLayout().getTypeAllocSize(gvTy),
             gvTy,
             gv.getName()
         );
+
+        builder.createLiveOnEntry(object);
+        mObjects[&gv] = object;
+    }
+
+    // Walk over all uses of these global variables
+    for (llvm::GlobalVariable& gv : function.getParent()->globals()) {
+        MemoryObject* object = mObjects[&gv];
+        for (auto& use : gv.uses()) {
+            if (auto store = llvm::dyn_cast<llvm::StoreInst>(use.getUser())) {
+                if (store->getPointerOperand() == &gv) {
+                    builder.createStoreDef(object, *store);
+                }
+            } else if (auto load = llvm::dyn_cast<llvm::LoadInst>(use.getUser())) {
+                builder.createLoadUse(object, *load);
+            }
+        }
     }
 }
 
-} // end anonymous namespace
-
-auto gazer::CreateBasicMemoryModel(GazerContext& context, const LLVMFrontendSettings& settings) -> std::unique_ptr<MemoryModel>
+static std::string getMemoryObjectName(MemoryObjectDef& def)
 {
-    return std::make_unique<BasicMemoryModel>(context, settings);
+    MemoryObject* object = def.getObject();
+    if (!object->getName().empty()) {
+        return (object->getName() + "_" + llvm::Twine(def.getVersion())).str();
+    }
+
+    return ("__mem_object_" + llvm::Twine(object->getId()) + "_" + llvm::Twine(def.getVersion())).str();
+}
+
+void BasicMemoryModel::declareProcedureVariables(Cfa& cfa, llvm::Function& function)
+{
+    auto& functionMemoryModel = getFunctionMemorySSA(function);
+    for (MemoryObject& object : functionMemoryModel.objects()) {
+        for (MemoryObjectDef& def : object.defs()) {
+            if (auto liveOnEntry = llvm::dyn_cast<memory::LiveOnEntryDef>(&def)) {
+                cfa.createInput(
+                    getMemoryObjectName(def),
+                    translateType(object.getValueType())
+                );
+            } else {
+                cfa.createLocal(
+                    getMemoryObjectName(def),
+                    translateType(object.getValueType())
+                );
+            }
+        }
+    }
+}
+
+void BasicMemoryModel::declareProcedureVariables(Cfa& cfa, llvm::Loop* loop)
+{
+
+}
+
+auto gazer::CreateBasicMemoryModel(
+    GazerContext& context,
+    const LLVMFrontendSettings& settings,
+    const llvm::DataLayout& dl
+) -> std::unique_ptr<MemoryModel>
+{
+    return std::make_unique<BasicMemoryModel>(context, settings, dl);
 }

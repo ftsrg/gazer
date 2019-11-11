@@ -110,15 +110,29 @@ bb8:                                              ; preds = %bb6
     GazerContext context;
     LLVMFrontendSettings settings;
 
-    auto basicMemModel = CreateBasicMemoryModel(context, settings);
-    MemorySSABuilder builder(module->getDataLayout());
+    auto basicMemModel = CreateBasicMemoryModel(context, settings, module->getDataLayout());
+    basicMemModel->initialize(*module, [this](llvm::Function& func) -> auto& {
+        return *analyses->dtMap[&func];
+    });
 
     llvm::Function* main = module->getFunction("main");
-    basicMemModel->findMemoryObjects(*main, builder);
+    auto& memSSA = basicMemModel->getFunctionMemorySSA(*main);
 
     // We should have two scalar memory objects, 'a' and 'b'.
-    for (auto& obj : builder.mObjects) {
-        obj->print(llvm::outs());
+    for (auto& obj : memSSA.objects()) {
+        obj.print(llvm::outs());
+        llvm::outs() << "\n";
+        for (auto& def : obj.defs()) {
+            llvm::outs().indent(2);
+            def.print(llvm::outs());
+            llvm::outs() << "\n";
+        }
+
+        for (auto& use : obj.uses()) {
+            llvm::outs().indent(2);
+            use.print(llvm::outs());
+            llvm::outs() << "\n";
+        }
         llvm::outs() << "\n";
     }
 }

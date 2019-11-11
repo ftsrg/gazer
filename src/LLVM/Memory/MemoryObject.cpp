@@ -29,33 +29,11 @@ bool MemoryObjectPass::runOnFunction(llvm::Function& module)
     return false;
 }
 
-MemoryObject* MemorySSABuilder::createMemoryObject(
-    MemoryAllocType allocType,
-    MemoryObjectType objectType,
-    MemoryObject::MemoryObjectSize size,
-    llvm::Type* valueType,
-    llvm::StringRef name
-) {
-    auto& ptr= mObjects.emplace_back(std::make_unique<MemoryObject>(
-        mId++, allocType, objectType, size, valueType, name
-    ));
-
-    return &*ptr;
-}
-
-MemoryObject::~MemoryObject()
-{}
+MemoryObject::~MemoryObject() = default;
 
 void MemoryObject::print(llvm::raw_ostream& os) const
 {
-    os << "(" << mId << (mName.empty() ? "" : ", \"" + mName + "\"") << ", allocType=";
-    switch (mAllocType) {
-        case MemoryAllocType::Unknown: os << "Unknown"; break;
-        case MemoryAllocType::Global: os << "Global"; break;
-        case MemoryAllocType::Alloca: os << "Alloca"; break;
-        case MemoryAllocType::Heap: os << "Heap"; break;
-    }
-
+    os << "(" << mId << (mName.empty() ? "" : ", \"" + mName + "\"");
     os << ", objectType=";
     switch (mObjectType) {
         case MemoryObjectType::Unknown: os << "Unknown"; break;
@@ -75,18 +53,74 @@ void MemoryObject::print(llvm::raw_ostream& os) const
 
 void MemoryObject::addDefinition(MemoryObjectDef* def)
 {
-
+    mDefs.emplace_back(std::unique_ptr<MemoryObjectDef>(def));
 }
 
-memory::EntryDef* MemorySSABuilder::getEntryDefinition(MemoryObject* object)
+void MemoryObject::addUse(gazer::MemoryObjectUse* use)
 {
-    return nullptr;
+    mUses.emplace_back(std::unique_ptr<MemoryObjectUse>(use));
 }
 
-memory::StoreDef* MemorySSABuilder::addDefinition(MemoryObject* object, llvm::StoreInst& inst)
+void MemoryObjectDef::print(llvm::raw_ostream& os) const
 {
-    auto def = new memory::StoreDef(object, object->mDefs.size(), inst);
-    object->addDefinition(def);
+    os << mVersion << " := ";
+    this->doPrint(os);
+}
 
-    return def;
+
+void memory::PhiDef::addIncoming(MemoryObjectDef* def, llvm::BasicBlock* bb)
+{
+    mEntryList.emplace_back(def, bb);
+}
+
+void memory::LiveOnEntryDef::doPrint(llvm::raw_ostream& os) const
+{
+    os << "liveOnEntry(" << getObject()->getId() << ")";
+}
+
+void memory::StoreDef::doPrint(llvm::raw_ostream& os) const
+{
+    os << "store(" << getObject()->getId() << ")";
+}
+
+void memory::CallDef::doPrint(llvm::raw_ostream& os) const
+{
+    os << "call(" << getObject()->getId() << ", " << *mCall.getInstruction() << ")";
+}
+
+void memory::AllocDef::doPrint(llvm::raw_ostream& os) const
+{
+    switch (mAllocKind) {
+        case Alloca:
+            os << "alloca(" << getObject()->getId() << ")";
+            return;
+        case GlobalInit:
+            os << "globalInit(" << getObject()->getId() << ")";
+            return;
+        case Heap:
+            os << "heapAlloc(" << getObject()->getId() << ")";
+            return;
+    }
+
+    llvm_unreachable("Unknown allocation kind!");
+}
+
+void memory::PhiDef::doPrint(llvm::raw_ostream& os) const
+{
+    os << "phi(" << getObject()->getId() << ", {";
+    for (auto& entry : mEntryList) {
+        os << "[" << entry.first->getVersion() << ", " << entry.second->getName() << "], ";
+    }
+    os << "})";
+}
+
+void memory::LoadUse::print(llvm::raw_ostream& os) const
+{
+    os << "load(" << getObject()->getId() << ", ";
+    if (getReachingDef() == nullptr) {
+        os << "???";
+    } else {
+        os << getReachingDef()->getVersion();
+    }
+    os << ", " << *mLoadInst << ")";
 }

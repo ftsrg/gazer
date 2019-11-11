@@ -168,6 +168,7 @@ protected:
 
 class Z3ExprTransformer : public ExprWalker<Z3ExprTransformer, Z3AstHandle>
 {
+    friend class ExprWalker<Z3ExprTransformer, Z3AstHandle>;
 public:
     Z3ExprTransformer(z3::context& context, unsigned& tmpCount, Z3Solver::CacheMapT& cache)
         : mZ3Context(context), mTmpCount(tmpCount), mCache(cache)
@@ -229,7 +230,7 @@ protected:
 
         llvm_unreachable("Unsupported gazer type for Z3Solver");
     }
-public:
+private:
     bool shouldSkip(const ExprPtr& expr, Z3AstHandle* ret)
     {
         if (expr->isNullary() || expr->isUnary()) {
@@ -795,13 +796,13 @@ static FloatType::FloatPrecision precFromSort(z3::context& context, const z3::so
     unsigned ebits = Z3_fpa_get_ebits(context, sort);
     unsigned sbits = Z3_fpa_get_sbits(context, sort);
 
-    if (ebits == FloatType::ExpBitsInSingleTy && sbits == FloatType::SignificandBitsInSingleTy) {
+    if (ebits == FloatType::ExponentBitsInSingleTy && sbits == FloatType::SignificandBitsInSingleTy) {
         return FloatType::Single;
-    } else if (ebits == FloatType::ExpBitsInDoubleTy && sbits == FloatType::SignificandBitsInDoubleTy) {
+    } else if (ebits == FloatType::ExponentBitsInDoubleTy && sbits == FloatType::SignificandBitsInDoubleTy) {
         return FloatType::Double;
-    } else if (ebits == FloatType::ExpBitsInHalfTy && sbits == FloatType::SignificandBitsInHalfTy) {
+    } else if (ebits == FloatType::ExponentBitsInHalfTy && sbits == FloatType::SignificandBitsInHalfTy) {
         return FloatType::Half;
-    } else if (ebits == FloatType::ExpBitsInQuadTy && sbits == FloatType::SignificandBitsInQuadTy) {
+    } else if (ebits == FloatType::ExponentBitsInQuadTy && sbits == FloatType::SignificandBitsInQuadTy) {
         return FloatType::Quad;
     }
 

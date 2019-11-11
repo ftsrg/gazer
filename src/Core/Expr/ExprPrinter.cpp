@@ -49,6 +49,7 @@ std::string castTypeName(llvm::Twine name, const Type& from, const Type& to)
 
 class InfixPrintVisitor : public ExprWalker<InfixPrintVisitor, std::string>
 {
+    friend class ExprWalker<InfixPrintVisitor, std::string>;
 public:
     InfixPrintVisitor(unsigned radix)
         : mRadix(radix)
@@ -66,8 +67,8 @@ private:
         return (Twine("(") + Twine(opStr) + ")").str();
     }
 
-public:
-    std::string visitExpr(const ExprPtr& expr) { return "???"; }    
+private:
+    std::string visitExpr(const ExprPtr& expr) { llvm_unreachable("Unknown expression kind!"); }
     std::string visitUndef(const ExprRef<UndefExpr>& expr) { return "undef"; }
     std::string visitVarRef(const ExprRef<VarRefExpr>& expr)
     {
@@ -102,10 +103,44 @@ public:
                 auto il = llvm::cast<IntLiteralExpr>(expr);
                 return std::to_string(il->getValue());
             }
-            // TODO: RealType and ArrayType
+            case Type::RealTypeID: {
+                auto rl = llvm::cast<RealLiteralExpr>(expr);
+
+                return (Twine(rl->getValue().numerator()) + "%" + Twine(rl->getValue().denominator())).str();
+            }
+            // TODO: ArrayType
         }
 
         llvm_unreachable("Unknown literal expression kind.");
+    }
+
+    // Define some helper macros
+    #define PRINT_UNARY_PREFIX(NAME, OPERATOR)                                  \
+    std::string visit##NAME(const ExprRef<NAME##Expr>& expr)                    \
+    {                                                                           \
+        return (Twine{OPERATOR} + "(" + getOperand(0) + ")").str();             \
+    }
+
+    #define PRINT_UNARY_CAST(NAME, OPERATOR)                                    \
+    std::string visit##NAME(const ExprRef<NAME##Expr>& expr)                    \
+    {                                                                           \
+        auto fname = castTypeName(                                              \
+            OPERATOR, expr->getOperand()->getType(), expr->getType());          \
+        return fname + "(" + getOperand(0) + ")";                               \
+    }
+
+    #define PRINT_BINARY_INFIX(NAME, OPERATOR)                                  \
+    std::string visit##NAME(const ExprRef<NAME##Expr>& expr)                    \
+    {                                                                           \
+        return (getOperand(0)) + (OPERATOR) + (getOperand(1));                  \
+    }
+
+    #define PRINT_BINARY_PREFIX(NAME, OPERATOR)                                 \
+    std::string visit##NAME(const ExprRef<NAME##Expr>& expr)                    \
+    {                                                                           \
+        return (Twine{OPERATOR} + "("                                           \
+            + (getOperand(0)) + "," + (getOperand(1)) + ")"                     \
+        ).str();                                                                \
     }
 
     // Unary
@@ -114,17 +149,8 @@ public:
         return "not " + printOp(expr, 0);
     }
 
-    std::string visitZExt(const ExprRef<ZExtExpr>& expr)
-    {
-        auto fname = castTypeName("zext", expr->getOperand()->getType(), expr->getType());
-        return fname + "(" + getOperand(0) + ")";
-    }
-
-    std::string visitSExt(const ExprRef<SExtExpr>& expr)
-    {
-        auto fname = castTypeName("sext", expr->getOperand()->getType(), expr->getType());
-        return fname + "(" + getOperand(0) + ")";
-    }
+    PRINT_UNARY_CAST(ZExt, "zext")
+    PRINT_UNARY_CAST(SExt, "sext")
 
     std::string visitExtract(const ExprRef<ExtractExpr>& expr)
     {
@@ -134,13 +160,6 @@ public:
                      + ", " + Twine(expr->getWidth()) + ")").str();
     }
 
-    // Binary
-
-    #define PRINT_BINARY_INFIX(NAME, OPERATOR)                                  \
-    std::string visit##NAME(const ExprRef<NAME##Expr>& expr)                    \
-    {                                                                           \
-        return (getOperand(0)) + (OPERATOR) + (getOperand(1));                  \
-    }
 
     PRINT_BINARY_INFIX(Add,     " + ")
     PRINT_BINARY_INFIX(Sub,     " - ")
@@ -150,14 +169,6 @@ public:
     PRINT_BINARY_INFIX(BvUDiv,  " udiv ")
     PRINT_BINARY_INFIX(BvSRem,  " srem ")
     PRINT_BINARY_INFIX(BvURem,  " urem ")
-
-    #define PRINT_BINARY_PREFIX(NAME, OPERATOR)                                 \
-    std::string visit##NAME(const ExprRef<NAME##Expr>& expr)                    \
-        {                                                                       \
-        return (Twine{OPERATOR} + "("                                           \
-            + (getOperand(0)) + "," + (getOperand(1)) + ")"                     \
-        ).str();                                                                \
-    }
 
     PRINT_BINARY_PREFIX(Shl,    "bv.shl")
     PRINT_BINARY_PREFIX(LShr,   "bv.lhsr")
@@ -212,42 +223,15 @@ public:
     PRINT_BINARY_PREFIX(BvUGtEq,      "uge")
 
     // Floating-point queries
-    std::string visitFIsNan(const ExprRef<FIsNanExpr>& expr)
-    {
-        return "fp.is_nan(" + getOperand(0) + ")";
-    }
-
-    std::string visitFIsInf(const ExprRef<FIsInfExpr>& expr)
-    {
-        return "fp.is_inf(" + getOperand(0) + ")";
-    }
-
+    PRINT_UNARY_PREFIX(FIsNan, "fp.is_nan")
+    PRINT_UNARY_PREFIX(FIsInf, "fp.is_inf")
 
     // Floating-point casts
-    std::string visitFCast(const ExprRef<FCastExpr>& expr)
-    {
-        return castTypeName("fcast", expr->getType(), expr->getOperand()->getType()) + "(" + getOperand(0) + ")";
-    }
-
-    std::string visitSignedToFp(const ExprRef<SignedToFpExpr>& expr)
-    {
-        return castTypeName("si_to_fp", expr->getType(), expr->getOperand()->getType()) + "(" + getOperand(0) + ")";
-    }
-
-    std::string visitUnsignedToFp(const ExprRef<UnsignedToFpExpr>& expr)
-    {
-        return castTypeName("ui_to_fp", expr->getType(), expr->getOperand()->getType()) + "(" + getOperand(0) + ")";
-    }
-
-    std::string visitFpToSigned(const ExprRef<FpToSignedExpr>& expr)
-    {
-        return castTypeName("fp_to_si", expr->getType(), expr->getOperand()->getType()) + "(" + getOperand(0) + ")";
-    }
-
-    std::string visitFpToUnsigned(const ExprRef<FpToUnsignedExpr>& expr)
-    {
-        return castTypeName("fp_to_ui", expr->getType(), expr->getOperand()->getType()) + "(" + getOperand(0) + ")";
-    }
+    PRINT_UNARY_CAST(FCast, "fcast")
+    PRINT_UNARY_CAST(SignedToFp, "si_to_fp")
+    PRINT_UNARY_CAST(UnsignedToFp, "ui_to_fp")
+    PRINT_UNARY_CAST(FpToSigned, "fp_to_si")
+    PRINT_UNARY_CAST(FpToUnsigned, "fp_to_ui")
 
     // Floating-point arithmetic
     PRINT_BINARY_PREFIX(FAdd,   "fp.add")

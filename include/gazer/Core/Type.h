@@ -206,10 +206,10 @@ public:
     static constexpr unsigned SignificandBitsInDoubleTy = 53;
     static constexpr unsigned SignificandBitsInQuadTy   = 113;
 
-    static constexpr unsigned ExpBitsInHalfTy   = 5;
-    static constexpr unsigned ExpBitsInSingleTy = 8;
-    static constexpr unsigned ExpBitsInDoubleTy = 11;
-    static constexpr unsigned ExpBitsInQuadTy   = 15;
+    static constexpr unsigned ExponentBitsInHalfTy   = 5;
+    static constexpr unsigned ExponentBitsInSingleTy = 8;
+    static constexpr unsigned ExponentBitsInDoubleTy = 11;
+    static constexpr unsigned ExponentBitsInQuadTy   = 15;
 
 protected:
     FloatType(GazerContext& context, FloatPrecision precision)

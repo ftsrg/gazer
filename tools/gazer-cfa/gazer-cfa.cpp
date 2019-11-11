@@ -21,6 +21,7 @@
 #include "gazer/LLVM/LLVMFrontend.h"
 #include "gazer/Core/GazerContext.h"
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
+#include "gazer/LLVM/ClangFrontend.h"
 
 #include <llvm/IR/Module.h>
 
@@ -35,7 +36,7 @@ using namespace llvm;
 
 namespace
 {
-    cl::opt<std::string> InputFilename(cl::Positional, cl::desc("<input file>"), cl::Required);
+    cl::list<std::string> InputFilenames(cl::Positional, cl::OneOrMore, cl::desc("<input files>"));
     cl::opt<bool> ViewCfa("view", cl::desc("View the CFA in the system's GraphViz viewier."));
     cl::opt<bool> CyclicCfa("cyclic", cl::desc("Represent LoopRep as cycles instead of recursive calls."));
     cl::opt<bool> RunPipeline("run-pipeline", cl::desc("Run the early stages of the verification pipeline, such as instrumentation."));
@@ -59,13 +60,20 @@ int main(int argc, char* argv[])
         settings.loops = LoopRepresentation::Cycle;
     }
 
-    auto frontend = LLVMFrontend::FromInputFile(InputFilename, context, llvmContext, settings);
-    if (frontend == nullptr) {
+    // Run the clang frontend
+    auto module = ClangCompileAndLink(InputFilenames, llvmContext);
+    if (module == nullptr) {
         return 1;
     }
 
-    frontend->registerPass(new gazer::ModuleToAutomataPass(context, settings));
-    frontend->registerPass(gazer::createCfaPrinterPass());
+    auto frontend = std::make_unique<LLVMFrontend>(std::move(module), context, settings);
+
+    if (RunPipeline) {
+        frontend->registerVerificationPipeline();
+    } else {
+        frontend->registerPass(new gazer::ModuleToAutomataPass(context, settings));
+        frontend->registerPass(gazer::createCfaPrinterPass());
+    }
     if (ViewCfa) {
         frontend->registerPass(gazer::createCfaViewerPass());
     }

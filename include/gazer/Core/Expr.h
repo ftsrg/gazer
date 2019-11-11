@@ -93,9 +93,9 @@ public:
         Mod,    ///< modulo operator for arithmetic types
         Rem,    ///< remainder operator for arithmetic types
         BvSDiv, ///< signed division for bitvectors
-        BvUDiv, ///< signed division for bitvectors
+        BvUDiv, ///< unsigned division for bitvectors
         BvSRem, ///< signed remainder for bitvectors
-        BvURem, ///< signed remainder for bitvectors
+        BvURem, ///< unsigned remainder for bitvectors
 
         // Bitvector operations
         Shl,    ///< binary shift left

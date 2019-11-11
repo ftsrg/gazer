@@ -155,14 +155,23 @@ void Transition::print(llvm::raw_ostream &os) const
     llvm_unreachable("Unknown edge kind in Transition::print()!");
 }
 
+void Cfa::printDeclaration(llvm::raw_ostream& os) const
+{
+    auto printIo = [](llvm::raw_ostream& os, Variable* variable) {
+        os << variable->getName() << " : " << variable->getType();
+    };
+
+    os << "procedure " << mName << "(";
+    join_print_as(os, mInputs.begin(), mInputs.end(), ", ", printIo);
+    os << ") -> (";
+    join_print_as(os, mOutputs.begin(), mOutputs.end(), ", ", printIo);
+    os << ")\n";
+}
+
 void Cfa::print(llvm::raw_ostream& os) const
 {
     constexpr auto indent1 = "    ";
     constexpr auto indent2 = "        ";
-
-    auto printIo = [](llvm::raw_ostream& os, Variable* variable) {
-        os << variable->getName() << " : " << variable->getType();
-    };
 
     auto printCallInput = [](llvm::raw_ostream& os, const ExprPtr& expr) {
         InfixPrintExpr(expr, os);
@@ -173,11 +182,7 @@ void Cfa::print(llvm::raw_ostream& os) const
         InfixPrintExpr(assign.getValue(), os);
     };
 
-    os << "procedure " << mName << "(";
-    join_print_as(os, mInputs.begin(), mInputs.end(), ", ", printIo);
-    os << ") -> (";
-    join_print_as(os, mOutputs.begin(), mOutputs.end(), ", ", printIo);
-    os << ")\n";
+    this->printDeclaration(os);
 
     os << "{\n";
 

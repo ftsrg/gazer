@@ -28,6 +28,8 @@
 #include <llvm/ADT/GraphTraits.h>
 #include <llvm/ADT/DenseMap.h>
 #include <boost/iterator/indirect_iterator.hpp>
+#include <gazer/LLVM/Memory/MemoryModel.h>
+
 
 namespace gazer
 {
@@ -376,6 +378,7 @@ public:
     void view() const;
 
     void print(llvm::raw_ostream& os) const;
+    void printDeclaration(llvm::raw_ostream& os) const;
 
     //------------------------------ Deletion -------------------------------//
     void removeUnreachableLocations();

@@ -32,6 +32,7 @@
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/AlwaysInliner.h>
 #include <llvm/Support/CommandLine.h>
+#include <llvm/InitializePasses.h>
 
 #include <llvm/Analysis/CFGPrinter.h>
 #include <llvm/AsmParser/Parser.h>
@@ -93,7 +94,9 @@ LLVMFrontend::LLVMFrontend(
     mModule(std::move(module)),
     mChecks(mModule->getContext()),
     mSettings(settings)
-{}
+{
+    llvm::initializeAnalysis(*llvm::PassRegistry::getPassRegistry());
+}
 
 void LLVMFrontend::registerVerificationPipeline()
 {
@@ -175,7 +178,7 @@ bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
             }
         }
 
-        if (!mSettings.testHarnessFile.empty()) {
+        if (!mSettings.testHarnessFile.empty() && fail->hasTrace()) {
             llvm::outs() << "Generating test harness.\n";
             auto test = GenerateTestHarnessModuleFromTrace(
                 fail->getTrace(), 

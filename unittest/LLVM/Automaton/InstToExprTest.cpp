@@ -45,13 +45,14 @@ public:
     std::unique_ptr<llvm::IRBuilder<>> ir;
 public:
     InstToExprTest()
-        : builder(CreateExprBuilder(context)),
-        memoryModel(new DummyMemoryModel(context, settings))
+        : builder(CreateExprBuilder(context))
     {}
 
     void SetUp() override
     {
         module.reset(new llvm::Module("InstToExprModule", llvmContext));
+        memoryModel = CreateHavocMemoryModel(context, settings, module->getDataLayout());
+
         auto funcTy = llvm::FunctionType::get(
             llvm::Type::getVoidTy(llvmContext),
             /*isVarArg=*/false
@@ -213,8 +214,8 @@ TEST_F(InstToExprTest, TransformBvCast)
 }
 
 // A little helper macro to help us create and translate comparisons.
-#define TRANSLATE_COMPARE(PRED)                             \
-    (inst2expr->transform(*cast<Instruction>(               \
+#define TRANSLATE_COMPARE(PRED)                           \
+    (inst2expr->transform(*cast<Instruction>(             \
         ir->CreateICmp(CmpInst::PRED, loadGv1, loadGv2)   \
     )))
 

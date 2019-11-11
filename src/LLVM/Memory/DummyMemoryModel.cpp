@@ -22,10 +22,43 @@
 
 using namespace gazer;
 
-void DummyMemoryModel::findMemoryObjects(
-    llvm::Function& function,
-    MemorySSABuilder& objects
-) {
+namespace
+{
+
+class DummyMemoryModel : public MemoryModel
+{
+public:
+    using MemoryModel::MemoryModel;
+
+    void declareProcedureVariables(Cfa& cfa, llvm::Function& function) override;
+
+    void declareProcedureVariables(Cfa& cfa, llvm::Loop* loop) override;
+
+    ExprPtr handleLoad(const llvm::LoadInst& load) override;
+    ExprPtr handleGetElementPtr(const llvm::GEPOperator& gep) override;
+    ExprPtr handleAlloca(const llvm::AllocaInst& alloc) override;
+    ExprPtr handlePointerCast(const llvm::CastInst& cast) override;
+    ExprPtr handlePointerValue(const llvm::Value* value) override;
+
+    std::optional<VariableAssignment> handleStore(
+        const llvm::StoreInst& store, ExprPtr pointer, ExprPtr value
+    ) override;
+
+    gazer::Type& handlePointerType(const llvm::PointerType* type) override;
+    gazer::Type& handleArrayType(const llvm::ArrayType* type) override;
+
+protected:
+    void initializeFunction(
+        llvm::Function& function,
+        memory::MemorySSABuilder& builder
+    ) override;
+};
+
+} // end anonymous namespace
+
+void DummyMemoryModel::initializeFunction(llvm::Function& function, memory::MemorySSABuilder& builder)
+{
+    // Intentionally empty.
 }
 
 ExprPtr DummyMemoryModel::handleLoad(const llvm::LoadInst& load)
@@ -68,3 +101,20 @@ ExprPtr DummyMemoryModel::handlePointerValue(const llvm::Value* value)
 {
     return UndefExpr::Get(BvType::Get(mContext, 32));
 }
+
+void DummyMemoryModel::declareProcedureVariables(Cfa& cfa, llvm::Function& function)
+{
+    // Intentionally empty.
+}
+
+void DummyMemoryModel::declareProcedureVariables(Cfa& cfa, llvm::Loop* loop)
+{
+    // Intentionally empty.
+}
+
+auto gazer::CreateHavocMemoryModel(GazerContext& context, LLVMFrontendSettings& settings, const llvm::DataLayout& dl)
+    -> std::unique_ptr<MemoryModel>
+{
+    return std::make_unique<DummyMemoryModel>(context, settings, dl);
+}
+

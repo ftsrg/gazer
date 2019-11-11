@@ -17,6 +17,8 @@ set(SOURCE_FILES
     Memory/MemoryObject.cpp
     Memory/BasicMemoryModel.cpp
     Memory/DummyMemoryModel.cpp
+    Memory/MemoryModel.cpp
+    Memory/MemorySSA.cpp
 )
 
 llvm_map_components_to_libnames(GAZER_LLVM_LIBS core irreader transformutils scalaropts ipo)

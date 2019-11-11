@@ -30,9 +30,8 @@ namespace gazer
 /// the means of acquiring the value of a variable.
 class ExprEvaluatorBase : public ExprWalker<ExprEvaluatorBase, ExprRef<LiteralExpr>>
 {
-public:
-
-public:
+    friend class ExprWalker<ExprEvaluatorBase, ExprRef<LiteralExpr>>;
+private:
     ExprRef<LiteralExpr> visitExpr(const ExprPtr& expr);
 
     // Nullary
