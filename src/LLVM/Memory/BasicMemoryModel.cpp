@@ -41,22 +41,22 @@ public:
 
     ExprPtr handleGetElementPtr(const llvm::GEPOperator& gep) override
     {
-        return UndefExpr::Get(BvType::Get(mContext, 32));
+        return UndefExpr::Get(IntType::Get(mContext));
     }
 
     ExprPtr handleAlloca(const llvm::AllocaInst& alloc) override
     {
-        return UndefExpr::Get(BvType::Get(mContext, 32));
+        return UndefExpr::Get(IntType::Get(mContext));
     }
 
     ExprPtr handlePointerCast(const llvm::CastInst& cast) override
     {
-        return UndefExpr::Get(BvType::Get(mContext, 32));
+        return UndefExpr::Get(IntType::Get(mContext));
     }
 
     ExprPtr handlePointerValue(const llvm::Value* value) override
     {
-        return UndefExpr::Get(BvType::Get(mContext, 32));
+        return UndefExpr::Get(IntType::Get(mContext));
     }
 
     std::optional<VariableAssignment> handleStore(const llvm::StoreInst& store, ExprPtr pointer, ExprPtr value) override
@@ -66,12 +66,12 @@ public:
 
     Type& handlePointerType(const llvm::PointerType* type) override
     {
-        return BvType::Get(mContext, 32);
+        return IntType::Get(mContext);
     }
 
     Type& handleArrayType(const llvm::ArrayType* type) override
     {
-        return BvType::Get(mContext, 32);
+        return IntType::Get(mContext);
     }
 
     void declareProcedureVariables(Cfa& cfa, llvm::Function& function) override;
