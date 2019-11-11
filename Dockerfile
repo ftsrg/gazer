@@ -36,7 +36,7 @@ RUN cmake -DCMAKE_CXX_COMPILER=clang++-9 -DGAZER_ENABLE_UNIT_TESTS=On -DCMAKE_BU
 # clone and build theta
 WORKDIR $THETA_DIR
 RUN git clone https://github.com/FTSRG/theta.git $THETA_DIR && \
-    ./gradlew build && \
+    ./gradlew theta-cfa-cli:build && \
 # copy binaries to gazer subdirectory
     mkdir $GAZER_DIR/tools/gazer-theta/theta && \
     mkdir $GAZER_DIR/tools/gazer-theta/theta/lib && \

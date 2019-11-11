@@ -53,7 +53,7 @@ endif()
 set(GAZER_CLANG_TEST_COMPILER "clang" CACHE STRING "Clang compiler path for functional tests")
 
 add_custom_target(check-functional
-    COMMAND GAZER_TOOLS_DIR=${CMAKE_BINARY_DIR}/tools GAZER_SCRIPT_PATH=${CMAKE_CURRENT_LIST_DIR}/scripts/gazer.py lit -v ${CMAKE_CURRENT_LIST_DIR}/test
+    COMMAND GAZER_TOOLS_DIR=${CMAKE_BINARY_DIR}/tools lit -v ${CMAKE_CURRENT_LIST_DIR}/test
     DEPENDS gazer-bmc gazer-cfa
 )
 
