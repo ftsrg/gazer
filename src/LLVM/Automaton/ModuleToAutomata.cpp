@@ -15,9 +15,14 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
+///
+/// \file This file contains the implementation of the Module to CFA
+/// transformation.
+///
+//===----------------------------------------------------------------------===//
+
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
 #include "gazer/Automaton/Cfa.h"
-#include "gazer/Automaton/CfaTransforms.h"
 #include "gazer/Core/Expr/ExprBuilder.h"
 #include "gazer/ADT/StringUtils.h"
 #include "gazer/LLVM/Instrumentation/Check.h"
@@ -29,7 +34,6 @@
 #include <llvm/Support/Debug.h>
 #include <llvm/Analysis/LoopInfo.h>
 #include <llvm/IR/InstIterator.h>
-#include <llvm/IR/Dominators.h>
 #include <llvm/ADT/StringExtras.h>
 
 #include "FunctionToCfa.h"
@@ -116,10 +120,9 @@ static llvm::Loop* getNestedLoopOf(GenerationContext& genCtx, CfaGenInfo& genInf
         return nullptr;
     }
 
-    if (std::holds_alternative<llvm::Loop*>(genInfo.Source)) {
+    if (auto loop = genInfo.getSourceLoop()) {
         // The parent procedure was obtained from a loop, see if 'nested'
         // is actually a nested loop of our source.
-        auto loop = std::get<llvm::Loop*>(genInfo.Source);
         assert(nested != loop);
 
         llvm::Loop* current = nested;
@@ -133,7 +136,7 @@ static llvm::Loop* getNestedLoopOf(GenerationContext& genCtx, CfaGenInfo& genInf
         return nullptr;
     }
     
-    if (std::holds_alternative<llvm::Function*>(genInfo.Source)) {
+    if (genInfo.isSourceFunction()) {
         assert(nested->getParentLoop() == nullptr && "Function are only allowed to enter into top-level loops");
         assert(nested->getHeader() == bb && "There is a jump into a loop block which is not its header. Perhaps the CFG is irreducible?");
         return nested->getParentLoop() == nullptr ? nested : nullptr;
@@ -155,11 +158,11 @@ static gazer::Type& getExitSelectorType(IntRepresentation ints, GazerContext& co
 }
 
 ModuleToCfa::ModuleToCfa(
-        llvm::Module& module,
-        GenerationContext::LoopInfoMapTy& loops,
-        GazerContext& context,
-        MemoryModel& memoryModel,
-        LLVMFrontendSettings settings
+    llvm::Module& module,
+    GenerationContext::LoopInfoMapTy& loops,
+    GazerContext& context,
+    MemoryModel& memoryModel,
+    LLVMFrontendSettings settings
 ) : mModule(module),
     mContext(context),
     mMemoryModel(memoryModel),
@@ -217,15 +220,6 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
     return std::move(mSystem);
 }
 
-std::string ModuleToCfa::uniqueValueName(const llvm::Value* value)
-{
-    if (value->hasName()) {
-        return value->getName();
-    }
-
-    return ("_" + llvm::Twine(++mValueCount)).str();
-}
-
 void ModuleToCfa::createAutomata()
 {
     // Create an automaton for each function definition and set the interfaces.
@@ -276,33 +270,25 @@ void ModuleToCfa::createAutomata()
                 [&visitedBlocks] (BasicBlock* b) { return visitedBlocks.count(b) == 0; }
             );
 
+            VariableDeclExtensionPoint loopVarDecl(loopGenInfo);
+
             // Insert the loop variables
             for (BasicBlock* bb : loopBlocks) {
                 for (Instruction& inst : *bb) {
                     Variable* variable = nullptr;
-                    std::string localName;
 
                     if (inst.getOpcode() == Instruction::PHI && bb == loop->getHeader()) {
-                        // PHI nodes of the entry block should also be inputs.
-                        localName = uniqueValueName(&inst);
-                        variable = nested->createInput(localName, mMemoryModel.translateType(inst.getType()));
-                        loopGenInfo.addPhiInput(&inst, variable);
-                        mGenCtx.addVariable(&inst, variable);
-                        mGenCtx.addExprValueIfTraceEnabled(nested, &inst, variable->getRefExpr());
-                        
+                        // PHI nodes of the entry block should be inputs.
+                        variable = loopVarDecl.createPhiInput(&inst, mMemoryModel.translateType(inst.getType()));
                         LLVM_DEBUG(llvm::dbgs() << "  Added PHI input variable " << *variable << "\n");
                     } else {
                         // Add operands which were defined in the caller as inputs
                         for (auto oi = inst.op_begin(), oe = inst.op_end(); oi != oe; ++oi) {
                             llvm::Value* value = *oi;
                             if (isDefinedInCaller(value, loopBlocks) && !loopGenInfo.hasInput(value)) {
-                                auto argVariable = nested->createInput(
-                                    uniqueValueName(value),
-                                    mMemoryModel.translateType(value->getType())
+                                auto argVariable = loopVarDecl.createInput(
+                                    value, mMemoryModel.translateType(value->getType())
                                 );
-                                loopGenInfo.addInput(value, argVariable);
-                                mGenCtx.addExprValueIfTraceEnabled(nested, &inst, argVariable->getRefExpr());
-
                                 LLVM_DEBUG(llvm::dbgs() << "  Added input variable " << *argVariable << "\n");
                             }
                         }
@@ -315,27 +301,20 @@ void ModuleToCfa::createAutomata()
                         // If the instruction is defined in an already visited block, it is a local of
                         // a subloop rather than this loop.
                         if (visitedBlocks.count(bb) == 0 || hasUsesInBlockRange(&inst, loopOnlyBlocks)) {
-                            localName = uniqueValueName(&inst);
-                            variable = nested->createLocal(localName, mMemoryModel.translateType(inst.getType()));
-                            loopGenInfo.addLocal(&inst, variable);
-                            mGenCtx.addVariable(&inst, variable);
-                            mGenCtx.addExprValueIfTraceEnabled(nested, &inst, variable->getRefExpr());
-
+                            variable = loopVarDecl.createLocal(&inst, mMemoryModel.translateType(inst.getType()));
                             LLVM_DEBUG(llvm::dbgs() << "  Added local variable " << *variable << "\n");
-                        } else {
-                            // TODO
-                            variable = nullptr;
                         }
                     }
 
+                    // Check if the instruction has users outside of the loop region.
+                    // If so, their corresponding variables must be marked as outputs.
                     for (auto user : inst.users()) {
                         if (auto i = llvm::dyn_cast<Instruction>(user)) {
                             if (std::find(loopBlocks.begin(), loopBlocks.end(), i->getParent()) == loopBlocks.end()) {
-                                std::string name = Twine(localName, "_out").str();
+                                std::string name = inst.getName().str() + "_out";
                                 auto copyOfVar = nested->createLocal(name, variable->getType());
 
-                                nested->addOutput(copyOfVar);
-                                loopGenInfo.Outputs[&inst] = copyOfVar;
+                                loopVarDecl.markOutput(&inst, copyOfVar);
                                 loopGenInfo.LoopOutputs[&inst] = VariableAssignment{ copyOfVar, variable->getRefExpr() };
 
                                 LLVM_DEBUG(llvm::dbgs() << "  Added output variable " << *copyOfVar << "\n");
@@ -347,16 +326,14 @@ void ModuleToCfa::createAutomata()
             }
 
             // Insert memory objects defined/used by this loop.
-            mMemoryModel.declareProcedureVariables(*nested, loop);
+            mMemoryModel.declareProcedureVariables(loopVarDecl);
 
             // Create locations for the blocks
             for (BasicBlock* bb : loopOnlyBlocks) {
                 Location* entry = nested->createLocation();
                 Location* exit = isErrorBlock(bb) ? nested->createErrorLocation() : nested->createLocation();
 
-                loopGenInfo.Blocks[bb] = std::make_pair(entry, exit);
-                mGenCtx.addReverseBlockIfTraceEnabled(bb, entry, CfaToLLVMTrace::Location_Entry);
-                mGenCtx.addReverseBlockIfTraceEnabled(bb, exit, CfaToLLVMTrace::Location_Exit);
+                loopGenInfo.addBlockToLocationsMapping(bb, entry, exit);
             }
 
             // If the loop has multiple exits, add a selector output to disambiguate between these.
@@ -376,30 +353,30 @@ void ModuleToCfa::createAutomata()
             visitedBlocks.insert(loop->getBlocks().begin(), loop->getBlocks().end());
         }
 
+        // Now that all loops in this function have been dealt with, translate the function itself.
         CfaGenInfo& genInfo = mGenCtx.createFunctionCfaInfo(cfa, &function);
+        VariableDeclExtensionPoint functionVarDecl(genInfo);
 
         // Add function input and output parameters
         for (llvm::Argument& argument : function.args()) {
-            auto name = uniqueValueName(&argument);
-            Variable* variable = cfa->createInput(name, mMemoryModel.translateType(argument.getType()));
-            genInfo.addInput(&argument, variable);
-            mGenCtx.addVariable(&argument, variable);
-            mGenCtx.addExprValueIfTraceEnabled(cfa, &argument, variable->getRefExpr());
+            functionVarDecl.createInput(&argument, mMemoryModel.translateType(argument.getType()));
         }
 
-        // TODO: Maybe add RET_VAL to genInfo outputs in some way?
         if (!function.getReturnType()->isVoidTy()) {
-            auto retval = cfa->createLocal(FunctionReturnValueName, mMemoryModel.translateType(function.getReturnType()));
+            auto retval = cfa->createLocal(
+                FunctionReturnValueName, mMemoryModel.translateType(function.getReturnType())
+            );
+            genInfo.ReturnVariable = retval;
             cfa->addOutput(retval);
         }
 
         // Add all variables from the memory model.
-        mMemoryModel.declareProcedureVariables(*cfa, function);
+        mMemoryModel.declareProcedureVariables(functionVarDecl);
         cfa->printDeclaration(llvm::errs());
 
         // At this point, the loops are already encoded, we only need to handle the blocks outside of the loops.
         std::vector<BasicBlock*> functionBlocks;
-        std::for_each(function.begin(), function.end(), [&visitedBlocks, &functionBlocks] (BasicBlock& bb) {
+        std::for_each(function.begin(), function.end(), [&visitedBlocks, &functionBlocks] (auto& bb) {
             if (visitedBlocks.count(&bb) == 0) {
                 functionBlocks.push_back(&bb);
             }
@@ -418,11 +395,7 @@ void ModuleToCfa::createAutomata()
                 }
 
                 if (!inst.getType()->isVoidTy()) {
-                    auto name = uniqueValueName(&inst);
-                    Variable* variable = cfa->createLocal(name, mMemoryModel.translateType(inst.getType()));
-                    genInfo.addLocal(&inst, variable);
-                    mGenCtx.addVariable(&inst, variable);
-                    mGenCtx.addExprValueIfTraceEnabled(cfa, &inst, variable->getRefExpr());
+                    functionVarDecl.createLocal(&inst, mMemoryModel.translateType(inst.getType()));
                 }
             }
         }
@@ -430,10 +403,7 @@ void ModuleToCfa::createAutomata()
         for (BasicBlock* bb : functionBlocks) {
             Location* entry = cfa->createLocation();
             Location* exit = isErrorBlock(bb) ? cfa->createErrorLocation() : cfa->createLocation();
-
-            genInfo.Blocks[bb] = std::make_pair(entry, exit);
-            mGenCtx.addReverseBlockIfTraceEnabled(bb, entry, CfaToLLVMTrace::Location_Entry);
-            mGenCtx.addReverseBlockIfTraceEnabled(bb, exit, CfaToLLVMTrace::Location_Exit);
+            genInfo.addBlockToLocationsMapping(bb, entry, exit);
         }
     }
 }
@@ -450,9 +420,14 @@ void BlocksToCfa::encode()
         Location* exit = pair.second;
 
         std::vector<VariableAssignment> assignments;
-        assignments.reserve(bb->size());
+        GenerationStepExtensionPoint ep(mGenInfo, assignments, [this](const llvm::Value* val) -> ExprPtr {
+            return this->operand(val);
+        });
 
-        for (auto it = bb->getFirstInsertionPt(); it != bb->end(); ++it) {
+        // Visit the block beginning
+        mMemoryModel.handleBlock(*bb, ep);
+
+        for (auto it = bb->getFirstInsertionPt(), ie = bb->end(); it != ie; ++it) {
             const llvm::Instruction& inst = *it;
 
             if (auto call = llvm::dyn_cast<CallInst>(&inst)) {
@@ -464,11 +439,7 @@ void BlocksToCfa::encode()
                 auto storeValue = this->operand(store->getValueOperand());
                 auto ptr = this->operand(store->getPointerOperand());
 
-                auto storeRes = mMemoryModel.handleStore(*store, ptr, storeValue);
-                if (storeRes.has_value()) {
-                    assignments.push_back(*storeRes);
-                }
-
+                mMemoryModel.handleStore(*store, ptr, storeValue, ep);
                 continue;
             }
 
@@ -477,7 +448,15 @@ void BlocksToCfa::encode()
             }
 
             Variable* variable = getVariable(&inst);
-            ExprPtr expr = this->transform(inst);
+            ExprPtr expr;
+
+            if (auto load = llvm::dyn_cast<LoadInst>(&inst)) {
+                expr = mMemoryModel.handleLoad(*load, ep);
+            }  else if (auto alloca = llvm::dyn_cast<AllocaInst>(&inst)) {
+                expr = mMemoryModel.handleAlloca(*alloca);
+            } else {
+                expr = this->transform(inst);
+            }
 
             if (!tryToEliminate(inst, expr)) {
                 assignments.emplace_back(variable, expr);
@@ -531,7 +510,7 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
             Variable* variable = getVariable(call);
 
             // Find the return variable of this function.                        
-            Variable* retval = calledCfa->findOutputByName(ModuleToCfa::FunctionReturnValueName);
+            Variable* retval = mGenCtx.getFunctionCfa(callee).ReturnVariable;
             assert(retval != nullptr && "A non-void function must have a return value!");
             
             outputs.emplace_back(variable, retval->getRefExpr());
@@ -591,7 +570,8 @@ void BlocksToCfa::handleTerminator(const llvm::BasicBlock* bb, Location* entry, 
         if (ret->getReturnValue() == nullptr) {
             mCfa->createAssignTransition(exit, mCfa->getExit());
         } else {
-            Variable* retval = mCfa->findOutputByName(ModuleToCfa::FunctionReturnValueName);
+            Variable* retval = mGenInfo.ReturnVariable;
+            assert(retval != nullptr && "Functions with return values should have a RET_VAL output in the CFA!");
             mCfa->createAssignTransition(exit, mCfa->getExit(), {
                 VariableAssignment{ retval, operand(ret->getReturnValue()) }
             });
@@ -690,11 +670,14 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
         // Due to the SSA-formed LLVM IR, regular inputs are not modified by loop iterations.
         // For PHI inputs, we need to determine which parent block to use for expression translation.
         ExprVector loopArgs(mCfa->getNumInputs());
-        for (auto entry : mGenInfo.PhiInputs) {
-            auto incoming = cast<PHINode>(entry.first)->getIncomingValueForBlock(parent);
-            size_t idx = mCfa->getInputNumber(entry.second);
-
-            loopArgs[idx] = operand(incoming);
+        for (auto& [valueOrMemObj, variable] : mGenInfo.PhiInputs) {
+            if (valueOrMemObj.isValue()) {
+                auto incoming = cast<PHINode>(valueOrMemObj.asValue())->getIncomingValueForBlock(parent);
+                size_t idx = mCfa->getInputNumber(variable);
+                loopArgs[idx] = operand(incoming);
+            } else {
+                // TODO
+            }
         }
 
         for (auto entry : mGenInfo.Inputs) {
@@ -724,9 +707,9 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
         auto nestedCfa = nestedLoopInfo.Automaton;
 
         ExprVector loopArgs(nestedCfa->getNumInputs());
-        for (auto entry : nestedLoopInfo.PhiInputs) {
-            auto incoming = cast<PHINode>(entry.first)->getIncomingValueForBlock(parent);
-            size_t idx = nestedCfa->getInputNumber(entry.second);
+        for (auto& [valueOrMemObj, variable] : nestedLoopInfo.PhiInputs) {
+            auto incoming = cast<PHINode>(valueOrMemObj.asValue())->getIncomingValueForBlock(parent);
+            size_t idx = nestedCfa->getInputNumber(variable);
 
             loopArgs[idx] = operand(incoming);
         }
@@ -735,7 +718,7 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
             // Whatever variable is used as an input, it should be present here as well in some form.
             size_t idx = nestedCfa->getInputNumber(entry.second);
 
-            loopArgs[idx] = operand(entry.first);
+            loopArgs[idx] = operand(entry.first.asValue());
         }
 
         std::vector<VariableAssignment> outputArgs;
@@ -784,12 +767,9 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
 void BlocksToCfa::insertOutputAssignments(CfaGenInfo& callee, std::vector<VariableAssignment>& outputArgs)
 {
     // For the outputs, find the corresponding variables in the parent and create the assignments.
-    for (auto& pair : callee.Outputs) {
-        const llvm::Value* value = pair.first;
-        Variable* nestedOutputVar = pair.second;
-
+    for (auto& [value, nestedOutputVar] : callee.Outputs) {
         LLVM_DEBUG(
-            llvm::dbgs() << "  Inserting output assignment for " << *value
+            llvm::dbgs() << "  Inserting output assignment for " << value.getName()
             << " variable " << *nestedOutputVar << "\n"
         );
 
@@ -842,158 +822,4 @@ Variable* BlocksToCfa::getVariable(const Value* value)
     assert(result != nullptr && "Variables should be present in one of the variable maps!");
 
     return result;
-}
-
-std::unique_ptr<AutomataSystem> gazer::translateModuleToAutomata(
-    llvm::Module& module,
-    LLVMFrontendSettings settings,
-    llvm::DenseMap<llvm::Function*, llvm::LoopInfo*>& loopInfos,
-    GazerContext& context,
-    MemoryModel& memoryModel,
-    llvm::DenseMap<llvm::Value*, Variable*>& variables,
-    CfaToLLVMTrace& blockEntries
-) {
-    ModuleToCfa transformer(module, loopInfos, context, memoryModel, settings);
-    return transformer.generate(variables, blockEntries);
-}
-
-// LLVM pass implementation
-//-----------------------------------------------------------------------------
-
-char ModuleToAutomataPass::ID;
-
-void ModuleToAutomataPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
-{
-    au.addRequired<llvm::DominatorTreeWrapperPass>();
-    au.setPreservesAll();
-}
-
-bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
-{
-    GenerationContext::LoopInfoMapTy loopInfoMap;
-    std::vector<std::unique_ptr<llvm::DominatorTree>> dominators;
-    std::vector<std::unique_ptr<llvm::LoopInfo>> loops;
-
-    for (Function& function : module) {
-        if (!function.isDeclaration()) {
-            auto& dt = dominators.emplace_back(std::make_unique<llvm::DominatorTree>(function));
-            auto& loop = loops.emplace_back(std::make_unique<llvm::LoopInfo>(*dt));
-
-            loopInfoMap[&function] = loop.get();
-        }
-    }
-
-    //DummyMemoryModel memoryModel(mContext, mSettings, module.getDataLayout());
-    //memoryModel.initialize(module, ...)
-
-    auto memoryModel = CreateBasicMemoryModel(mContext, mSettings, module.getDataLayout());
-    memoryModel->initialize(module, [this](llvm::Function& function) -> llvm::DominatorTree& {
-        return getAnalysis<llvm::DominatorTreeWrapperPass>(function).getDomTree();
-    });
-
-    mSystem = translateModuleToAutomata(
-        module, mSettings, loopInfoMap, mContext, *memoryModel, mVariables, mTraceInfo
-    );
-
-    if (mSettings.loops == LoopRepresentation::Cycle) {
-        // Transform the main automaton into a cyclic CFA if requested.
-        // Note: This yields an invalid CFA, which will not be recognizable by
-        // most built-in analysis algorithms. Use it only if you are going to
-        // translate it to the format of another verifier immediately.
-
-        // TODO: We should translate automata other than the main in this case.
-        TransformRecursiveToCyclic(mSystem->getMainAutomaton());
-    }
-
-    return false;
-}
-
-namespace
-{
-
-class PrintCfaPass : public llvm::ModulePass
-{
-public:
-    static char ID;
-
-    PrintCfaPass()
-        : ModulePass(ID)
-    {}
-
-    void getAnalysisUsage(llvm::AnalysisUsage& au) const override
-    {
-        au.addRequired<ModuleToAutomataPass>();
-        au.setPreservesAll();
-    }
-
-    bool runOnModule(llvm::Module& module) override
-    {
-        auto& moduleToCfa = getAnalysis<ModuleToAutomataPass>();
-        AutomataSystem& system = moduleToCfa.getSystem();
-
-        system.print(llvm::outs());
-
-        return false;
-    }
-};
-
-class ViewCfaPass : public llvm::ModulePass
-{
-public:
-    static char ID;
-
-    ViewCfaPass()
-        : ModulePass(ID)
-    {}
-
-    void getAnalysisUsage(llvm::AnalysisUsage& au) const override
-    {
-        au.addRequired<ModuleToAutomataPass>();
-        au.setPreservesAll();
-    }
-
-    bool runOnModule(llvm::Module& module) override
-    {
-        auto& moduleToCfa = getAnalysis<ModuleToAutomataPass>();
-        AutomataSystem& system = moduleToCfa.getSystem();
-
-        for (Cfa& cfa : system) {
-            cfa.view();
-        }
-
-        return false;
-    }
-};
-
-} // end anonymous namespace
-
-char PrintCfaPass::ID;
-char ViewCfaPass::ID;
-
-llvm::Pass* gazer::createCfaPrinterPass() { return new PrintCfaPass(); }
-llvm::Pass* gazer::createCfaViewerPass()  { return new ViewCfaPass();  }
-
-// Traceability support
-//-----------------------------------------------------------------------------
-
-ExprPtr CfaToLLVMTrace::getExpressionForValue(const Cfa* parent, const llvm::Value* value)
-{
-    auto it = mValueMaps.find(parent);
-    if (it == mValueMaps.end()) {
-        return nullptr;
-    }
-
-    ExprPtr expr = it->second.values.lookup(value);
-
-    return expr;
-}
-
-Variable* CfaToLLVMTrace::getVariableForValue(const Cfa* parent, const llvm::Value* value)
-{
-    auto expr = getExpressionForValue(parent, value);
-    if (auto varRef = dyn_cast_or_null<VarRefExpr>(expr)) {
-        return &varRef->getVariable();
-    }
-
-    return nullptr;
 }

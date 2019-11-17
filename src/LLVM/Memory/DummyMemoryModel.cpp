@@ -30,19 +30,25 @@ class DummyMemoryModel : public MemoryModel
 public:
     using MemoryModel::MemoryModel;
 
-    void declareProcedureVariables(Cfa& cfa, llvm::Function& function) override;
+    void declareProcedureVariables(llvm2cfa::VariableDeclExtensionPoint&) override;
 
-    void declareProcedureVariables(Cfa& cfa, llvm::Loop* loop) override;
-
-    ExprPtr handleLoad(const llvm::LoadInst& load) override;
     ExprPtr handleGetElementPtr(const llvm::GEPOperator& gep) override;
     ExprPtr handleAlloca(const llvm::AllocaInst& alloc) override;
     ExprPtr handlePointerCast(const llvm::CastInst& cast) override;
     ExprPtr handlePointerValue(const llvm::Value* value) override;
 
-    std::optional<VariableAssignment> handleStore(
-        const llvm::StoreInst& store, ExprPtr pointer, ExprPtr value
-    ) override;
+    void handleStore(
+        const llvm::StoreInst& store,
+        ExprPtr pointer,
+        ExprPtr value,
+        llvm2cfa::GenerationStepExtensionPoint& ep
+    ) override {}
+
+    void handleBlock(const llvm::BasicBlock& bb, llvm2cfa::GenerationStepExtensionPoint& ep) override {}
+
+    ExprPtr handleLoad(const llvm::LoadInst& load, llvm2cfa::GenerationStepExtensionPoint& ep) override {
+        return UndefExpr::Get(translateType(load.getType()));
+    }
 
     gazer::Type& handlePointerType(const llvm::PointerType* type) override;
     gazer::Type& handleArrayType(const llvm::ArrayType* type) override;
@@ -61,11 +67,6 @@ void DummyMemoryModel::initializeFunction(llvm::Function& function, memory::Memo
     // Intentionally empty.
 }
 
-ExprPtr DummyMemoryModel::handleLoad(const llvm::LoadInst& load)
-{
-    return UndefExpr::Get(mTypes.get(load.getType()));
-}
-
 ExprPtr DummyMemoryModel::handleGetElementPtr(const llvm::GEPOperator& gep)
 {
     return UndefExpr::Get(BvType::Get(mContext, 32));
@@ -79,12 +80,6 @@ ExprPtr DummyMemoryModel::handleAlloca(const llvm::AllocaInst& alloc)
 ExprPtr DummyMemoryModel::handlePointerCast(const llvm::CastInst& cast)
 {
     return UndefExpr::Get(BvType::Get(mContext, 32));
-}
-
-std::optional<VariableAssignment> DummyMemoryModel::handleStore(
-    const llvm::StoreInst& store, ExprPtr pointer, ExprPtr value
-) {
-    return std::nullopt;
 }
 
 gazer::Type& DummyMemoryModel::handlePointerType(const llvm::PointerType* type)
@@ -102,12 +97,7 @@ ExprPtr DummyMemoryModel::handlePointerValue(const llvm::Value* value)
     return UndefExpr::Get(BvType::Get(mContext, 32));
 }
 
-void DummyMemoryModel::declareProcedureVariables(Cfa& cfa, llvm::Function& function)
-{
-    // Intentionally empty.
-}
-
-void DummyMemoryModel::declareProcedureVariables(Cfa& cfa, llvm::Loop* loop)
+void DummyMemoryModel::declareProcedureVariables(llvm2cfa::VariableDeclExtensionPoint& extensionPoint)
 {
     // Intentionally empty.
 }
@@ -117,4 +107,3 @@ auto gazer::CreateHavocMemoryModel(GazerContext& context, LLVMFrontendSettings& 
 {
     return std::make_unique<DummyMemoryModel>(context, settings, dl);
 }
-

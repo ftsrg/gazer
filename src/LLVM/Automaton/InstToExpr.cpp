@@ -40,17 +40,11 @@ ExprPtr InstToExpr::transform(const llvm::Instruction& inst)
     if (inst.isCast()) {
         return visitCastInst(*dyn_cast<llvm::CastInst>(&inst));
     }
-    
-    if (auto gep = llvm::dyn_cast<llvm::GEPOperator>(&inst)) {
-        return visitGEPOperator(*gep);
-    }
 
     HANDLE_INST(Instruction::ICmp,      ICmpInst)
     HANDLE_INST(Instruction::Call,      CallInst)
     HANDLE_INST(Instruction::FCmp,      FCmpInst)
     HANDLE_INST(Instruction::Select,    SelectInst)
-    HANDLE_INST(Instruction::Load,      LoadInst)
-    HANDLE_INST(Instruction::Alloca,    AllocaInst)
 
 #undef HANDLE_INST
 
@@ -557,21 +551,6 @@ ExprPtr InstToExpr::visitCallInst(const llvm::CallInst& call)
     }
 
     return UndefExpr::Get(callTy);
-}
-
-ExprPtr InstToExpr::visitLoadInst(const llvm::LoadInst& load)
-{
-    return mMemoryModel.handleLoad(load);
-}
-
-ExprPtr InstToExpr::visitAllocaInst(const llvm::AllocaInst& alloc)
-{
-    return mMemoryModel.handleAlloca(alloc);
-}
-
-ExprPtr InstToExpr::visitGEPOperator(const llvm::GEPOperator& gep)
-{
-    return mMemoryModel.handleGetElementPtr(gep);
 }
 
 ExprPtr InstToExpr::operand(const Value* value)

@@ -18,6 +18,7 @@
 #ifndef GAZER_SRC_FUNCTIONTOAUTOMATA_H
 #define GAZER_SRC_FUNCTIONTOAUTOMATA_H
 
+#include "gazer/LLVM/Automaton/ModuleToAutomata.h"
 #include "gazer/Core/GazerContext.h"
 #include "gazer/Core/Expr/ExprBuilder.h"
 #include "gazer/Automaton/Cfa.h"
@@ -45,16 +46,18 @@ namespace llvm2cfa
 using ValueToVariableMap = llvm::DenseMap<llvm::Value*, Variable*>;
 
 /// Stores information about loops which were transformed to automata.
-struct CfaGenInfo
+class CfaGenInfo
 {
-    llvm::MapVector<const llvm::Value*, Variable*> Inputs;
-    llvm::MapVector<const llvm::Value*, Variable*> Outputs;
-    llvm::MapVector<const llvm::Value*, Variable*> PhiInputs;
-    llvm::MapVector<const llvm::Value*, VariableAssignment> LoopOutputs;
+public:
+    GenerationContext& Context;
+    llvm::MapVector<ValueOrMemoryObject, Variable*> Inputs;
+    llvm::MapVector<ValueOrMemoryObject, Variable*> Outputs;
+    llvm::MapVector<ValueOrMemoryObject, Variable*> PhiInputs;
+    llvm::MapVector<ValueOrMemoryObject, VariableAssignment> LoopOutputs;
 
     llvm::MapVector<const llvm::BasicBlock*, std::pair<Location*, Location*>> Blocks;
 
-    llvm::DenseMap<llvm::Value*, Variable*> Locals;
+    llvm::DenseMap<ValueOrMemoryObject, Variable*> Locals;
 
     Cfa* Automaton;
     std::variant<llvm::Function*, llvm::Loop*> Source;
@@ -63,38 +66,65 @@ struct CfaGenInfo
     Variable* ExitVariable = nullptr;
     llvm::SmallDenseMap<const llvm::BasicBlock*, ExprRef<LiteralExpr>, 4> ExitBlocks;
 
+    // For functions with return values
+    Variable* ReturnVariable = nullptr;
+
 public:
-    CfaGenInfo() = default;
+    CfaGenInfo(GenerationContext& context, Cfa* cfa, std::variant<llvm::Function*, llvm::Loop*> source)
+        : Context(context), Automaton(cfa), Source(source)
+    {}
+
     CfaGenInfo(CfaGenInfo&&) = default;
 
     CfaGenInfo(const CfaGenInfo&) = delete;
     CfaGenInfo& operator=(const CfaGenInfo&) = delete;
 
+    // Blocks
+    //==--------------------------------------------------------------------==//
+    void addBlockToLocationsMapping(const llvm::BasicBlock* bb, Location* entry, Location* exit);
+
     //--------------------- Sources ---------------------//
+    bool isSourceLoop() const { return std::holds_alternative<llvm::Loop*>(Source); }
+    bool isSourceFunction() const { return std::holds_alternative<llvm::Function*>(Source); }
+
     llvm::Loop* getSourceLoop() const
     {
-        if (std::holds_alternative<llvm::Loop*>(Source)) {
+        if (this->isSourceLoop()) {
             return std::get<llvm::Loop*>(Source);
         }
 
         return nullptr;
     }
-    
+
     llvm::Function* getSourceFunction() const
     {
-        if (std::holds_alternative<llvm::Function*>(Source)) {
+        if (this->isSourceFunction()) {
             return std::get<llvm::Function*>(Source);
         }
 
         return nullptr;
-    }    
+    }
 
     //--------------------- Variables ---------------------//
-    void addInput(llvm::Value* value, Variable* variable) { Inputs[value] = variable; }
-    void addPhiInput(llvm::Value* value, Variable* variable) { PhiInputs[value] = variable; }
-    void addLocal(llvm::Value* value, Variable* variable) { Locals[value] = variable; }
+    void addInput(ValueOrMemoryObject value, Variable* variable)
+    {
+        Inputs[value] = variable;
+        addVariableToContext(value, variable);
+    }
 
-    Variable* findVariable(const llvm::Value* value)
+    void addPhiInput(ValueOrMemoryObject value, Variable* variable)
+    {
+        PhiInputs[value] = variable;
+        addVariableToContext(value, variable);
+    }
+
+    void addLocal(ValueOrMemoryObject value, Variable* variable)
+    {
+        Locals[value] = variable;
+        addVariableToContext(value, variable);
+    }
+
+    Variable* findVariable(ValueOrMemoryObject value)
     {
         Variable* result = Inputs.lookup(value);
         if (result != nullptr) { return result; }
@@ -108,7 +138,7 @@ public:
         return nullptr;
     }
 
-    Variable* findInput(const llvm::Value* value)
+    Variable* findInput(ValueOrMemoryObject value)
     {
         Variable* result = Inputs.lookup(value);
         if (result != nullptr) { return result; }
@@ -116,12 +146,14 @@ public:
         return PhiInputs.lookup(value);
     }
 
-    Variable* findOutput(const llvm::Value* value) { return Outputs.lookup(value);}
-    Variable* findLocal(const llvm::Value* value) { return Locals.lookup(value); }
+    Variable* findOutput(ValueOrMemoryObject value) { return Outputs.lookup(value);}
+    Variable* findLocal(ValueOrMemoryObject value) { return Locals.lookup(value); }
 
     bool hasInput(llvm::Value* value) { return Inputs.count(value) != 0; }
     bool hasLocal(const llvm::Value* value) { return Locals.count(value) != 0; }
+
 private:
+    void addVariableToContext(ValueOrMemoryObject value, Variable* variable);
 };
 
 class GenerationContext;
@@ -140,8 +172,7 @@ public:
         MemoryModel& memoryModel,
         LoopInfoMapTy loopInfos,
         LLVMFrontendSettings settings
-    )
-        : mSystem(system), mMemoryModel(memoryModel),
+    ) : mSystem(system), mMemoryModel(memoryModel),
         mLoopInfos(loopInfos), mSettings(settings)
     {}
 
@@ -150,35 +181,25 @@ public:
 
     CfaGenInfo& createLoopCfaInfo(Cfa* cfa, llvm::Loop* loop)
     {
-        CfaGenInfo& info = mProcedures.try_emplace(loop).first->second;
-        info.Automaton = cfa;
-        info.Source = loop;
-
+        CfaGenInfo& info = mProcedures.try_emplace(loop, *this, cfa, loop).first->second;
         return info;
     }
 
     CfaGenInfo& createFunctionCfaInfo(Cfa* cfa, llvm::Function* function)
     {
-        CfaGenInfo& info = mProcedures.try_emplace(function).first->second;
-        info.Automaton = cfa;
-        info.Source = function;        
-
+        CfaGenInfo& info = mProcedures.try_emplace(function, *this, cfa, function).first->second;
         return info;
     }
 
-    void addVariable(llvm::Value* value, Variable* variable) {
-        mVariables[value] = variable;
-    }
-
     void addReverseBlockIfTraceEnabled(
-        llvm::BasicBlock* bb, Location* loc, CfaToLLVMTrace::LocationKind kind
+        const llvm::BasicBlock* bb, Location* loc, CfaToLLVMTrace::LocationKind kind
     ) {
         if (mSettings.trace) {
             mTraceInfo.mLocationsToBlocks[loc] = { bb, kind };
         }
     }
 
-    void addExprValueIfTraceEnabled(Cfa* cfa, const llvm::Value* value, ExprPtr expr)
+    void addExprValueIfTraceEnabled(Cfa* cfa, ValueOrMemoryObject value, ExprPtr expr)
     {
         if (mSettings.trace) {
             mTraceInfo.mValueMaps[cfa].values[value] = expr;
@@ -197,7 +218,9 @@ public:
     {
         return mLoopInfos.lookup(function);
     }
-    
+
+    std::string uniqueName(const llvm::Twine& base = "");
+
     AutomataSystem& getSystem() const { return mSystem; }
     MemoryModel& getMemoryModel() const { return mMemoryModel; }
     LLVMFrontendSettings& getSettings() { return mSettings; }
@@ -219,8 +242,8 @@ private:
     LoopInfoMapTy mLoopInfos;
     LLVMFrontendSettings mSettings;
     std::unordered_map<VariantT, CfaGenInfo> mProcedures;
-    llvm::DenseMap<llvm::Value*, Variable*> mVariables;
     CfaToLLVMTrace mTraceInfo;
+    unsigned mTmp = 0;
 };
 
 class ModuleToCfa final
@@ -244,9 +267,6 @@ public:
 
 protected:
     void createAutomata();
-
-private:
-    std::string uniqueValueName(const llvm::Value* value);
 
 private:
     llvm::Module& mModule;

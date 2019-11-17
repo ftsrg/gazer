@@ -23,6 +23,7 @@
 #include <llvm/ADT/DepthFirstIterator.h>
 
 #include <boost/iterator/indirect_iterator.hpp>
+#include <llvm/Support/raw_ostream.h>
 
 using namespace gazer;
 
@@ -129,7 +130,7 @@ ExprPtr Cfa::getErrorFieldExpr(Location* location)
 // Member variables
 //-----------------------------------------------------------------------------
 
-Variable *Cfa::createInput(llvm::StringRef name, Type& type)
+Variable *Cfa::createInput(const std::string& name, Type& type)
 {
     Variable* variable = this->createMemberVariable(name, type);
     mInputs.push_back(variable);
@@ -142,7 +143,7 @@ void Cfa::addOutput(Variable* variable)
     mOutputs.push_back(variable);
 }
 
-Variable *Cfa::createLocal(llvm::StringRef name, Type& type)
+Variable *Cfa::createLocal(const std::string& name, Type& type)
 {
     Variable* variable = this->createMemberVariable(name, type);
     mLocals.push_back(variable);
@@ -150,11 +151,17 @@ Variable *Cfa::createLocal(llvm::StringRef name, Type& type)
     return variable;
 }
 
-Variable *Cfa::createMemberVariable(llvm::StringRef name, Type &type)
+Variable *Cfa::createMemberVariable(const std::string& name, Type &type)
 {
-    auto variableName = (llvm::Twine(mName, "/") + name).str();
-    auto variable = mContext.createVariable(variableName, type);
-    mSymbolNames[variable] = name.str();
+    std::string baseName = mName + "/" + name;
+    auto newName = baseName;
+
+    while (mContext.getVariable(newName) != nullptr) {
+        newName = baseName + "_" + std::to_string(mTmp++);
+    }
+
+    auto variable = mContext.createVariable(newName, type);
+    mSymbolNames[variable] = name;
 
     return variable;
 }

@@ -63,9 +63,6 @@ protected:
     ExprPtr visitFCmpInst(const llvm::FCmpInst& fcmp);
     ExprPtr visitCastInst(const llvm::CastInst& cast);
     ExprPtr visitCallInst(const llvm::CallInst& call);
-    ExprPtr visitLoadInst(const llvm::LoadInst& load);
-    ExprPtr visitGEPOperator(const llvm::GEPOperator& gep);
-    ExprPtr visitAllocaInst(const llvm::AllocaInst& alloc);
 
     ExprPtr operand(const llvm::Value* value);
     

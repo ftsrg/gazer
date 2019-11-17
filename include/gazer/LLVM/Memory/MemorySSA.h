@@ -111,12 +111,14 @@ public:
         llvm::StringRef name = ""
     );
 
-    memory::LiveOnEntryDef* createLiveOnEntry(MemoryObject* object);
-    memory::AllocDef* createAllocDef(MemoryObject* object, memory::AllocDef::AllocKind allocKind);
+    memory::LiveOnEntryDef* createLiveOnEntryDef(MemoryObject* object);
+    memory::GlobalInitializerDef* createGlobalInitializerDef(MemoryObject* object, llvm::Value* initializer = nullptr);
+    memory::AllocaDef* createAllocaDef(MemoryObject* object, llvm::AllocaInst& alloca);
     memory::StoreDef* createStoreDef(MemoryObject* object, llvm::StoreInst& inst);
     memory::CallDef*  createCallDef(MemoryObject* object, llvm::CallSite call);
 
     memory::LoadUse* createLoadUse(MemoryObject* object, llvm::LoadInst& load);
+    memory::CallUse* createCallUse(MemoryObject* object, llvm::CallSite call);
 
     std::unique_ptr<MemorySSA> build();
 

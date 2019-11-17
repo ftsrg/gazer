@@ -28,8 +28,6 @@
 #include <llvm/ADT/GraphTraits.h>
 #include <llvm/ADT/DenseMap.h>
 #include <boost/iterator/indirect_iterator.hpp>
-#include <gazer/LLVM/Memory/MemoryModel.h>
-
 
 namespace gazer
 {
@@ -268,8 +266,8 @@ public:
     //===----------------------------------------------------------------------===//
     // Variable handling
 
-    Variable* createInput(llvm::StringRef name, Type& type);
-    Variable* createLocal(llvm::StringRef name, Type& type);
+    Variable* createInput(const std::string& name, Type& type);
+    Variable* createLocal(const std::string& name, Type& type);
 
     /// Marks an already existing variable as an output.
     void addOutput(Variable* variable);
@@ -399,7 +397,7 @@ public:
     ~Cfa();
 
 private:
-    Variable* createMemberVariable(llvm::StringRef name, Type& type);
+    Variable* createMemberVariable(const std::string& name, Type& type);
     Variable* findVariableByName(const std::vector<Variable*>& vec, llvm::StringRef name) const;
 
 private:
@@ -425,7 +423,8 @@ private:
 
     Cfa* mParentAutomaton = nullptr;
 
-    unsigned int mLocationIdx = 0;
+    unsigned mLocationIdx = 0;
+    unsigned mTmp = 0;
 };
 
 /// A system of CFA instances.

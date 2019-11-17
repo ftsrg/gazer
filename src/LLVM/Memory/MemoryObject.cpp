@@ -67,6 +67,14 @@ void MemoryObjectDef::print(llvm::raw_ostream& os) const
     this->doPrint(os);
 }
 
+std::string MemoryObjectDef::getName() const
+{
+    llvm::Twine objName = getObject()->getName().empty()
+        ? llvm::Twine(getObject()->getId())
+        : getObject()->getName();
+
+    return (objName + "_" + llvm::Twine(mVersion)).str();
+}
 
 void memory::PhiDef::addIncoming(MemoryObjectDef* def, llvm::BasicBlock* bb)
 {
@@ -75,39 +83,37 @@ void memory::PhiDef::addIncoming(MemoryObjectDef* def, llvm::BasicBlock* bb)
 
 void memory::LiveOnEntryDef::doPrint(llvm::raw_ostream& os) const
 {
-    os << "liveOnEntry(" << getObject()->getId() << ")";
+    os << "liveOnEntry(" << getObject()->getName() << ")";
+}
+
+void memory::GlobalInitializerDef::doPrint(llvm::raw_ostream& os) const
+{
+    os << "globalInit(" << getObject()->getName();
+    if (mInitializer != nullptr) {
+        os << ", ";
+        mInitializer->printAsOperand(os);
+    }
+    os << ")";
 }
 
 void memory::StoreDef::doPrint(llvm::raw_ostream& os) const
 {
-    os << "store(" << getObject()->getId() << ")";
+    os << "store(" << getObject()->getName() << ")";
 }
 
 void memory::CallDef::doPrint(llvm::raw_ostream& os) const
 {
-    os << "call(" << getObject()->getId() << ", " << *mCall.getInstruction() << ")";
+    os << "call(" << getObject()->getName() << ")";
 }
 
-void memory::AllocDef::doPrint(llvm::raw_ostream& os) const
+void memory::AllocaDef::doPrint(llvm::raw_ostream& os) const
 {
-    switch (mAllocKind) {
-        case Alloca:
-            os << "alloca(" << getObject()->getId() << ")";
-            return;
-        case GlobalInit:
-            os << "globalInit(" << getObject()->getId() << ")";
-            return;
-        case Heap:
-            os << "heapAlloc(" << getObject()->getId() << ")";
-            return;
-    }
-
-    llvm_unreachable("Unknown allocation kind!");
+    os << "alloca(" << getObject()->getName() << ")";
 }
 
 void memory::PhiDef::doPrint(llvm::raw_ostream& os) const
 {
-    os << "phi(" << getObject()->getId() << ", {";
+    os << "phi(" << getObject()->getName() << ", {";
     for (auto& entry : mEntryList) {
         os << "[" << entry.first->getVersion() << ", " << entry.second->getName() << "], ";
     }
@@ -116,11 +122,24 @@ void memory::PhiDef::doPrint(llvm::raw_ostream& os) const
 
 void memory::LoadUse::print(llvm::raw_ostream& os) const
 {
-    os << "load(" << getObject()->getId() << ", ";
+    os << "load(" << getObject()->getName() << ", ";
     if (getReachingDef() == nullptr) {
         os << "???";
     } else {
         os << getReachingDef()->getVersion();
     }
-    os << ", " << *mLoadInst << ")";
+    os << ", ";
+    mLoadInst->printAsOperand(os);
+    os << ")";
+}
+
+void memory::CallUse::print(llvm::raw_ostream& os) const
+{
+    os << "call(" << getObject()->getName() << ", ";
+    if (getReachingDef() == nullptr) {
+        os << "???";
+    } else {
+        os << getReachingDef()->getVersion();
+    }
+    os << ")";
 }

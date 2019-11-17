@@ -16,9 +16,11 @@
 //
 //===----------------------------------------------------------------------===//
 #include "gazer/Automaton/Cfa.h"
+#include "gazer/Core/ExprTypes.h"
+
+#include <llvm/ADT/Twine.h>
+
 #include <gtest/gtest.h>
-#include <gazer/Core/LiteralExpr.h>
-#include <gazer/Core/ExprTypes.h>
 
 using namespace gazer;
 

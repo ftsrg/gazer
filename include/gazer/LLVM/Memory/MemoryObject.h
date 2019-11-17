@@ -44,15 +44,29 @@ class MemoryObjectDef;
 class MemoryObjectUse;
 class MemoryObjectPhi;
 
+class MemoryAccess
+{
+public:
+    MemoryAccess(MemoryObject* object)
+        : mObject(object)
+    {}
+
+    MemoryObject* getObject() const { return mObject; }
+
+private:
+    MemoryObject* mObject;
+};
+
 /// Represents the definition for a memory object.
-class MemoryObjectDef
+class MemoryObjectDef : public MemoryAccess
 {
     friend class memory::MemorySSABuilder;
 public:
     enum Kind
     {
         LiveOnEntry, ///< Inidicates that the memory object is alive when entering the function.
-        Alloc,  ///< The allocation/instantiation of an abstract memory object.
+        GlobalInitializer, ///< One time initialization of a global variable.
+        Alloca,  ///< The allocation/instantiation of a local variable.
         Store,  ///< A definition through a store instruction.
         Call,
         Phi
@@ -60,13 +74,13 @@ public:
 
 protected:
     MemoryObjectDef(MemoryObject* object, unsigned version, Kind kind)
-        : mObject(object), mKind(kind), mVersion(version)
+        : MemoryAccess(object), mKind(kind), mVersion(version)
     {}
 
 public:
-    MemoryObject* getObject() const { return mObject; }
     unsigned getVersion() const { return mVersion; }
     Kind getKind() const { return mKind; }
+    std::string getName() const;
 
     void print(llvm::raw_ostream& os) const;
 
@@ -76,12 +90,11 @@ protected:
     virtual void doPrint(llvm::raw_ostream& os) const = 0;
 
 private:
-    MemoryObject* mObject;
     Kind mKind;
     unsigned mVersion;
 };
 
-class MemoryObjectUse
+class MemoryObjectUse : public MemoryAccess
 {
     friend class memory::MemorySSABuilder;
 public:
@@ -89,19 +102,18 @@ public:
 
     enum Kind
     {
-        Load,
+        Load,   ///< Use through a load instruction.
         Call,
-        Return
+        Return  ///< Indicates that the object is alive at return.
     };
 
 protected:
     MemoryObjectUse(MemoryObject* object, Kind kind)
-        : mObject(object), mKind(kind)
+        : MemoryAccess(object), mKind(kind)
     {}
 
 public:
     MemoryObjectDef* getReachingDef() const { return mReachingDef; }
-    MemoryObject* getObject() const { return mObject; }
     Kind getKind() const { return mKind; }
 
     virtual void print(llvm::raw_ostream& os) const = 0;
@@ -112,7 +124,6 @@ private:
     void setReachingDef(MemoryObjectDef* reachingDef) { mReachingDef = reachingDef; }
 
 private:
-    MemoryObject* mObject;
     Kind mKind;
     MemoryObjectDef* mReachingDef = nullptr;
 };
@@ -143,7 +154,7 @@ public:
         llvm::StringRef name = ""
     ) :
         mId(id), mObjectType(objectType), mSize(size),
-        mValueType(valueType), mName(name)
+        mValueType(valueType), mName(!name.empty() ? name.str() : std::to_string(mId))
     {}
 
     void print(llvm::raw_ostream& os) const;
@@ -182,6 +193,11 @@ private:
     std::vector<std::unique_ptr<MemoryObjectUse>> mUses;
 };
 
+inline llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const MemoryObject& memoryObject) {
+    memoryObject.print(os);
+    return os;
+}
+
 namespace memory
 {
 
@@ -202,35 +218,42 @@ public:
     }
 };
 
-class AllocDef : public MemoryObjectDef
+class AllocaDef : public MemoryObjectDef
 {
 public:
-    enum AllocKind
-    {
-        Alloca,
-        GlobalInit,
-        Heap
-    };
-
-public:
-    AllocDef(MemoryObject* object, unsigned int version, AllocKind kind)
-        : MemoryObjectDef(object, version, MemoryObjectDef::Alloc), mAllocKind(kind)
+    AllocaDef(MemoryObject* object, unsigned int version, llvm::AllocaInst& alloca)
+        : MemoryObjectDef(object, version, MemoryObjectDef::Alloca), mAllocaInst(&alloca)
     {}
 
-public:
-    bool isAlloca() const { return mAllocKind == Alloca; }
-    bool isGlobalInitializer() const { return mAllocKind == GlobalInit; }
-    bool isHeapAllocation() const { return mAllocKind == Heap; }
+    void doPrint(llvm::raw_ostream& os) const override;
+
+    llvm::AllocaInst* getInstruction() const { return mAllocaInst; }
 
     static bool classof(const MemoryObjectDef* def) {
-        return def->getKind() == MemoryObjectDef::Alloc;
+        return def->getKind() == MemoryObjectDef::Alloca;
+    }
+
+private:
+    llvm::AllocaInst* mAllocaInst;
+};
+
+class GlobalInitializerDef : public MemoryObjectDef
+{
+public:
+    GlobalInitializerDef(MemoryObject* object, unsigned int version, llvm::Value* initValue = nullptr)
+        : MemoryObjectDef(object, version, MemoryObjectDef::GlobalInitializer), mInitializer(initValue)
+    {}
+
+    llvm::Value* getInitializer() const { return mInitializer; }
+
+    static bool classof(const MemoryObjectDef* def) {
+        return def->getKind() == MemoryObjectDef::GlobalInitializer;
     }
 
 protected:
     void doPrint(llvm::raw_ostream& os) const override;
-
 private:
-    AllocKind mAllocKind;
+    llvm::Value* mInitializer;
 };
 
 class StoreDef : public MemoryObjectDef
@@ -257,7 +280,7 @@ class CallDef : public MemoryObjectDef
 {
 public:
     CallDef(MemoryObject* object, unsigned int version, llvm::ImmutableCallSite call)
-        : MemoryObjectDef(object, version, MemoryObjectDef::Call)
+        : MemoryObjectDef(object, version, MemoryObjectDef::Call), mCall(call)
     {}
 
     static bool classof(const MemoryObjectDef* def) {
@@ -314,6 +337,8 @@ public:
     CallUse(MemoryObject* object, llvm::CallSite callSite)
         : MemoryObjectUse(object, MemoryObjectUse::Call), mCallSite(callSite)
     {}
+
+    void print(llvm::raw_ostream& os) const override;
 
 private:
     llvm::CallSite mCallSite;

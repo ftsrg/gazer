@@ -109,7 +109,7 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
     assert(states.front() == states.front()->getAutomaton()->getEntry());
 
     std::vector<std::unique_ptr<TraceEvent>> events;
-    llvm::DenseSet<llvm::Value*> undefs;
+    llvm::DenseSet<const llvm::Value*> undefs;
 
     Valuation currentVals;
 
@@ -123,7 +123,7 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
     auto actionIt = actions.begin();
     auto actionEnd = actions.end();
 
-    BasicBlock* prevBB = nullptr;
+    const BasicBlock* prevBB = nullptr;
     while (stateIt != stateEnd) {
         Location* loc = *stateIt;
         auto entry = mCfaToLlvmTrace.getBlockFromLocation(loc);
@@ -144,9 +144,9 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
         
         loc = *stateIt;
         updateCurrentValuation(currentVals, *actionIt);
-        BasicBlock* bb = entry.block;
+        const BasicBlock* bb = entry.block;
 
-        for (llvm::Instruction& inst : *bb) {
+        for (const llvm::Instruction& inst : *bb) {
             // Passing through this instruction means that it's possible not undefined anymore.
             // Remove from the undefined set, and place it back again if it turns out to be undef.
             undefs.erase(&inst);

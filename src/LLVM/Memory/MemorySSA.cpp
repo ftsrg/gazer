@@ -61,9 +61,20 @@ MemoryObject* MemorySSABuilder::createMemoryObject(
     return &*ptr;
 }
 
-memory::LiveOnEntryDef* MemorySSABuilder::createLiveOnEntry(gazer::MemoryObject* object)
+memory::LiveOnEntryDef* MemorySSABuilder::createLiveOnEntryDef(gazer::MemoryObject* object)
 {
     auto def = new memory::LiveOnEntryDef(object, mVersionNumber++);
+    mObjectInfo[object].defBlocks.insert(&mFunction.getEntryBlock());
+    mValueDefs[&mFunction.getEntryBlock()].push_back(def);
+    object->addDefinition(def);
+
+    return def;
+}
+
+memory::GlobalInitializerDef* MemorySSABuilder::createGlobalInitializerDef(
+    gazer::MemoryObject* object, llvm::Value* initializer)
+{
+    auto def = new memory::GlobalInitializerDef(object, mVersionNumber++, initializer);
     mObjectInfo[object].defBlocks.insert(&mFunction.getEntryBlock());
     mValueDefs[&mFunction.getEntryBlock()].push_back(def);
     object->addDefinition(def);
@@ -91,11 +102,13 @@ memory::CallDef* MemorySSABuilder::createCallDef(gazer::MemoryObject* object, ll
     return def;
 }
 
-memory::AllocDef* MemorySSABuilder::createAllocDef(
-    gazer::MemoryObject* object, gazer::memory::AllocDef::AllocKind allocKind
+memory::AllocaDef* MemorySSABuilder::createAllocaDef(
+    MemoryObject* object, llvm::AllocaInst& alloca
 )
 {
-    auto def = new memory::AllocDef(object, mVersionNumber++, allocKind);
+    auto def = new memory::AllocaDef(object, mVersionNumber++, alloca);
+    mObjectInfo[object].defBlocks.insert(alloca.getParent());
+    mValueDefs[&alloca].push_back(def);
     object->addDefinition(def);
 
     return def;
@@ -105,6 +118,15 @@ memory::LoadUse* MemorySSABuilder::createLoadUse(MemoryObject* object, llvm::Loa
 {
     auto use = new memory::LoadUse(object, load);
     mValueUses[&load].push_back(use);
+    object->addUse(use);
+
+    return use;
+}
+
+memory::CallUse* MemorySSABuilder::createCallUse(MemoryObject* object, llvm::CallSite call)
+{
+    auto use = new memory::CallUse(object, call);
+    mValueUses[call.getInstruction()].push_back(use);
     object->addUse(use);
 
     return use;
@@ -187,7 +209,7 @@ void MemorySSABuilder::renameBlock(llvm::BasicBlock* block)
         renameBlock(child->getBlock());
     }
 
-    // Finally, unwind the stack
+    // Finally, unwind the stacks
     for (auto& pair : defsInThisBlock) {
         MemoryObject* object = pair.first;
         auto& stack = mObjectInfo[object].renameStack;
@@ -208,32 +230,40 @@ public:
         : mMemorySSA(memorySSA)
     {}
 
+    void emitFunctionAnnot(const llvm::Function* function, llvm::formatted_raw_ostream& os) override
+    {
+        os << "; Declared memory objects:\n";
+        for (MemoryObject& object : mMemorySSA->objects()) {
+            os << ";" << object << "\n";
+        }
+    }
+
     void emitBasicBlockStartAnnot(const llvm::BasicBlock* block, llvm::formatted_raw_ostream& os) override
     {
-        for (MemoryObjectDef& def : mMemorySSA->definitionAnnotationsFor(block)) {
-            os << "; ";
-            def.print(os);
-            os << "\n";
-        }
-
         for (MemoryObjectUse& use : mMemorySSA->useAnnotationsFor(block)) {
             os << "; ";
             use.print(os);
+            os << "\n";
+        }
+
+        for (MemoryObjectDef& def : mMemorySSA->definitionAnnotationsFor(block)) {
+            os << "; ";
+            def.print(os);
             os << "\n";
         }
     }
 
     void emitInstructionAnnot(const llvm::Instruction* inst, llvm::formatted_raw_ostream& os) override
     {
-        for (MemoryObjectDef& def : mMemorySSA->definitionAnnotationsFor(inst)) {
-            os << "; ";
-            def.print(os);
-            os << "\n";
-        }
-
         for (MemoryObjectUse& use : mMemorySSA->useAnnotationsFor(inst)) {
             os << "; ";
             use.print(os);
+            os << "\n";
+        }
+
+        for (MemoryObjectDef& def : mMemorySSA->definitionAnnotationsFor(inst)) {
+            os << "; ";
+            def.print(os);
             os << "\n";
         }
     }

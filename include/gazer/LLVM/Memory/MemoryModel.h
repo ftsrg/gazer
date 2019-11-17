@@ -32,6 +32,15 @@ namespace gazer
 
 class Cfa;
 
+namespace llvm2cfa
+{
+
+class VariableDeclExtensionPoint;
+class GenerationStepExtensionPoint;
+
+} // end namespace llvm2cfa
+
+/// An interface for memory models.
 class MemoryModel
 {
 public:
@@ -53,20 +62,31 @@ public:
     /// \param getDomTree A callable which returns the dominator tree for each function.
     void initialize(llvm::Module& module, std::function<llvm::DominatorTree&(llvm::Function&)> getDomTree);
 
-    /// Declares all input/output/local variables that should be inserted into \p cfa.
-    virtual void declareProcedureVariables(Cfa& cfa, llvm::Function& function) = 0;
-    virtual void declareProcedureVariables(Cfa& cfa, llvm::Loop* loop) = 0;
+    /// Declares all input/output/local variables that should be inserted into the CFA.
+    virtual void declareProcedureVariables(llvm2cfa::VariableDeclExtensionPoint& extensionPoint) = 0;
 
-    /// Translates the given LoadInst into an assignable expression.
-    virtual ExprPtr handleLoad(const llvm::LoadInst& load) = 0;
-    virtual ExprPtr handleGetElementPtr(const llvm::GEPOperator& gep) = 0;
-    virtual ExprPtr handleAlloca(const llvm::AllocaInst& alloc) = 0;
     virtual ExprPtr handlePointerCast(const llvm::CastInst& cast) = 0;
     virtual ExprPtr handlePointerValue(const llvm::Value* value) = 0;
 
-    /// Returns an optional variable assignment to represent a Store instruction.
-    virtual std::optional<VariableAssignment> handleStore(
-        const llvm::StoreInst& store, ExprPtr pointer, ExprPtr value
+    /// Translates a given memory object definition into an assignment.
+    //virtual std::optional<VariableAssignment> handleMemoryObjectDef(const MemoryObjectDef* def) = 0;
+    //virtual std::optional<VariableAssignment> handleMemoryObjectUse(const MemoryObjectUse* use) = 0;
+
+    /// Translates the given LoadInst into an assignable expression.
+    virtual ExprPtr handleLoad(const llvm::LoadInst& load, llvm2cfa::GenerationStepExtensionPoint& ep) = 0;
+    virtual ExprPtr handleGetElementPtr(const llvm::GEPOperator& gep) = 0;
+    virtual ExprPtr handleAlloca(const llvm::AllocaInst& alloc) = 0;
+
+    virtual void handleStore(
+        const llvm::StoreInst& store,
+        ExprPtr pointer,
+        ExprPtr value,
+        llvm2cfa::GenerationStepExtensionPoint& ep
+    ) = 0;
+
+    virtual void handleBlock(
+        const llvm::BasicBlock& bb,
+        llvm2cfa::GenerationStepExtensionPoint& ep
     ) = 0;
 
     virtual gazer::Type& handlePointerType(const llvm::PointerType* type) = 0;
@@ -76,7 +96,7 @@ public:
     const llvm::DataLayout& getDataLayout() const { return mDataLayout; }
 
     gazer::Type& translateType(const llvm::Type* type) { return mTypes.get(type); }
-    memory::MemorySSA& getFunctionMemorySSA(llvm::Function& function) {
+    memory::MemorySSA& getFunctionMemorySSA(const llvm::Function& function) {
         return *mFunctions[&function];
     }
 
@@ -94,7 +114,7 @@ protected:
     const llvm::DataLayout& mDataLayout;
 
 private:
-    std::unordered_map<llvm::Function*, std::unique_ptr<memory::MemorySSA>> mFunctions;
+    std::unordered_map<const llvm::Function*, std::unique_ptr<memory::MemorySSA>> mFunctions;
 };
 
 class CollectMemoryDefsUsesVisitor : public llvm::PtrUseVisitor<CollectMemoryDefsUsesVisitor>
