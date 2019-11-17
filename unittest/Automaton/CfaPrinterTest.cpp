@@ -57,9 +57,9 @@ TEST(CfaPrinter, TestPrint)
             m1, AddExpr::Create(x->getRefExpr(), y->getRefExpr())
         }
     });
-    cfa->createCallTransition(l2, l3, calc, { m1->getRefExpr() }, {
-        { m2, q->getRefExpr() }
-    });
+    //cfa->createCallTransition(l2, l3, calc, { m1->getRefExpr() }, {
+    //    { m2, q->getRefExpr() }
+    //});
 
     cfa->print(llvm::errs());
 }

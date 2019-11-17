@@ -29,7 +29,7 @@ procedure main() -> (main/RET_VAL : Bv32)
 
     transition $3 -> $10
         assume true
-        call main/__loop_0(0bv32, 0bv32, main/_, main/.0 <= main/__loop_0/.0_out);
+        call main/__loop_0(main/__loop_0/.01 := 0bv32, main/__loop_0/.0 := 0bv32, main/__loop_0/_ := main/_, main/.0 <= main/__loop_0/.0_out);
 
     transition $10 -> $4
         assume true
@@ -114,6 +114,6 @@ procedure main/__loop_0(main/__loop_0/.01 : Bv32, main/__loop_0/.0 : Bv32, main/
 
     transition $6 -> $1
         assume true
-        call main/__loop_0(main/__loop_0/.01 + 1bv32, main/__loop_0/.0 + main/__loop_0/.01, main/__loop_0/_, main/__loop_0/.0_out <= main/__loop_0/.0_out);
+        call main/__loop_0(main/__loop_0/.01 := main/__loop_0/.01 + 1bv32, main/__loop_0/.0 := main/__loop_0/.0 + main/__loop_0/.01, main/__loop_0/_ := main/__loop_0/_, main/__loop_0/.0_out <= main/__loop_0/.0_out);
 
 }

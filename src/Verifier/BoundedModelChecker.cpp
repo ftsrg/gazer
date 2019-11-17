@@ -740,13 +740,15 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
                 source, target, rewrite.walk(assign->getGuard()), newAssigns
             );
         } else if (auto nestedCall = llvm::dyn_cast<CallTransition>(origEdge)) {
-            ExprVector newArgs;
+            std::vector<VariableAssignment> newArgs;
             std::vector<VariableAssignment> newOuts;
 
             std::transform(
                 nestedCall->input_begin(), nestedCall->input_end(),
                 std::back_inserter(newArgs),
-                [&rewrite](const ExprPtr& expr) { return rewrite.walk(expr); }
+                [&rewrite](const VariableAssignment& assign) {
+                    return VariableAssignment{assign.getVariable(), rewrite.walk(assign.getValue())};
+                }
             );
             std::transform(
                 nestedCall->output_begin(), nestedCall->output_end(),
@@ -769,7 +771,8 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
                 source, target,
                 rewrite.walk(nestedCall->getGuard()),
                 nestedCall->getCalledAutomaton(),
-                newArgs, newOuts
+                newArgs,
+                newOuts
             );
 
             newEdge = callEdge;

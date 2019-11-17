@@ -498,12 +498,20 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
         mCfa->createAssignTransition(*entry, callBegin, previousAssignments);
         previousAssignments.clear();
 
-        std::vector<ExprPtr> inputs;
+        std::vector<VariableAssignment> inputs;
         std::vector<VariableAssignment> outputs;
+
+        llvm::SmallVector<llvm::Argument*, 4> arguments;
+        for (llvm::Argument& arg : callee->args()) {
+            arguments.push_back(&arg);
+        }
 
         for (size_t i = 0; i < call->getNumArgOperands(); ++i) {
             ExprPtr expr = this->operand(call->getArgOperand(i));
-            inputs.push_back(expr);
+            Variable* input = calledAutomatonInfo.findInput(arguments[i]);
+            assert(input != nullptr && "Function arguments should be present as procedure inputs!");
+
+            inputs.push_back({input, expr});
         }
 
         if (!callee->getReturnType()->isVoidTy()) {
@@ -669,20 +677,19 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
         // Add possible calls arguments.
         // Due to the SSA-formed LLVM IR, regular inputs are not modified by loop iterations.
         // For PHI inputs, we need to determine which parent block to use for expression translation.
-        ExprVector loopArgs(mCfa->getNumInputs());
+        std::vector<VariableAssignment> loopArgs;
         for (auto& [valueOrMemObj, variable] : mGenInfo.PhiInputs) {
             if (valueOrMemObj.isValue()) {
                 auto incoming = cast<PHINode>(valueOrMemObj.asValue())->getIncomingValueForBlock(parent);
-                size_t idx = mCfa->getInputNumber(variable);
-                loopArgs[idx] = operand(incoming);
+                loopArgs.emplace_back(variable, operand(incoming));
             } else {
                 // TODO
             }
         }
 
-        for (auto entry : mGenInfo.Inputs) {
-            size_t idx = mCfa->getInputNumber(entry.second);
-            loopArgs[idx] = entry.second->getRefExpr();
+        for (auto& [valueOrMemObj, variable] : mGenInfo.Inputs) {
+            ExprPtr argExpr = operand(valueOrMemObj.asValue());
+            loopArgs.emplace_back(variable, argExpr);
         }
 
         std::vector<VariableAssignment> outputArgs;
@@ -706,19 +713,19 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
         CfaGenInfo& nestedLoopInfo = mGenCtx.getLoopCfa(loop);
         auto nestedCfa = nestedLoopInfo.Automaton;
 
-        ExprVector loopArgs(nestedCfa->getNumInputs());
+        std::vector<VariableAssignment> loopArgs;
         for (auto& [valueOrMemObj, variable] : nestedLoopInfo.PhiInputs) {
-            auto incoming = cast<PHINode>(valueOrMemObj.asValue())->getIncomingValueForBlock(parent);
-            size_t idx = nestedCfa->getInputNumber(variable);
-
-            loopArgs[idx] = operand(incoming);
+            if (valueOrMemObj.isValue()) {
+                auto incoming = cast<PHINode>(valueOrMemObj.asValue())->getIncomingValueForBlock(parent);
+                loopArgs.emplace_back(variable, operand(incoming));
+            } else {
+                // TODO
+            }
         }
 
-        for (auto entry : nestedLoopInfo.Inputs) {
-            // Whatever variable is used as an input, it should be present here as well in some form.
-            size_t idx = nestedCfa->getInputNumber(entry.second);
-
-            loopArgs[idx] = operand(entry.first.asValue());
+        for (auto& [valueOrMemObj, variable] : nestedLoopInfo.Inputs) {
+            ExprPtr argExpr = operand(valueOrMemObj.asValue());
+            loopArgs.emplace_back(variable, argExpr);
         }
 
         std::vector<VariableAssignment> outputArgs;

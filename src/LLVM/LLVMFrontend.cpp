@@ -276,6 +276,9 @@ void LLVMFrontend::registerLateOptimizations()
         mPassManager.add(llvm::createLICMPass());
     }
 
+    mPassManager.add(llvm::createGlobalOptimizerPass());
+    mPassManager.add(llvm::createGlobalDCEPass());
+
     // Currently loop simplify must be applied for ModuleToAutomata
     // to work properly as it relies on loop preheaders being available.
     mPassManager.add(llvm::createCFGSimplificationPass());

@@ -24,7 +24,7 @@ procedure main() -> (main/RET_VAL : Bv32)
 
     transition $3 -> $6
         assume true
-        call main/loop.header(0bv32, main/limit);
+        call main/loop.header(main/loop.header/i := 0bv32, main/loop.header/limit := main/limit);
 
     transition $6 -> $4
         assume true
@@ -73,7 +73,7 @@ procedure main/loop.header(main/loop.header/i : Bv32, main/loop.header/limit : B
 
     transition $4 -> $1
         assume true
-        call main/loop.header(main/loop.header/i1, main/loop.header/limit);
+        call main/loop.header(main/loop.header/i := main/loop.header/i1, main/loop.header/limit := main/loop.header/limit);
 
     transition $3 -> $1
         assume not main/loop.header/cond

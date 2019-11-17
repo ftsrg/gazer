@@ -82,7 +82,7 @@ AssignTransition *Cfa::createAssignTransition(
 }
 
 CallTransition *Cfa::createCallTransition(Location *source, Location *target, const ExprPtr& guard,
-    Cfa *callee, std::vector<ExprPtr> inputArgs, std::vector<VariableAssignment> outputArgs)
+    Cfa *callee, std::vector<VariableAssignment> inputArgs, std::vector<VariableAssignment> outputArgs)
 {
     assert(source != nullptr);
     assert(target != nullptr);
@@ -99,7 +99,7 @@ CallTransition *Cfa::createCallTransition(
     Location *source,
     Location *target,
     Cfa *callee,
-    std::vector<ExprPtr> inputArgs,
+    std::vector<VariableAssignment> inputArgs,
     std::vector<VariableAssignment> outputArgs)
 {
     return createCallTransition(
@@ -314,7 +314,7 @@ AssignTransition::AssignTransition(
 
 CallTransition::CallTransition(
     Location *source, Location *target, ExprPtr guard, Cfa *callee,
-    std::vector<ExprPtr> inputArgs, std::vector<VariableAssignment> outputArgs
+    std::vector<VariableAssignment> inputArgs, std::vector<VariableAssignment> outputArgs
 ) : Transition(source, target, guard, Transition::Edge_Call), mCallee(callee),
     mInputArgs(std::move(inputArgs)), mOutputArgs(std::move(outputArgs))
 {

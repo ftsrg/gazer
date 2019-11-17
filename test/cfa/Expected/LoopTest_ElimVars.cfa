@@ -51,7 +51,7 @@ procedure main() -> (main/RET_VAL : Bv32)
 
     transition $3 -> $6
         assume true
-        call main/loop.header(0bv32, 0bv32, main/limit, main/sum <= main/loop.header/sum_out);
+        call main/loop.header(main/loop.header/i := 0bv32, main/loop.header/sum := 0bv32, main/loop.header/limit := main/limit, main/sum <= main/loop.header/sum_out);
 
     transition $6 -> $4
         assume true
@@ -115,7 +115,7 @@ procedure main/loop.header(main/loop.header/i : Bv32, main/loop.header/sum : Bv3
 
     transition $6 -> $7
         assume true
-        call calculate(main/loop.header/a, main/loop.header/sum, main/loop.header/s <= calculate/RET_VAL);
+        call calculate(calculate/x := main/loop.header/a, calculate/y := main/loop.header/sum, main/loop.header/s <= calculate/RET_VAL);
 
     transition $7 -> $5
         assume true
@@ -129,6 +129,6 @@ procedure main/loop.header(main/loop.header/i : Bv32, main/loop.header/sum : Bv3
 
     transition $8 -> $1
         assume true
-        call main/loop.header(main/loop.header/i + 1bv32, main/loop.header/s, main/loop.header/limit, main/loop.header/sum_out <= main/loop.header/sum_out);
+        call main/loop.header(main/loop.header/i := main/loop.header/i + 1bv32, main/loop.header/sum := main/loop.header/s, main/loop.header/limit := main/loop.header/limit, main/loop.header/sum_out <= main/loop.header/sum_out);
 
 }

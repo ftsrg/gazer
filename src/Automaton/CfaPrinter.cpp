@@ -173,8 +173,9 @@ void Cfa::print(llvm::raw_ostream& os) const
     constexpr auto indent1 = "    ";
     constexpr auto indent2 = "        ";
 
-    auto printCallInput = [](llvm::raw_ostream& os, const ExprPtr& expr) {
-        InfixPrintExpr(expr, os);
+    auto printCallInput = [](llvm::raw_ostream& os, const VariableAssignment& assign) {
+        os << assign.getVariable()->getName() << " := ";
+        InfixPrintExpr(assign.getValue(), os);
     };
 
     auto printCallOutput = [](llvm::raw_ostream& os, const VariableAssignment& assign) {

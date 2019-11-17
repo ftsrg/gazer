@@ -186,7 +186,7 @@ protected:
         Location* source, Location* target,
         ExprPtr guard,
         Cfa* callee,
-        std::vector<ExprPtr> inputArgs,
+        std::vector<VariableAssignment> inputArgs,
         std::vector<VariableAssignment> outputArgs
     );
 
@@ -194,7 +194,7 @@ public:
     Cfa* getCalledAutomaton() const { return mCallee; }
 
     //-------------------------- Iterator support ---------------------------//
-    using input_arg_iterator  = std::vector<ExprPtr>::const_iterator;
+    using input_arg_iterator  = std::vector<VariableAssignment>::const_iterator;
     using output_arg_iterator = std::vector<VariableAssignment>::const_iterator;
 
     input_arg_iterator input_begin() const { return mInputArgs.begin(); }
@@ -211,7 +211,7 @@ public:
     }
     size_t getNumOutputs() const { return mOutputArgs.size(); }
 
-    ExprPtr getInputArgument(size_t i) const { return mInputArgs[i]; }
+    ExprPtr getInputArgument(size_t i) const { return mInputArgs[i].getValue(); }
     VariableAssignment getOutputArgument(size_t i) const { return mOutputArgs[i]; }
 
     static bool classof(const Transition* edge) {
@@ -220,7 +220,7 @@ public:
 
 private:
     Cfa* mCallee;
-    std::vector<ExprPtr> mInputArgs;
+    std::vector<VariableAssignment> mInputArgs;
     std::vector<VariableAssignment> mOutputArgs;
 };
 
@@ -255,12 +255,12 @@ public:
 
     CallTransition* createCallTransition(
         Location* source, Location* target, const ExprPtr& guard,
-        Cfa* callee, std::vector<ExprPtr> inputArgs, std::vector<VariableAssignment> outputArgs
+        Cfa* callee, std::vector<VariableAssignment> inputArgs, std::vector<VariableAssignment> outputArgs
     );
 
     CallTransition* createCallTransition(
         Location* source, Location* target,
-        Cfa* callee, std::vector<ExprPtr> inputArgs, std::vector<VariableAssignment> outputArgs
+        Cfa* callee, std::vector<VariableAssignment> inputArgs, std::vector<VariableAssignment> outputArgs
     );
 
     //===----------------------------------------------------------------------===//
