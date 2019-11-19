@@ -19,16 +19,6 @@
 
 using namespace gazer;
 
-// LLVM pass implementation
-//-----------------------------------------------------------------------------
-
-char MemoryObjectPass::ID;
-
-bool MemoryObjectPass::runOnFunction(llvm::Function& module)
-{
-    return false;
-}
-
 MemoryObject::~MemoryObject() = default;
 
 void MemoryObject::print(llvm::raw_ostream& os) const
@@ -76,9 +66,14 @@ std::string MemoryObjectDef::getName() const
     return (objName + "_" + llvm::Twine(mVersion)).str();
 }
 
-void memory::PhiDef::addIncoming(MemoryObjectDef* def, llvm::BasicBlock* bb)
+MemoryObjectDef* memory::PhiDef::getIncomingDefForBlock(const llvm::BasicBlock* bb)
 {
-    mEntryList.emplace_back(def, bb);
+    return mEntryList.lookup(bb);
+}
+
+void memory::PhiDef::addIncoming(MemoryObjectDef* def, const llvm::BasicBlock* bb)
+{
+    mEntryList[bb] = def;
 }
 
 void memory::LiveOnEntryDef::doPrint(llvm::raw_ostream& os) const
@@ -115,7 +110,7 @@ void memory::PhiDef::doPrint(llvm::raw_ostream& os) const
 {
     os << "phi(" << getObject()->getName() << ", {";
     for (auto& entry : mEntryList) {
-        os << "[" << entry.first->getVersion() << ", " << entry.second->getName() << "], ";
+        os << "[" << entry.second->getVersion() << ", " << entry.first->getName() << "], ";
     }
     os << "})";
 }
@@ -136,6 +131,17 @@ void memory::LoadUse::print(llvm::raw_ostream& os) const
 void memory::CallUse::print(llvm::raw_ostream& os) const
 {
     os << "call(" << getObject()->getName() << ", ";
+    if (getReachingDef() == nullptr) {
+        os << "???";
+    } else {
+        os << getReachingDef()->getVersion();
+    }
+    os << ")";
+}
+
+void memory::RetUse::print(llvm::raw_ostream& os) const
+{
+    os << "ret(" << getObject()->getName() << ", ";
     if (getReachingDef() == nullptr) {
         os << "???";
     } else {

@@ -20,6 +20,7 @@
 #include "gazer/Core/LiteralExpr.h"
 #include "gazer/Automaton/Cfa.h"
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
+#include "gazer/Core/ExprTypes.h"
 
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
@@ -36,8 +37,17 @@ class BasicMemoryModel : public MemoryModel
 public:
     using MemoryModel::MemoryModel;
 
-    ExprPtr handleAlloca(const llvm::AllocaInst& alloca) override;
-    ExprPtr handleLoad(const llvm::LoadInst& load, llvm2cfa::GenerationStepExtensionPoint& ep) override;
+    ExprPtr handleAlloca(
+        const llvm::AllocaInst& alloca,
+        const llvm::SmallVectorImpl<memory::AllocaDef*>& annotations
+    ) override;
+
+    ExprPtr handleLoad(
+        const llvm::LoadInst& load,
+        const llvm::SmallVectorImpl<memory::LoadUse*>& annotations,
+        ExprPtr pointer,
+        llvm2cfa::GenerationStepExtensionPoint& ep
+    ) override;
 
     void handleBlock(const llvm::BasicBlock& bb, llvm2cfa::GenerationStepExtensionPoint& ep) override;
 
@@ -58,6 +68,7 @@ public:
 
     void handleStore(
         const llvm::StoreInst& store,
+        const llvm::SmallVectorImpl<memory::StoreDef*>& annotations,
         ExprPtr pointer,
         ExprPtr value,
         llvm2cfa::GenerationStepExtensionPoint& ep
@@ -80,6 +91,10 @@ protected:
 
 private:
     MemoryObject* trackPointerToMemoryObject(llvm::Value* value);
+
+    ExprPtr ptrForMemoryObject(MemoryObject* object) {
+        return IntLiteralExpr::Get(IntType::Get(mContext), object->getId());
+    }
 
 private:
     llvm::DenseMap<llvm::Value*, MemoryObject*> mObjects;
@@ -235,55 +250,89 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
 
 void BasicMemoryModel::declareProcedureVariables(llvm2cfa::VariableDeclExtensionPoint& extensionPoint)
 {
-    if (llvm::Function* function = extensionPoint.getSourceFunction()) {
-        auto& functionMemoryModel = getFunctionMemorySSA(*function);
-        for (MemoryObject& object : functionMemoryModel.objects()) {
-            for (MemoryObjectDef& def : object.defs()) {
-                if (auto liveOnEntry = llvm::dyn_cast<memory::LiveOnEntryDef>(&def)) {
-                    extensionPoint.createInput(&def, translateType(object.getValueType()), "_mem");
-                } else {
-                    extensionPoint.createLocal(&def, translateType(object.getValueType()), "_mem");
-                }
-            }
-        }
-    }
 }
 
 void BasicMemoryModel::handleStore(
-    const llvm::StoreInst& store, ExprPtr pointer, ExprPtr value, llvm2cfa::GenerationStepExtensionPoint& ep
+    const llvm::StoreInst& store,
+    const llvm::SmallVectorImpl<memory::StoreDef*>& annotations,
+    ExprPtr pointer, ExprPtr value, llvm2cfa::GenerationStepExtensionPoint& ep
 ) {
-    auto& memSSA = getFunctionMemorySSA(*store.getFunction());
-    for (MemoryObjectDef& def : memSSA.definitionAnnotationsFor(&store)) {
-        Variable* defVariable = ep.getVariableFor(&def);
+    if (annotations.size() == 0) {
+        // If this store has no annotations, do nothing.
+        return;
+    }
+
+    if (annotations.size() == 1) {
+        Variable* defVariable = ep.getVariableFor(annotations[0]);
         assert(defVariable != nullptr && "Each memory object definition should map to a variable in the CFA!");
         assert(defVariable->getType() == value->getType());
 
         ep.insertAssignment({defVariable, value});
+        return;
+    }
+
+    // If a single store may clobber multiple memory objects, we disambiguate at 'runtime',
+    // using the pointer values.
+    for (memory::StoreDef* def : annotations) {
+        Variable* defVariable = ep.getVariableFor(def);
+        assert(defVariable != nullptr && "Each memory object definition should map to a variable in the CFA!");
+        assert(defVariable->getType() == value->getType());
+
+        MemoryObjectDef* reachingDef = def->getReachingDef();
+        assert(reachingDef != nullptr && "Store without a previous reaching definition?");
+
+        auto select = SelectExpr::Create(
+            EqExpr::Create(pointer, ptrForMemoryObject(def->getObject())),
+            value,
+            ep.operand(reachingDef)
+        );
+
+        ep.insertAssignment({defVariable, select});
     }
 }
 
-ExprPtr BasicMemoryModel::handleLoad(const llvm::LoadInst& load, llvm2cfa::GenerationStepExtensionPoint& ep)
-{
-    auto& memSSA = getFunctionMemorySSA(*load.getFunction());
-    auto range = memSSA.useAnnotationsFor(&load);
-
-    size_t numUses = std::distance(range.begin(), range.end());
-    if (numUses != 1) {
+ExprPtr BasicMemoryModel::handleLoad(
+    const llvm::LoadInst& load,
+    const llvm::SmallVectorImpl<memory::LoadUse*>& annotations,
+    ExprPtr pointer,
+    llvm2cfa::GenerationStepExtensionPoint& ep
+) {
+    if (annotations.size() == 0) {
+        // If no memory access annotations are available for this load,
+        // then the memory model was unable to resolve it.
+        // We will over-approximate, and return an undef expression.
         return UndefExpr::Get(translateType(load.getType()));
     }
 
-    MemoryObjectUse& use = *range.begin();
-    MemoryObjectDef* def = use.getReachingDef();
-    assert(def != nullptr && "There must be a reaching definition for this load!");
+    if (annotations.size() == 1) {
+        MemoryObjectUse* use = annotations[0];
+        MemoryObjectDef* def = use->getReachingDef();
+        assert(def != nullptr && "There must be a reaching definition for this load!");
 
-    Variable* defVariable = ep.getVariableFor(def);
-    assert(defVariable != nullptr && "Each memory object definition should map to a variable in the CFA!");
+        return ep.operand(def);
+    }
 
-    return defVariable->getRefExpr();
+    // If this load may be clobbered by multiple definitions, we disambiguate using the pointer values.
+    ExprPtr expr = UndefExpr::Get(translateType(load.getType()));
+
+    for (memory::LoadUse* use : annotations) {
+        MemoryObjectDef* reachingDef = use->getReachingDef();
+        Variable* defVariable = ep.getVariableFor(reachingDef);
+        assert(defVariable != nullptr && "Each memory object definition should map to a variable in the CFA!");
+
+        expr = SelectExpr::Create(
+            EqExpr::Create(pointer, ptrForMemoryObject(reachingDef->getObject())),
+            ep.operand(reachingDef),
+            expr
+        );
+    }
+
+    return expr;
 }
 
 void BasicMemoryModel::handleBlock(const llvm::BasicBlock& bb, llvm2cfa::GenerationStepExtensionPoint& ep)
 {
+    /*
     auto& memSSA = getFunctionMemorySSA(*bb.getParent());
     for (MemoryObjectDef& def : memSSA.definitionAnnotationsFor(&bb)) {
         Variable* defVariable = ep.getVariableFor(&def);
@@ -291,20 +340,16 @@ void BasicMemoryModel::handleBlock(const llvm::BasicBlock& bb, llvm2cfa::Generat
         if (auto globalInit = llvm::dyn_cast<GlobalInitializerDef>(&def)) {
             ep.insertAssignment({defVariable, ep.operand(globalInit->getInitializer())});
         }
-    }
+    } */
 }
 
-ExprPtr BasicMemoryModel::handleAlloca(const llvm::AllocaInst& alloca)
-{
-    auto& memSSA = getFunctionMemorySSA(*alloca.getFunction());
-    auto range = memSSA.definitionAnnotationsFor(&alloca);
+ExprPtr BasicMemoryModel::handleAlloca(
+    const llvm::AllocaInst& alloca, const llvm::SmallVectorImpl<memory::AllocaDef*>& annotations
+) {
+    assert(annotations.size() && "An alloca inst must define exactly one memory object!");
 
-    size_t numDefs = std::distance(range.begin(), range.end());
-    assert(numDefs == 1 && "An alloca inst must define exactly one memory object!");
-
-    MemoryObject* object = range.begin()->getObject();
-
-    return IntLiteralExpr::Get(IntType::Get(mContext), object->getId());
+    MemoryObject* object = annotations[0]->getObject();
+    return ptrForMemoryObject(object);
 }
 
 auto gazer::CreateBasicMemoryModel(

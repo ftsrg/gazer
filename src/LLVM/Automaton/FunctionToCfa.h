@@ -83,7 +83,8 @@ public:
     //==--------------------------------------------------------------------==//
     void addBlockToLocationsMapping(const llvm::BasicBlock* bb, Location* entry, Location* exit);
 
-    //--------------------- Sources ---------------------//
+    // Sources
+    //==--------------------------------------------------------------------==//
     bool isSourceLoop() const { return std::holds_alternative<llvm::Loop*>(Source); }
     bool isSourceFunction() const { return std::holds_alternative<llvm::Function*>(Source); }
 
@@ -105,7 +106,8 @@ public:
         return nullptr;
     }
 
-    //--------------------- Variables ---------------------//
+    // Variables
+    //==--------------------------------------------------------------------==//
     void addInput(ValueOrMemoryObject value, Variable* variable)
     {
         Inputs[value] = variable;
@@ -157,7 +159,6 @@ private:
 };
 
 class GenerationContext;
-
 
 /// Helper structure for CFA generation information.
 class GenerationContext
@@ -293,27 +294,13 @@ public:
         GenerationContext& generationContext,
         CfaGenInfo& genInfo,
         ExprBuilder& exprBuilder
-    ) : InstToExpr(exprBuilder, generationContext.getMemoryModel(), generationContext.getSettings()),
-        mGenCtx(generationContext),
-        mGenInfo(genInfo),
-        mCfa(genInfo.Automaton)
-    {
-        if (auto function = genInfo.getSourceFunction()) {
-            mEntryBlock = &function->getEntryBlock();
-        } else if (auto loop = genInfo.getSourceLoop()) {
-            mEntryBlock = loop->getHeader();
-        } else {
-            llvm_unreachable("A CFA source can only be a function or a loop!");
-        }
-
-        assert(mGenInfo.Blocks.count(mEntryBlock) != 0 && "Entry block must be in the block map!");
-    }
+    );
 
     void encode();
 
 protected:
-    Variable* getVariable(const llvm::Value* value) override;
-    ExprPtr lookupInlinedVariable(const llvm::Value* value) override;
+    Variable* getVariable(ValueOrMemoryObject value) override;
+    ExprPtr lookupInlinedVariable(ValueOrMemoryObject value) override;
 
 private:
     GazerContext& getContext() const { return mGenCtx.getSystem().getContext(); }
@@ -343,9 +330,10 @@ private:
     CfaGenInfo& mGenInfo;
     Cfa* mCfa;
     unsigned mCounter = 0;
-    llvm::DenseMap<const llvm::Value*, ExprPtr> mInlinedVars;
+    llvm::DenseMap<ValueOrMemoryObject, ExprPtr> mInlinedVars;
     llvm::DenseSet<Variable*> mEliminatedVarsSet;
     llvm::BasicBlock* mEntryBlock;
+    memory::MemorySSA* mMemorySSA;
 };
 
 } // end namespace llvm2cfa

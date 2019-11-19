@@ -33,12 +33,18 @@ public:
     void declareProcedureVariables(llvm2cfa::VariableDeclExtensionPoint&) override;
 
     ExprPtr handleGetElementPtr(const llvm::GEPOperator& gep) override;
-    ExprPtr handleAlloca(const llvm::AllocaInst& alloc) override;
+    ExprPtr handleAlloca(
+        const llvm::AllocaInst& alloc,
+        const llvm::SmallVectorImpl<memory::AllocaDef*>& annotations
+    ) override {
+        return UndefExpr::Get(BoolType::Get(mContext));
+    }
     ExprPtr handlePointerCast(const llvm::CastInst& cast) override;
     ExprPtr handlePointerValue(const llvm::Value* value) override;
 
     void handleStore(
         const llvm::StoreInst& store,
+        const llvm::SmallVectorImpl<memory::StoreDef*>& annotations,
         ExprPtr pointer,
         ExprPtr value,
         llvm2cfa::GenerationStepExtensionPoint& ep
@@ -46,7 +52,12 @@ public:
 
     void handleBlock(const llvm::BasicBlock& bb, llvm2cfa::GenerationStepExtensionPoint& ep) override {}
 
-    ExprPtr handleLoad(const llvm::LoadInst& load, llvm2cfa::GenerationStepExtensionPoint& ep) override {
+    virtual ExprPtr handleLoad(
+        const llvm::LoadInst& load,
+        const llvm::SmallVectorImpl<memory::LoadUse*>& annotations,
+        ExprPtr pointer,
+        llvm2cfa::GenerationStepExtensionPoint& ep
+    ) override {
         return UndefExpr::Get(translateType(load.getType()));
     }
 
@@ -69,17 +80,12 @@ void DummyMemoryModel::initializeFunction(llvm::Function& function, memory::Memo
 
 ExprPtr DummyMemoryModel::handleGetElementPtr(const llvm::GEPOperator& gep)
 {
-    return UndefExpr::Get(BvType::Get(mContext, 32));
-}
-
-ExprPtr DummyMemoryModel::handleAlloca(const llvm::AllocaInst& alloc)
-{
-    return UndefExpr::Get(BvType::Get(mContext, 32));
+    return UndefExpr::Get(BoolType::Get(mContext));
 }
 
 ExprPtr DummyMemoryModel::handlePointerCast(const llvm::CastInst& cast)
 {
-    return UndefExpr::Get(BvType::Get(mContext, 32));
+    return UndefExpr::Get(BoolType::Get(mContext));
 }
 
 gazer::Type& DummyMemoryModel::handlePointerType(const llvm::PointerType* type)
@@ -89,12 +95,12 @@ gazer::Type& DummyMemoryModel::handlePointerType(const llvm::PointerType* type)
 
 gazer::Type& DummyMemoryModel::handleArrayType(const llvm::ArrayType* type)
 {
-    return ArrayType::Get(mContext, BvType::Get(mContext, 32), BvType::Get(mContext, 8));
+    return ArrayType::Get(mContext, BoolType::Get(mContext), BvType::Get(mContext, 8));
 }
 
 ExprPtr DummyMemoryModel::handlePointerValue(const llvm::Value* value)
 {
-    return UndefExpr::Get(BvType::Get(mContext, 32));
+    return UndefExpr::Get(BoolType::Get(mContext));
 }
 
 void DummyMemoryModel::declareProcedureVariables(llvm2cfa::VariableDeclExtensionPoint& extensionPoint)

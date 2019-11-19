@@ -100,8 +100,8 @@ public:
         ) : InstToExpr(builder, memoryModel, settings), mVars(std::move(vars))
         {}
 
-        Variable* getVariable(const llvm::Value* value) override {
-            return mVars.lookup(value);
+        Variable* getVariable(ValueOrMemoryObject value) override {
+            return mVars.lookup(value.asValue());
         }
 
     private:

@@ -73,12 +73,23 @@ public:
     //virtual std::optional<VariableAssignment> handleMemoryObjectUse(const MemoryObjectUse* use) = 0;
 
     /// Translates the given LoadInst into an assignable expression.
-    virtual ExprPtr handleLoad(const llvm::LoadInst& load, llvm2cfa::GenerationStepExtensionPoint& ep) = 0;
+    virtual ExprPtr handleLoad(
+        const llvm::LoadInst& load,
+        const llvm::SmallVectorImpl<memory::LoadUse*>& annotations,
+        ExprPtr pointer,
+        llvm2cfa::GenerationStepExtensionPoint& ep
+    ) = 0;
+
+    virtual ExprPtr handleAlloca(
+        const llvm::AllocaInst& alloc,
+        const llvm::SmallVectorImpl<memory::AllocaDef*>& annotations
+    ) = 0;
+
     virtual ExprPtr handleGetElementPtr(const llvm::GEPOperator& gep) = 0;
-    virtual ExprPtr handleAlloca(const llvm::AllocaInst& alloc) = 0;
 
     virtual void handleStore(
         const llvm::StoreInst& store,
+        const llvm::SmallVectorImpl<memory::StoreDef*>& annotations,
         ExprPtr pointer,
         ExprPtr value,
         llvm2cfa::GenerationStepExtensionPoint& ep
@@ -96,8 +107,8 @@ public:
     const llvm::DataLayout& getDataLayout() const { return mDataLayout; }
 
     gazer::Type& translateType(const llvm::Type* type) { return mTypes.get(type); }
-    memory::MemorySSA& getFunctionMemorySSA(const llvm::Function& function) {
-        return *mFunctions[&function];
+    memory::MemorySSA* getFunctionMemorySSA(const llvm::Function& function) {
+        return mFunctions[&function].get();
     }
 
     virtual void dump() const {};

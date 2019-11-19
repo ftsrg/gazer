@@ -30,6 +30,8 @@
 
 #include <boost/iterator/indirect_iterator.hpp>
 
+#include <variant>
+
 namespace gazer
 {
 
@@ -46,15 +48,21 @@ class MemoryObjectPhi;
 
 class MemoryAccess
 {
+    friend class memory::MemorySSABuilder;
 public:
     MemoryAccess(MemoryObject* object)
         : mObject(object)
     {}
 
     MemoryObject* getObject() const { return mObject; }
+    MemoryObjectDef* getReachingDef() const { return mReachingDef; }
+
+private:
+    void setReachingDef(MemoryObjectDef* reachingDef) { mReachingDef = reachingDef; }
 
 private:
     MemoryObject* mObject;
+    MemoryObjectDef* mReachingDef = nullptr;
 };
 
 /// Represents the definition for a memory object.
@@ -64,12 +72,12 @@ class MemoryObjectDef : public MemoryAccess
 public:
     enum Kind
     {
-        LiveOnEntry, ///< Inidicates that the memory object is alive when entering the function.
-        GlobalInitializer, ///< One time initialization of a global variable.
-        Alloca,  ///< The allocation/instantiation of a local variable.
-        Store,  ///< A definition through a store instruction.
-        Call,
-        Phi
+        LiveOnEntry,        ///< Inidicates that the memory object is alive when entering the function.
+        GlobalInitializer,  ///< One time initialization of a global variable.
+        Alloca,             ///< The allocation/instantiation of a local variable.
+        Store,              ///< A definition through a store instruction.
+        Call,               ///< Indicates that the call possibly clobbers this memory object.
+        PHI
     };
 
 protected:
@@ -96,14 +104,13 @@ private:
 
 class MemoryObjectUse : public MemoryAccess
 {
-    friend class memory::MemorySSABuilder;
 public:
     static unsigned constexpr UnknownVersion = std::numeric_limits<unsigned>::max();
 
     enum Kind
     {
         Load,   ///< Use through a load instruction.
-        Call,
+        Call,   ///< Parameter passing into a call.
         Return  ///< Indicates that the object is alive at return.
     };
 
@@ -113,19 +120,15 @@ protected:
     {}
 
 public:
-    MemoryObjectDef* getReachingDef() const { return mReachingDef; }
     Kind getKind() const { return mKind; }
 
+    virtual llvm::Instruction* getInstruction() const = 0;
     virtual void print(llvm::raw_ostream& os) const = 0;
 
     virtual ~MemoryObjectUse() {}
 
 private:
-    void setReachingDef(MemoryObjectDef* reachingDef) { mReachingDef = reachingDef; }
-
-private:
     Kind mKind;
-    MemoryObjectDef* mReachingDef = nullptr;
 };
 
 enum class MemoryObjectType
@@ -296,23 +299,24 @@ private:
 
 class PhiDef : public MemoryObjectDef
 {
-    using PhiEntry = std::pair<MemoryObjectDef*, llvm::BasicBlock*>;
 public:
     PhiDef(MemoryObject* object, unsigned int version)
-        : MemoryObjectDef(object, version, MemoryObjectDef::Phi)
+        : MemoryObjectDef(object, version, MemoryObjectDef::PHI)
     {}
 
-    void addIncoming(MemoryObjectDef* def, llvm::BasicBlock* bb);
+    MemoryObjectDef* getIncomingDefForBlock(const llvm::BasicBlock* bb);
+
+    void addIncoming(MemoryObjectDef* def, const llvm::BasicBlock* bb);
 
     static bool classof(const MemoryObjectDef* def) {
-        return def->getKind() == MemoryObjectDef::Phi;
+        return def->getKind() == MemoryObjectDef::PHI;
     }
 
 protected:
     void doPrint(llvm::raw_ostream& os) const override;
 
 private:
-    std::vector<PhiEntry> mEntryList;
+    llvm::DenseMap<const llvm::BasicBlock*, MemoryObjectDef*> mEntryList;
 };
 
 // Uses
@@ -327,6 +331,11 @@ public:
 
     void print(llvm::raw_ostream& os) const override;
 
+    llvm::LoadInst* getInstruction() const override { return mLoadInst; }
+
+    static bool classof(const MemoryObjectUse* use) {
+        return use->getKind() == MemoryObjectUse::Load;
+    }
 private:
     llvm::LoadInst* mLoadInst;
 };
@@ -338,32 +347,36 @@ public:
         : MemoryObjectUse(object, MemoryObjectUse::Call), mCallSite(callSite)
     {}
 
+    llvm::Instruction* getInstruction() const override { return mCallSite.getInstruction(); }
+    llvm::CallSite getCallSite() const { return mCallSite; }
+
     void print(llvm::raw_ostream& os) const override;
 
+    static bool classof(const MemoryObjectUse* use) {
+        return use->getKind() == MemoryObjectUse::Call;
+    }
 private:
     llvm::CallSite mCallSite;
 };
 
-} // end namespace gazer::memory
-
-// LLVM Pass
-//-----------------------------------------------------------------------------
-
-class MemoryObjectPass : public llvm::FunctionPass
+class RetUse : public MemoryObjectUse
 {
 public:
-    static char ID;
-
-    MemoryObjectPass()
-        : FunctionPass(ID)
+    RetUse(MemoryObject* object, llvm::ReturnInst* ret)
+        : MemoryObjectUse(object, MemoryObjectUse::Return), mReturnInst(ret)
     {}
 
-    bool runOnFunction(llvm::Function& module) override;
+    llvm::ReturnInst* getInstruction() const override { return mReturnInst; }
+    void print(llvm::raw_ostream& os) const override;
 
-    llvm::StringRef getPassName() const override {
-        return "Memory object analysis";
+    static bool classof(const MemoryObjectUse* use) {
+        return use->getKind() == MemoryObjectUse::Return;
     }
+private:
+    llvm::ReturnInst* mReturnInst;
 };
+
+} // end namespace gazer::memory
 
 } // end namespace gazer
 

@@ -20,13 +20,16 @@
 
 #include "gazer/Core/Expr.h"
 #include "gazer/Core/Expr/ExprBuilder.h"
-#include "gazer/LLVM/Memory/MemoryObject.h"
+#include "gazer/LLVM/Memory/ValueOrMemoryObject.h"
+#include "gazer/LLVM/LLVMFrontendSettings.h"
 
 #include <llvm/IR/Operator.h>
 #include <llvm/IR/Instructions.h>
 
 namespace gazer
 {
+
+class MemoryModel;
 
 /// A transformation class which may be used to transform LLVM instructions
 /// to gazer expressions.
@@ -48,11 +51,11 @@ public:
     virtual ~InstToExpr() = default;
 
 protected:
-    virtual Variable* getVariable(const llvm::Value* value) = 0;
+    virtual Variable* getVariable(ValueOrMemoryObject value) = 0;
 
     /// If \p value was inlined, returns the corresponding expression.
     /// Otherwise, this method should return nullptr.
-    virtual ExprPtr lookupInlinedVariable(const llvm::Value* value) {
+    virtual ExprPtr lookupInlinedVariable(ValueOrMemoryObject value) {
         return nullptr;
     }
 
@@ -64,7 +67,7 @@ protected:
     ExprPtr visitCastInst(const llvm::CastInst& cast);
     ExprPtr visitCallInst(const llvm::CallInst& call);
 
-    ExprPtr operand(const llvm::Value* value);
+    ExprPtr operand(ValueOrMemoryObject value);
     
     ExprPtr asBool(const ExprPtr& operand);
     ExprPtr asBv(const ExprPtr& operand, unsigned int bits);
@@ -84,8 +87,12 @@ protected:
 
         return *llvm::cast<Ty>(&gazerTy);
     }
+
 private:
     ExprPtr unsignedLessThan(const ExprPtr& left, const ExprPtr& right);
+
+    ExprPtr operandValue(const llvm::Value* value);
+    ExprPtr operandMemoryObject(const MemoryObjectDef* def);
 
 protected:
     ExprBuilder& mExprBuilder;

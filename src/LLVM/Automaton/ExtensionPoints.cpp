@@ -127,9 +127,5 @@ void GenerationStepExtensionPoint::insertAssignment(VariableAssignment assignmen
 
 ExprPtr GenerationStepExtensionPoint::operand(gazer::ValueOrMemoryObject val)
 {
-    if (val.isValue()) {
-        return mOperandTranslator(val.asValue());
-    }
-
-    return nullptr;
+    return mOperandTranslator(val);
 }

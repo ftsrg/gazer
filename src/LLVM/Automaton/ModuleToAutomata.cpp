@@ -90,6 +90,26 @@ static bool hasUsesInBlockRange(const llvm::Instruction* inst, Range&& range)
     return false;
 }
 
+template<class Range>
+static bool hasUsesInBlockRange(const MemoryObjectDef* def, Range&& range)
+{
+    // Currently the memory object interface does not support querying the uses of a particular def.
+    // What we do instead is we query all uses of the underlying abstract memory object, and check
+    // whether their reaching definition is 'def'.
+    for (MemoryObjectUse& use : def->getObject()->uses()) {
+        if (use.getReachingDef() != def) {
+            continue;
+        }
+
+        llvm::BasicBlock* bb = use.getInstruction()->getParent();
+        if (std::find(std::begin(range), std::end(range), bb) != std::end(range)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 static bool isErrorBlock(llvm::BasicBlock* bb)
 {
     if (!llvm::isa<UnreachableInst>(bb->getTerminator())) {
@@ -104,7 +124,7 @@ static bool isErrorBlock(llvm::BasicBlock* bb)
         Function* function = call->getCalledFunction();
         if (function != nullptr && function->getName() == CheckRegistry::ErrorFunctionName) {
             return true;
-        } 
+        }
     }
 
     return false;
@@ -155,6 +175,22 @@ static gazer::Type& getExitSelectorType(IntRepresentation ints, GazerContext& co
     }
     
     llvm_unreachable("Invalid int representation strategy!");
+}
+
+static std::string getLoopName(llvm::Loop* loop, unsigned& loopCount, llvm::StringRef prefix)
+{
+    BasicBlock* header = loop->getHeader();
+    assert(header != nullptr && "Loop without a loop header?");
+
+    std::string name = prefix;
+    name += '/';
+    if (header->hasName()) {
+        name += header->getName();
+    } else {
+        name += "__loop_" + std::to_string(loopCount++);
+    }
+
+    return name;
 }
 
 ModuleToCfa::ModuleToCfa(
@@ -228,6 +264,8 @@ void ModuleToCfa::createAutomata()
             continue;
         }
 
+        memory::MemorySSA& memorySSA = *mMemoryModel.getFunctionMemorySSA(function);
+
         Cfa* cfa = mSystem->createCfa(function.getName());
         LLVM_DEBUG(llvm::dbgs() << "Created CFA " << cfa->getName() << "\n");
         DenseSet<BasicBlock*> visitedBlocks;
@@ -239,16 +277,7 @@ void ModuleToCfa::createAutomata()
         auto loops = loopInfo->getLoopsInPreorder();
 
         for (Loop* loop : loops) {
-            BasicBlock* header = loop->getHeader();
-            assert(header != nullptr && "Loop without a loop header?");
-
-            std::string name = cfa->getName();
-            name += "/";
-            if (header->hasName()) {
-                name += header->getName();
-            } else {
-                name += "__loop_" + std::to_string(loopCount++);
-            }
+            std::string name = getLoopName(loop, loopCount, cfa->getName());
 
             Cfa* nested = mSystem->createCfa(name);
             LLVM_DEBUG(llvm::dbgs() << "Created nested CFA " << nested->getName() << "\n");
@@ -270,9 +299,8 @@ void ModuleToCfa::createAutomata()
                 [&visitedBlocks] (BasicBlock* b) { return visitedBlocks.count(b) == 0; }
             );
 
+            // Declare loop variables.
             VariableDeclExtensionPoint loopVarDecl(loopGenInfo);
-
-            // Insert the loop variables
             for (BasicBlock* bb : loopBlocks) {
                 for (Instruction& inst : *bb) {
                     Variable* variable = nullptr;
@@ -325,9 +353,6 @@ void ModuleToCfa::createAutomata()
                 }
             }
 
-            // Insert memory objects defined/used by this loop.
-            mMemoryModel.declareProcedureVariables(loopVarDecl);
-
             // Create locations for the blocks
             for (BasicBlock* bb : loopOnlyBlocks) {
                 Location* entry = nested->createLocation();
@@ -362,6 +387,7 @@ void ModuleToCfa::createAutomata()
             functionVarDecl.createInput(&argument, mMemoryModel.translateType(argument.getType()));
         }
 
+        // Add return value if there is one.
         if (!function.getReturnType()->isVoidTy()) {
             auto retval = cfa->createLocal(
                 FunctionReturnValueName, mMemoryModel.translateType(function.getReturnType())
@@ -371,7 +397,6 @@ void ModuleToCfa::createAutomata()
         }
 
         // Add all variables from the memory model.
-        mMemoryModel.declareProcedureVariables(functionVarDecl);
         cfa->printDeclaration(llvm::errs());
 
         // At this point, the loops are already encoded, we only need to handle the blocks outside of the loops.
@@ -381,6 +406,17 @@ void ModuleToCfa::createAutomata()
                 functionBlocks.push_back(&bb);
             }
         });
+
+        // Add memory object definitions as variables
+        for (MemoryObject& object : memorySSA.objects()) {
+            for (MemoryObjectDef& def : object.defs()) {
+                if (auto liveOnEntry = llvm::dyn_cast<memory::LiveOnEntryDef>(&def)) {
+                    functionVarDecl.createInput(&def, mMemoryModel.translateType(object.getValueType()), "_mem");
+                } else {
+                    functionVarDecl.createLocal(&def, mMemoryModel.translateType(object.getValueType()), "_mem");
+                }
+            }
+        }
 
         // For the local variables, we only need to add the values not present in any of the loops.
         for (BasicBlock& bb : function) {
@@ -408,6 +444,39 @@ void ModuleToCfa::createAutomata()
     }
 }
 
+BlocksToCfa::BlocksToCfa(
+    GenerationContext& generationContext,
+    CfaGenInfo& genInfo,
+    ExprBuilder& exprBuilder
+) : InstToExpr(exprBuilder, generationContext.getMemoryModel(), generationContext.getSettings()),
+    mGenCtx(generationContext),
+    mGenInfo(genInfo),
+    mCfa(genInfo.Automaton)
+{
+    if (auto function = genInfo.getSourceFunction()) {
+        mEntryBlock = &function->getEntryBlock();
+    } else if (auto loop = genInfo.getSourceLoop()) {
+        mEntryBlock = loop->getHeader();
+    } else {
+        llvm_unreachable("A CFA source can only be a function or a loop!");
+    }
+
+    assert(mGenInfo.Blocks.count(mEntryBlock) != 0 && "Entry block must be in the block map!");
+    mMemorySSA = mMemoryModel.getFunctionMemorySSA(*mEntryBlock->getParent());
+}
+
+template<class AccessKind, class Range>
+static void memoryAccessOfKind(Range&& range, llvm::SmallVectorImpl<AccessKind*>& vec)
+{
+    static_assert(std::is_base_of_v<MemoryAccess, AccessKind>, "AccessKind must be a subclass of MemoryAccess!");
+
+    for (auto& access : range) {
+        if (auto casted = llvm::dyn_cast<AccessKind>(&access)) {
+            vec.push_back(casted);
+        }
+    }
+}
+
 void BlocksToCfa::encode()
 {
     Location* first = mGenInfo.Blocks[mEntryBlock].first;
@@ -420,15 +489,19 @@ void BlocksToCfa::encode()
         Location* exit = pair.second;
 
         std::vector<VariableAssignment> assignments;
-        GenerationStepExtensionPoint ep(mGenInfo, assignments, [this](const llvm::Value* val) -> ExprPtr {
+        GenerationStepExtensionPoint ep(mGenInfo, assignments, [this](ValueOrMemoryObject val) -> ExprPtr {
             return this->operand(val);
         });
 
-        // Visit the block beginning
-        mMemoryModel.handleBlock(*bb, ep);
-
         for (auto it = bb->getFirstInsertionPt(), ie = bb->end(); it != ie; ++it) {
             const llvm::Instruction& inst = *it;
+
+            for (MemoryObjectDef& def : mMemorySSA->definitionAnnotationsFor(&inst)) {
+                Variable* defVariable = getVariable(&def);
+                if (auto globalInit = llvm::dyn_cast<memory::GlobalInitializerDef>(&def)) {
+                    ep.insertAssignment({defVariable, ep.operand(globalInit->getInitializer())});
+                }
+            }
 
             if (auto call = llvm::dyn_cast<CallInst>(&inst)) {
                 bool generateAssignmentAfter = this->handleCall(call, &entry, exit, assignments);
@@ -439,7 +512,10 @@ void BlocksToCfa::encode()
                 auto storeValue = this->operand(store->getValueOperand());
                 auto ptr = this->operand(store->getPointerOperand());
 
-                mMemoryModel.handleStore(*store, ptr, storeValue, ep);
+                llvm::SmallVector<memory::StoreDef*, 4> storeDefs;
+                memoryAccessOfKind(mMemorySSA->definitionAnnotationsFor(&inst), storeDefs);
+
+                mMemoryModel.handleStore(*store, storeDefs, ptr, storeValue, ep);
                 continue;
             }
 
@@ -451,9 +527,17 @@ void BlocksToCfa::encode()
             ExprPtr expr;
 
             if (auto load = llvm::dyn_cast<LoadInst>(&inst)) {
-                expr = mMemoryModel.handleLoad(*load, ep);
+                auto ptr = this->operand(load->getPointerOperand());
+
+                llvm::SmallVector<memory::LoadUse*, 4> loadUses;
+                memoryAccessOfKind(mMemorySSA->useAnnotationsFor(&inst), loadUses);
+
+                expr = mMemoryModel.handleLoad(*load, loadUses, ptr, ep);
             }  else if (auto alloca = llvm::dyn_cast<AllocaInst>(&inst)) {
-                expr = mMemoryModel.handleAlloca(*alloca);
+                llvm::SmallVector<memory::AllocaDef*, 4> allocaDefs;
+                memoryAccessOfKind(mMemorySSA->definitionAnnotationsFor(&inst), allocaDefs);
+
+                expr = mMemoryModel.handleAlloca(*alloca, allocaDefs);
             } else {
                 expr = this->transform(inst);
             }
@@ -802,9 +886,21 @@ void BlocksToCfa::insertPhiAssignments(
     const BasicBlock* target,
     std::vector<VariableAssignment>& phiAssignments)
 {
+    // Start with possible memory object PHI's.
+    for (auto& def : mMemorySSA->definitionAnnotationsFor(target)) {
+        if (auto phi = llvm::dyn_cast<memory::PhiDef>(&def)) {
+            MemoryObjectDef* incoming = phi->getIncomingDefForBlock(source);
+            Variable* variable = getVariable(phi);
+
+            ExprPtr expr = operand(incoming);
+            phiAssignments.emplace_back(variable, expr);
+        }
+    }
+
+    // Handle regular LLVM PHI values.
     auto it = target->begin();
     while (llvm::isa<PHINode>(it)) {
-        auto phi = llvm::dyn_cast<PHINode>(it);
+        auto phi = llvm::cast<PHINode>(it);
         Value* incoming = phi->getIncomingValueForBlock(source);
 
         Variable* variable = getVariable(phi);
@@ -816,15 +912,13 @@ void BlocksToCfa::insertPhiAssignments(
     }
 }
 
-ExprPtr BlocksToCfa::lookupInlinedVariable(const llvm::Value* value)
+ExprPtr BlocksToCfa::lookupInlinedVariable(ValueOrMemoryObject value)
 {
     return mInlinedVars.lookup(value);
 }
 
-Variable* BlocksToCfa::getVariable(const Value* value)
+Variable* BlocksToCfa::getVariable(ValueOrMemoryObject value)
 {
-    LLVM_DEBUG(llvm::dbgs() << "Getting variable for value " << *value << "\n");
-
     auto result = mGenInfo.findVariable(value);
     assert(result != nullptr && "Variables should be present in one of the variable maps!");
 

@@ -189,6 +189,12 @@ void MemorySSABuilder::renameBlock(llvm::BasicBlock* block)
 
         for (auto& def : mValueDefs[&inst]) {
             MemoryObject* object = def->getObject();
+
+            // Set the previously reaching definition for this access
+            MemoryObjectDef* reachingDef = mObjectInfo[object].getCurrentTopDefinition();
+            def->setReachingDef(reachingDef);
+
+            // Push the new definition to the top of the renaming stack
             mObjectInfo[object].renameStack.push_back(&*def);
             defsInThisBlock[object]++;
         }

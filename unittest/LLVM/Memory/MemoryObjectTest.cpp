@@ -116,7 +116,7 @@ bb8:                                              ; preds = %bb6
     });
 
     llvm::Function* main = module->getFunction("main");
-    auto& memSSA = basicMemModel->getFunctionMemorySSA(*main);
+    auto& memSSA = *basicMemModel->getFunctionMemorySSA(*main);
 
     // We should have two scalar memory objects, 'a' and 'b'.
     for (auto& obj : memSSA.objects()) {

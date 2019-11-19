@@ -553,7 +553,20 @@ ExprPtr InstToExpr::visitCallInst(const llvm::CallInst& call)
     return UndefExpr::Get(callTy);
 }
 
-ExprPtr InstToExpr::operand(const Value* value)
+ExprPtr InstToExpr::operand(ValueOrMemoryObject value)
+{
+    if (value.isValue()) {
+        return this->operandValue(value.asValue());
+    }
+
+    if (value.isMemoryObjectDef()) {
+        return this->operandMemoryObject(value.asMemoryObjectDef());
+    }
+
+    llvm_unreachable("Invalid ValueOrMemoryObject state!");
+}
+
+ExprPtr InstToExpr::operandValue(const llvm::Value* value)
 {
     if (auto ci = dyn_cast<ConstantInt>(value)) {
         // Check for boolean literals
@@ -597,6 +610,16 @@ ExprPtr InstToExpr::operand(const Value* value)
     
     LLVM_DEBUG(llvm::dbgs() << "  Unhandled value for operand: " << *value << "\n");
     llvm_unreachable("Unhandled value type");
+}
+
+ExprPtr InstToExpr::operandMemoryObject(const gazer::MemoryObjectDef* def)
+{
+    auto result = this->lookupInlinedVariable(def);
+    if (result != nullptr) {
+        return result;
+    }
+
+    return getVariable(def)->getRefExpr();
 }
 
 ExprPtr InstToExpr::asBool(const ExprPtr& operand)
