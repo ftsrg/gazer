@@ -106,8 +106,10 @@ public:
     {}
 
     MemoryObject* createMemoryObject(
+        unsigned id,
         MemoryObjectType objectType,
-        MemoryObject::MemoryObjectSize size, llvm::Type* valueType,
+        MemoryObject::MemoryObjectSize size,
+        llvm::Type* valueType,
         llvm::StringRef name = ""
     );
 
@@ -119,6 +121,7 @@ public:
 
     memory::LoadUse* createLoadUse(MemoryObject* object, llvm::LoadInst& load);
     memory::CallUse* createCallUse(MemoryObject* object, llvm::CallSite call);
+    memory::RetUse* createReturnUse(MemoryObject* object, llvm::ReturnInst& ret);
 
     std::unique_ptr<MemorySSA> build();
 
@@ -137,7 +140,6 @@ private:
     MemorySSA::ValueToDefSetMap mValueDefs;
     MemorySSA::ValueToUseSetMap mValueUses;
 
-    unsigned mId = 0;
     unsigned mVersionNumber = 0;
 };
 

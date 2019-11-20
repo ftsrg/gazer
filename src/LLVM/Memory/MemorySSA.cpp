@@ -49,13 +49,14 @@ auto MemorySSA::useAnnotationsFor(const llvm::Value* value) -> llvm::iterator_ra
 //==------------------------------------------------------------------------==//
 
 MemoryObject* MemorySSABuilder::createMemoryObject(
+    unsigned id,
     MemoryObjectType objectType,
     MemoryObject::MemoryObjectSize size,
     llvm::Type* valueType,
     llvm::StringRef name
 ) {
     auto& ptr= mObjectStorage.emplace_back(std::make_unique<MemoryObject>(
-        mId++, objectType, size, valueType, name
+        id, objectType, size, valueType, name
     ));
 
     return &*ptr;
@@ -63,8 +64,9 @@ MemoryObject* MemorySSABuilder::createMemoryObject(
 
 memory::LiveOnEntryDef* MemorySSABuilder::createLiveOnEntryDef(gazer::MemoryObject* object)
 {
-    auto def = new memory::LiveOnEntryDef(object, mVersionNumber++);
-    mObjectInfo[object].defBlocks.insert(&mFunction.getEntryBlock());
+    llvm::BasicBlock* entryBlock = &mFunction.getEntryBlock();
+    auto def = new memory::LiveOnEntryDef(object, mVersionNumber++, entryBlock);
+    mObjectInfo[object].defBlocks.insert(entryBlock);
     mValueDefs[&mFunction.getEntryBlock()].push_back(def);
     object->addDefinition(def);
 
@@ -74,8 +76,9 @@ memory::LiveOnEntryDef* MemorySSABuilder::createLiveOnEntryDef(gazer::MemoryObje
 memory::GlobalInitializerDef* MemorySSABuilder::createGlobalInitializerDef(
     gazer::MemoryObject* object, llvm::Value* initializer)
 {
-    auto def = new memory::GlobalInitializerDef(object, mVersionNumber++, initializer);
-    mObjectInfo[object].defBlocks.insert(&mFunction.getEntryBlock());
+    llvm::BasicBlock* entryBlock = &mFunction.getEntryBlock();
+    auto def = new memory::GlobalInitializerDef(object, mVersionNumber++, entryBlock, initializer);
+    mObjectInfo[object].defBlocks.insert(entryBlock);
     mValueDefs[&mFunction.getEntryBlock()].push_back(def);
     object->addDefinition(def);
 
@@ -132,6 +135,15 @@ memory::CallUse* MemorySSABuilder::createCallUse(MemoryObject* object, llvm::Cal
     return use;
 }
 
+memory::RetUse* MemorySSABuilder::createReturnUse(MemoryObject* object, llvm::ReturnInst& ret)
+{
+    auto use = new memory::RetUse(object, ret);
+    mValueUses[&ret].push_back(use);
+    object->addUse(use);
+
+    return use;
+}
+
 auto MemorySSABuilder::build() -> std::unique_ptr<MemorySSA>
 {
     this->calculatePHINodes();
@@ -154,8 +166,8 @@ void MemorySSABuilder::calculatePHINodes()
         llvm::SmallVector<llvm::BasicBlock*, 32> phiBlocks;
         idf.calculate(phiBlocks);
 
-        for (auto& bb : phiBlocks) {
-            auto phi = new memory::PhiDef(&*object, mVersionNumber++);
+        for (llvm::BasicBlock* bb : phiBlocks) {
+            auto phi = new memory::PhiDef(&*object, mVersionNumber++, bb);
             object->addDefinition(phi);
             mValueDefs[bb].push_back(phi);
         }

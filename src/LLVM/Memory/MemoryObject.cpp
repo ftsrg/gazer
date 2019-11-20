@@ -21,6 +21,19 @@ using namespace gazer;
 
 MemoryObject::~MemoryObject() = default;
 
+llvm::BasicBlock* MemoryObjectDef::getParentBlock() const
+{
+    if (auto instAnnot = llvm::dyn_cast<memory::InstructionAnnotationDef>(this)) {
+        return instAnnot->getInstruction()->getParent();
+    }
+
+    if (auto bbAnnot = llvm::dyn_cast<memory::BlockAnnotationDef>(this)) {
+        return bbAnnot->getBlock();
+    }
+
+    llvm_unreachable("A memory object definition must annotate either an instruction or a block!");
+}
+
 void MemoryObject::print(llvm::raw_ostream& os) const
 {
     os << "(" << mId << (mName.empty() ? "" : ", \"" + mName + "\"");
@@ -66,7 +79,7 @@ std::string MemoryObjectDef::getName() const
     return (objName + "_" + llvm::Twine(mVersion)).str();
 }
 
-MemoryObjectDef* memory::PhiDef::getIncomingDefForBlock(const llvm::BasicBlock* bb)
+MemoryObjectDef* memory::PhiDef::getIncomingDefForBlock(const llvm::BasicBlock* bb) const
 {
     return mEntryList.lookup(bb);
 }

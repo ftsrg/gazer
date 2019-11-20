@@ -18,7 +18,6 @@
 #include "gazer/LLVM/Memory/MemoryModel.h"
 #include "gazer/LLVM/Memory/MemorySSA.h"
 #include "gazer/Core/LiteralExpr.h"
-#include "gazer/Automaton/Cfa.h"
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
 #include "gazer/Core/ExprTypes.h"
 
@@ -34,6 +33,18 @@ namespace
 
 class BasicMemoryModel : public MemoryModel
 {
+    struct FunctionMemoryInfo
+    {
+        llvm::DenseMap<llvm::Value*, MemoryObject*> Objects;
+        llvm::DenseMap<MemoryObject*, llvm::Value*> ObjectToValue;
+        llvm::DenseMap<MemoryObject*, memory::LiveOnEntryDef*> EntryDefs;
+
+        void addObject(llvm::Value* source, MemoryObject* object)
+        {
+            Objects[source] = object;
+            ObjectToValue[object] = source;
+        }
+    };
 public:
     using MemoryModel::MemoryModel;
 
@@ -47,6 +58,13 @@ public:
         const llvm::SmallVectorImpl<memory::LoadUse*>& annotations,
         ExprPtr pointer,
         llvm2cfa::GenerationStepExtensionPoint& ep
+    ) override;
+
+    void handleCall(
+        llvm::CallSite call,
+        const llvm::SmallVectorImpl<memory::CallUse*>& useAnnotations,
+        const llvm::SmallVectorImpl<memory::CallDef*>& defAnnotations,
+        llvm::SmallVectorImpl<CallParam>& callParams
     ) override;
 
     void handleBlock(const llvm::BasicBlock& bb, llvm2cfa::GenerationStepExtensionPoint& ep) override;
@@ -90,25 +108,26 @@ protected:
     void initializeFunction(llvm::Function& function, MemorySSABuilder& builder) override;
 
 private:
-    MemoryObject* trackPointerToMemoryObject(llvm::Value* value);
+    MemoryObject* trackPointerToMemoryObject(FunctionMemoryInfo& function, llvm::Value* value);
 
     ExprPtr ptrForMemoryObject(MemoryObject* object) {
         return IntLiteralExpr::Get(IntType::Get(mContext), object->getId());
     }
 
 private:
-    llvm::DenseMap<llvm::Value*, MemoryObject*> mObjects;
+    llvm::DenseMap<llvm::Function*, FunctionMemoryInfo> mFunctions;
+    unsigned mId = 0;
 };
 
 } // end anonymous namespace
 
-MemoryObject* BasicMemoryModel::trackPointerToMemoryObject(llvm::Value* value)
+MemoryObject* BasicMemoryModel::trackPointerToMemoryObject(FunctionMemoryInfo& function, llvm::Value* value)
 {
     assert(value->getType()->isPointerTy());
 
     llvm::Value* ptr = value;
     while (true) {
-        MemoryObject* object = mObjects.lookup(ptr);
+        MemoryObject* object = function.Objects.lookup(ptr);
         if (object != nullptr) {
             return object;
         }
@@ -126,7 +145,7 @@ MemoryObject* BasicMemoryModel::trackPointerToMemoryObject(llvm::Value* value)
 
 void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABuilder& builder)
 {
-    mObjects.clear();
+    auto& currentObjects = mFunctions[&function];
     unsigned tmp = 0;
 
     // TODO: This should be more flexible.
@@ -137,6 +156,7 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
     for (llvm::GlobalVariable& gv : function.getParent()->globals()) {
         auto gvTy = gv.getType()->getPointerElementType();
         auto object = builder.createMemoryObject(
+            mId++,
             MemoryObjectType::Scalar,
             getDataLayout().getTypeAllocSize(gvTy),
             gvTy,
@@ -146,9 +166,9 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
         if (isEntryFunction) {
             builder.createGlobalInitializerDef(object, gv.hasInitializer() ? gv.getInitializer() : nullptr);
         } else {
-            builder.createLiveOnEntryDef(object);
+            currentObjects.EntryDefs[object] = builder.createLiveOnEntryDef(object);
         }
-        mObjects[&gv] = object;
+        currentObjects.addObject(&gv, object);
         allocSites.insert(&gv);
     }
 
@@ -158,14 +178,15 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
             std::string name = arg.hasName() ? arg.getName().str() : ("arg_" + std::to_string(tmp++));
 
             auto object = builder.createMemoryObject(
+                mId++,
                 MemoryObjectType::Scalar,
                 getDataLayout().getTypeAllocSize(argTy->getPointerElementType()),
                 argTy->getPointerElementType(),
                 name
             );
 
-            builder.createLiveOnEntryDef(object);
-            mObjects[&arg] = object;
+            currentObjects.EntryDefs[object] = builder.createLiveOnEntryDef(object);
+            currentObjects.addObject(&arg, object);
             allocSites.insert(&arg);
         }
     }
@@ -176,6 +197,7 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
             llvm::Type* allocatedTy = alloca->getType()->getPointerElementType();
             std::string name = alloca->hasName() ? alloca->getName().str() : ("alloca_" + std::to_string(tmp++));
             auto object = builder.createMemoryObject(
+                mId++,
                 MemoryObjectType::Scalar,
                 getDataLayout().getTypeAllocSize(allocatedTy),
                 allocatedTy,
@@ -183,7 +205,7 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
             );
 
             builder.createAllocaDef(object, *alloca);
-            mObjects[alloca] = object;
+            currentObjects.addObject(alloca, object);
             allocSites.insert(alloca);
         }
     }
@@ -191,11 +213,11 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
     // Now, walk over all instructions and search for pointer operands
     for (llvm::Instruction& inst : llvm::instructions(function)) {
         if (auto store = llvm::dyn_cast<llvm::StoreInst>(&inst)) {
-            MemoryObject* object = trackPointerToMemoryObject(store->getPointerOperand());
+            MemoryObject* object = trackPointerToMemoryObject(currentObjects, store->getPointerOperand());
             if (object == nullptr) {
                 // We could not track this pointer to an origin,
                 // we must clobber all memory objects in order to be safe.
-                for (auto& entry : mObjects) {
+                for (auto& entry : currentObjects.Objects) {
                     builder.createStoreDef(entry.second, *store);
                 }
             } else {
@@ -203,7 +225,7 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
                 builder.createStoreDef(object, *store);
             }
         } else if (auto load = llvm::dyn_cast<llvm::LoadInst>(&inst)) {
-            MemoryObject* object = trackPointerToMemoryObject(load->getPointerOperand());
+            MemoryObject* object = trackPointerToMemoryObject(currentObjects, load->getPointerOperand());
             // If the object is nullptr, we could not track the origins of the pointer.
             // We will not insert any annotations, and the LoadInst will be translated to
             // an undef value.
@@ -218,9 +240,10 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
             for (unsigned i = 0; i < call->getNumArgOperands(); ++i) {
                 llvm::Value* arg = call->getArgOperand(i);
                 if (arg->getType()->isPointerTy()) {
-                    MemoryObject* object = trackPointerToMemoryObject(arg);
+                    MemoryObject* object = trackPointerToMemoryObject(currentObjects, arg);
                     if (object == nullptr) {
-                        for (auto& entry : mObjects) {
+                        // The memory object could not be resolved, we have to clobber all of them.
+                        for (auto& entry : currentObjects.Objects) {
                             definedObjects.insert(entry.second);
                             usedObjects.insert(entry.second);
                         }
@@ -244,7 +267,34 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
             for (MemoryObject* object : usedObjects) {
                 builder.createCallUse(object, call);
             }
+        } else if (auto ret = llvm::dyn_cast<llvm::ReturnInst>(&inst)) {
+            // A use annotation on a return instruction indicates that the memory object
+            // should be considered alive after the function returns.
+            // In this memory model, all memory objects except the ones allocated with
+            // an alloca will be considered alive on return.
+            for (auto& [allocation, object] : currentObjects.Objects) {
+                if (!llvm::isa<llvm::AllocaInst>(allocation)) {
+                    builder.createReturnUse(object, *ret);
+                }
+            }
         }
+    }
+}
+
+void BasicMemoryModel::handleCall(
+    llvm::CallSite call,
+    const llvm::SmallVectorImpl<memory::CallUse*>& useAnnotations,
+    const llvm::SmallVectorImpl<memory::CallDef*>& defAnnotations,
+    llvm::SmallVectorImpl<CallParam>& callParams
+)
+{
+    assert(call.getCalledFunction() != nullptr);
+
+    FunctionMemoryInfo& callerInfo = mFunctions[call.getParent()->getParent()];
+    FunctionMemoryInfo& calleeInfo = mFunctions[call.getCalledFunction()];
+
+    for (memory::CallUse* use : useAnnotations) {
+        llvm::Value* valueInCaller = callerInfo.ObjectToValue[use->getObject()];
     }
 }
 

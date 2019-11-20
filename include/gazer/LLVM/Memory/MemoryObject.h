@@ -54,6 +54,9 @@ public:
         : mObject(object)
     {}
 
+    MemoryAccess(const MemoryAccess&) = delete;
+    MemoryAccess& operator=(const MemoryAccess&) = delete;
+
     MemoryObject* getObject() const { return mObject; }
     MemoryObjectDef* getReachingDef() const { return mReachingDef; }
 
@@ -89,6 +92,8 @@ public:
     unsigned getVersion() const { return mVersion; }
     Kind getKind() const { return mKind; }
     std::string getName() const;
+
+    llvm::BasicBlock* getParentBlock() const;
 
     void print(llvm::raw_ostream& os) const;
 
@@ -207,30 +212,66 @@ namespace memory
 // Definitions
 //===----------------------------------------------------------------------===//
 
-class LiveOnEntryDef : public MemoryObjectDef
+class InstructionAnnotationDef : public MemoryObjectDef
 {
+protected:
+    using MemoryObjectDef::MemoryObjectDef;
+
 public:
-    LiveOnEntryDef(MemoryObject* object, unsigned int version)
-        : MemoryObjectDef(object, version, MemoryObjectDef::LiveOnEntry)
-    {}
+    virtual llvm::Instruction* getInstruction() const = 0;
 
-    void doPrint(llvm::raw_ostream& os) const override;
+    static bool classof(const MemoryObjectDef* def)
+    {
+        switch (def->getKind()) {
+            case LiveOnEntry:
+            case GlobalInitializer:
+            case PHI:
+                return false;
+            case Alloca:
+            case Store:
+            case Call:
+                return true;
+        }
 
-    static bool classof(const MemoryObjectDef* def) {
-        return def->getKind() == MemoryObjectDef::LiveOnEntry;
+        llvm_unreachable("Invalid definition kind!");
     }
 };
 
-class AllocaDef : public MemoryObjectDef
+class BlockAnnotationDef : public MemoryObjectDef
+{
+protected:
+    using MemoryObjectDef::MemoryObjectDef;
+
+public:
+    virtual llvm::BasicBlock* getBlock() const = 0;
+
+    static bool classof(const MemoryObjectDef* def)
+    {
+        switch (def->getKind()) {
+            case LiveOnEntry:
+            case GlobalInitializer:
+            case PHI:
+                return true;
+            case Alloca:
+            case Store:
+            case Call:
+                return false;
+        }
+
+        llvm_unreachable("Invalid definition kind!");
+    }
+};
+
+class AllocaDef : public InstructionAnnotationDef
 {
 public:
     AllocaDef(MemoryObject* object, unsigned int version, llvm::AllocaInst& alloca)
-        : MemoryObjectDef(object, version, MemoryObjectDef::Alloca), mAllocaInst(&alloca)
+        : InstructionAnnotationDef(object, version, MemoryObjectDef::Alloca), mAllocaInst(&alloca)
     {}
 
     void doPrint(llvm::raw_ostream& os) const override;
 
-    llvm::AllocaInst* getInstruction() const { return mAllocaInst; }
+    llvm::AllocaInst* getInstruction() const override { return mAllocaInst; }
 
     static bool classof(const MemoryObjectDef* def) {
         return def->getKind() == MemoryObjectDef::Alloca;
@@ -240,34 +281,15 @@ private:
     llvm::AllocaInst* mAllocaInst;
 };
 
-class GlobalInitializerDef : public MemoryObjectDef
-{
-public:
-    GlobalInitializerDef(MemoryObject* object, unsigned int version, llvm::Value* initValue = nullptr)
-        : MemoryObjectDef(object, version, MemoryObjectDef::GlobalInitializer), mInitializer(initValue)
-    {}
-
-    llvm::Value* getInitializer() const { return mInitializer; }
-
-    static bool classof(const MemoryObjectDef* def) {
-        return def->getKind() == MemoryObjectDef::GlobalInitializer;
-    }
-
-protected:
-    void doPrint(llvm::raw_ostream& os) const override;
-private:
-    llvm::Value* mInitializer;
-};
-
-class StoreDef : public MemoryObjectDef
+class StoreDef : public InstructionAnnotationDef
 {
 public:
     StoreDef(MemoryObject* object, unsigned int version, llvm::StoreInst& store)
-        : MemoryObjectDef(object, version, MemoryObjectDef::Store),
+        : InstructionAnnotationDef(object, version, MemoryObjectDef::Store),
         mStore(&store)
     {}
 
-    llvm::StoreInst* getStoreInst() { return mStore; }
+    llvm::StoreInst* getInstruction() const override { return mStore; }
 
     void doPrint(llvm::raw_ostream& os) const override;
 
@@ -279,33 +301,82 @@ private:
     llvm::StoreInst* mStore;
 };
 
-class CallDef : public MemoryObjectDef
+class CallDef : public InstructionAnnotationDef
 {
 public:
-    CallDef(MemoryObject* object, unsigned int version, llvm::ImmutableCallSite call)
-        : MemoryObjectDef(object, version, MemoryObjectDef::Call), mCall(call)
+    CallDef(MemoryObject* object, unsigned int version, llvm::CallSite call)
+        : InstructionAnnotationDef(object, version, MemoryObjectDef::Call), mCall(call)
     {}
 
     static bool classof(const MemoryObjectDef* def) {
         return def->getKind() == MemoryObjectDef::Call;
     }
 
+    llvm::Instruction* getInstruction() const override { return mCall.getInstruction(); }
+
 protected:
     void doPrint(llvm::raw_ostream& os) const override;
 
 private:
-    llvm::ImmutableCallSite mCall;
+    llvm::CallSite mCall;
 };
 
-class PhiDef : public MemoryObjectDef
+class LiveOnEntryDef : public BlockAnnotationDef
 {
 public:
-    PhiDef(MemoryObject* object, unsigned int version)
-        : MemoryObjectDef(object, version, MemoryObjectDef::PHI)
+    LiveOnEntryDef(MemoryObject* object, unsigned int version, llvm::BasicBlock* block)
+        : BlockAnnotationDef(object, version, MemoryObjectDef::LiveOnEntry), mEntryBlock(block)
     {}
 
-    MemoryObjectDef* getIncomingDefForBlock(const llvm::BasicBlock* bb);
+    void doPrint(llvm::raw_ostream& os) const override;
+    llvm::BasicBlock* getBlock() const override { return mEntryBlock; }
 
+    static bool classof(const MemoryObjectDef* def) {
+        return def->getKind() == MemoryObjectDef::LiveOnEntry;
+    }
+private:
+    llvm::BasicBlock* mEntryBlock;
+};
+
+class GlobalInitializerDef : public BlockAnnotationDef
+{
+public:
+    GlobalInitializerDef(
+        MemoryObject* object,
+        unsigned int version,
+        llvm::BasicBlock* block,
+        llvm::Value* initValue = nullptr
+    )
+        : BlockAnnotationDef(object, version, MemoryObjectDef::GlobalInitializer),
+        mEntryBlock(block),
+        mInitializer(initValue)
+    {}
+
+    llvm::Value* getInitializer() const { return mInitializer; }
+    llvm::BasicBlock* getBlock() const override { return mEntryBlock; }
+
+    static bool classof(const MemoryObjectDef* def) {
+        return def->getKind() == MemoryObjectDef::GlobalInitializer;
+    }
+
+protected:
+    void doPrint(llvm::raw_ostream& os) const override;
+private:
+    llvm::BasicBlock* mEntryBlock;
+    llvm::Value* mInitializer;
+};
+
+class PhiDef : public BlockAnnotationDef
+{
+public:
+    PhiDef(MemoryObject* object, unsigned int version, llvm::BasicBlock* block)
+        : BlockAnnotationDef(object, version, MemoryObjectDef::PHI),
+        mBlock(block)
+    {}
+
+    llvm::BasicBlock* getBlock() const override { return mBlock; }
+
+    MemoryObjectDef* getIncomingDefForBlock(const llvm::BasicBlock* bb) const;
     void addIncoming(MemoryObjectDef* def, const llvm::BasicBlock* bb);
 
     static bool classof(const MemoryObjectDef* def) {
@@ -316,6 +387,7 @@ protected:
     void doPrint(llvm::raw_ostream& os) const override;
 
 private:
+    llvm::BasicBlock* mBlock;
     llvm::DenseMap<const llvm::BasicBlock*, MemoryObjectDef*> mEntryList;
 };
 
@@ -362,8 +434,8 @@ private:
 class RetUse : public MemoryObjectUse
 {
 public:
-    RetUse(MemoryObject* object, llvm::ReturnInst* ret)
-        : MemoryObjectUse(object, MemoryObjectUse::Return), mReturnInst(ret)
+    RetUse(MemoryObject* object, llvm::ReturnInst& ret)
+        : MemoryObjectUse(object, MemoryObjectUse::Return), mReturnInst(&ret)
     {}
 
     llvm::ReturnInst* getInstruction() const override { return mReturnInst; }

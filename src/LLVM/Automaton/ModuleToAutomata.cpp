@@ -91,7 +91,7 @@ static bool hasUsesInBlockRange(const llvm::Instruction* inst, Range&& range)
 }
 
 template<class Range>
-static bool hasUsesInBlockRange(const MemoryObjectDef* def, Range&& range)
+static bool checkUsesInBLockRange(const MemoryObjectDef* def, Range&& range, bool searchInside)
 {
     // Currently the memory object interface does not support querying the uses of a particular def.
     // What we do instead is we query all uses of the underlying abstract memory object, and check
@@ -102,12 +102,28 @@ static bool hasUsesInBlockRange(const MemoryObjectDef* def, Range&& range)
         }
 
         llvm::BasicBlock* bb = use.getInstruction()->getParent();
-        if (std::find(std::begin(range), std::end(range), bb) != std::end(range)) {
+        if (
+            (searchInside && std::find(std::begin(range), std::end(range), bb) != std::end(range))
+                ||
+            (!searchInside && std::find(std::begin(range), std::end(range), bb) == std::end(range))
+        ) {
             return true;
         }
     }
 
     return false;
+}
+
+template<class Range>
+static bool hasUsesInBlockRange(const MemoryObjectDef* def, Range&& range)
+{
+    return checkUsesInBLockRange(def, range, true);
+}
+
+template<class Range>
+static bool hasUsesOutsideOfBlockRange(const MemoryObjectDef* def, Range&& range)
+{
+    return checkUsesInBLockRange(def, range, false);
 }
 
 static bool isErrorBlock(llvm::BasicBlock* bb)
@@ -302,8 +318,73 @@ void ModuleToCfa::createAutomata()
             // Declare loop variables.
             VariableDeclExtensionPoint loopVarDecl(loopGenInfo);
             for (BasicBlock* bb : loopBlocks) {
+                // Check for possible memory object PHI's
+                for (MemoryObjectDef& def : memorySSA.definitionAnnotationsFor(bb)) {
+                    Variable* memVar;
+                    if (bb == loop->getHeader() && def.getKind() == MemoryObjectDef::PHI) {
+                        memVar = loopVarDecl.createPhiInput(
+                            &def,
+                            mMemoryModel.translateType(def.getObject()->getValueType())
+                        );
+                    } else {
+                        memVar = loopVarDecl.createLocal(
+                            &def,
+                            mMemoryModel.translateType(def.getObject()->getValueType())
+                        );
+                    }
+
+                    if (hasUsesOutsideOfBlockRange(&def, loopBlocks)) {
+                        std::string name = def.getName() + "_out";
+                        auto copyOfVar = nested->createLocal(name, memVar->getType());
+
+                        loopVarDecl.markOutput(&def, copyOfVar);
+                        loopGenInfo.LoopOutputs[&def] = VariableAssignment{
+                            copyOfVar, memVar->getRefExpr()
+                        };
+                    }
+                }
+
                 for (Instruction& inst : *bb) {
                     Variable* variable = nullptr;
+
+                    // First, check the memory SSA annotations for this instruction.
+                    for (MemoryObjectUse& use : memorySSA.useAnnotationsFor(&inst)) {
+                        // If the use's reaching definition is outside of the loop, we add it as an input.
+                        llvm::BasicBlock* defBlock = use.getReachingDef()->getParentBlock();
+                        if (std::find(loopBlocks.begin(), loopBlocks.end(), defBlock) == loopBlocks.end()) {
+                            loopVarDecl.createInput(
+                                use.getReachingDef(),
+                                mMemoryModel.translateType(use.getObject()->getValueType())
+                            );
+                        }
+                    }
+
+                    // All definitions inside the loop will be locals.
+                    for (MemoryObjectDef& def : memorySSA.definitionAnnotationsFor(&inst)) {
+                        Variable* memVar = loopVarDecl.createLocal(
+                            &def, mMemoryModel.translateType(def.getObject()->getValueType())
+                        );
+
+                        // If the definition has uses outside of the loop, it should also be marked as output.
+                        for (MemoryObjectUse& use : def.getObject()->uses()) {
+                            if (use.getReachingDef() != &def) {
+                                continue;
+                            }
+
+                            llvm::BasicBlock* useBlock = use.getInstruction()->getParent();
+                            if (std::find(loopBlocks.begin(), loopBlocks.end(), useBlock) == loopBlocks.end()) {
+                                std::string name = def.getName() + "_out";
+                                auto copyOfVar = nested->createLocal(name, memVar->getType());
+
+                                loopVarDecl.markOutput(&inst, copyOfVar);
+                                loopGenInfo.LoopOutputs[&inst] = VariableAssignment{
+                                    copyOfVar, memVar->getRefExpr()
+                                };
+
+                                break;
+                            }
+                        }
+                    }
 
                     if (inst.getOpcode() == Instruction::PHI && bb == loop->getHeader()) {
                         // PHI nodes of the entry block should be inputs.
@@ -376,6 +457,8 @@ void ModuleToCfa::createAutomata()
             }
 
             visitedBlocks.insert(loop->getBlocks().begin(), loop->getBlocks().end());
+
+            nested->printDeclaration(llvm::errs());
         }
 
         // Now that all loops in this function have been dealt with, translate the function itself.
@@ -493,15 +576,16 @@ void BlocksToCfa::encode()
             return this->operand(val);
         });
 
+        // Handle block-level memory annotations first
+        for (MemoryObjectDef& def : mMemorySSA->definitionAnnotationsFor(bb)) {
+            Variable* defVariable = getVariable(&def);
+            if (auto globalInit = llvm::dyn_cast<memory::GlobalInitializerDef>(&def)) {
+                ep.insertAssignment({defVariable, ep.operand(globalInit->getInitializer())});
+            }
+        }
+
         for (auto it = bb->getFirstInsertionPt(), ie = bb->end(); it != ie; ++it) {
             const llvm::Instruction& inst = *it;
-
-            for (MemoryObjectDef& def : mMemorySSA->definitionAnnotationsFor(&inst)) {
-                Variable* defVariable = getVariable(&def);
-                if (auto globalInit = llvm::dyn_cast<memory::GlobalInitializerDef>(&def)) {
-                    ep.insertAssignment({defVariable, ep.operand(globalInit->getInitializer())});
-                }
-            }
 
             if (auto call = llvm::dyn_cast<CallInst>(&inst)) {
                 bool generateAssignmentAfter = this->handleCall(call, &entry, exit, assignments);
@@ -585,6 +669,7 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
         std::vector<VariableAssignment> inputs;
         std::vector<VariableAssignment> outputs;
 
+        // Insert regular LLVM IR arguments.
         llvm::SmallVector<llvm::Argument*, 4> arguments;
         for (llvm::Argument& arg : callee->args()) {
             arguments.push_back(&arg);
@@ -596,6 +681,25 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
             assert(input != nullptr && "Function arguments should be present as procedure inputs!");
 
             inputs.push_back({input, expr});
+        }
+
+        // Insert arguments coming from the memory model.
+        llvm::SmallVector<memory::CallUse*, 4> callUses;
+        memoryAccessOfKind(mMemorySSA->useAnnotationsFor(call), callUses);
+
+        // We enforce that the final argument list must have the same size as the called CFA,
+        // and do not leave this up to the memory model. If this assertion fails, the used
+        // memory model should be considered faulty.
+        assert(callUses.size() + arguments.size() == calledCfa->getNumInputs());
+        for (memory::CallUse* use : callUses) {
+            MemoryObjectDef* reachingDef = use->getReachingDef();
+            ExprPtr expr;
+            if (reachingDef == nullptr) {
+                // This is probably an uninitialized memory area, we will pass undef
+                expr = UndefExpr::Get(translateType(use->getObject()->getValueType()));
+            } else {
+                expr = this->operand(reachingDef);
+            }
         }
 
         if (!callee->getReturnType()->isVoidTy()) {
@@ -767,7 +871,8 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
                 auto incoming = cast<PHINode>(valueOrMemObj.asValue())->getIncomingValueForBlock(parent);
                 loopArgs.emplace_back(variable, operand(incoming));
             } else {
-                // TODO
+                auto incoming = cast<memory::PhiDef>(valueOrMemObj.asMemoryObjectDef())->getIncomingDefForBlock(parent);
+                loopArgs.emplace_back(variable, operand(incoming));
             }
         }
 
@@ -803,12 +908,13 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
                 auto incoming = cast<PHINode>(valueOrMemObj.asValue())->getIncomingValueForBlock(parent);
                 loopArgs.emplace_back(variable, operand(incoming));
             } else {
-                // TODO
+                auto incoming = cast<memory::PhiDef>(valueOrMemObj.asMemoryObjectDef())->getIncomingDefForBlock(parent);
+                loopArgs.emplace_back(variable, operand(incoming));
             }
         }
 
         for (auto& [valueOrMemObj, variable] : nestedLoopInfo.Inputs) {
-            ExprPtr argExpr = operand(valueOrMemObj.asValue());
+            ExprPtr argExpr = operand(valueOrMemObj);
             loopArgs.emplace_back(variable, argExpr);
         }
 

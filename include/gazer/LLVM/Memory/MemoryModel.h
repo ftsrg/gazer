@@ -44,6 +44,13 @@ class GenerationStepExtensionPoint;
 class MemoryModel
 {
 public:
+    struct CallParam
+    {
+        MemoryObject* formal;
+        MemoryObject* actual;
+    };
+
+public:
     MemoryModel(
         GazerContext& context,
         LLVMFrontendSettings settings,
@@ -83,6 +90,14 @@ public:
     virtual ExprPtr handleAlloca(
         const llvm::AllocaInst& alloc,
         const llvm::SmallVectorImpl<memory::AllocaDef*>& annotations
+    ) = 0;
+
+    /// Maps the given memory object to a memory object in function.
+    virtual void handleCall(
+        llvm::CallSite call,
+        const llvm::SmallVectorImpl<memory::CallUse*>& useAnnotations,
+        const llvm::SmallVectorImpl<memory::CallDef*>& defAnnotations,
+        llvm::SmallVectorImpl<CallParam>& callParams
     ) = 0;
 
     virtual ExprPtr handleGetElementPtr(const llvm::GEPOperator& gep) = 0;

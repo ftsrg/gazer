@@ -50,6 +50,13 @@ public:
         llvm2cfa::GenerationStepExtensionPoint& ep
     ) override {}
 
+    virtual void handleCall(
+        llvm::CallSite call,
+        const llvm::SmallVectorImpl<memory::CallUse*>& useAnnotations,
+        const llvm::SmallVectorImpl<memory::CallDef*>& defAnnotations,
+        llvm::SmallVectorImpl<CallParam>& callParams
+    )  override {};
+
     void handleBlock(const llvm::BasicBlock& bb, llvm2cfa::GenerationStepExtensionPoint& ep) override {}
 
     virtual ExprPtr handleLoad(
