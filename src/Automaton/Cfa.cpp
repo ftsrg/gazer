@@ -322,6 +322,21 @@ CallTransition::CallTransition(
     assert(target != nullptr);
     assert(callee != nullptr);
     assert(callee->getNumInputs() == mInputArgs.size());
+    assert(callee->getNumOutputs() == mOutputArgs.size());
+}
+
+std::optional<VariableAssignment> CallTransition::getOutputArgument(Variable& variable) const
+{
+    ExprPtr ref = variable.getRefExpr();
+    auto result = std::find_if(mOutputArgs.begin(), mOutputArgs.end(), [&ref](auto& assign) {
+        return assign.getValue() == ref;
+    });
+
+    if (result == mOutputArgs.end()) {
+        return std::nullopt;
+    }
+
+    return *result;
 }
 
 // Automata system

@@ -238,18 +238,19 @@ private:
 /// Represents an array type with arbitrary index and element types.
 class ArrayType final : public Type
 {
-    ArrayType(GazerContext& context, Type* indexType, Type* elementType)
-        : Type(context, ArrayTypeID), mIndexType(indexType), mElementType(elementType)
+    ArrayType(Type* indexType, Type* elementType)
+        : Type(indexType->getContext(), ArrayTypeID), mIndexType(indexType), mElementType(elementType)
     {
         assert(indexType != nullptr);
         assert(elementType != nullptr);
+        assert(indexType->getContext() == elementType->getContext());
     }
 
 public:
     [[nodiscard]] Type& getIndexType() const { return *mIndexType; }
     [[nodiscard]] Type& getElementType() const { return *mElementType; }
 
-    static ArrayType& Get(GazerContext& context, Type& indexType, Type& elementType);
+    static ArrayType& Get(Type& indexType, Type& elementType);
 
     static bool classof(const Type* type) {
         return type->getTypeID() == ArrayTypeID;

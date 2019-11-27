@@ -368,6 +368,11 @@ public:
     BvType Bv1Ty, Bv8Ty, Bv16Ty, Bv32Ty, Bv64Ty;
     std::unordered_map<unsigned, std::unique_ptr<BvType>> BvTypes;
     FloatType FpHalfTy, FpSingleTy, FpDoubleTy, FpQuadTy;
+    std::unordered_map<
+         std::pair<Type*, Type*>,
+         std::unique_ptr<ArrayType>,
+         boost::hash<std::pair<Type*, Type*>>
+    > ArrayTypes;
 
     //------------------- Expressions -------------------//
     ExprStorage Exprs;

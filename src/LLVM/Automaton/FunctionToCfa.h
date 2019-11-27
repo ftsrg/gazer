@@ -287,7 +287,7 @@ private:
     unsigned mValueCount = 0;
 };
 
-class BlocksToCfa : public InstToExpr
+class BlocksToCfa : public InstToExpr, public GenerationStepExtensionPoint
 {
 public:
     BlocksToCfa(
@@ -306,7 +306,8 @@ private:
     GazerContext& getContext() const { return mGenCtx.getSystem().getContext(); }
 
 private:
-    bool tryToEliminate(const llvm::Instruction& inst, ExprPtr expr);
+    bool tryToEliminate(ValueOrMemoryObject val, Variable* variable, ExprPtr expr) override;
+    ExprPtr getAsOperand(ValueOrMemoryObject val) override { return this->operand(val); }
 
     void insertOutputAssignments(CfaGenInfo& callee, std::vector<VariableAssignment>& outputArgs);
     void insertPhiAssignments(const llvm::BasicBlock* source, const llvm::BasicBlock* target, std::vector<VariableAssignment>& phiAssignments);
@@ -327,7 +328,6 @@ private:
 
 private:
     GenerationContext& mGenCtx;
-    CfaGenInfo& mGenInfo;
     Cfa* mCfa;
     unsigned mCounter = 0;
     llvm::DenseMap<ValueOrMemoryObject, ExprPtr> mInlinedVars;

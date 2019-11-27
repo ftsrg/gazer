@@ -676,26 +676,35 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
         }
     }
 
-    for (size_t i = 0; i < callee->getNumInputs(); ++i) {
-        Variable* input = callee->getInput(i);
-        LLVM_DEBUG(llvm::dbgs() << "Callee input " << input->getName() << "\n"); 
-        if (!callee->isOutput(input)) {
-            auto varname = (input->getName() + suffix).str();
-            auto newInput = mRoot->createLocal(varname, input->getType());
-            oldVarToNew[input] = newInput;
-            vmap[newInput] = input;
+    for (Variable& input : callee->inputs()) {
+        LLVM_DEBUG(llvm::dbgs() << "Callee input " << input.getName() << "\n");
+        if (!callee->isOutput(&input)) {
+            auto varname = (input.getName() + suffix).str();
+            auto newInput = mRoot->createLocal(varname, input.getType());
+            oldVarToNew[&input] = newInput;
+            vmap[newInput] = &input;
             //rewrite[input] = call->getInputArgument(i);
-            rewrite[input] = newInput->getRefExpr();
+            rewrite[&input] = newInput->getRefExpr();
         }
     }
 
-    for (size_t i = 0; i < callee->getNumOutputs(); ++i) {
-        Variable* output = callee->getOutput(i);
-        auto newOutput = call->getOutputArgument(i).getVariable();
-        oldVarToNew[output] = newOutput;
-        vmap[newOutput] = output;
-        rewrite[output] = call->getOutputArgument(i).getVariable()->getRefExpr();
+    for (Variable& output : callee->outputs()) {
+        auto argument = call->getOutputArgument(output);
+        assert(argument.has_value() && "Every callee output should be assigned in a call transition!");
+
+        auto newOutput = argument->getVariable();
+        oldVarToNew[&output] = newOutput;
+        vmap[newOutput] = &output;
+        rewrite[&output] = newOutput->getRefExpr();
     }
+
+//    for (size_t i = 0; i < callee->getNumOutputs(); ++i) {
+//        Variable* output = callee->getOutput(i);
+//        auto newOutput = call->getOutputArgument(i).getVariable();
+//        oldVarToNew[output] = newOutput;
+//        vmap[newOutput] = output;
+//        rewrite[output] = call->getOutputArgument(i).getVariable()->getRefExpr();
+//    }
 
     // Insert the locations
     for (auto& origLoc : callee->nodes()) {
@@ -789,8 +798,11 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     Location* after  = call->getTarget();
 
     std::vector<VariableAssignment> inputAssigns;
-    for (int i = 0; i < call->getNumInputs(); ++i) {
-        inputAssigns.push_back({ oldVarToNew[callee->getInput(i)], call->getInputArgument(i) });
+    for (auto& input : call->inputs()) {
+        VariableAssignment inputAssignment(oldVarToNew[input.getVariable()], input.getValue());
+        LLVM_DEBUG(llvm::dbgs() << "Added input assignment " << inputAssignment
+             << " for variable " << *input.getVariable() << "n");
+        inputAssigns.push_back(inputAssignment);
     }
 
     mRoot->createAssignTransition(

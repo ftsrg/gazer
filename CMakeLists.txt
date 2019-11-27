@@ -54,7 +54,7 @@ set(GAZER_CLANG_TEST_COMPILER "clang" CACHE STRING "Clang compiler path for func
 
 add_custom_target(check-functional
     COMMAND GAZER_TOOLS_DIR=${CMAKE_BINARY_DIR}/tools lit -v ${CMAKE_CURRENT_LIST_DIR}/test
-    DEPENDS gazer-bmc gazer-cfa
+    DEPENDS gazer-bmc gazer-cfa gazer-theta
 )
 
 find_program(CLANG_TIDY NAMES "clang-tidy")

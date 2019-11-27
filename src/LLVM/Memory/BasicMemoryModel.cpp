@@ -33,11 +33,60 @@ namespace
 
 class BasicMemoryModel : public MemoryModel
 {
+    enum ScopeKind
+    {
+        Scope_Unknown,
+        Scope_Global,
+        Scope_PtrArgument,
+    };
+
+    class CallParamScope
+    {
+    public:
+        CallParamScope()
+            : mScope(Scope_Unknown), mSource(nullptr)
+        {}
+
+        explicit CallParamScope(llvm::GlobalVariable* gv)
+            : mScope(Scope_Global), mSource(gv)
+        {}
+
+        explicit CallParamScope(llvm::Argument* arg)
+            : mScope(Scope_PtrArgument), mSource(arg)
+        {}
+
+        ScopeKind getScope() const { return mScope; }
+        llvm::GlobalVariable* getGlobalVariableSource() const {
+            if (mScope == Scope_Global) {
+                return std::get<llvm::GlobalVariable*>(mSource);
+            }
+
+            return nullptr;
+        }
+        llvm::Argument* getArgumentSource() const {
+            if (mScope == Scope_PtrArgument) {
+                return std::get<llvm::Argument*>(mSource);
+            }
+
+            return nullptr;
+        }
+
+        bool operator==(const CallParamScope& rhs) const {
+            return mScope == rhs.mScope && mSource == rhs.mSource;
+        }
+
+    private:
+        ScopeKind mScope;
+        std::variant<std::nullptr_t, llvm::GlobalVariable*, llvm::Argument*> mSource;
+    };
+
     struct FunctionMemoryInfo
     {
         llvm::DenseMap<llvm::Value*, MemoryObject*> Objects;
         llvm::DenseMap<MemoryObject*, llvm::Value*> ObjectToValue;
-        llvm::DenseMap<MemoryObject*, memory::LiveOnEntryDef*> EntryDefs;
+        llvm::DenseMap<memory::LiveOnEntryDef*, CallParamScope> EntryDefs;
+        llvm::DenseMap<memory::CallUse*, CallParamScope> CallUses;
+        llvm::DenseMap<memory::CallDef*, CallParamScope> CallDefs;
 
         void addObject(llvm::Value* source, MemoryObject* object)
         {
@@ -61,10 +110,11 @@ public:
     ) override;
 
     void handleCall(
-        llvm::CallSite call,
+        llvm::ImmutableCallSite call,
         const llvm::SmallVectorImpl<memory::CallUse*>& useAnnotations,
         const llvm::SmallVectorImpl<memory::CallDef*>& defAnnotations,
-        llvm::SmallVectorImpl<CallParam>& callParams
+        llvm::SmallVectorImpl<CallParam>& inputParams,
+        llvm::SmallVectorImpl<CallParam>& outputParams
     ) override;
 
     void handleBlock(const llvm::BasicBlock& bb, llvm2cfa::GenerationStepExtensionPoint& ep) override;
@@ -89,12 +139,14 @@ public:
         const llvm::SmallVectorImpl<memory::StoreDef*>& annotations,
         ExprPtr pointer,
         ExprPtr value,
-        llvm2cfa::GenerationStepExtensionPoint& ep
+        llvm2cfa::GenerationStepExtensionPoint& ep,
+        std::vector<VariableAssignment>& assignments
     ) override;
 
     Type& handlePointerType(const llvm::PointerType* type) override
     {
         return IntType::Get(mContext);
+        //return ArrayType::Get(IntType::Get(mContext), IntType::Get(mContext));
     }
 
     Type& handleArrayType(const llvm::ArrayType* type) override
@@ -109,13 +161,14 @@ protected:
 
 private:
     MemoryObject* trackPointerToMemoryObject(FunctionMemoryInfo& function, llvm::Value* value);
+    void flattenType(llvm::Type* type, llvm::SmallVectorImpl<llvm::Type*>& flattened);
 
     ExprPtr ptrForMemoryObject(MemoryObject* object) {
         return IntLiteralExpr::Get(IntType::Get(mContext), object->getId());
     }
 
 private:
-    llvm::DenseMap<llvm::Function*, FunctionMemoryInfo> mFunctions;
+    llvm::DenseMap<const llvm::Function*, FunctionMemoryInfo> mFunctions;
     unsigned mId = 0;
 };
 
@@ -143,6 +196,11 @@ MemoryObject* BasicMemoryModel::trackPointerToMemoryObject(FunctionMemoryInfo& f
     return nullptr;
 }
 
+void BasicMemoryModel::flattenType(llvm::Type* type, llvm::SmallVectorImpl<llvm::Type*>& flattened)
+{
+    // TODO
+}
+
 void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABuilder& builder)
 {
     auto& currentObjects = mFunctions[&function];
@@ -155,18 +213,38 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
     // Each function will have a memory object made from this global variable.
     for (llvm::GlobalVariable& gv : function.getParent()->globals()) {
         auto gvTy = gv.getType()->getPointerElementType();
-        auto object = builder.createMemoryObject(
+
+        MemoryObjectType memoryObjectType;
+        llvm::Type* valueTy;
+
+        if (gvTy->isSingleValueType() && !gvTy->isVectorTy()) {
+            memoryObjectType = MemoryObjectType::Scalar;
+            valueTy = gvTy;
+        } else if (gvTy->isArrayTy()) {
+            memoryObjectType = MemoryObjectType::Array;
+            valueTy = gvTy->getArrayElementType();
+        } else if (gvTy->isStructTy()) {
+            memoryObjectType = MemoryObjectType::Struct;
+            valueTy = gvTy;
+        } else {
+            llvm_unreachable("Unknown LLVM type!");
+        }
+
+        MemoryObject* object = builder.createMemoryObject(
             mId++,
-            MemoryObjectType::Scalar,
+            memoryObjectType,
             getDataLayout().getTypeAllocSize(gvTy),
-            gvTy,
+            valueTy,
             gv.getName()
         );
 
         if (isEntryFunction) {
-            builder.createGlobalInitializerDef(object, gv.hasInitializer() ? gv.getInitializer() : nullptr);
+            builder.createGlobalInitializerDef(
+                object, gv.hasInitializer() ? gv.getInitializer() : nullptr
+            );
         } else {
-            currentObjects.EntryDefs[object] = builder.createLiveOnEntryDef(object);
+            memory::LiveOnEntryDef* liveOnEntry = builder.createLiveOnEntryDef(object);
+            currentObjects.EntryDefs[liveOnEntry] = CallParamScope(&gv);
         }
         currentObjects.addObject(&gv, object);
         allocSites.insert(&gv);
@@ -185,7 +263,8 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
                 name
             );
 
-            currentObjects.EntryDefs[object] = builder.createLiveOnEntryDef(object);
+            memory::LiveOnEntryDef* liveOnEntry = builder.createLiveOnEntryDef(object);
+            currentObjects.EntryDefs[liveOnEntry] = CallParamScope(&arg);
             currentObjects.addObject(&arg, object);
             allocSites.insert(&arg);
         }
@@ -233,39 +312,65 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
                 builder.createLoadUse(object, *load);
             }
         } else if (auto call = llvm::dyn_cast<llvm::CallInst>(&inst)) {
-            llvm::Function* callee = call->getCaller();
-            llvm::SmallPtrSet<MemoryObject*, 8> definedObjects;
-            llvm::SmallPtrSet<MemoryObject*, 8> usedObjects;
+            llvm::Function* callee = call->getCalledFunction();
 
-            for (unsigned i = 0; i < call->getNumArgOperands(); ++i) {
+            if (callee == nullptr) {
+                // TODO
+            }
+
+            if (callee->getName().startswith("gazer.") || callee->getName().startswith("llvm.")) {
+                // TODO: This may need to change in the case of some intrinsics (e.g. llvm.memcpy)
+                continue;
+            }
+
+            llvm::SmallVector<std::pair<MemoryObject*, CallParamScope>, 8> definedObjects;
+            llvm::SmallVector<std::pair<MemoryObject*, CallParamScope>, 8> usedObjects;
+
+            for (unsigned i = 0; i < callee->arg_size(); ++i) {
+                llvm::Argument* formalArg = &*(std::next(callee->arg_begin(), i));
                 llvm::Value* arg = call->getArgOperand(i);
                 if (arg->getType()->isPointerTy()) {
                     MemoryObject* object = trackPointerToMemoryObject(currentObjects, arg);
                     if (object == nullptr) {
                         // The memory object could not be resolved, we have to clobber all of them.
                         for (auto& entry : currentObjects.Objects) {
-                            definedObjects.insert(entry.second);
-                            usedObjects.insert(entry.second);
+                            definedObjects.emplace_back(entry.second, CallParamScope());
+                            //usedObjects.emplace_back(entry.second, CallParamScope());
                         }
                         break;
                     } else {
-                        definedObjects.insert(object);
-                        usedObjects.insert(object);
+                        definedObjects.emplace_back(object, CallParamScope(formalArg));
+                        usedObjects.emplace_back(object, CallParamScope(formalArg));
                     }
                 }
             }
 
-            if (auto ii = llvm::dyn_cast<llvm::IntrinsicInst>(call)) {
-                // TODO
-                continue;
+            if (!callee->isDeclaration() || callee->getReturnType()->isVoidTy()) {
+                // Currently we assume that function declarations which return a value do not modify
+                // global variables.
+                // TODO: We should make this configurable.
+                for (llvm::GlobalVariable& gv : function.getParent()->globals()) {
+                    // Pass global variables to the functions
+                    MemoryObject* object = currentObjects.Objects[&gv];
+
+                    definedObjects.emplace_back(object, CallParamScope(&gv));
+                    usedObjects.emplace_back(object, CallParamScope(&gv));
+                }
             }
 
-            for (MemoryObject* object : definedObjects) {
-                builder.createCallDef(object, call);
+            // TODO: These should be updated into a set-like container in the future
+            //       and unique should be dropped
+            std::unique(definedObjects.begin(), definedObjects.end());
+            std::unique(usedObjects.begin(), usedObjects.end());
+
+            for (auto& [object, scope] : definedObjects) {
+                memory::CallDef* def = builder.createCallDef(object, call);
+                currentObjects.CallDefs[def] = scope;
             }
 
-            for (MemoryObject* object : usedObjects) {
-                builder.createCallUse(object, call);
+            for (auto& [object, scope] : usedObjects) {
+                memory::CallUse* use = builder.createCallUse(object, call);
+                currentObjects.CallUses[use] = scope;
             }
         } else if (auto ret = llvm::dyn_cast<llvm::ReturnInst>(&inst)) {
             // A use annotation on a return instruction indicates that the memory object
@@ -273,7 +378,7 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
             // In this memory model, all memory objects except the ones allocated with
             // an alloca will be considered alive on return.
             for (auto& [allocation, object] : currentObjects.Objects) {
-                if (!llvm::isa<llvm::AllocaInst>(allocation)) {
+                if (object->hasEntryDef() && llvm::isa<memory::LiveOnEntryDef>(object->getEntryDef())) {
                     builder.createReturnUse(object, *ret);
                 }
             }
@@ -282,10 +387,11 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
 }
 
 void BasicMemoryModel::handleCall(
-    llvm::CallSite call,
+    llvm::ImmutableCallSite call,
     const llvm::SmallVectorImpl<memory::CallUse*>& useAnnotations,
     const llvm::SmallVectorImpl<memory::CallDef*>& defAnnotations,
-    llvm::SmallVectorImpl<CallParam>& callParams
+    llvm::SmallVectorImpl<CallParam>& inputParams,
+    llvm::SmallVectorImpl<CallParam>& outputParams
 )
 {
     assert(call.getCalledFunction() != nullptr);
@@ -293,8 +399,42 @@ void BasicMemoryModel::handleCall(
     FunctionMemoryInfo& callerInfo = mFunctions[call.getParent()->getParent()];
     FunctionMemoryInfo& calleeInfo = mFunctions[call.getCalledFunction()];
 
+    // Map the call uses to the input arguments
     for (memory::CallUse* use : useAnnotations) {
-        llvm::Value* valueInCaller = callerInfo.ObjectToValue[use->getObject()];
+        auto& callerScope = callerInfo.CallUses[use];
+        llvm::Value* source;
+        if (llvm::Argument* arg = callerScope.getArgumentSource()) {
+            source = arg;
+        } else if (llvm::GlobalVariable* gv = callerScope.getGlobalVariableSource()) {
+            source = gv;
+        } else {
+            // TODO
+            llvm_unreachable("Unsupported call use scope!");
+        }
+
+        auto object = calleeInfo.Objects[source];
+        assert(object != nullptr && object->hasEntryDef());
+
+        inputParams.emplace_back(object->getEntryDef(), use->getReachingDef());
+    }
+
+    // Map the definitions to return uses
+    for (memory::CallDef* def : defAnnotations) {
+        auto& callerScope = callerInfo.CallDefs[def];
+        llvm::Value* source;
+        if (llvm::Argument* arg = callerScope.getArgumentSource()) {
+            source = arg;
+        } else if (llvm::GlobalVariable* gv = callerScope.getGlobalVariableSource()) {
+            source = gv;
+        } else {
+            // TODO
+            llvm_unreachable("Unsupported call use scope!");
+        }
+
+        auto object = calleeInfo.Objects[source];
+        assert(object != nullptr && object->hasExitUse());
+
+        outputParams.emplace_back(def, object->getExitUse()->getReachingDef());
     }
 }
 
@@ -305,7 +445,10 @@ void BasicMemoryModel::declareProcedureVariables(llvm2cfa::VariableDeclExtension
 void BasicMemoryModel::handleStore(
     const llvm::StoreInst& store,
     const llvm::SmallVectorImpl<memory::StoreDef*>& annotations,
-    ExprPtr pointer, ExprPtr value, llvm2cfa::GenerationStepExtensionPoint& ep
+    ExprPtr pointer,
+    ExprPtr value,
+    llvm2cfa::GenerationStepExtensionPoint& ep,
+    std::vector<VariableAssignment>& assignments
 ) {
     if (annotations.size() == 0) {
         // If this store has no annotations, do nothing.
@@ -313,11 +456,14 @@ void BasicMemoryModel::handleStore(
     }
 
     if (annotations.size() == 1) {
-        Variable* defVariable = ep.getVariableFor(annotations[0]);
+        MemoryObjectDef* def = annotations[0];
+        Variable* defVariable = ep.getVariableFor(def);
         assert(defVariable != nullptr && "Each memory object definition should map to a variable in the CFA!");
         assert(defVariable->getType() == value->getType());
 
-        ep.insertAssignment({defVariable, value});
+        if (!ep.tryToEliminate(def, defVariable, value)) {
+            assignments.emplace_back(defVariable, value);
+        }
         return;
     }
 
@@ -334,10 +480,12 @@ void BasicMemoryModel::handleStore(
         auto select = SelectExpr::Create(
             EqExpr::Create(pointer, ptrForMemoryObject(def->getObject())),
             value,
-            ep.operand(reachingDef)
+            ep.getAsOperand(reachingDef)
         );
 
-        ep.insertAssignment({defVariable, select});
+        if (!ep.tryToEliminate(def, defVariable, value)) {
+            assignments.emplace_back(defVariable, value);
+        }
     }
 }
 
@@ -359,7 +507,7 @@ ExprPtr BasicMemoryModel::handleLoad(
         MemoryObjectDef* def = use->getReachingDef();
         assert(def != nullptr && "There must be a reaching definition for this load!");
 
-        return ep.operand(def);
+        return ep.getAsOperand(def);
     }
 
     // If this load may be clobbered by multiple definitions, we disambiguate using the pointer values.
@@ -372,7 +520,7 @@ ExprPtr BasicMemoryModel::handleLoad(
 
         expr = SelectExpr::Create(
             EqExpr::Create(pointer, ptrForMemoryObject(reachingDef->getObject())),
-            ep.operand(reachingDef),
+            ep.getAsOperand(reachingDef),
             expr
         );
     }

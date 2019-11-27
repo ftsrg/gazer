@@ -57,11 +57,12 @@ class CfaGenInfo;
 
 class ExtensionPoint
 {
-public:
+protected:
     ExtensionPoint(CfaGenInfo& genInfo)
-        : mInfo(genInfo)
+        : mGenInfo(genInfo)
     {}
 
+public:
     ExtensionPoint(const ExtensionPoint&) = delete;
     ExtensionPoint& operator=(const ExtensionPoint&) = delete;
 
@@ -71,7 +72,7 @@ public:
     llvm::Function* getSourceFunction() const;
 
 protected:
-    CfaGenInfo& mInfo;
+    CfaGenInfo& mGenInfo;
 };
 
 /// This extension can be used to insert additional variables into the CFA at the
@@ -79,7 +80,9 @@ protected:
 class VariableDeclExtensionPoint : public ExtensionPoint
 {
 public:
-    using ExtensionPoint::ExtensionPoint;
+    VariableDeclExtensionPoint(CfaGenInfo& genInfo)
+        : ExtensionPoint(genInfo)
+    {}
 
     Variable* createInput(ValueOrMemoryObject val, Type& type, const std::string& suffix = "");
     Variable* createLocal(ValueOrMemoryObject val, Type& type, const std::string& suffix = "");
@@ -95,22 +98,16 @@ public:
 class GenerationStepExtensionPoint : public ExtensionPoint
 {
 public:
-    GenerationStepExtensionPoint(
-        CfaGenInfo& genInfo,
-        std::vector<VariableAssignment>& assignmentList,
-        std::function<ExprPtr(ValueOrMemoryObject)> operandTranslator
-    ) : ExtensionPoint(genInfo),
-        mCurrentAssignmentList(assignmentList),
-        mOperandTranslator(operandTranslator)
+    explicit GenerationStepExtensionPoint(CfaGenInfo& genInfo)
+        : ExtensionPoint(genInfo)
     {}
 
     Variable* getVariableFor(ValueOrMemoryObject val);
-    void insertAssignment(VariableAssignment assignment);
 
-    ExprPtr operand(ValueOrMemoryObject val);
-private:
-    std::vector<VariableAssignment>& mCurrentAssignmentList;
-    std::function<ExprPtr(ValueOrMemoryObject)> mOperandTranslator;
+    virtual ExprPtr getAsOperand(ValueOrMemoryObject val) = 0;
+
+    /// Attempts to inline and eliminate a given variable from the CFA.
+    virtual bool tryToEliminate(ValueOrMemoryObject val, Variable* variable, ExprPtr expr) = 0;
 };
 
 } // end namespace llvm2cfa

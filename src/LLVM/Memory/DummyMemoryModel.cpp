@@ -47,14 +47,16 @@ public:
         const llvm::SmallVectorImpl<memory::StoreDef*>& annotations,
         ExprPtr pointer,
         ExprPtr value,
-        llvm2cfa::GenerationStepExtensionPoint& ep
+        llvm2cfa::GenerationStepExtensionPoint& ep,
+        std::vector<VariableAssignment>& assignments
     ) override {}
 
     virtual void handleCall(
-        llvm::CallSite call,
+        llvm::ImmutableCallSite call,
         const llvm::SmallVectorImpl<memory::CallUse*>& useAnnotations,
         const llvm::SmallVectorImpl<memory::CallDef*>& defAnnotations,
-        llvm::SmallVectorImpl<CallParam>& callParams
+        llvm::SmallVectorImpl<CallParam>& inputParams,
+        llvm::SmallVectorImpl<CallParam>& outputParams
     )  override {};
 
     void handleBlock(const llvm::BasicBlock& bb, llvm2cfa::GenerationStepExtensionPoint& ep) override {}
@@ -102,7 +104,7 @@ gazer::Type& DummyMemoryModel::handlePointerType(const llvm::PointerType* type)
 
 gazer::Type& DummyMemoryModel::handleArrayType(const llvm::ArrayType* type)
 {
-    return ArrayType::Get(mContext, BoolType::Get(mContext), BvType::Get(mContext, 8));
+    return ArrayType::Get(BoolType::Get(mContext), BvType::Get(mContext, 8));
 }
 
 ExprPtr DummyMemoryModel::handlePointerValue(const llvm::Value* value)

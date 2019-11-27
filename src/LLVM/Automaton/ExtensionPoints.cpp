@@ -63,69 +63,60 @@ void CfaGenInfo::addBlockToLocationsMapping(const llvm::BasicBlock* bb, Location
 
 const Cfa& ExtensionPoint::getCfa() const
 {
-    return *mInfo.Automaton;
+    return *mGenInfo.Automaton;
 }
 
 llvm::Loop* ExtensionPoint::getSourceLoop() const
 {
-    return mInfo.getSourceLoop();
+    return mGenInfo.getSourceLoop();
 }
 
 llvm::Function* ExtensionPoint::getSourceFunction() const
 {
-    return mInfo.getSourceFunction();
+    return mGenInfo.getSourceFunction();
 }
 
 Variable* VariableDeclExtensionPoint::createInput(ValueOrMemoryObject val, Type& type, const std::string& suffix)
 {
-    Cfa* cfa = mInfo.Automaton;
+    Cfa* cfa = mGenInfo.Automaton;
 
     auto name = val.hasName() ? val.getName() + suffix : "_" + suffix;
     Variable* variable = cfa->createInput(name, type);
-    mInfo.addInput(val, variable);
+    mGenInfo.addInput(val, variable);
 
     return variable;
 }
 
 Variable* VariableDeclExtensionPoint::createLocal(ValueOrMemoryObject val, Type& type, const std::string& suffix)
 {
-    Cfa* cfa = mInfo.Automaton;
+    Cfa* cfa = mGenInfo.Automaton;
 
     auto name = val.hasName() ? val.getName() + suffix : "_" + suffix;
     Variable* variable = cfa->createLocal(name, type);
-    mInfo.addLocal(val, variable);
+    mGenInfo.addLocal(val, variable);
 
     return variable;
 }
 
 Variable* VariableDeclExtensionPoint::createPhiInput(ValueOrMemoryObject val, Type& type, const std::string& suffix)
 {
-    Cfa* cfa = mInfo.Automaton;
+    Cfa* cfa = mGenInfo.Automaton;
 
     std::string name = val.hasName() ? val.getName() + suffix : "_" + suffix;
+    llvm::errs() << "Name is " << name << "\n";
     Variable* variable = cfa->createInput(name, type);
-    mInfo.addPhiInput(val, variable);
+    mGenInfo.addPhiInput(val, variable);
 
     return variable;
 }
 
 void VariableDeclExtensionPoint::markOutput(ValueOrMemoryObject val, Variable* variable)
 {
-    mInfo.Automaton->addOutput(variable);
-    mInfo.Outputs[val] = variable;
+    mGenInfo.Automaton->addOutput(variable);
+    mGenInfo.Outputs[val] = variable;
 }
 
 Variable* GenerationStepExtensionPoint::getVariableFor(ValueOrMemoryObject val)
 {
-    return mInfo.findVariable(val);
-}
-
-void GenerationStepExtensionPoint::insertAssignment(VariableAssignment assignment)
-{
-    mCurrentAssignmentList.push_back(std::move(assignment));
-}
-
-ExprPtr GenerationStepExtensionPoint::operand(gazer::ValueOrMemoryObject val)
-{
-    return mOperandTranslator(val);
+    return mGenInfo.findVariable(val);
 }

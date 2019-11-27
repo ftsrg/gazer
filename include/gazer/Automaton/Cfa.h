@@ -212,7 +212,7 @@ public:
     size_t getNumOutputs() const { return mOutputArgs.size(); }
 
     ExprPtr getInputArgument(size_t i) const { return mInputArgs[i].getValue(); }
-    VariableAssignment getOutputArgument(size_t i) const { return mOutputArgs[i]; }
+    std::optional<VariableAssignment> getOutputArgument(Variable& variable) const;
 
     static bool classof(const Transition* edge) {
         return edge->getKind() == Edge_Call;

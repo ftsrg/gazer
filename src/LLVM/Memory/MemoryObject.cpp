@@ -59,9 +59,23 @@ void MemoryObject::addDefinition(MemoryObjectDef* def)
     mDefs.emplace_back(std::unique_ptr<MemoryObjectDef>(def));
 }
 
-void MemoryObject::addUse(gazer::MemoryObjectUse* use)
+void MemoryObject::addUse(MemoryObjectUse* use)
 {
     mUses.emplace_back(std::unique_ptr<MemoryObjectUse>(use));
+}
+
+void MemoryObject::setEntryDef(MemoryObjectDef* def)
+{
+    assert(
+        llvm::isa<memory::LiveOnEntryDef>(def)
+        || llvm::isa<memory::GlobalInitializerDef>(def));
+    mEntryDef = def;
+}
+
+void MemoryObject::setExitUse(MemoryObjectUse* use)
+{
+    assert(llvm::isa<memory::RetUse>(use));
+    mExitUse = use;
 }
 
 void MemoryObjectDef::print(llvm::raw_ostream& os) const
@@ -72,11 +86,12 @@ void MemoryObjectDef::print(llvm::raw_ostream& os) const
 
 std::string MemoryObjectDef::getName() const
 {
-    llvm::Twine objName = getObject()->getName().empty()
-        ? llvm::Twine(getObject()->getId())
-        : getObject()->getName();
+    std::string objName = getObject()->getName();
+    if (objName.empty()) {
+        objName = std::to_string(getObject()->getId());
+    }
 
-    return (objName + "_" + llvm::Twine(mVersion)).str();
+    return objName + "_" + std::to_string(mVersion);
 }
 
 MemoryObjectDef* memory::PhiDef::getIncomingDefForBlock(const llvm::BasicBlock* bb) const

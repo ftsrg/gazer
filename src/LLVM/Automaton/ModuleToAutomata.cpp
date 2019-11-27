@@ -62,6 +62,18 @@ static bool isDefinedInCaller(llvm::Value* value, llvm::ArrayRef<llvm::BasicBloc
     return false;
 }
 
+template<class AccessKind, class Range>
+static void memoryAccessOfKind(Range&& range, llvm::SmallVectorImpl<AccessKind*>& vec)
+{
+    static_assert(std::is_base_of_v<MemoryAccess, AccessKind>, "AccessKind must be a subclass of MemoryAccess!");
+
+    for (auto& access : range) {
+        if (auto casted = llvm::dyn_cast<AccessKind>(&access)) {
+            vec.push_back(casted);
+        }
+    }
+}
+
 size_t BlocksToCfa::getNumUsesInBlocks(const llvm::Instruction* inst) const
 {
     size_t cnt = 0;
@@ -281,6 +293,7 @@ void ModuleToCfa::createAutomata()
         }
 
         memory::MemorySSA& memorySSA = *mMemoryModel.getFunctionMemorySSA(function);
+        LLVM_DEBUG(memorySSA.print(llvm::dbgs()));
 
         Cfa* cfa = mSystem->createCfa(function.getName());
         LLVM_DEBUG(llvm::dbgs() << "Created CFA " << cfa->getName() << "\n");
@@ -300,6 +313,7 @@ void ModuleToCfa::createAutomata()
             mGenCtx.createLoopCfaInfo(nested, loop);
         }
 
+        llvm::errs() << "Creating loop variables.\n";
         for (auto li = loops.rbegin(), le = loops.rend(); li != le; ++li) {
             Loop* loop = *li;
             CfaGenInfo& loopGenInfo = mGenCtx.getLoopCfa(loop);
@@ -337,6 +351,9 @@ void ModuleToCfa::createAutomata()
                         std::string name = def.getName() + "_out";
                         auto copyOfVar = nested->createLocal(name, memVar->getType());
 
+                        LLVM_DEBUG(llvm::dbgs() << "Added loop output variable " <<
+                             *copyOfVar << " for " << def << "size: " << loopGenInfo.Outputs.size() << "\n");
+
                         loopVarDecl.markOutput(&def, copyOfVar);
                         loopGenInfo.LoopOutputs[&def] = VariableAssignment{
                             copyOfVar, memVar->getRefExpr()
@@ -359,6 +376,7 @@ void ModuleToCfa::createAutomata()
                         }
                     }
 
+
                     // All definitions inside the loop will be locals.
                     for (MemoryObjectDef& def : memorySSA.definitionAnnotationsFor(&inst)) {
                         Variable* memVar = loopVarDecl.createLocal(
@@ -376,8 +394,11 @@ void ModuleToCfa::createAutomata()
                                 std::string name = def.getName() + "_out";
                                 auto copyOfVar = nested->createLocal(name, memVar->getType());
 
-                                loopVarDecl.markOutput(&inst, copyOfVar);
-                                loopGenInfo.LoopOutputs[&inst] = VariableAssignment{
+                                LLVM_DEBUG(llvm::dbgs() << "Added loop output variable " <<
+                                     *copyOfVar << " for " << def << "size: " << loopGenInfo.Outputs.size() << "\n");
+
+                                loopVarDecl.markOutput(&def, copyOfVar);
+                                loopGenInfo.LoopOutputs[&def] = VariableAssignment{
                                     copyOfVar, memVar->getRefExpr()
                                 };
 
@@ -457,10 +478,9 @@ void ModuleToCfa::createAutomata()
             }
 
             visitedBlocks.insert(loop->getBlocks().begin(), loop->getBlocks().end());
-
-            nested->printDeclaration(llvm::errs());
         }
 
+        llvm::errs() << "Creating function variables.\n";
         // Now that all loops in this function have been dealt with, translate the function itself.
         CfaGenInfo& genInfo = mGenCtx.createFunctionCfaInfo(cfa, &function);
         VariableDeclExtensionPoint functionVarDecl(genInfo);
@@ -479,9 +499,6 @@ void ModuleToCfa::createAutomata()
             cfa->addOutput(retval);
         }
 
-        // Add all variables from the memory model.
-        cfa->printDeclaration(llvm::errs());
-
         // At this point, the loops are already encoded, we only need to handle the blocks outside of the loops.
         std::vector<BasicBlock*> functionBlocks;
         std::for_each(function.begin(), function.end(), [&visitedBlocks, &functionBlocks] (auto& bb) {
@@ -498,6 +515,15 @@ void ModuleToCfa::createAutomata()
                 } else {
                     functionVarDecl.createLocal(&def, mMemoryModel.translateType(object.getValueType()), "_mem");
                 }
+            }
+
+            llvm::SmallVector<memory::RetUse*, 1> retUses;
+            memoryAccessOfKind(object.uses(), retUses);
+
+            assert(retUses.size() == 0 || retUses.size() == 1);
+            if (!retUses.empty()) {
+                Variable* output = genInfo.findVariable(retUses[0]->getReachingDef());
+                functionVarDecl.markOutput(retUses[0]->getReachingDef(), output);
             }
         }
 
@@ -532,8 +558,8 @@ BlocksToCfa::BlocksToCfa(
     CfaGenInfo& genInfo,
     ExprBuilder& exprBuilder
 ) : InstToExpr(exprBuilder, generationContext.getMemoryModel(), generationContext.getSettings()),
+    GenerationStepExtensionPoint(genInfo),
     mGenCtx(generationContext),
-    mGenInfo(genInfo),
     mCfa(genInfo.Automaton)
 {
     if (auto function = genInfo.getSourceFunction()) {
@@ -548,18 +574,6 @@ BlocksToCfa::BlocksToCfa(
     mMemorySSA = mMemoryModel.getFunctionMemorySSA(*mEntryBlock->getParent());
 }
 
-template<class AccessKind, class Range>
-static void memoryAccessOfKind(Range&& range, llvm::SmallVectorImpl<AccessKind*>& vec)
-{
-    static_assert(std::is_base_of_v<MemoryAccess, AccessKind>, "AccessKind must be a subclass of MemoryAccess!");
-
-    for (auto& access : range) {
-        if (auto casted = llvm::dyn_cast<AccessKind>(&access)) {
-            vec.push_back(casted);
-        }
-    }
-}
-
 void BlocksToCfa::encode()
 {
     Location* first = mGenInfo.Blocks[mEntryBlock].first;
@@ -572,15 +586,12 @@ void BlocksToCfa::encode()
         Location* exit = pair.second;
 
         std::vector<VariableAssignment> assignments;
-        GenerationStepExtensionPoint ep(mGenInfo, assignments, [this](ValueOrMemoryObject val) -> ExprPtr {
-            return this->operand(val);
-        });
 
         // Handle block-level memory annotations first
         for (MemoryObjectDef& def : mMemorySSA->definitionAnnotationsFor(bb)) {
             Variable* defVariable = getVariable(&def);
             if (auto globalInit = llvm::dyn_cast<memory::GlobalInitializerDef>(&def)) {
-                ep.insertAssignment({defVariable, ep.operand(globalInit->getInitializer())});
+                assignments.emplace_back(defVariable, operand(globalInit->getInitializer()));
             }
         }
 
@@ -599,7 +610,7 @@ void BlocksToCfa::encode()
                 llvm::SmallVector<memory::StoreDef*, 4> storeDefs;
                 memoryAccessOfKind(mMemorySSA->definitionAnnotationsFor(&inst), storeDefs);
 
-                mMemoryModel.handleStore(*store, storeDefs, ptr, storeValue, ep);
+                mMemoryModel.handleStore(*store, storeDefs, ptr, storeValue, *this, assignments);
                 continue;
             }
 
@@ -616,7 +627,7 @@ void BlocksToCfa::encode()
                 llvm::SmallVector<memory::LoadUse*, 4> loadUses;
                 memoryAccessOfKind(mMemorySSA->useAnnotationsFor(&inst), loadUses);
 
-                expr = mMemoryModel.handleLoad(*load, loadUses, ptr, ep);
+                expr = mMemoryModel.handleLoad(*load, loadUses, ptr, *this);
             }  else if (auto alloca = llvm::dyn_cast<AllocaInst>(&inst)) {
                 llvm::SmallVector<memory::AllocaDef*, 4> allocaDefs;
                 memoryAccessOfKind(mMemorySSA->definitionAnnotationsFor(&inst), allocaDefs);
@@ -626,10 +637,8 @@ void BlocksToCfa::encode()
                 expr = this->transform(inst);
             }
 
-            if (!tryToEliminate(inst, expr)) {
+            if (!tryToEliminate(&inst, variable, expr)) {
                 assignments.emplace_back(variable, expr);
-            } else {
-                mEliminatedVarsSet.insert(variable);
             }
         }
 
@@ -680,26 +689,38 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
             Variable* input = calledAutomatonInfo.findInput(arguments[i]);
             assert(input != nullptr && "Function arguments should be present as procedure inputs!");
 
-            inputs.push_back({input, expr});
+            inputs.emplace_back(input, expr);
         }
 
         // Insert arguments coming from the memory model.
         llvm::SmallVector<memory::CallUse*, 4> callUses;
+        llvm::SmallVector<memory::CallDef*, 4> callDefs;
         memoryAccessOfKind(mMemorySSA->useAnnotationsFor(call), callUses);
+        memoryAccessOfKind(mMemorySSA->definitionAnnotationsFor(call), callDefs);
 
         // We enforce that the final argument list must have the same size as the called CFA,
         // and do not leave this up to the memory model. If this assertion fails, the used
         // memory model should be considered faulty.
         assert(callUses.size() + arguments.size() == calledCfa->getNumInputs());
-        for (memory::CallUse* use : callUses) {
-            MemoryObjectDef* reachingDef = use->getReachingDef();
-            ExprPtr expr;
-            if (reachingDef == nullptr) {
-                // This is probably an uninitialized memory area, we will pass undef
-                expr = UndefExpr::Get(translateType(use->getObject()->getValueType()));
-            } else {
-                expr = this->operand(reachingDef);
-            }
+
+        llvm::SmallVector<MemoryModel::CallParam, 4> callInputs;
+        llvm::SmallVector<MemoryModel::CallParam, 4> callOutputs;
+        mMemoryModel.handleCall(call, callUses, callDefs, callInputs, callOutputs);
+
+        for (auto& param : callInputs) {
+            ExprPtr expr = this->operand(param.actual);
+            Variable* input = calledAutomatonInfo.findInput(param.formal);
+            assert(input != nullptr && "Defined memory objects should be present as procedure inputs!");
+
+            inputs.emplace_back(input, expr);
+        }
+
+        for (auto& param : callOutputs) {
+            Variable* output = calledAutomatonInfo.findOutput(param.actual);
+            Variable* variable = getVariable(param.formal);
+            assert(variable != nullptr && output != nullptr && "Defined memory objects should be present as procedure outputs!");
+
+            outputs.emplace_back(variable, output->getRefExpr());
         }
 
         if (!callee->getReturnType()->isVoidTy()) {
@@ -726,6 +747,21 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
         ExprPtr errorCodeExpr = operand(arg);
 
         mCfa->addErrorCode(exit, errorCodeExpr);
+    } else if (callee->getName() == "llvm.assume") {
+        // Assumptions will split the current transition and insert a new assign transition,
+        // with the guard being the assumption.
+        llvm::Value* arg = call->getArgOperand(0);
+        ExprPtr assumeExpr = operand(arg);
+
+        // Create the new locations
+        Location* assumeBegin = mCfa->createLocation();
+        Location* assumeEnd = mCfa->createLocation();
+
+        mCfa->createAssignTransition(*entry, assumeBegin, previousAssignments);
+        previousAssignments.clear();
+
+        mCfa->createAssignTransition(assumeBegin, assumeEnd, /*guard=*/assumeExpr);
+        *entry = assumeEnd;
     }
 
     return true;
@@ -780,7 +816,7 @@ void BlocksToCfa::handleTerminator(const llvm::BasicBlock* bb, Location* entry, 
     }
 }
 
-bool BlocksToCfa::tryToEliminate(const Instruction& inst, ExprPtr expr)
+bool BlocksToCfa::tryToEliminate(ValueOrMemoryObject val, Variable* variable, ExprPtr expr)
 {
     if (mGenCtx.getSettings().isElimVarsOff()) {
         return false;
@@ -788,13 +824,13 @@ bool BlocksToCfa::tryToEliminate(const Instruction& inst, ExprPtr expr)
 
     // Never eliminate variables obtained from call instructions,
     // as they might be needed to obtain a counterexample.
-    if (inst.getOpcode() == Instruction::Call) {
+    if (llvm::isa<llvm::CallInst>(val) || llvm::isa<memory::CallDef>(val)) {
         return false;
     }
 
     // Do not eliminate variables which are loop outputs, as these will be needed
     // for the output assignments.
-    if (mGenInfo.LoopOutputs.count(&inst) != 0) {
+    if (mGenInfo.LoopOutputs.count(val) != 0 || mGenInfo.Outputs.count(val) != 0) {
         return false;
     }
 
@@ -803,20 +839,27 @@ bool BlocksToCfa::tryToEliminate(const Instruction& inst, ExprPtr expr)
         return false;
     }
 
-    // On 'Normal' level, we do not want to inline expressions which have multiple uses and have already inlined operands.
-    if (
-        !mGenCtx.getSettings().isElimVarsAggressive() &&
-        getNumUsesInBlocks(&inst) > 1 &&
-        std::any_of(inst.op_begin(), inst.op_end(), [this](const llvm::Use& op) {
+    if (val.isValue() && llvm::isa<llvm::Instruction>(val.asValue())) {
+        const llvm::Instruction* inst = llvm::cast<llvm::Instruction>(val.asValue());
+        // On 'Normal' level, we do not want to inline expressions which have multiple uses
+        // and have already inlined operands.
+
+        bool hasInlinedOperands = std::any_of(inst->op_begin(), inst->op_end(), [this](const llvm::Use& op) {
             const llvm::Value* v = &*op;
             return llvm::isa<Instruction>(v) && mInlinedVars.count(llvm::cast<Instruction>(v)) != 0;
-        })
-    ) {
-        return false;
+        });
+
+        if (!mGenCtx.getSettings().isElimVarsAggressive()
+            && getNumUsesInBlocks(inst) > 1
+            && hasInlinedOperands
+        ) {
+            return false;
+        }
     }
 
-    mInlinedVars[&inst] = expr;
-    mGenCtx.addExprValueIfTraceEnabled(mGenInfo.Automaton, &inst, expr);
+    mInlinedVars[val] = expr;
+    mGenCtx.addExprValueIfTraceEnabled(mGenInfo.Automaton, val, expr);
+    mEliminatedVarsSet.insert(variable);
     return true;
 }
 
@@ -982,8 +1025,7 @@ void BlocksToCfa::insertOutputAssignments(CfaGenInfo& callee, std::vector<Variab
         }
 
         assert(parentVar != nullptr && "Nested output variable should be present in parent as an input or local!");
-
-        outputArgs.emplace_back(parentVar, nestedOutputVar->getRefExpr());
+        outputArgs.emplace_back(parentVar, this->castResult(nestedOutputVar->getRefExpr(), parentVar->getType()));
     }
 }
 

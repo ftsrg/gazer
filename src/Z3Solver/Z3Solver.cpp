@@ -303,6 +303,10 @@ private:
             }
         }
 
+        if (expr->getType().isArrayType()) {
+            // TODO
+        }
+
         llvm_unreachable("Unsupported operand type.");
     }
 

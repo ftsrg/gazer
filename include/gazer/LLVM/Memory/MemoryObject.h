@@ -107,6 +107,12 @@ private:
     unsigned mVersion;
 };
 
+inline llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const MemoryObjectDef& def)
+{
+    def.print(os);
+    return os;
+}
+
 class MemoryObjectUse : public MemoryAccess
 {
 public:
@@ -183,11 +189,19 @@ public:
     use_iterator use_end() { return boost::make_indirect_iterator(mUses.end()); }
     llvm::iterator_range<use_iterator> uses() { return llvm::make_range(use_begin(), use_end()); }
 
+    MemoryObjectDef* getEntryDef() const { return mEntryDef; }
+    MemoryObjectUse* getExitUse() const { return mExitUse; }
+
+    bool hasEntryDef() const { return mEntryDef != nullptr; }
+    bool hasExitUse() const { return mExitUse != nullptr; }
+
     ~MemoryObject();
 
 private:
     void addDefinition(MemoryObjectDef* def);
     void addUse(MemoryObjectUse* use);
+    void setEntryDef(MemoryObjectDef* def);
+    void setExitUse(MemoryObjectUse* def);
 
 private:
     unsigned mId;
@@ -199,6 +213,8 @@ private:
 
     std::vector<std::unique_ptr<MemoryObjectDef>> mDefs;
     std::vector<std::unique_ptr<MemoryObjectUse>> mUses;
+    MemoryObjectDef* mEntryDef = nullptr;
+    MemoryObjectUse* mExitUse = nullptr;
 };
 
 inline llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const MemoryObject& memoryObject) {

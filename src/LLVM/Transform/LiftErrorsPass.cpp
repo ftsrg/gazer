@@ -15,8 +15,11 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
+///
 /// \file This file defines the LiftErrorsPass, which lifts error calls
 /// from loops and subroutines into the main module.
+///
+//===----------------------------------------------------------------------===//
 #include "gazer/LLVM/Transform/Passes.h"
 #include "gazer/LLVM/Instrumentation/Check.h"
 

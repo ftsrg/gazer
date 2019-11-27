@@ -121,7 +121,6 @@ void LLVMFrontend::registerVerificationPipeline()
         mPassManager.add(gazer::createLiftErrorCallsPass());
 
         // Assertion lifting creates a lot of dead code. Run a lightweight DCE pass to clean up.
-        // FIXME: Maybe this should be a DeadInstEliminationPass?
         mPassManager.add(llvm::createDeadCodeEliminationPass());
     }
 

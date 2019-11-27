@@ -172,7 +172,17 @@ const llvm::fltSemantics& FloatType::getLLVMSemantics() const
     llvm_unreachable("Invalid floating-point type");
 }
 
-ArrayType& ArrayType::Get(GazerContext& context, Type& indexType, Type& elementType)
+ArrayType& ArrayType::Get(Type& indexType, Type& elementType)
 {
-    llvm_unreachable("Arrays are not yet supported :(");
+    auto& pImpl = indexType.getContext().pImpl;
+
+    auto result = pImpl->ArrayTypes.find({&indexType, &elementType});
+    if (result == pImpl->ArrayTypes.end()) {
+        auto ptr = new ArrayType(&indexType, &elementType);
+        pImpl->ArrayTypes.emplace(std::make_pair(&indexType, &elementType), ptr);
+
+        return *ptr;
+    }
+
+    return *result->second;
 }

@@ -36,7 +36,6 @@ void MemoryModel::initialize(llvm::Module& module, std::function<llvm::Dominator
         this->initializeFunction(function, builder);
 
         auto memSSA = builder.build();
-        memSSA->print(llvm::errs());
         mFunctions.try_emplace(&function, std::move(memSSA));
     }
 }

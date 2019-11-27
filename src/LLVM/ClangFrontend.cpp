@@ -176,8 +176,8 @@ auto gazer::ClangCompileAndLink(llvm::ArrayRef<std::string> files, llvm::LLVMCon
         }
 
         if (!inputFile.endswith_lower(".c")) {
-            llvm::errs() << "Cannot compile source file " << inputFile << "."
-            << "Supported extensions are: .c, .bc, .ll";
+            llvm::errs() << "Cannot compile source file " << inputFile << ".\n"
+            << "Supported extensions are: .c, .bc, .ll\n";
             return nullptr;
         }
 

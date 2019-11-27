@@ -1,4 +1,4 @@
-// RUN: %bmc -inline -inline-globals "%s" | FileCheck "%s"
+// RUN: %bmc "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED
 

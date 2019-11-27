@@ -46,8 +46,12 @@ class MemoryModel
 public:
     struct CallParam
     {
-        MemoryObject* formal;
-        MemoryObject* actual;
+        CallParam(MemoryObjectDef* formal, MemoryObjectDef* actual)
+            : formal(formal), actual(actual)
+        {}
+
+        MemoryObjectDef* formal;
+        MemoryObjectDef* actual;
     };
 
 public:
@@ -94,10 +98,11 @@ public:
 
     /// Maps the given memory object to a memory object in function.
     virtual void handleCall(
-        llvm::CallSite call,
+        llvm::ImmutableCallSite call,
         const llvm::SmallVectorImpl<memory::CallUse*>& useAnnotations,
         const llvm::SmallVectorImpl<memory::CallDef*>& defAnnotations,
-        llvm::SmallVectorImpl<CallParam>& callParams
+        llvm::SmallVectorImpl<CallParam>& inputParams,
+        llvm::SmallVectorImpl<CallParam>& outputParams
     ) = 0;
 
     virtual ExprPtr handleGetElementPtr(const llvm::GEPOperator& gep) = 0;
@@ -107,7 +112,8 @@ public:
         const llvm::SmallVectorImpl<memory::StoreDef*>& annotations,
         ExprPtr pointer,
         ExprPtr value,
-        llvm2cfa::GenerationStepExtensionPoint& ep
+        llvm2cfa::GenerationStepExtensionPoint& ep,
+        std::vector<VariableAssignment>& assignments
     ) = 0;
 
     virtual void handleBlock(

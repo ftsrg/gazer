@@ -96,6 +96,26 @@ class InvalidFailReducer(Reducer):
         return output
 
 
+class InvalidSuccessReducer(Reducer):
+    def __init__(self, verif: VerifierConfig, safe: VerifierConfig):
+        super().__init__(verif)
+        self.safe = safe
+
+    def create_script(self) -> str:
+        output = self.verif.call_str() + ' | grep "SUCCESSFUL"\n'
+        output += 'RES1=$?\n'
+        output += 'if [ $RES1 -ne 0 ]; then\n'
+        output += '    exit 1\n'
+        output += 'fi\n'
+        output += self.safe.call_str() + ' | grep "FAILED"\n'
+        output += 'RES2=$?\n'
+        output += 'if [ $RES2 -ne 0 ]; then\n'
+        output += '    exit 1\n'
+        output += 'fi\n'
+
+        return output
+
+
 class OutputPatternReducer(Reducer):
     def __init__(self, verif: VerifierConfig, pattern: str):
         super().__init__(verif)
@@ -118,7 +138,7 @@ def find_tool(toolname, gazer_dir):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('target', choices=['crash', 'false-cex', 'invalid-fail', 'pattern'], help='The target behavior to debug')
+    parser.add_argument('target', choices=['crash', 'false-cex', 'invalid-fail', 'pattern', 'invalid-success'], help='The target behavior to debug')
     parser.add_argument('file', help='The input file to reduce')
     parser.add_argument('--pattern', help='A pattern which must be present in the output')
     parser.add_argument('--gazer-dir', default=os.getcwd())
@@ -136,7 +156,7 @@ if __name__ == "__main__":
         fcopy = pathlib.Path(args.file).name + "_credue.c"
         shutil.copy(args.file, fcopy)
 
-        config = VerifierConfig(tool, pathlib.Path(fcopy).absolute(), args.tool_args.split(' '))
+        config = VerifierConfig(tool, pathlib.Path(fcopy).name, args.tool_args.split(' '))
         config.flags.extend(['-trace', '-test-harness', 'harness.bc'])
 
         reducer = FalseCexReducer(config, pathlib.Path(args.gazer_dir).absolute())
@@ -151,6 +171,17 @@ if __name__ == "__main__":
         safe_config = VerifierConfig(safe_tool, pathlib.Path(fcopy).name, args.safe_tool_args.split(' '))
 
         reducer = InvalidFailReducer(config, safe_config)
+        print(reducer.generate())
+    elif args.target == 'invalid-success':
+        safe_tool = find_tool(args.safe_tool, args.gazer_dir)
+
+        fcopy = pathlib.Path(args.file).name + "_credue.c"
+        shutil.copy(args.file, fcopy)
+
+        config = VerifierConfig(tool, pathlib.Path(fcopy).name, args.tool_args.split(' '))
+        safe_config = VerifierConfig(safe_tool, pathlib.Path(fcopy).name, args.safe_tool_args.split(' '))
+
+        reducer = InvalidSuccessReducer(config, safe_config)
         print(reducer.generate())
     elif args.target == 'pattern':
         fcopy = pathlib.Path(args.file).name + "_credue.c"

@@ -1,12 +1,16 @@
-// RUN: %bmc -bound 10 -inline -inline-globals -trace -test-harness="%t1.bc" "%s" | FileCheck --check-prefix=RESULT  "%s" 
-// RUN: %bmc -bound 10 -inline -inline-globals -trace -test-harness="%t2.bc" -math-int "%s" | FileCheck --check-prefix=RESULT "%s"
-// RUN: %bmc -bound 10 -inline -inline-globals -trace -test-harness="%t3.bc" -no-optimize "%s" | FileCheck --check-prefix=RESULT  "%s" 
-// RUN: %bmc -bound 10 -inline -inline-globals -trace -test-harness="%t4.bc" -no-optimize -math-int "%s" | FileCheck --check-prefix=RESULT "%s"
+// RUN: %bmc -bound 10 -inline -trace -test-harness="%t1.bc" "%s" | FileCheck --check-prefix=RESULT  "%s" 
+// RUN: %bmc -bound 10 -inline -trace -test-harness="%t2.bc" -math-int "%s" | FileCheck --check-prefix=RESULT "%s"
+// RUN: %bmc -bound 10 -inline -trace -test-harness="%t3.bc" -no-optimize "%s" | FileCheck --check-prefix=RESULT "%s"
+// RUN: %bmc -bound 10 -inline -trace -test-harness="%t4.bc" -no-optimize -math-int "%s" | FileCheck --check-prefix=RESULT "%s"
+// RUN: %bmc -bound 10 -trace -test-harness="%t5.bc" "%s" | FileCheck --check-prefix=RESULT "%s"
+// RUN: %bmc -bound 10 -trace -test-harness="%t6.bc" -math-int "%s" | FileCheck --check-prefix=RESULT "%s"
 
 // RUN: %check-cex "%s" "%t1.bc" "%errors" | FileCheck --check-prefix=LLI "%s"
 // RUN: %check-cex "%s" "%t2.bc" "%errors" | FileCheck --check-prefix=LLI "%s"
 // RUN: %check-cex "%s" "%t3.bc" "%errors" | FileCheck --check-prefix=LLI "%s"
 // RUN: %check-cex "%s" "%t4.bc" "%errors" | FileCheck --check-prefix=LLI "%s"
+// RUN: %check-cex "%s" "%t5.bc" "%errors" | FileCheck --check-prefix=LLI "%s"
+// RUN: %check-cex "%s" "%t6.bc" "%errors" | FileCheck --check-prefix=LLI "%s"
 
 // RESULT: Verification FAILED
 

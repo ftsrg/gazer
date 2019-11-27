@@ -64,11 +64,14 @@ MemoryObject* MemorySSABuilder::createMemoryObject(
 
 memory::LiveOnEntryDef* MemorySSABuilder::createLiveOnEntryDef(gazer::MemoryObject* object)
 {
+    assert(!object->hasEntryDef() && "Attempting to insert two entry definitions for a single object!");
+
     llvm::BasicBlock* entryBlock = &mFunction.getEntryBlock();
     auto def = new memory::LiveOnEntryDef(object, mVersionNumber++, entryBlock);
     mObjectInfo[object].defBlocks.insert(entryBlock);
     mValueDefs[&mFunction.getEntryBlock()].push_back(def);
     object->addDefinition(def);
+    object->setEntryDef(def);
 
     return def;
 }
@@ -76,11 +79,14 @@ memory::LiveOnEntryDef* MemorySSABuilder::createLiveOnEntryDef(gazer::MemoryObje
 memory::GlobalInitializerDef* MemorySSABuilder::createGlobalInitializerDef(
     gazer::MemoryObject* object, llvm::Value* initializer)
 {
+    assert(!object->hasEntryDef() && "Attempting to insert two entry definitions for a single object!");
+
     llvm::BasicBlock* entryBlock = &mFunction.getEntryBlock();
     auto def = new memory::GlobalInitializerDef(object, mVersionNumber++, entryBlock, initializer);
     mObjectInfo[object].defBlocks.insert(entryBlock);
     mValueDefs[&mFunction.getEntryBlock()].push_back(def);
     object->addDefinition(def);
+    object->setEntryDef(def);
 
     return def;
 }
@@ -137,9 +143,11 @@ memory::CallUse* MemorySSABuilder::createCallUse(MemoryObject* object, llvm::Cal
 
 memory::RetUse* MemorySSABuilder::createReturnUse(MemoryObject* object, llvm::ReturnInst& ret)
 {
+    assert(!object->hasExitUse() && "Attempting to add a duplicate exit use!");
     auto use = new memory::RetUse(object, ret);
     mValueUses[&ret].push_back(use);
     object->addUse(use);
+    object->setExitUse(use);
 
     return use;
 }

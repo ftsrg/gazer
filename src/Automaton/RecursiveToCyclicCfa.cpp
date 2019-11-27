@@ -114,23 +114,25 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
     
     // Clone input variables as well; we will insert an assign transition
     // with the initial values later.
-    for (size_t i = 0; i < callee->getNumInputs(); ++i) {
-        Variable* input = callee->getInput(i);
-        if (!callee->isOutput(input)) {
-            auto varname = (input->getName() + suffix).str();
-            auto newInput = mRoot->createLocal(varname, input->getType());
-            oldVarToNew[input] = newInput;
-            mInlinedVariables[newInput] = input;
-            rewrite[input] = newInput->getRefExpr();
+    for (Variable& input : callee->inputs()) {
+        if (!callee->isOutput(&input)) {
+            auto varname = (input.getName() + suffix).str();
+            auto newInput = mRoot->createLocal(varname, input.getType());
+            oldVarToNew[&input] = newInput;
+            mInlinedVariables[newInput] = &input;
+            //rewrite[input] = call->getInputArgument(i);
+            rewrite[&input] = newInput->getRefExpr();
         }
     }
 
-    for (size_t i = 0; i < callee->getNumOutputs(); ++i) {
-        Variable* output = callee->getOutput(i);
-        auto newOutput = call->getOutputArgument(i).getVariable();
-        oldVarToNew[output] = newOutput;
-        mInlinedVariables[newOutput] = output;
-        rewrite[output] = newOutput->getRefExpr();
+    for (Variable& output : callee->outputs()) {
+        auto argument = call->getOutputArgument(output);
+        assert(argument.has_value() && "Every callee output should be assigned in a call transition!");
+
+        auto newOutput = argument->getVariable();
+        oldVarToNew[&output] = newOutput;
+        mInlinedVariables[newOutput] = &output;
+        rewrite[&output] = newOutput->getRefExpr();
     }
 
     // Insert all locations

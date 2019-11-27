@@ -421,10 +421,6 @@ protected:
 public:
     static ExprRef<ArrayWriteExpr> Create(ExprPtr array, ExprPtr index, ExprPtr value);
 
-    ExprRef<VarRefExpr> getArrayRef() const {
-        return llvm::cast<VarRefExpr>(getOperand(0));
-    }
-
     ExprPtr getIndex() const { return getOperand(1); }
     ExprPtr getElementValue() const { return getOperand(2); }
 

@@ -267,6 +267,14 @@ public:
     virtual ExprPtr Select(const ExprPtr& condition, const ExprPtr& then, const ExprPtr& elze) {
         return SelectExpr::Create(condition, then, elze);
     }
+
+    virtual ExprPtr Write(const ExprPtr& array, const ExprPtr& index, const ExprPtr& value) {
+        return ArrayWriteExpr::Create(array, index, value);
+    }
+
+    virtual ExprPtr Read(const ExprPtr& array, const ExprPtr& index) {
+        return ArrayReadExpr::Create(array, index);
+    }
 private:
     GazerContext& mContext;
 };
