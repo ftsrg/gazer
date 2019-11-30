@@ -103,7 +103,6 @@ Variable* VariableDeclExtensionPoint::createPhiInput(ValueOrMemoryObject val, Ty
     Cfa* cfa = mGenInfo.Automaton;
 
     std::string name = val.hasName() ? val.getName() + suffix : "_" + suffix;
-    llvm::errs() << "Name is " << name << "\n";
     Variable* variable = cfa->createInput(name, type);
     mGenInfo.addPhiInput(val, variable);
 
@@ -116,7 +115,22 @@ void VariableDeclExtensionPoint::markOutput(ValueOrMemoryObject val, Variable* v
     mGenInfo.Outputs[val] = variable;
 }
 
-Variable* GenerationStepExtensionPoint::getVariableFor(ValueOrMemoryObject val)
+Variable* AutomatonInterfaceExtensionPoint::getInputVariableFor(ValueOrMemoryObject val)
+{
+    return mGenInfo.findInput(val);
+}
+
+Variable* AutomatonInterfaceExtensionPoint::getOutputVariableFor(ValueOrMemoryObject val)
+{
+    return mGenInfo.findOutput(val);
+}
+
+Variable* AutomatonInterfaceExtensionPoint::getVariableFor(ValueOrMemoryObject val)
 {
     return mGenInfo.findVariable(val);
+}
+
+Variable* GenerationStepExtensionPoint::createAuxiliaryVariable(const std::string& name, Type& type)
+{
+    return mGenInfo.Automaton->createLocal(name, type);
 }

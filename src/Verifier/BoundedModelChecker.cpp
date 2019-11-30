@@ -29,6 +29,8 @@
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/Debug.h>
 
+#include <boost/dynamic_bitset.hpp>
+
 #include <sstream>
 
 #define DEBUG_TYPE "BoundedModelChecker"
@@ -582,47 +584,68 @@ ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Loc
 
 Location* BoundedModelCheckerImpl::findCommonCallAncestor()
 {
+    // Calculate the closest common dominator for all call nodes
     if (mCalls.empty()) {
-        // There is no common call ancestor as no calls are present in the graph.
+        // There is no suitable ancestor as no calls are present in the graph.
         return nullptr;
     }
 
-    auto start = std::min_element(mCalls.begin(), mCalls.end(), [this](auto& a, auto& b) {
+    auto end = std::max_element(mCalls.begin(), mCalls.end(), [this](auto& a, auto& b) {
         return mLocNumbers[a.first->getSource()] < mLocNumbers[b.first->getSource()];
     });
 
-    size_t firstIdx = mLocNumbers[start->first->getSource()];
+    size_t lastIdx = mLocNumbers[end->first->getTarget()];
 
-    std::set<Location*> candidates;
-    candidates.insert(mTopo.begin(), std::next(mTopo.begin(), firstIdx));
+    // We will calculate dominators in one go, exploiting that the graph is guaranteed to be
+    // a DAG and that we already have the topological sort. We will use the standard definition:
+    //      Dom(n_0) = { n_0 }
+    //      Dom(n) = Union({ n }, Intersect({ p in pred(n): Dom(p) }))
+    // To represent the Dom sets for each node n, we will use a bitset, where a bit i is set if
+    // topo[i] dominates n.
+    std::vector<boost::dynamic_bitset<>> dominators(lastIdx, boost::dynamic_bitset(lastIdx));
+    llvm::DenseSet<Location*> candidates;
 
-    for (auto& entry : mCalls) {
-        CallTransition* call = entry.first;
-        llvm::df_iterator_default_set<Location*, 32> visited;
+    // The entry node always dominates itself.
+    dominators[0][0] = true;
+    for (size_t i = 1; i < lastIdx; ++i) {
+        Location* loc = mTopo[i];
+        
+        boost::dynamic_bitset<> bs(lastIdx);
+        bs.set();
+        for (Transition* edge : loc->incoming()) {
+            auto predIt = mLocNumbers.find(edge->getSource());
+            assert(predIt != mLocNumbers.end()
+                && "All locations must be present in the location map");
 
-        auto begin = llvm::idf_ext_begin(call->getSource(), visited);
-        auto end = llvm::idf_ext_end(call->getSource(), visited);
+            size_t predIdx = predIt->second;
+            assert(predIdx < i
+                && "Predecessors must be before node in a topological sort. "
+                "Maybe there is a loop in the automaton?");
 
-        // Perform the DFS by iterating through the df_iterator
-        while (begin != end) {
-            ++begin;
+            bs = bs & dominators[predIdx];
         }
+        bs[i] = true;
+        dominators[i] = bs;
+    }
 
-        // Remove ancestors which were not visited by the DFS
-        auto it = candidates.begin(), ie = candidates.end();
-        while (it != ie) {
-            auto j = it++;
-            if (visited.count(*j) == 0) {
-                candidates.erase(j);
-            }
+    // Now that we have the dominators, find the common dominators for the calls
+    boost::dynamic_bitset<> callDominators(lastIdx);
+    callDominators.set();
+    for (auto& [call, info] : mCalls) {
+        size_t idx = mLocNumbers[call->getSource()];
+        callDominators = callDominators & dominators[idx];
+    }
+
+    // Find the highest set bit
+    size_t commonDominatorIndex = 0;
+    for (size_t i = callDominators.size() - 1; i > 0; --i) {
+        if (callDominators[i]) {
+            commonDominatorIndex = i;
+            break;
         }
     }
 
-    assert(!candidates.empty() && "There must be at least one valid candidate (the entry node)!");
-
-    return *std::max_element(candidates.begin(), candidates.end(),  [this](Location* a, Location* b) {
-        return mLocNumbers[a] < mLocNumbers[b];
-    });
+    return mTopo[commonDominatorIndex];
 }
 
 void BoundedModelCheckerImpl::findOpenCallsInCex(Valuation& model, llvm::SmallVectorImpl<CallTransition*>& callsInCex)

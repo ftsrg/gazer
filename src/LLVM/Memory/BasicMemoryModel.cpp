@@ -25,13 +25,15 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/InstIterator.h>
 
+#include <boost/container_hash/hash.hpp>
+
 using namespace gazer;
 using namespace gazer::memory;
 
 namespace
 {
 
-class BasicMemoryModel : public MemoryModel
+class CallParamScope
 {
     enum ScopeKind
     {
@@ -39,45 +41,66 @@ class BasicMemoryModel : public MemoryModel
         Scope_Global,
         Scope_PtrArgument,
     };
+public:
+    CallParamScope()
+        : mScope(Scope_Unknown), mSource(nullptr)
+    {}
 
-    class CallParamScope
+    explicit CallParamScope(llvm::GlobalVariable* gv)
+        : mScope(Scope_Global), mSource(gv)
+    {}
+
+    explicit CallParamScope(llvm::Argument* arg)
+        : mScope(Scope_PtrArgument), mSource(arg)
+    {}
+
+    llvm::GlobalVariable* getGlobalVariableSource() const {
+        if (mScope == Scope_Global) {
+            return std::get<llvm::GlobalVariable*>(mSource);
+        }
+
+        return nullptr;
+    }
+    llvm::Argument* getArgumentSource() const {
+        if (mScope == Scope_PtrArgument) {
+            return std::get<llvm::Argument*>(mSource);
+        }
+
+        return nullptr;
+    }
+
+    bool operator==(const CallParamScope& rhs) const {
+        return mScope == rhs.mScope && mSource == rhs.mSource;
+    }
+
+    size_t getHashCode() const {
+        return std::hash<decltype(mSource)>{}(mSource);
+    }
+
+private:
+    ScopeKind mScope;
+    std::variant<std::nullptr_t, llvm::GlobalVariable*, llvm::Argument*> mSource;
+};
+
+struct CallParamScopeHash
+{
+    std::size_t operator()(const CallParamScope& scope) const { return scope.getHashCode(); }
+};
+
+class BasicMemoryModel : public MemoryModel
+{
+    struct MemoryObjectFormalParamMapping
     {
-    public:
-        CallParamScope()
-            : mScope(Scope_Unknown), mSource(nullptr)
-        {}
+        CallParamScope scope;
+        MemoryObjectDef* entryDef;
+        MemoryObjectUse* exitUse;
+    };
 
-        explicit CallParamScope(llvm::GlobalVariable* gv)
-            : mScope(Scope_Global), mSource(gv)
-        {}
-
-        explicit CallParamScope(llvm::Argument* arg)
-            : mScope(Scope_PtrArgument), mSource(arg)
-        {}
-
-        ScopeKind getScope() const { return mScope; }
-        llvm::GlobalVariable* getGlobalVariableSource() const {
-            if (mScope == Scope_Global) {
-                return std::get<llvm::GlobalVariable*>(mSource);
-            }
-
-            return nullptr;
-        }
-        llvm::Argument* getArgumentSource() const {
-            if (mScope == Scope_PtrArgument) {
-                return std::get<llvm::Argument*>(mSource);
-            }
-
-            return nullptr;
-        }
-
-        bool operator==(const CallParamScope& rhs) const {
-            return mScope == rhs.mScope && mSource == rhs.mSource;
-        }
-
-    private:
-        ScopeKind mScope;
-        std::variant<std::nullptr_t, llvm::GlobalVariable*, llvm::Argument*> mSource;
+    struct MemoryObjectActualParamMapping
+    {
+        CallParamScope scope;
+        llvm::SmallVector<memory::CallUse*, 1> inputCandidates;
+        llvm::SmallVector<memory::CallDef*, 1> outputCandidates;
     };
 
     struct FunctionMemoryInfo
@@ -87,6 +110,11 @@ class BasicMemoryModel : public MemoryModel
         llvm::DenseMap<memory::LiveOnEntryDef*, CallParamScope> EntryDefs;
         llvm::DenseMap<memory::CallUse*, CallParamScope> CallUses;
         llvm::DenseMap<memory::CallDef*, CallParamScope> CallDefs;
+        std::unordered_map<CallParamScope, MemoryObjectFormalParamMapping, CallParamScopeHash> FormalParams;
+        llvm::DenseMap<
+            llvm::CallSite,
+            std::unordered_map<CallParamScope, MemoryObjectActualParamMapping, CallParamScopeHash>
+        > ActualParams;
 
         void addObject(llvm::Value* source, MemoryObject* object)
         {
@@ -111,10 +139,11 @@ public:
 
     void handleCall(
         llvm::ImmutableCallSite call,
-        const llvm::SmallVectorImpl<memory::CallUse*>& useAnnotations,
-        const llvm::SmallVectorImpl<memory::CallDef*>& defAnnotations,
-        llvm::SmallVectorImpl<CallParam>& inputParams,
-        llvm::SmallVectorImpl<CallParam>& outputParams
+        llvm2cfa::GenerationStepExtensionPoint& callerEp,
+        llvm2cfa::AutomatonInterfaceExtensionPoint& calleeEp,
+        std::vector<VariableAssignment>& inputAssignments,
+        std::vector<VariableAssignment>& outputAssignments,
+        std::vector<VariableAssignment>& additionalAssignments
     ) override;
 
     void handleBlock(const llvm::BasicBlock& bb, llvm2cfa::GenerationStepExtensionPoint& ep) override;
@@ -167,6 +196,28 @@ private:
         return IntLiteralExpr::Get(IntType::Get(mContext), object->getId());
     }
 
+    template<class Iterator>
+    ExprPtr disambiguatePointerDefs(
+        Iterator begin, Iterator end, ExprPtr pointer, llvm2cfa::GenerationStepExtensionPoint& ep
+    ) {
+        assert(begin != end && "Must pass a non-empty range!");
+        ExprPtr expr = UndefExpr::Get(ep.getVariableFor(*begin)->getType());
+
+        for (auto it = begin; it != end; ++it) {
+            MemoryObjectDef* def = *it;
+            Variable* defVariable = ep.getVariableFor(def);
+            assert(defVariable != nullptr && "Each memory object definition should map to a variable in the CFA!");
+
+            expr = SelectExpr::Create(
+                EqExpr::Create(pointer, ptrForMemoryObject(def->getObject())),
+                ep.getAsOperand(def),
+                expr
+            );
+        }
+
+        return expr;
+    }
+
 private:
     llvm::DenseMap<const llvm::Function*, FunctionMemoryInfo> mFunctions;
     unsigned mId = 0;
@@ -199,6 +250,34 @@ MemoryObject* BasicMemoryModel::trackPointerToMemoryObject(FunctionMemoryInfo& f
 void BasicMemoryModel::flattenType(llvm::Type* type, llvm::SmallVectorImpl<llvm::Type*>& flattened)
 {
     // TODO
+}
+
+static inline memory::CallDef* getOrCreateCallDefFor(
+    MemorySSABuilder& builder, MemoryObject* object,
+    llvm::CallSite call, llvm::SmallDenseMap<MemoryObject*, memory::CallDef*, 4>& defMap
+) {
+    if (auto callDef = defMap.lookup(object)) {
+        return callDef;
+    }
+
+    auto def = builder.createCallDef(object, call);
+    defMap[object] = def;
+
+    return def;
+}
+
+static inline memory::CallUse* getOrCreateCallUseFor(
+    MemorySSABuilder& builder, MemoryObject* object,
+    llvm::CallSite call, llvm::SmallDenseMap<MemoryObject*, memory::CallUse*, 4>& useMap
+) {
+    if (auto callUse = useMap.lookup(object)) {
+        return callUse;
+    }
+
+    auto use = builder.createCallUse(object, call);
+    useMap[object] = use;
+
+    return use;
 }
 
 void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABuilder& builder)
@@ -244,7 +323,9 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
             );
         } else {
             memory::LiveOnEntryDef* liveOnEntry = builder.createLiveOnEntryDef(object);
-            currentObjects.EntryDefs[liveOnEntry] = CallParamScope(&gv);
+            CallParamScope scope(&gv);
+            currentObjects.EntryDefs[liveOnEntry] = scope;
+            currentObjects.FormalParams[scope].entryDef = liveOnEntry;
         }
         currentObjects.addObject(&gv, object);
         allocSites.insert(&gv);
@@ -264,7 +345,9 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
             );
 
             memory::LiveOnEntryDef* liveOnEntry = builder.createLiveOnEntryDef(object);
-            currentObjects.EntryDefs[liveOnEntry] = CallParamScope(&arg);
+            CallParamScope scope(&arg);
+            currentObjects.EntryDefs[liveOnEntry] = scope;
+            currentObjects.FormalParams[scope].entryDef = liveOnEntry;
             currentObjects.addObject(&arg, object);
             allocSites.insert(&arg);
         }
@@ -315,7 +398,7 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
             llvm::Function* callee = call->getCalledFunction();
 
             if (callee == nullptr) {
-                // TODO
+                // TODO: Indirect calls.
             }
 
             if (callee->getName().startswith("gazer.") || callee->getName().startswith("llvm.")) {
@@ -323,54 +406,48 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
                 continue;
             }
 
-            llvm::SmallVector<std::pair<MemoryObject*, CallParamScope>, 8> definedObjects;
-            llvm::SmallVector<std::pair<MemoryObject*, CallParamScope>, 8> usedObjects;
+            auto& paramsMapping = currentObjects.ActualParams[call];
+
+            llvm::SmallDenseMap<MemoryObject*, memory::CallDef*, 4> defSet;
+            llvm::SmallDenseMap<MemoryObject*, memory::CallUse*, 4> useSet;
 
             for (unsigned i = 0; i < callee->arg_size(); ++i) {
                 llvm::Argument* formalArg = &*(std::next(callee->arg_begin(), i));
-                llvm::Value* arg = call->getArgOperand(i);
-                if (arg->getType()->isPointerTy()) {
-                    MemoryObject* object = trackPointerToMemoryObject(currentObjects, arg);
-                    if (object == nullptr) {
+                if (formalArg->getType()->isPointerTy()) {
+                    CallParamScope scope(formalArg);
+                    llvm::Value* arg = call->getArgOperand(i);
+                    MemoryObject* trackedObject = trackPointerToMemoryObject(currentObjects, arg);
+                    if (trackedObject == nullptr) {
                         // The memory object could not be resolved, we have to clobber all of them.
-                        for (auto& entry : currentObjects.Objects) {
-                            definedObjects.emplace_back(entry.second, CallParamScope());
-                            //usedObjects.emplace_back(entry.second, CallParamScope());
+                        for (auto& [val, obj] : currentObjects.Objects) {
+                            memory::CallDef* def = getOrCreateCallDefFor(builder, obj, call, defSet);
+                            memory::CallUse* use = getOrCreateCallUseFor(builder, obj, call, useSet);
+                            paramsMapping[scope].outputCandidates.push_back(def);
+                            paramsMapping[scope].inputCandidates.push_back(use);
                         }
-                        break;
                     } else {
-                        definedObjects.emplace_back(object, CallParamScope(formalArg));
-                        usedObjects.emplace_back(object, CallParamScope(formalArg));
+                        memory::CallDef* def = getOrCreateCallDefFor(builder, trackedObject, call, defSet);
+                        memory::CallUse* use = getOrCreateCallUseFor(builder, trackedObject, call, useSet);
+                        paramsMapping[scope].outputCandidates.push_back(def);
+                        paramsMapping[scope].inputCandidates.push_back(use);
                     }
                 }
             }
 
+            // Currently we assume that function declarations which return a value do not modify
+            // global variables.
+            // FIXME: We should make this configurable.
             if (!callee->isDeclaration() || callee->getReturnType()->isVoidTy()) {
-                // Currently we assume that function declarations which return a value do not modify
-                // global variables.
-                // TODO: We should make this configurable.
                 for (llvm::GlobalVariable& gv : function.getParent()->globals()) {
                     // Pass global variables to the functions
                     MemoryObject* object = currentObjects.Objects[&gv];
+                    CallParamScope scope(&gv);
 
-                    definedObjects.emplace_back(object, CallParamScope(&gv));
-                    usedObjects.emplace_back(object, CallParamScope(&gv));
+                    memory::CallDef* def = getOrCreateCallDefFor(builder, object, call, defSet);
+                    memory::CallUse* use = getOrCreateCallUseFor(builder, object, call, useSet);
+                    paramsMapping[scope].outputCandidates.push_back(def);
+                    paramsMapping[scope].inputCandidates.push_back(use);
                 }
-            }
-
-            // TODO: These should be updated into a set-like container in the future
-            //       and unique should be dropped
-            std::unique(definedObjects.begin(), definedObjects.end());
-            std::unique(usedObjects.begin(), usedObjects.end());
-
-            for (auto& [object, scope] : definedObjects) {
-                memory::CallDef* def = builder.createCallDef(object, call);
-                currentObjects.CallDefs[def] = scope;
-            }
-
-            for (auto& [object, scope] : usedObjects) {
-                memory::CallUse* use = builder.createCallUse(object, call);
-                currentObjects.CallUses[use] = scope;
             }
         } else if (auto ret = llvm::dyn_cast<llvm::ReturnInst>(&inst)) {
             // A use annotation on a return instruction indicates that the memory object
@@ -379,7 +456,20 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
             // an alloca will be considered alive on return.
             for (auto& [allocation, object] : currentObjects.Objects) {
                 if (object->hasEntryDef() && llvm::isa<memory::LiveOnEntryDef>(object->getEntryDef())) {
-                    builder.createReturnUse(object, *ret);
+                    MemoryObjectDef* def = object->getEntryDef();
+                    MemoryObjectUse* use = builder.createReturnUse(object, *ret);
+
+                    // Find the corresponding formal param
+                    // FIXME: We should probably use a reverse map instead of find_if
+                    auto& formalParams = currentObjects.FormalParams;
+                    auto result = std::find_if(formalParams.begin(), formalParams.end(), [def](auto& entry) {
+                        return entry.second.entryDef == def;
+                    });
+                    assert(result != formalParams.end()
+                        && "A memory object with an entry def must be present in the formal parameters map!");
+
+                    MemoryObjectFormalParamMapping& mapping = result->second;
+                    mapping.exitUse = use;
                 }
             }
         }
@@ -387,54 +477,119 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
 }
 
 void BasicMemoryModel::handleCall(
-    llvm::ImmutableCallSite call,
-    const llvm::SmallVectorImpl<memory::CallUse*>& useAnnotations,
-    const llvm::SmallVectorImpl<memory::CallDef*>& defAnnotations,
-    llvm::SmallVectorImpl<CallParam>& inputParams,
-    llvm::SmallVectorImpl<CallParam>& outputParams
+    llvm::ImmutableCallSite cs,
+    llvm2cfa::GenerationStepExtensionPoint& callerEP,
+    llvm2cfa::AutomatonInterfaceExtensionPoint& targetEP,
+    std::vector<VariableAssignment>& inputAssignments,
+    std::vector<VariableAssignment>& outputAssignments,
+    std::vector<VariableAssignment>& additionalAssignments
 )
 {
+    // FIXME: This is a nasty workaround, needed because ImmutableCallSite does not have
+    //  DenseMapInfo, nor it is possible to implement it ourselves. We should remove
+    //  this as soon as we can use ImmutableCallSite's as DenseMap keys.
+    llvm::CallSite call(const_cast<llvm::Instruction*>(cs.getInstruction()));
     assert(call.getCalledFunction() != nullptr);
 
     FunctionMemoryInfo& callerInfo = mFunctions[call.getParent()->getParent()];
     FunctionMemoryInfo& calleeInfo = mFunctions[call.getCalledFunction()];
+    assert(callerInfo.ActualParams.count(call) != 0);
 
-    // Map the call uses to the input arguments
-    for (memory::CallUse* use : useAnnotations) {
-        auto& callerScope = callerInfo.CallUses[use];
-        llvm::Value* source;
-        if (llvm::Argument* arg = callerScope.getArgumentSource()) {
-            source = arg;
-        } else if (llvm::GlobalVariable* gv = callerScope.getGlobalVariableSource()) {
-            source = gv;
-        } else {
-            // TODO
-            llvm_unreachable("Unsupported call use scope!");
+    // Try to map formal parameters to actual ones.
+
+    // A map which will contain the output auxiliary assignment.
+    // Each element in this map is a [auxVariable, condition] pair.
+    // As an example, if the map contains { [aux1, ptr = tmp1], [aux2, ptr = tmp2] } for
+    // some definition D, then the following aux assignment will be generated:
+    //  D_new := Select(Eq(ptr, tmp), aux1, Select(Eq(ptr, tmp2), aux2, D)
+    llvm::DenseMap<memory::CallDef*, std::vector<std::pair<Variable*, ExprPtr>>> auxAssignments;
+
+    for (auto& [scope, formalMapping] : calleeInfo.FormalParams) {
+        if (callerInfo.ActualParams[call].count(scope) == 0) {
+            continue;
         }
 
-        auto object = calleeInfo.Objects[source];
-        assert(object != nullptr && object->hasEntryDef());
+        MemoryObjectActualParamMapping& actualMapping = callerInfo.ActualParams[call][scope];
+        assert(!actualMapping.inputCandidates.empty());
+        assert(!actualMapping.outputCandidates.empty());
 
-        inputParams.emplace_back(object->getEntryDef(), use->getReachingDef());
+        Variable* inputVar = targetEP.getInputVariableFor(formalMapping.entryDef);
+        ExprPtr actualInput;
+        if (actualMapping.inputCandidates.size() == 1) {
+            MemoryObjectDef* reachingDef = actualMapping.inputCandidates[0]->getReachingDef();
+            actualInput = callerEP.getAsOperand(reachingDef);
+        } else if (llvm::Argument* arg = scope.getArgumentSource()) {
+            assert(arg->getType()->isPointerTy());
+
+            llvm::Value* argOperand = call.getArgument(arg->getArgNo());
+            ExprPtr ptr = callerEP.getAsOperand(argOperand);
+
+            actualInput = UndefExpr::Get(inputVar->getType());
+
+            for (memory::CallUse* candidate : actualMapping.inputCandidates) {
+                MemoryObjectDef* reachingDef = candidate->getReachingDef();
+                actualInput = SelectExpr::Create(
+                    EqExpr::Create(ptr, this->ptrForMemoryObject(reachingDef->getObject())),
+                    callerEP.getAsOperand(reachingDef),
+                    actualInput
+                );
+            }
+        } else {
+            // We could not resolve the memory object, insert an undef expression.
+            actualInput = UndefExpr::Get(inputVar->getType());
+        }
+
+        // Insert the input assignment
+        inputAssignments.emplace_back(inputVar, actualInput);
+
+        // Now handle the outputs
+        MemoryObjectDef* outputDef = formalMapping.exitUse->getReachingDef();
+        Variable* outputVariable = targetEP.getOutputVariableFor(outputDef);
+
+        if (actualMapping.outputCandidates.size() == 1) {
+            MemoryObjectDef* callDef = actualMapping.outputCandidates[0];
+            Variable* definedVariable = callerEP.getVariableFor(callDef);
+            outputAssignments.emplace_back(definedVariable, outputVariable->getRefExpr());
+        } else if (llvm::Argument* arg = scope.getArgumentSource()) {
+            assert(arg->getType()->isPointerTy());
+
+            llvm::Value* argOperand = call.getArgument(arg->getArgNo());
+            ExprPtr ptr = callerEP.getAsOperand(argOperand);
+
+            // We have to be a little tricky here: we introduce a new variable, which
+            // will get the value of whatever comes from the called function. The final
+            // assignment will be on a separate transition, where an additional assignment
+            // will disambiguate based on the pointer value.
+            std::string auxName = "__call_output_"
+                + std::to_string(outputDef->getObject()->getId())
+                + "_" + std::to_string(arg->getArgNo());
+
+            Variable* aux = callerEP.createAuxiliaryVariable(auxName, outputVariable->getType());
+            outputAssignments.emplace_back(aux, outputVariable->getRefExpr());
+
+            actualInput = UndefExpr::Get(inputVar->getType());
+
+            for (memory::CallDef* candidate : actualMapping.outputCandidates) {
+                Variable* definedVariable = callerEP.getVariableFor(candidate);
+
+                auxAssignments[candidate].emplace_back(
+                    aux,
+                    EqExpr::Create(ptr, this->ptrForMemoryObject(candidate->getObject()))
+                );
+            }
+        } else {
+            // We could not resolve the memory object, insert an undef expression.
+            actualInput = UndefExpr::Get(inputVar->getType());
+        }
     }
 
-    // Map the definitions to return uses
-    for (memory::CallDef* def : defAnnotations) {
-        auto& callerScope = callerInfo.CallDefs[def];
-        llvm::Value* source;
-        if (llvm::Argument* arg = callerScope.getArgumentSource()) {
-            source = arg;
-        } else if (llvm::GlobalVariable* gv = callerScope.getGlobalVariableSource()) {
-            source = gv;
-        } else {
-            // TODO
-            llvm_unreachable("Unsupported call use scope!");
+    for (auto& [callDef, vec] : auxAssignments) {
+        ExprPtr expr = callerEP.getAsOperand(callDef->getReachingDef());
+        for (auto& [auxVariable, condition] : vec) {
+            expr = SelectExpr::Create(
+                condition, auxVariable->getRefExpr(), expr
+            );
         }
-
-        auto object = calleeInfo.Objects[source];
-        assert(object != nullptr && object->hasExitUse());
-
-        outputParams.emplace_back(def, object->getExitUse()->getReachingDef());
     }
 }
 

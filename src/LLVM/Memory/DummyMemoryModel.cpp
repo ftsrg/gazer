@@ -53,10 +53,11 @@ public:
 
     virtual void handleCall(
         llvm::ImmutableCallSite call,
-        const llvm::SmallVectorImpl<memory::CallUse*>& useAnnotations,
-        const llvm::SmallVectorImpl<memory::CallDef*>& defAnnotations,
-        llvm::SmallVectorImpl<CallParam>& inputParams,
-        llvm::SmallVectorImpl<CallParam>& outputParams
+        llvm2cfa::GenerationStepExtensionPoint& callerEp,
+        llvm2cfa::AutomatonInterfaceExtensionPoint& calleeEp,
+        std::vector<VariableAssignment>& inputAssignments,
+        std::vector<VariableAssignment>& outputAssignments,
+        std::vector<VariableAssignment>& additionalAssignments
     )  override {};
 
     void handleBlock(const llvm::BasicBlock& bb, llvm2cfa::GenerationStepExtensionPoint& ep) override {}

@@ -109,11 +109,12 @@ void LLVMFrontend::registerVerificationPipeline()
     registerEarlyOptimizations();
 
     // 3) Perform check instrumentation.
+    mPassManager.add(gazer::createNormalizeVerifierCallsPass());
     registerEnabledChecks();
 
     // 4) Inline functions and global variables if requested.
     mPassManager.add(gazer::createMarkFunctionEntriesPass());
-    registerInliningIfEnabled();
+    registerInlining();
 
     // 5) Run assertion lifting.
     if (mSettings.liftAsserts) {
@@ -216,7 +217,7 @@ void LLVMFrontend::registerEnabledChecks()
     mChecks.registerPasses(mPassManager);
 }
 
-void LLVMFrontend::registerInliningIfEnabled()
+void LLVMFrontend::registerInlining()
 {
     if (mSettings.inlineFunctions) {
         // Mark all functions but the main as 'always inline'

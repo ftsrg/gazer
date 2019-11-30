@@ -69,6 +69,9 @@ public:
     FloatRepresentation floats = FloatRepresentation::Fpa;
     bool simplifyExpr = true;
 
+    // Memory models
+    bool debugDumpMemorySSA = false;
+
 public:
     bool isElimVarsOff() const { return elimVars == ElimVarsLevel::Off; }
     bool isElimVarsNormal() const { return elimVars == ElimVarsLevel::Normal; }

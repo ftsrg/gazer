@@ -37,6 +37,7 @@ namespace llvm2cfa
 
 class VariableDeclExtensionPoint;
 class GenerationStepExtensionPoint;
+class AutomatonInterfaceExtensionPoint;
 
 } // end namespace llvm2cfa
 
@@ -99,10 +100,11 @@ public:
     /// Maps the given memory object to a memory object in function.
     virtual void handleCall(
         llvm::ImmutableCallSite call,
-        const llvm::SmallVectorImpl<memory::CallUse*>& useAnnotations,
-        const llvm::SmallVectorImpl<memory::CallDef*>& defAnnotations,
-        llvm::SmallVectorImpl<CallParam>& inputParams,
-        llvm::SmallVectorImpl<CallParam>& outputParams
+        llvm2cfa::GenerationStepExtensionPoint& callerEp,
+        llvm2cfa::AutomatonInterfaceExtensionPoint& calleeEp,
+        std::vector<VariableAssignment>& inputAssignments,
+        std::vector<VariableAssignment>& outputAssignments,
+        std::vector<VariableAssignment>& additionalAssignments
     ) = 0;
 
     virtual ExprPtr handleGetElementPtr(const llvm::GEPOperator& gep) = 0;

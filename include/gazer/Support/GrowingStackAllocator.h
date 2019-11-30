@@ -77,8 +77,7 @@ public:
             slab().Current = (char*) ptr;
         } else {
             // The pointer must be at the end of the previous slab, get that now.
-            Slab& prevSlab = mSlabs[mCurrentSlab - 1];
-            assert(ptrEnd == prevSlab.Current);
+            assert(ptrEnd == mSlabs[mCurrentSlab - 1].Current);
             mCurrentSlab--;
             slab().Current = (char*) ptr;
         }

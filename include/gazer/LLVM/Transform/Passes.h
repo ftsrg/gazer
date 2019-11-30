@@ -31,6 +31,9 @@ llvm::Pass* createInlineGlobalVariablesPass();
 /// into a single one.
 llvm::Pass* createLiftErrorCallsPass();
 
+/// This pass normalizes some known verifier calls into a uniform format.
+llvm::Pass* createNormalizeVerifierCallsPass();
+
 }
 
 #endif

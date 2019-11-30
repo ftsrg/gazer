@@ -95,14 +95,25 @@ public:
     void markOutput(ValueOrMemoryObject val, Variable* variable);
 };
 
-class GenerationStepExtensionPoint : public ExtensionPoint
+/// An extension point which may only query variables from the target automaton.
+class AutomatonInterfaceExtensionPoint : public ExtensionPoint
 {
 public:
-    explicit GenerationStepExtensionPoint(CfaGenInfo& genInfo)
+    explicit AutomatonInterfaceExtensionPoint(CfaGenInfo& genInfo)
         : ExtensionPoint(genInfo)
     {}
 
     Variable* getVariableFor(ValueOrMemoryObject val);
+    Variable* getInputVariableFor(ValueOrMemoryObject val);
+    Variable* getOutputVariableFor(ValueOrMemoryObject val);
+};
+
+class GenerationStepExtensionPoint : public AutomatonInterfaceExtensionPoint
+{
+public:
+    using AutomatonInterfaceExtensionPoint::AutomatonInterfaceExtensionPoint;
+
+    Variable* createAuxiliaryVariable(const std::string& name, Type& type);
 
     virtual ExprPtr getAsOperand(ValueOrMemoryObject val) = 0;
 
@@ -111,41 +122,6 @@ public:
 };
 
 } // end namespace llvm2cfa
-
-
-
-// Memory instruction handling
-//==------------------------------------------------------------------------==//
-
-/// An interface for translating memory instructions.
-class MemoryInstructionTranslator
-{
-public:
-    explicit MemoryInstructionTranslator(memory::MemorySSA& memSSA)
-        : mMemorySSA(memSSA)
-    {}
-
-    // Variables
-
-    /// Declares all input/output/local variables that should be inserted into \p cfa.
-    virtual void declareProcedureVariables(llvm2cfa::VariableDeclExtensionPoint& extensionPoint) = 0;
-
-    // Types
-    virtual gazer::Type& handlePointerType(const llvm::PointerType* type) = 0;
-    virtual gazer::Type& handleArrayType(const llvm::ArrayType* type) = 0;
-
-    // Definitions
-    virtual void translateStore(
-        memory::StoreDef& def, Variable* variable, ExprPtr valueOperand, ExprPtr pointerOperand) = 0;
-
-    // Uses
-    virtual ExprPtr translateLoad(
-        memory::LoadUse& use, Variable* variable, ExprPtr pointerOperand
-    ) = 0;
-
-private:
-    memory::MemorySSA& mMemorySSA;
-};
 
 // Traceability
 //==------------------------------------------------------------------------==//

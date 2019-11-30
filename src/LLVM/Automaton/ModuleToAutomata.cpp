@@ -313,7 +313,6 @@ void ModuleToCfa::createAutomata()
             mGenCtx.createLoopCfaInfo(nested, loop);
         }
 
-        llvm::errs() << "Creating loop variables.\n";
         for (auto li = loops.rbegin(), le = loops.rend(); li != le; ++li) {
             Loop* loop = *li;
             CfaGenInfo& loopGenInfo = mGenCtx.getLoopCfa(loop);
@@ -480,7 +479,6 @@ void ModuleToCfa::createAutomata()
             visitedBlocks.insert(loop->getBlocks().begin(), loop->getBlocks().end());
         }
 
-        llvm::errs() << "Creating function variables.\n";
         // Now that all loops in this function have been dealt with, translate the function itself.
         CfaGenInfo& genInfo = mGenCtx.createFunctionCfaInfo(cfa, &function);
         VariableDeclExtensionPoint functionVarDecl(genInfo);
@@ -677,6 +675,7 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
 
         std::vector<VariableAssignment> inputs;
         std::vector<VariableAssignment> outputs;
+        std::vector<VariableAssignment> additionalAssignments;
 
         // Insert regular LLVM IR arguments.
         llvm::SmallVector<llvm::Argument*, 4> arguments;
@@ -693,35 +692,8 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
         }
 
         // Insert arguments coming from the memory model.
-        llvm::SmallVector<memory::CallUse*, 4> callUses;
-        llvm::SmallVector<memory::CallDef*, 4> callDefs;
-        memoryAccessOfKind(mMemorySSA->useAnnotationsFor(call), callUses);
-        memoryAccessOfKind(mMemorySSA->definitionAnnotationsFor(call), callDefs);
-
-        // We enforce that the final argument list must have the same size as the called CFA,
-        // and do not leave this up to the memory model. If this assertion fails, the used
-        // memory model should be considered faulty.
-        assert(callUses.size() + arguments.size() == calledCfa->getNumInputs());
-
-        llvm::SmallVector<MemoryModel::CallParam, 4> callInputs;
-        llvm::SmallVector<MemoryModel::CallParam, 4> callOutputs;
-        mMemoryModel.handleCall(call, callUses, callDefs, callInputs, callOutputs);
-
-        for (auto& param : callInputs) {
-            ExprPtr expr = this->operand(param.actual);
-            Variable* input = calledAutomatonInfo.findInput(param.formal);
-            assert(input != nullptr && "Defined memory objects should be present as procedure inputs!");
-
-            inputs.emplace_back(input, expr);
-        }
-
-        for (auto& param : callOutputs) {
-            Variable* output = calledAutomatonInfo.findOutput(param.actual);
-            Variable* variable = getVariable(param.formal);
-            assert(variable != nullptr && output != nullptr && "Defined memory objects should be present as procedure outputs!");
-
-            outputs.emplace_back(variable, output->getRefExpr());
-        }
+        AutomatonInterfaceExtensionPoint calleeEP(calledAutomatonInfo);
+        mMemoryModel.handleCall(call, *this, calleeEP, inputs, outputs, additionalAssignments);
 
         if (!callee->getReturnType()->isVoidTy()) {
             Variable* variable = getVariable(call);
@@ -747,7 +719,7 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
         ExprPtr errorCodeExpr = operand(arg);
 
         mCfa->addErrorCode(exit, errorCodeExpr);
-    } else if (callee->getName() == "llvm.assume") {
+    } else if (callee->getName() == "llvm.assume" || callee->getName() == "verifier.assume") {
         // Assumptions will split the current transition and insert a new assign transition,
         // with the guard being the assumption.
         llvm::Value* arg = call->getArgOperand(0);

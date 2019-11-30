@@ -60,6 +60,12 @@ namespace
         cl::cat(IrToCfaCategory)
     );
 
+    // Memory models
+    cl::opt<bool> DebugDumpMemorySSA(
+        "dump-memssa", cl::desc("Dump the built MemorySSA information to stderr"),
+        cl::cat(IrToCfaCategory)
+    );
+
     // Traceability options
     cl::opt<bool> PrintTrace(
         "trace",
@@ -91,6 +97,8 @@ LLVMFrontendSettings LLVMFrontendSettings::initFromCommandLine()
     } else {
         settings.ints = IntRepresentation::BitVectors;
     }
+
+    settings.debugDumpMemorySSA = DebugDumpMemorySSA;
 
     settings.trace = PrintTrace;
     settings.testHarnessFile = TestHarnessFile;

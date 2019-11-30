@@ -2,6 +2,7 @@ set(SOURCE_FILES
     Transform/InlineGlobalVariablesPass.cpp
     Transform/UndefToNondet.cpp
     Transform/LiftErrorsPass.cpp
+    Transform/NormalizeVerifierCalls.cpp
     Instrumentation/MarkFunctionEntries.cpp
     Instrumentation/Check.cpp
     Instrumentation/DefaultChecks.cpp

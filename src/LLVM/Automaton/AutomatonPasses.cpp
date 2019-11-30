@@ -73,6 +73,17 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
         return getAnalysis<llvm::DominatorTreeWrapperPass>(function).getDomTree();
     });
 
+    if (mSettings.debugDumpMemorySSA) {
+        for (auto& function : module.functions()) {
+            if (function.isDeclaration()) {
+                continue;
+            }
+
+            auto memSSA = memoryModel->getFunctionMemorySSA(function);
+            memSSA->print(llvm::errs());
+        }
+    }
+
     mSystem = translateModuleToAutomata(
         module, mSettings, loopInfoMap, mContext, *memoryModel, mVariables, mTraceInfo
     );

@@ -1,9 +1,13 @@
 // XFAIL: memory
 // RUN: %bmc -bound 1 "%s" | FileCheck "%s"
+// RUN: %bmc -bound 1 -math-int "%s" | FileCheck "%s"
 
 // CHECK: Verification SUCCESSFUL
+#include <limits.h>
+
 int __VERIFIER_nondet_int(void);
 void __VERIFIER_error(void) __attribute__((__noreturn__));
+void __VERIFIER_assume(int expression);
 
 int b = 1;
 int c = 2;
@@ -11,6 +15,7 @@ int c = 2;
 int main(void)
 {
     int a = __VERIFIER_nondet_int();
+    int d = 3;
     int* ptr;
 
     if (a == 0) {
@@ -19,7 +24,7 @@ int main(void)
         ptr = &c;
     }
 
-    if (*ptr > a) {
+    if (*ptr > d) {
         __VERIFIER_error();
     }
 

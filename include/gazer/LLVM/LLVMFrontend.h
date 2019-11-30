@@ -80,7 +80,7 @@ private:
     void registerEnabledChecks();
     void registerEarlyOptimizations();
     void registerLateOptimizations();
-    void registerInliningIfEnabled();
+    void registerInlining();
 
 private:
     GazerContext& mContext;
