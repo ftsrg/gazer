@@ -45,13 +45,15 @@ public:
     struct FunctionInfo
     {
         std::vector<llvm::CallInst*> selfFails;
-        std::vector<llvm::CallInst*> mayFailCalls;
+        std::vector<llvm::CallSite> mayFailCalls;
         llvm::PHINode* uniqueErrorPhi = nullptr;
         llvm::CallInst* uniqueErrorCall = nullptr;
 
         llvm::Function* alwaysFailClone = nullptr;
+        llvm::BasicBlock* failCopyEntry = nullptr;
+        std::vector<llvm::PHINode*> failCopyArgumentPHIs;
+        
         llvm::PHINode* failCloneErrorPhi = nullptr;
-        std::vector<llvm::CallInst*> mayFailCallsInClone;
 
         bool canFail() const
         { return !selfFails.empty() || !mayFailCalls.empty(); }
@@ -67,14 +69,16 @@ public:
 
 private:
     void combineErrorsInFunction(llvm::Function* function, FunctionInfo& info);
-    void splitMayFailCallsInFunction(llvm::Function* function, llvm::PHINode* errorPhi, std::vector<llvm::CallInst*>& calls);
-    llvm::FunctionCallee getDummyBoolFunc() {
+    
+    llvm::FunctionCallee getDummyBoolFunc()
+    {
         return mModule.getOrInsertFunction("gazer.dummy_nondet.i1", llvm::FunctionType::get(
             llvm::Type::getInt1Ty(mModule.getContext()), /*isVarArg=*/false
         ));
     }
 
-    llvm::FunctionCallee getDummyVoidFunc() {
+    llvm::FunctionCallee getDummyVoidFunc()
+    {
         return mModule.getOrInsertFunction(
             "gazer.dummy.void",
             llvm::FunctionType::get(llvm::Type::getVoidTy(mModule.getContext()), false)
@@ -148,39 +152,6 @@ void LiftErrorCalls::combineErrorsInFunction(llvm::Function* function, FunctionI
     info.uniqueErrorCall = err;
 }
 
-void LiftErrorCalls::splitMayFailCallsInFunction(
-    llvm::Function* function,
-    llvm::PHINode* errorPhi,
-    std::vector<llvm::CallInst*>& calls
-) {
-    for (llvm::CallInst* call : calls) {
-        // Split the block for each call, create a nondet branch.
-        llvm::BasicBlock* origBlock = call->getParent();
-        llvm::BasicBlock* successBlock = llvm::SplitBlock(origBlock, call);
-        llvm::BasicBlock* errorBlock = llvm::BasicBlock::Create(mModule.getContext(), "", function);
-
-        // Create the nondetermistic branch between the success and error.
-        origBlock->getTerminator()->eraseFromParent();
-        mBuilder.SetInsertPoint(origBlock);
-
-        auto dummyCall = mBuilder.CreateCall(getDummyBoolFunc());
-        mBuilder.CreateCondBr(dummyCall, errorBlock, successBlock);
-
-        // Add the failing call to 'errorBlock'.
-        auto clone = mInfos[call->getCalledFunction()].alwaysFailClone;
-        assert(clone != nullptr && "A failing function must have a failing clone!");
-        std::vector<llvm::Value*> callArgs(call->arg_begin(), call->arg_end());
-
-        mBuilder.SetInsertPoint(errorBlock);
-        auto errorCall = mBuilder.CreateCall(llvm::FunctionCallee(clone), callArgs);
-
-        // Terminate the error call block with a branch to the unique error block.
-        // Add the returned error code to the PHI node.
-        mBuilder.CreateBr(errorPhi->getParent());
-        errorPhi->addIncoming(errorCall, errorBlock);
-    }
-}
-
 bool LiftErrorCalls::run()
 {
     llvm::Function* main = mModule.getFunction("main");
@@ -233,43 +204,41 @@ bool LiftErrorCalls::run()
     // Transform intraprocedurally: create a single, unique error call for
     // each function that may fail. Previous error calls will point to
     // this single error location afterwards.
-    for (auto& entry : mInfos) {
-        if (entry.second.canFail()) {
-            combineErrorsInFunction(entry.first, entry.second);
+    for (auto& [function, info] : mInfos) {
+        if (info.canFail()) {
+            combineErrorsInFunction(function, info);
         }
     }
 
     // Do the interprocedural transformation.
-    for (auto& entry : mInfos) {
-        llvm::Function* function = entry.first;
-        auto& info = entry.second;
+    std::vector<llvm::CallSite> mayFailCallsInMain = mInfos[main].mayFailCalls;
 
+    // Copy the bodies of the possibly-failing functions into main.
+    for (auto& [function, info] : mInfos) {
         if (function == main || !info.canFail()) {
             continue;
         }
 
-        // We will have two versions of each function: one that always fails, and one that cannot fail.
-        // The failing clone will have the same operand list as the original, but the return type shall
-        // be the error code.
-        auto failFuncTy = llvm::FunctionType::get(
-            getErrorCodeType(), function->getFunctionType()->params(), function->getFunctionType()->isVarArg()
+        llvm::BasicBlock* failEntry = llvm::BasicBlock::Create(
+            function->getContext(), function->getName() + "_fail", main
         );
+        info.failCopyEntry = failEntry;
 
-        auto clone = llvm::Function::Create(
-            failFuncTy, function->getLinkage(), function->getName() + "_fail", &mModule
-        );
-
-        // Perform the cloning.
+        // Create PHI nodes to represent arguments
         llvm::ValueToValueMapTy vmap;
+        info.failCopyArgumentPHIs.resize(function->arg_size());
+        mBuilder.SetInsertPoint(failEntry);
         for (size_t i = 0; i < function->arg_size(); ++i) {
             llvm::Argument& argument = *(function->arg_begin() + i);
-            vmap[&argument] = clone->arg_begin() + i;
+            llvm::PHINode* phi = mBuilder.CreatePHI(argument.getType(), 0, "");
+            info.failCopyArgumentPHIs[i] = phi;
+            vmap[&argument] = phi;
         }
 
         llvm::SmallVector<ReturnInst*, 4> returns;
-        llvm::CloneFunctionInto(clone, function, vmap, true, returns);
+        llvm::CloneFunctionInto(main, function, vmap, true, returns);
 
-        // The cloned function is in a invalid state, as the return type will probably differ from the original.
+        // The cloned function is in a invalid state, as we do not want the return instructions.
         // Replace all returns with unreachable's.
         for (auto ret : returns) {
             llvm::BasicBlock* retBB = ret->getParent();
@@ -281,55 +250,62 @@ bool LiftErrorCalls::run()
             mBuilder.CreateUnreachable();
         }
 
-        // Replace the error call in the unique error block with a return instruction.
+        // Wire the clone of the unique error call to main's error call.
         auto mappedErrorCall = dyn_cast_or_null<CallInst>(vmap[info.uniqueErrorCall]);
-        assert(mappedErrorCall != nullptr && "The error call must map to a call instruction in the cloned function!");
+        assert(mappedErrorCall != nullptr
+            && "The error call must map to a call instruction in the cloned function!");
 
-        llvm::ReplaceInstWithInst(
-            mappedErrorCall->getParent()->getTerminator(),
-            ReturnInst::Create(function->getContext(), mappedErrorCall->getArgOperand(0))
-        );
+        llvm::BasicBlock* mappedErrorBlock = mappedErrorCall->getParent();
+        llvm::Value* errorCodeOperand = mappedErrorCall->getArgOperand(0);
+        llvm::BasicBlock* errorBlockInMain = mInfos[main].uniqueErrorCall->getParent();
+
+        llvm::ReplaceInstWithInst(mappedErrorBlock->getTerminator(), BranchInst::Create(errorBlockInMain));
+        mInfos[main].uniqueErrorPhi->addIncoming(errorCodeOperand, mappedErrorBlock);
 
         mappedErrorCall->dropAllReferences();
         mappedErrorCall->eraseFromParent();
 
-        // Map other important stuff: the error PHI node and the may-fail calls.
-        auto mappedErrorPhi = dyn_cast_or_null<PHINode>(vmap[info.uniqueErrorPhi]);
-        assert(mappedErrorPhi != nullptr && "The error PHI node should be cloned as a PHI node!");
-
-        info.alwaysFailClone = clone;
-        info.failCloneErrorPhi = mappedErrorPhi;
-        info.mayFailCallsInClone.reserve(info.mayFailCalls.size());
-
-        for (auto call : info.mayFailCalls) {
-            info.mayFailCallsInClone.push_back(llvm::cast<CallInst>(vmap[call]));
-        }
-    }
-
-    // Now that we have the functions, do the call transformations.
-    // We want to do this transformation for two kinds of functions:
-    // the always failing clones and the main procedure.
-    for (auto& entry : mInfos) {
-        llvm::Function* function = entry.first;
-        auto& info = entry.second;
-
-        if (function == main || !info.canFail()) {
-            continue;
+        // Add all possible calls into main
+        mayFailCallsInMain.reserve(mayFailCallsInMain.size() + info.mayFailCalls.size());
+        for (auto cs : info.mayFailCalls) {
+            mayFailCallsInMain.push_back(CallSite(vmap[cs.getInstruction()]));
         }
 
-        llvm::Function* clone = info.alwaysFailClone;
-        splitMayFailCallsInFunction(clone, info.failCloneErrorPhi, info.mayFailCallsInClone);
-
-        // Do a little bit of clean-up: remove the error calls from the original function.
+        // Remove the error call from the original function
         info.uniqueErrorCall->dropAllReferences();
         info.uniqueErrorCall->eraseFromParent();
+        info.uniqueErrorPhi->dropAllReferences();
+        info.uniqueErrorPhi->eraseFromParent();
 
-        //function->viewCFG();
-        //clone->viewCFG();
+        BasicBlock* clonedEntry = cast<llvm::BasicBlock>(vmap[&function->getEntryBlock()]);
+        mBuilder.SetInsertPoint(failEntry);
+        mBuilder.CreateBr(clonedEntry);
     }
 
-    // Do the same for main.
-    splitMayFailCallsInFunction(main, mInfos[main].uniqueErrorPhi, mInfos[main].mayFailCalls);
+    for (llvm::CallSite call : mayFailCallsInMain) {
+        assert(call.getCalledFunction() != nullptr);
+        auto& calleeInfo = mInfos[call.getCalledFunction()];
+
+        // Split the block for each call, create a nondet branch.
+        llvm::BasicBlock* origBlock = call->getParent();
+        llvm::BasicBlock* successBlock = llvm::SplitBlock(origBlock, call.getInstruction());
+        llvm::BasicBlock* errorBlock = llvm::BasicBlock::Create(mModule.getContext(), "", main);
+
+        // Create the nondetermistic branch between the success and error.
+        origBlock->getTerminator()->eraseFromParent();
+        mBuilder.SetInsertPoint(origBlock);
+
+        auto dummyCall = mBuilder.CreateCall(getDummyBoolFunc());
+        mBuilder.CreateCondBr(dummyCall, errorBlock, successBlock);
+
+        // Branch to the appropriate basic block
+        mBuilder.SetInsertPoint(errorBlock);
+        mBuilder.CreateBr(calleeInfo.failCopyEntry);
+
+        for (size_t i = 0; i < call.arg_size(); ++i) {
+            calleeInfo.failCopyArgumentPHIs[i]->addIncoming(call.getArgOperand(i), errorBlock);
+        }
+    }
 
     return true;
 }

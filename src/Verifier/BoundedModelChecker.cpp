@@ -158,7 +158,7 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
     for (auto& edge : mRoot->edges()) {
         if (auto call = llvm::dyn_cast<CallTransition>(edge.get())) {
             mCalls[call].overApprox = mExprBuilder.False();
-            mCalls[call].cost = 1;
+            mCalls[call].callChain.push_back(call->getCalledAutomaton());
         }
     }
 
@@ -184,17 +184,15 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
     unsigned tmp = 0;
     for (size_t bound = 0; bound < mSettings.eagerUnroll; ++bound) {
         mOpenCalls.clear();
-        for (auto& entry : mCalls) {
-            CallTransition* call = entry.first;
-            CallInfo& info = entry.second;
-
-            if (info.cost <= bound) {
+        for (auto& [call, info] : mCalls) {
+            if (info.getCost() <= bound) {
                 mOpenCalls.insert(call);
             }
         }
 
+        llvm::SmallVector<CallTransition*, 16> callsToInline;
         for (CallTransition* call : mOpenCalls) {
-            inlineCallIntoRoot(call, mInlinedVariables, "_call" + llvm::Twine(tmp++));
+            inlineCallIntoRoot(call, mInlinedVariables, "_call" + llvm::Twine(tmp++), callsToInline);
             mCalls.erase(call);
         }
     }    
@@ -345,10 +343,11 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
                 CallTransition* call = callPair.first;
                 CallInfo& info = callPair.second;
 
-                if (info.cost > bound) {
+                if (info.getCost() > bound) {
                     LLVM_DEBUG(
                         llvm::dbgs() << "  Skipping " << *call
-                        << ": inline cost is greater than bound (" << info.cost << " > " << bound << ").\n"
+                        << ": inline cost is greater than bound (" <<
+                        info.getCost() << " > " << bound << ").\n"
                     );
                     info.overApprox = mExprBuilder.False();
                     ++numUnhandledCallSites;
@@ -391,16 +390,31 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
                 // We have a counterexample, but it may be spurious.
                 auto model = mSolver->getModel();
 
-                llvm::SmallVector<CallTransition*, 16> callsInCex;
-                this->findOpenCallsInCex(model, callsInCex);
+                llvm::SmallVector<CallTransition*, 16> callsToInline;
+                this->findOpenCallsInCex(model, callsToInline);
 
                 llvm::outs() << "    Inlining calls...\n";
-                for (CallTransition* call : callsInCex) {
+                while (!callsToInline.empty()) {
+                    CallTransition* call = callsToInline.pop_back_val();
+                    llvm::outs() << "      Inlining " << call->getSource()->getId() << " --> "
+                        << call->getTarget()->getId() << " "
+                        << call->getCalledAutomaton()->getName() << "\n";
                     mStats.NumInlined++;
-                    this->inlineCallIntoRoot(call, mInlinedVariables, "_call" + llvm::Twine(tmp++));
+
+                    llvm::SmallVector<CallTransition*, 4> newCalls;
+                    this->inlineCallIntoRoot(
+                        call, mInlinedVariables, "_call" + llvm::Twine(tmp++), newCalls
+                    );
                     mCalls.erase(call);
                     mOpenCalls.erase(call);
+
+                    for (CallTransition* newCall : newCalls) {
+                        if (mCalls[newCall].getCost() <= bound) {
+                            callsToInline.push_back(newCall);
+                        }
+                    }
                 }
+
                 mRoot->clearDisconnectedElements();
 
                 mStats.NumEndLocs = mRoot->getNumLocations();
@@ -668,7 +682,8 @@ void BoundedModelCheckerImpl::findOpenCallsInCex(Valuation& model, llvm::SmallVe
 void BoundedModelCheckerImpl::inlineCallIntoRoot(
     CallTransition* call,
     llvm::DenseMap<Variable*, Variable*>& vmap,
-    const llvm::Twine& suffix
+    const llvm::Twine& suffix,
+    llvm::SmallVectorImpl<CallTransition*>& newCalls
 ) {
     LLVM_DEBUG(
         llvm::dbgs() << " Inlining call " << *call
@@ -808,8 +823,10 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
             );
 
             newEdge = callEdge;
-            mCalls[callEdge].cost = info.cost + 1;
+            mCalls[callEdge].callChain = info.callChain;
+            mCalls[callEdge].callChain.push_back(callEdge->getCalledAutomaton());
             mCalls[callEdge].overApprox = mExprBuilder.False();
+            newCalls.push_back(callEdge);
         } else {
             llvm_unreachable("Unknown transition kind!");
         }

@@ -115,7 +115,11 @@ class BoundedModelCheckerImpl
     struct CallInfo
     {
         ExprPtr overApprox = nullptr;
-        unsigned cost = 0;
+        std::vector<Cfa*> callChain;
+
+        unsigned getCost() const {
+            return std::count(callChain.begin(), callChain.end(), callChain.back());            
+        }
     };
 public:
     struct Stats
@@ -147,7 +151,8 @@ private:
     void inlineCallIntoRoot(
         CallTransition* call,
         llvm::DenseMap<Variable*, Variable*>& vmap,
-        const llvm::Twine& suffix
+        const llvm::Twine& suffix,
+        llvm::SmallVectorImpl<CallTransition*>& newCalls
     );
     
     /// Calculates a the path condition expression between \p source and \p target.
