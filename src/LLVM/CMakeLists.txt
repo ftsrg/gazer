@@ -3,6 +3,7 @@ set(SOURCE_FILES
     Transform/UndefToNondet.cpp
     Transform/LiftErrorsPass.cpp
     Transform/NormalizeVerifierCalls.cpp
+    Transform/BackwardSlicer.cpp
     Instrumentation/MarkFunctionEntries.cpp
     Instrumentation/Check.cpp
     Instrumentation/DefaultChecks.cpp
@@ -23,6 +24,7 @@ set(SOURCE_FILES
     Automaton/AutomatonPasses.cpp
     Automaton/ExtensionPoints.cpp
     Automaton/ValueOrMemoryObject.cpp
+    Analysis/PDG.cpp
 )
 
 llvm_map_components_to_libnames(GAZER_LLVM_LIBS core irreader transformutils scalaropts ipo)

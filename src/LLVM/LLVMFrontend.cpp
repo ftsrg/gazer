@@ -23,6 +23,7 @@
 #include "gazer/LLVM/Transform/UndefToNondet.h"
 #include "gazer/Trace/TraceWriter.h"
 #include "gazer/LLVM/Trace/TestHarnessGenerator.h"
+#include "gazer/LLVM/Transform/BackwardSlicer.h"
 
 #include <llvm/Analysis/BasicAliasAnalysis.h>
 #include <llvm/Analysis/GlobalsModRef.h>
@@ -100,40 +101,55 @@ LLVMFrontend::LLVMFrontend(
 
 void LLVMFrontend::registerVerificationPipeline()
 {
-    // 1) Do basic preprocessing: get rid of alloca's and turn undef's
+    // Do basic preprocessing: get rid of alloca's and turn undef's
     //  into nondet function calls.
     mPassManager.add(llvm::createPromoteMemoryToRegisterPass());
     mPassManager.add(new gazer::UndefToNondetCallPass());
 
-    // 2) Execute early optimization passes.
+    // Execute early optimization passes.
     registerEarlyOptimizations();
 
-    // 3) Perform check instrumentation.
+    // Perform check instrumentation.
     mPassManager.add(gazer::createNormalizeVerifierCallsPass());
     registerEnabledChecks();
 
-    // 4) Inline functions and global variables if requested.
+    // Inline functions and global variables if requested.
     mPassManager.add(gazer::createMarkFunctionEntriesPass());
     registerInlining();
 
-    // 5) Run assertion lifting.
+    // Run assertion lifting.
     if (mSettings.liftAsserts) {
         mPassManager.add(new llvm::CallGraphWrapperPass());
         mPassManager.add(gazer::createLiftErrorCallsPass());
 
-        // Assertion lifting creates a lot of dead code. Run a lightweight DCE pass to clean up.
+        // Assertion lifting creates a lot of dead code. Run a lightweight DCE pass 
+        // and a subsequent CFG simplification to clean up.
         mPassManager.add(llvm::createDeadCodeEliminationPass());
+        mPassManager.add(llvm::createCFGSimplificationPass());
+
+        if (mSettings.slicing) {
+            // Run program slicing
+            mPassManager.add(gazer::createBackwardSlicerPass([](llvm::Instruction* inst) -> bool {
+                if (inst->getParent()->getParent()->getName() != "main") {
+                    return false;
+                }
+
+                if (auto call = llvm::dyn_cast<llvm::CallInst>(inst)) {
+                    Function* callee = call->getCalledFunction();
+                    if (callee != nullptr && callee->getName() == CheckRegistry::ErrorFunctionName) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }));
+        }
     }
 
-    // 6) Execute late optimization passes.
+    // Execute late optimization passes.
     registerLateOptimizations();
 
-    // 7) Create memory models.
-    mPassManager.add(new llvm::BasicAAWrapperPass());
-    mPassManager.add(new llvm::GlobalsAAWrapperPass());
-    mPassManager.add(new llvm::MemorySSAWrapperPass());
-
-    // 8) Do an instruction namer pass.
+    // Do an instruction namer pass.
     mPassManager.add(llvm::createInstructionNamerPass());
 
     // Display the final LLVM CFG now.
@@ -141,10 +157,10 @@ void LLVMFrontend::registerVerificationPipeline()
         mPassManager.add(llvm::createCFGPrinterLegacyPassPass());
     }
 
-    // 9) Perform module-to-automata translation.
+    // Perform module-to-automata translation.
     mPassManager.add(new gazer::ModuleToAutomataPass(mContext, mSettings));
 
-    // 10) Execute the verifier backend if there is one.
+    // Execute the verifier backend if there is one.
     if (mBackendAlgorithm != nullptr) {
         mPassManager.add(new RunVerificationBackendPass(mChecks, *mBackendAlgorithm, mSettings));
     }

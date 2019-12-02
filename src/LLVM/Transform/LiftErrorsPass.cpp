@@ -22,6 +22,7 @@
 //===----------------------------------------------------------------------===//
 #include "gazer/LLVM/Transform/Passes.h"
 #include "gazer/LLVM/Instrumentation/Check.h"
+#include "gazer/LLVM/Transform/BackwardSlicer.h"
 
 #include <llvm/Analysis/CallGraph.h>
 #include <llvm/IR/IRBuilder.h>

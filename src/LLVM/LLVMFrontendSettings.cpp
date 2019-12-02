@@ -41,6 +41,9 @@ namespace
     cl::opt<bool> NoAssertLift(
         "no-assert-lift", cl::desc("Do not lift assertions into the main procedure"), cl::cat(LLVMFrontendCategory)
     );
+    cl::opt<bool> NoSlice(
+        "no-slicing", cl::desc("Do not run program slicing pass"), cl::cat(LLVMFrontendCategory)
+    );
 
     // LLVM IR to CFA translation options
     cl::opt<ElimVarsLevel> ElimVarsLevelOpt("elim-vars", cl::desc("Level for variable elimination:"),
@@ -89,6 +92,7 @@ LLVMFrontendSettings LLVMFrontendSettings::initFromCommandLine()
     settings.inlineGlobals = InlineGlobals;
     settings.optimize = !NoOptimize;
     settings.liftAsserts = !NoAssertLift;
+    settings.slicing =!NoSlice;
     settings.elimVars = ElimVarsLevelOpt;
     settings.simplifyExpr = !NoSimplifyExpr;
 

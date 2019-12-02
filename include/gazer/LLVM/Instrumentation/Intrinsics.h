@@ -31,13 +31,11 @@ namespace gazer
 class GazerIntrinsic
 {
 public:
-    // TODO: This might break some stuff, but the verifier pass only treats intrinsics
-    // having their name start with "llvm." as such.
-    static constexpr char FunctionEntryPrefix[] = "llvm.gazer.function.entry";
-    static constexpr char FunctionReturnVoidName[] = "llvm.gazer.function.return_void";
-    static constexpr char FunctionCallReturnedName[] = "llvm.gazer.function.call_returned";
-    static constexpr char FunctionReturnValuePrefix[] = "llvm.gazer.function.return_value.";
-    static constexpr char InlinedGlobalWriteName[] = "llvm.gazer.inlined_global.write";
+    static constexpr char FunctionEntryPrefix[] = "gazer.function.entry";
+    static constexpr char FunctionReturnVoidName[] = "gazer.function.return_void";
+    static constexpr char FunctionCallReturnedName[] = "gazer.function.call_returned";
+    static constexpr char FunctionReturnValuePrefix[] = "gazer.function.return_value.";
+    static constexpr char InlinedGlobalWriteName[] = "gazer.inlined_global.write";
 
 public:
     static llvm::CallInst* CreateInlinedGlobalWrite(llvm::Value* value, llvm::DIGlobalVariable* gv);

@@ -61,6 +61,7 @@ public:
     bool inlineGlobals = false;
     bool optimize = true;
     bool liftAsserts = true;
+    bool slicing = true;
 
     // IR translation
     ElimVarsLevel elimVars = ElimVarsLevel::Off;

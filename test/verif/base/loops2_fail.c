@@ -10,6 +10,7 @@ int main(void)
     int i = 0;
     int n = __VERIFIER_nondet_int();
     int sum = 0;
+    int prod = 0;
 
     while (i < n) {
         int j = 0;
@@ -19,6 +20,7 @@ int main(void)
             ++j;
         }
         sum = sum + i + x;
+        prod = (prod + i) * x;
         ++i;
     }
 
