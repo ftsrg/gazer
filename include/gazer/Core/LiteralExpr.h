@@ -25,6 +25,8 @@
 
 #include <boost/rational.hpp>
 
+#include <map>
+
 namespace llvm {
     class ConstantData;
 }
@@ -100,6 +102,9 @@ private:
 
 public:
     static ExprRef<IntLiteralExpr> Get(IntType& type, long long int value);
+    static ExprRef<IntLiteralExpr> Get(GazerContext& ctx, long long int value) {
+        return Get(IntType::Get(ctx), value);
+    }
 
 public:
     void print(llvm::raw_ostream& os) const override;
@@ -201,8 +206,8 @@ public:
 
     llvm::APFloat getValue() const { return mValue; }
 
-    const FloatType& getType() const {
-        return static_cast<const FloatType&>(mType);
+    FloatType& getType() const {
+        return static_cast<FloatType&>(mType);
     }
 
     static bool classof(const Expr* expr) {
@@ -215,6 +220,72 @@ public:
 
 private:
     llvm::APFloat mValue;
+};
+
+class ArrayLiteralExpr final : public LiteralExpr
+{
+    friend class ExprStorage;
+public:
+    // We cannot use unordered_map here, as we need to provide
+    // a predictable hash function for this container.
+    using MappingT = std::map<
+        ExprRef<LiteralExpr>,
+        ExprRef<LiteralExpr>
+    >;
+
+    /// Helper class for building array literals
+    class Builder
+    {
+    public:
+        explicit Builder(ArrayType& type)
+            : mType(type)
+        {}
+
+        void addValue(ExprRef<LiteralExpr> index, ExprRef<LiteralExpr> element);
+        void setDefault(const ExprRef<LiteralExpr>& expr);
+
+        ExprRef<ArrayLiteralExpr> build();
+
+    private:
+        ArrayType& mType;
+        MappingT mValues;
+        ExprRef<LiteralExpr> mElse;
+    };
+private:
+    ArrayLiteralExpr(ArrayType& type, MappingT mapping, ExprRef<LiteralExpr> elze)
+        : LiteralExpr(type), mMap(std::move(mapping)), mElse(std::move(elze))
+    {}
+
+public:
+    void print(llvm::raw_ostream& os) const override;
+
+    static ExprRef<ArrayLiteralExpr> Get(
+        ArrayType& type,
+        const MappingT& value,
+        const ExprRef<LiteralExpr>& elze = nullptr
+    );
+
+    ExprRef<LiteralExpr> operator[](const ExprRef<LiteralExpr>& key) const;
+
+    const MappingT& getMap() const { return mMap; }
+
+    bool hasDefault() const { return mElse != nullptr; }
+    ExprRef<LiteralExpr> getDefault() const { return mElse; }
+
+    ArrayType& getType() const {
+        return llvm::cast<ArrayType>(mType);
+    }
+
+    static bool classof(const Expr* expr) {
+        return expr->getKind() == Literal && expr->getType().isArrayType();
+    }
+
+    static bool classof(const Expr& expr) {
+        return expr.getKind() == Literal && expr.getType().isArrayType();
+    }
+private:
+    MappingT mMap;
+    ExprRef<LiteralExpr> mElse;
 };
 
 namespace detail

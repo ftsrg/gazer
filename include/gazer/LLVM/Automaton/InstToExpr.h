@@ -37,10 +37,12 @@ class InstToExpr
 {
 public:
     InstToExpr(
+        llvm::Function& function,
         ExprBuilder& builder,
         MemoryModel& memoryModel,
         LLVMFrontendSettings settings
-    ) : mExprBuilder(builder),
+    ) : mFunction(function),
+        mExprBuilder(builder),
         mContext(builder.getContext()),
         mMemoryModel(memoryModel),
         mSettings(settings)
@@ -95,6 +97,7 @@ private:
     ExprPtr operandMemoryObject(const MemoryObjectDef* def);
 
 protected:
+    llvm::Function& mFunction;
     ExprBuilder& mExprBuilder;
     GazerContext& mContext;
     MemoryModel& mMemoryModel;

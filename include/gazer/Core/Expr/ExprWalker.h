@@ -65,8 +65,10 @@ class ExprWalker
         llvm::SmallVector<ReturnT, 2> mVisitedOps;
 
         Frame(ExprPtr expr, size_t index, Frame* parent)
-            : mExpr(std::move(expr)), mIndex(index),
-            mParent(parent), mVisitedOps(
+            : mExpr(std::move(expr)),
+            mIndex(index),
+            mParent(parent),
+            mVisitedOps(
                 mExpr->isNullary() ? 0 : llvm::cast<NonNullaryExpr>(mExpr)->getNumOperands()
             )
         {}
@@ -399,6 +401,14 @@ public:
     }
 
     ReturnT visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+
+    ReturnT visitTupleSelect(const ExprRef<TupleSelectExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+
+    ReturnT visitTupleConstruct(const ExprRef<TupleConstructExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitNonNullary(expr);
     }
 };

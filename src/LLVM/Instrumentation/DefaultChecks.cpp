@@ -156,10 +156,21 @@ public:
 class SignedIntegerOverflowCheck : public Check
 {
 public:
+    static char ID;
+
+    SignedIntegerOverflowCheck()
+        : Check(ID)
+    {}
+    
+    bool mark(llvm::Function& function) override
+    {
+        return false;
+    }
 };
 
 char DivisionByZeroCheck::ID;
 char AssertionFailCheck::ID;
+char SignedIntegerOverflowCheck::ID;
 
 } // end anonymous namespace
 

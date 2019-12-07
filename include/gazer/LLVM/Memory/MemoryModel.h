@@ -78,7 +78,10 @@ public:
     virtual void declareProcedureVariables(llvm2cfa::VariableDeclExtensionPoint& extensionPoint) = 0;
 
     virtual ExprPtr handlePointerCast(const llvm::CastInst& cast) = 0;
-    virtual ExprPtr handlePointerValue(const llvm::Value* value) = 0;
+
+    /// Handles an arbitrary pointer value.
+    /// The second operand allows function-specific lookups.
+    virtual ExprPtr handlePointerValue(const llvm::Value* value, llvm::Function& parent) = 0;
 
     /// Translates a given memory object definition into an assignment.
     //virtual std::optional<VariableAssignment> handleMemoryObjectDef(const MemoryObjectDef* def) = 0;
@@ -107,7 +110,10 @@ public:
         std::vector<VariableAssignment>& additionalAssignments
     ) = 0;
 
-    virtual ExprPtr handleGetElementPtr(const llvm::GEPOperator& gep) = 0;
+    virtual ExprPtr handleGetElementPtr(
+        const llvm::GetElementPtrInst& gep,
+        llvm::ArrayRef<ExprPtr> ops
+    ) = 0;
 
     virtual void handleStore(
         const llvm::StoreInst& store,
@@ -124,7 +130,14 @@ public:
     ) = 0;
 
     virtual gazer::Type& handlePointerType(const llvm::PointerType* type) = 0;
+
+    /// Translates type for constant arrays and initializers.
     virtual gazer::Type& handleArrayType(const llvm::ArrayType* type) = 0;
+
+    virtual ExprPtr handleConstantDataArray(
+        const llvm::ConstantDataArray* cda,
+        llvm::ArrayRef<ExprRef<LiteralExpr>> elements
+    ) = 0;
 
     GazerContext& getContext() { return mContext; }
     const llvm::DataLayout& getDataLayout() const { return mDataLayout; }

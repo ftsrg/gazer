@@ -1,4 +1,4 @@
-// XFAIL: memory
+// XFAIL: memory.structs
 // RUN: %bmc -bound 1 "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED

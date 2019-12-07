@@ -132,7 +132,7 @@ ExprPtr ConstantFolder::Mul(const ExprPtr& left, const ExprPtr& right)
         }
     }
 
-    return SubExpr::Create(left, right);
+    return MulExpr::Create(left, right);
 }
 
 ExprPtr ConstantFolder::BvSDiv(const ExprPtr& left, const ExprPtr& right)

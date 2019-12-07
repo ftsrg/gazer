@@ -133,8 +133,8 @@ struct expr_hasher<ExprTy, std::enable_if_t<std::is_base_of_v<LiteralExpr, ExprT
 };
 
 // Specialization for float literals, as operator==() cannot be used with APFloats.
-template<>
-struct expr_hasher<FloatLiteralExpr> {
+template<> struct expr_hasher<FloatLiteralExpr>
+{
     static std::size_t hash_value(Type& type, llvm::APFloat value) {
         return llvm::hash_value(value);
     }
@@ -142,6 +142,35 @@ struct expr_hasher<FloatLiteralExpr> {
     static bool equals(const Expr* other, Type& type, llvm::APFloat value) {
         if (auto bv = literal_equals<FloatLiteralExpr>(other, type)) {
             return bv->getValue().bitwiseIsEqual(value);
+        }
+
+        return false;
+    }
+};
+
+// Specialization for array literals, using container hash
+template<> struct expr_hasher<ArrayLiteralExpr>
+{
+    static std::size_t hash_value(
+        Type& type,
+        const ArrayLiteralExpr::MappingT& values,
+        const ExprRef<LiteralExpr>& elze
+    ) {
+        std::size_t hash = 0;
+        boost::hash_combine(hash, values);
+        boost::hash_combine(hash, elze.get());
+
+        return hash;
+    }
+
+    static bool equals(
+        const Expr* other,
+        Type& type,
+        const ArrayLiteralExpr::MappingT& value,
+        const ExprRef<LiteralExpr>& elze
+    ) {
+        if (auto arr = literal_equals<ArrayLiteralExpr>(other, type)) {
+            return arr->getMap() == value && arr->getDefault() == elze;
         }
 
         return false;
@@ -188,7 +217,8 @@ struct expr_hasher<ExprTy, std::enable_if_t<std::is_base_of<detail::FpExprWithRo
     }
 };
 
-template<> struct expr_hasher<ExtractExpr> {
+template<> struct expr_hasher<ExtractExpr>
+{
     template<class InputIterator>
     static std::size_t hash_value(Expr::ExprKind kind, Type& type, InputIterator begin, InputIterator end, unsigned offset, unsigned width) {
         return llvm::hash_combine(
@@ -220,6 +250,33 @@ template<> struct expr_hasher<UndefExpr> {
 
     static bool equals(const Expr* other, Type& type) {
         return other->getKind() == Expr::Undef && other->getType() == type;
+    }
+};
+
+template<> struct expr_hasher<TupleSelectExpr>
+{
+    template<class InputIterator>
+    static std::size_t hash_value(
+        Expr::ExprKind kind, Type& type,
+        InputIterator begin, InputIterator end, unsigned index
+    ) {
+        return llvm::hash_combine(
+            index,
+            expr_ops_hash(Expr::TupleSelect, begin, end)
+        );
+    }
+
+    template<class InputIterator>
+    static bool equals(
+        const Expr* other, Expr::ExprKind kind, Type& type,
+        InputIterator begin, InputIterator end, unsigned index
+    ) {
+        if (!expr_hasher<NonNullaryExpr>::equals(other, kind, type, begin, end)) {
+            return false;
+        }
+
+        auto tupSel = llvm::cast<TupleSelectExpr>(other);
+        return tupSel->getIndex() == index;
     }
 };
 
@@ -369,10 +426,15 @@ public:
     std::unordered_map<unsigned, std::unique_ptr<BvType>> BvTypes;
     FloatType FpHalfTy, FpSingleTy, FpDoubleTy, FpQuadTy;
     std::unordered_map<
-         std::pair<Type*, Type*>,
-         std::unique_ptr<ArrayType>,
-         boost::hash<std::pair<Type*, Type*>>
+        std::pair<Type*, Type*>,
+        std::unique_ptr<ArrayType>,
+        boost::hash<std::pair<Type*, Type*>>
     > ArrayTypes;
+    std::unordered_map<
+        std::vector<Type*>,
+        std::unique_ptr<TupleType>,
+        boost::hash<std::vector<Type*>>
+    > TupleTypes;
 
     //------------------- Expressions -------------------//
     ExprStorage Exprs;

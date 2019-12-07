@@ -55,6 +55,7 @@ public:
         // Composite types
         //PointerTypeID,
         ArrayTypeID,
+        TupleTypeID,
         //StructTypeID,
         //FunctionTypeID
     };
@@ -89,6 +90,7 @@ public:
     [[nodiscard]] bool isFloatType() const { return getTypeID() == FloatTypeID; }
     [[nodiscard]] bool isRealType() const { return getTypeID() == RealTypeID; }
     [[nodiscard]] bool isArrayType() const { return getTypeID() == ArrayTypeID; }
+    [[nodiscard]] bool isTupleType() const { return getTypeID() == TupleTypeID; }
 
     [[nodiscard]] bool isArithmetic() const { return isIntType() || isRealType(); }
 
@@ -259,6 +261,37 @@ public:
 private:
     Type* mIndexType;
     Type* mElementType;
+};
+
+class TupleType final : public Type
+{
+    TupleType(GazerContext& context, std::vector<Type*> subtypes)
+        : Type(context, TupleTypeID), mSubtypeList(std::move(subtypes))
+    {
+        assert(!mSubtypeList.empty());
+        assert(mSubtypeList.size() >= 2);
+    }
+public:
+    Type& getTypeAtIndex(unsigned idx) const;
+    unsigned getNumSubtypes() const { return mSubtypeList.size(); }
+
+    template<class... Tys>
+    static typename std::enable_if<std::is_base_of_v<Type, Tys...>, TupleType&>::type
+    Get(Type& first, Tys&... tail)
+    {
+        std::vector<Type*> subtypeList({ &first, &tail... });
+        return TupleType::Get(subtypeList);
+    }
+
+    static bool classof(const Type* type) {
+        return type->getTypeID() == TupleTypeID;
+    }
+
+private:
+    static TupleType& Get(std::vector<Type*> subtypes);
+
+private:
+    std::vector<Type*> mSubtypeList;
 };
 
 }

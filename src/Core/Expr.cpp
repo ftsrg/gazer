@@ -34,7 +34,7 @@ std::size_t gazer::expr_kind_prime(Expr::ExprKind kind)
         290623u, 241291u, 579499u, 384287u, 125287u, 920273u, 485833u, 326449u,
         972683u, 485167u, 882599u, 535727u, 383651u, 159833u, 796001u, 218479u,
         163993u, 622561u, 938881u, 692467u, 851971u, 478427u, 653969u, 650329u,
-        645187u, 830827u, 431729u, 497663u
+        645187u, 830827u, 431729u, 497663u, 392351u, 715237u
     };
 
     static_assert(
@@ -287,6 +287,22 @@ ExprRef<ArrayWriteExpr> ArrayWriteExpr::Create(
     return context.pImpl->Exprs.create<ArrayWriteExpr>(*arrTy, { array, index, value });
 }
 
+ExprRef<TupleSelectExpr> TupleSelectExpr::Create(ExprPtr tuple, unsigned index)
+{
+    assert(tuple->getType().isTupleType() && "TupleSelect only works on tuples!");
+    auto tupTy = llvm::cast<TupleType>(&tuple->getType());
+    assert(tupTy->getNumSubtypes() > index && "Invalid tuple index!");
+
+    auto& context = tupTy->getContext();
+    return context.pImpl->Exprs.create<TupleSelectExpr>(*tupTy, { tuple }, index);
+}
+
+
+ExprRef<TupleConstructExpr> TupleConstructExpr::Create(TupleType& type, const ExprVector& exprs)
+{
+    assert(exprs.size() == type.getNumSubtypes());
+    return type.getContext().pImpl->Exprs.createRange<TupleConstructExpr>(type, exprs.begin(), exprs.end());
+}
 
 namespace gazer
 {

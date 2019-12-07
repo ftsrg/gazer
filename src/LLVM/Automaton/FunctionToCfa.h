@@ -106,6 +106,19 @@ public:
         return nullptr;
     }
 
+    llvm::BasicBlock* getEntryBlock() const
+    {
+        if (auto function = getSourceFunction()) {
+            return &function->getEntryBlock();
+        }
+        
+        if (auto loop = getSourceLoop()) {
+            return loop->getHeader();
+        }
+
+        llvm_unreachable("A CFA source can only be a function or a loop!");
+    }
+
     // Variables
     //==--------------------------------------------------------------------==//
     void addInput(ValueOrMemoryObject value, Variable* variable)

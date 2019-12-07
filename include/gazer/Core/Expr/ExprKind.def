@@ -82,4 +82,6 @@ GAZER_EXPR_KIND(FLtEq)
 GAZER_EXPR_KIND(Select)
 GAZER_EXPR_KIND(ArrayRead)
 GAZER_EXPR_KIND(ArrayWrite)
+GAZER_EXPR_KIND(TupleSelect)
+GAZER_EXPR_KIND(TupleConstruct)
 #endif

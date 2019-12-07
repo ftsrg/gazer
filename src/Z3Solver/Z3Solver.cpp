@@ -16,15 +16,16 @@
 //
 //===----------------------------------------------------------------------===//
 #include "gazer/Z3Solver/Z3Solver.h"
-
 #include "gazer/Core/Expr/ExprWalker.h"
-
 #include "gazer/ADT/ScopedCache.h"
 #include "gazer/Support/Float.h"
 
 #include <llvm/Support/raw_os_ostream.h>
+#include <llvm/Support/Debug.h>
 
 #include <z3++.h>
+
+#define DEBUG_TYPE "Z3Solver"
 
 using namespace gazer;
 
@@ -126,13 +127,16 @@ private:
     T mNode;
 };
 
-
 template<> inline Z3_ast Z3Handle<Z3_sort>::as_ast() {
     return Z3_sort_to_ast(mContext, mNode);
 }
 
 template<> inline Z3_ast Z3Handle<Z3_ast>::as_ast() {
     return mNode;
+}
+
+template<> inline Z3_ast Z3Handle<Z3_func_decl>::as_ast() {
+    return Z3_func_decl_to_ast(mContext, mNode);
 }
 
 using Z3AstHandle = Z3Handle<Z3_ast>;
@@ -258,10 +262,8 @@ private:
 
     Z3AstHandle visitUndef(const ExprRef<UndefExpr>& expr)
     {
-        std::string name = "__gazer_undef:" + std::to_string(mTmpCount++);
-
         return createHandle(
-            Z3_mk_const(mZ3Context, Z3_mk_string_symbol(mZ3Context, name.c_str()), typeToSort(&expr->getType()))
+            Z3_mk_fresh_const(mZ3Context, "", typeToSort(&expr->getType()))
         );
     }
 
@@ -303,8 +305,30 @@ private:
             }
         }
 
-        if (expr->getType().isArrayType()) {
-            // TODO
+        if (auto arrayLit = llvm::dyn_cast<ArrayLiteralExpr>(expr)) {
+            Z3AstHandle ast;            
+            if (arrayLit->hasDefault()) {
+                ast = createHandle(Z3_mk_const_array(
+                    mZ3Context,
+                    typeToSort(&arrayLit->getType().getIndexType()),
+                    this->visitLiteral(arrayLit->getDefault())
+                ));
+            } else {
+                ast = createHandle(Z3_mk_fresh_const(
+                    mZ3Context,
+                    "",
+                    typeToSort(&arrayLit->getType())
+                ));
+            }
+
+            Z3AstHandle result = ast;
+            for (auto& [index, elem] : arrayLit->getMap()) {
+                result = createHandle(Z3_mk_store(
+                    mZ3Context, result, this->visitLiteral(index), this->visitLiteral(elem)
+                ));
+            }
+
+            return result;
         }
 
         llvm_unreachable("Unsupported operand type.");
@@ -842,17 +866,20 @@ Valuation Z3Solver::getModel()
     auto builder = Valuation::CreateBuilder();
     z3::model model = mSolver.get_model();
 
+    LLVM_DEBUG(llvm::dbgs() << Z3_model_to_string(mZ3Context, model) << "\n");
+
     for (size_t i = 0; i < model.num_consts(); ++i) {
         z3::func_decl decl = model.get_const_decl(i);
         z3::expr z3Expr = model.get_const_interp(decl);
 
         auto name = decl.name().str();
-        if (name.find("__gazer_undef") == 0) {
+        auto variableOpt = mContext.getVariable(name);
+        if (variableOpt == nullptr) {
+            LLVM_DEBUG(llvm::dbgs() << "Model: skipping variable '" << name << "'\n");
+            // The given Gazer context does not contain this variable, must be
+            // an auxiliary introduced here.
             continue;
         }
-
-        auto variableOpt = mContext.getVariable(name);
-        assert(variableOpt != nullptr && "The symbol table must contain a referenced variable.");
 
         Variable& variable = *variableOpt;
         ExprRef<LiteralExpr> expr = nullptr;
@@ -902,7 +929,9 @@ Valuation Z3Solver::getModel()
 
                 expr = FloatLiteralExpr::Get(fltTy, apflt);
             }
-
+        } else if (z3Expr.get_sort().sort_kind() == Z3_sort_kind::Z3_ARRAY_SORT) {
+            // TODO
+            continue;
         } else {
             llvm_unreachable("Unhandled Z3 expression type.");
         }

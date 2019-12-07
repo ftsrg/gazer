@@ -107,7 +107,7 @@ public:
 
     MemoryObject* createMemoryObject(
         unsigned id,
-        MemoryObjectType objectType,
+        gazer::Type& objectType,
         MemoryObject::MemoryObjectSize size,
         llvm::Type* valueType,
         llvm::StringRef name = ""

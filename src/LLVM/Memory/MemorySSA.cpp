@@ -50,7 +50,7 @@ auto MemorySSA::useAnnotationsFor(const llvm::Value* value) -> llvm::iterator_ra
 
 MemoryObject* MemorySSABuilder::createMemoryObject(
     unsigned id,
-    MemoryObjectType objectType,
+    gazer::Type& objectType,
     MemoryObject::MemoryObjectSize size,
     llvm::Type* valueType,
     llvm::StringRef name

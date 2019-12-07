@@ -160,6 +160,10 @@ public:
         // Array operations
         ArrayRead,
         ArrayWrite,
+
+        // Tuples
+        TupleSelect,
+        TupleConstruct
     };
 
     // Atomic and literal expressions
@@ -197,7 +201,7 @@ public:
 
     // Generic expressions
     static constexpr int FirstExprKind = Undef;
-    static constexpr int LastExprKind = ArrayWrite;
+    static constexpr int LastExprKind = TupleConstruct;
 
 protected:
     Expr(ExprKind kind, Type& type);
@@ -487,6 +491,14 @@ template<>
 struct hash<gazer::ExprPtr>
 {
     size_t operator()(const gazer::ExprPtr& expr) const {
+        return std::hash<gazer::Expr*>{}(expr.get());
+    }
+};
+
+template<class T>
+struct hash<gazer::ExprRef<T>>
+{
+    size_t operator()(const gazer::ExprRef<T>& expr) const {
         return std::hash<gazer::Expr*>{}(expr.get());
     }
 };

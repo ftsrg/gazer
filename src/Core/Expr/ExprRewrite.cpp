@@ -99,6 +99,8 @@ ExprPtr ExprRewrite::visitNonNullary(const ExprRef<NonNullaryExpr>& expr)
         case Expr::FLt: return mExprBuilder.FLt(ops[0], ops[1]);
         case Expr::FLtEq: return mExprBuilder.FLtEq(ops[0], ops[1]);
         case Expr::Select: return mExprBuilder.Select(ops[0], ops[1], ops[2]);
+        case Expr::ArrayRead: return mExprBuilder.Read(ops[0], ops[1]);
+        case Expr::ArrayWrite: return mExprBuilder.Write(ops[0], ops[1], ops[2]);
         default:
             llvm_unreachable("Invalid non-nullary expression kind.");
     }    

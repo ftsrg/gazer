@@ -93,11 +93,12 @@ public:
     {
     public:
         InstToExprImpl(
+            llvm::Function& func,
             ExprBuilder& builder,
             MemoryModel& memoryModel,
             LLVMFrontendSettings settings,
             llvm::DenseMap<llvm::Value*, Variable*> vars
-        ) : InstToExpr(builder, memoryModel, settings), mVars(std::move(vars))
+        ) : InstToExpr(func, builder, memoryModel, settings), mVars(std::move(vars))
         {}
 
         Variable* getVariable(ValueOrMemoryObject value) override {
@@ -110,7 +111,7 @@ public:
 
     std::unique_ptr<InstToExprImpl> createImpl(llvm::DenseMap<llvm::Value*, Variable*> vars)
     {
-        return std::make_unique<InstToExprImpl>(*builder, *memoryModel, settings, std::move(vars));
+        return std::make_unique<InstToExprImpl>(*function, *builder, *memoryModel, settings, std::move(vars));
     }
 };
 

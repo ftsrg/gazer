@@ -28,11 +28,6 @@ using namespace llvm;
 ExprPtr InstToExpr::transform(const llvm::Instruction& inst)
 {
     LLVM_DEBUG(llvm::dbgs() << "  Transforming instruction " << inst << "\n");
-#define HANDLE_INST(OPCODE, NAME)                                       \
-        if (inst.getOpcode() == (OPCODE)) {                             \
-            return visit##NAME(*llvm::cast<llvm::NAME>(&inst));         \
-        }                                                               \
-
     if (inst.isBinaryOp()) {
         return visitBinaryOperator(*dyn_cast<llvm::BinaryOperator>(&inst));
     }
@@ -41,12 +36,28 @@ ExprPtr InstToExpr::transform(const llvm::Instruction& inst)
         return visitCastInst(*dyn_cast<llvm::CastInst>(&inst));
     }
 
+#define HANDLE_INST(OPCODE, NAME)                                       \
+        if (inst.getOpcode() == (OPCODE)) {                             \
+            return visit##NAME(*llvm::cast<llvm::NAME>(&inst));         \
+        }                                                               \
+
     HANDLE_INST(Instruction::ICmp,      ICmpInst)
     HANDLE_INST(Instruction::Call,      CallInst)
     HANDLE_INST(Instruction::FCmp,      FCmpInst)
     HANDLE_INST(Instruction::Select,    SelectInst)
 
 #undef HANDLE_INST
+
+    if (auto gep = llvm::dyn_cast<llvm::GetElementPtrInst>(&inst)) {
+        std::vector<ExprPtr> ops;
+        ops.reserve(gep->getNumOperands());
+
+        for (unsigned i = 0; i < gep->getNumOperands(); ++i) {
+            ops.push_back(this->operand(gep->getOperand(i)));
+        }
+
+        return mMemoryModel.handleGetElementPtr(*gep, ops);
+    }
 
     llvm::errs() << inst << "\n";
     llvm_unreachable("Unsupported instruction kind");
@@ -587,14 +598,32 @@ ExprPtr InstToExpr::operandValue(const llvm::Value* value)
         llvm_unreachable("Invalid int representation strategy!");
     }
     
-    if (const llvm::ConstantFP* cfp = dyn_cast<llvm::ConstantFP>(value)) {
+    if (auto cfp = dyn_cast<llvm::ConstantFP>(value)) {
         return mExprBuilder.FloatLit(cfp->getValueAPF());
     }
-    
-    if (value->getType()->isPointerTy()) {
-        return mMemoryModel.handlePointerValue(value);
+
+    if (auto ca = dyn_cast<llvm::ConstantDataArray>(value)) {
+        // Translate each element in the array
+        std::vector<ExprRef<LiteralExpr>> elements;
+        elements.reserve(ca->getNumElements());
+        for (unsigned i = 0; i < ca->getNumElements(); ++i) {
+            llvm::Constant* constantElem = ca->getElementAsConstant(i);
+            ExprPtr constantExpr = this->operandValue(constantElem);
+
+            assert(llvm::isa<LiteralExpr>(constantExpr)
+                && "Constants should be translated to literals!");
+
+            elements.push_back(expr_cast<LiteralExpr>(constantExpr));
+        }
+
+        return mMemoryModel.handleConstantDataArray(ca, elements);
     }
 
+    // Non-instruction pointer values should be resolved using the memory model
+    if (!llvm::isa<llvm::Instruction>(value) && value->getType()->isPointerTy()) {
+        return mMemoryModel.handlePointerValue(value, mFunction);
+    }
+    
     if (isNonConstValue(value)) {
         auto result = this->lookupInlinedVariable(value);
         if (result != nullptr) {
@@ -686,6 +715,10 @@ ExprPtr InstToExpr::asInt(const ExprPtr& operand)
 
 ExprPtr InstToExpr::castResult(const ExprPtr& expr, const Type& type)
 {
+    if (expr->getType() == type) {
+        return expr;
+    }
+
     if (type.isBoolType()) {
         return asBool(expr);
     }

@@ -63,4 +63,72 @@ TEST(SolverZ3Test, TestFpaWithRoundingMode)
     auto result = solver->run();
     ASSERT_EQ(result, Solver::SAT);
     auto model = solver->getModel();
+
+    ASSERT_EQ(
+        model.eval(tmp->getRefExpr()),
+        FloatLiteralExpr::Get(FloatType::Get(ctx, FloatType::Single), llvm::APFloat(0.0f))
+    );
+}
+
+TEST(SolverZ3Test, TestArrays)
+{
+    GazerContext ctx;
+    Z3SolverFactory factory;
+    auto solver = factory.createSolver(ctx);
+
+    // Example from the Z3 tutorial:
+    //  (declare-const x Int)
+    //  (declare-const y Int)
+    //  (declare-const a1 (Array Int Int))
+    //  (assert (= (select a1 x) x))
+    //  (assert (= (store a1 x y) a1))
+    auto x = ctx.createVariable("x", IntType::Get(ctx));
+    auto y = ctx.createVariable("y", IntType::Get(ctx));
+    auto a1 = ctx.createVariable("a1", ArrayType::Get(IntType::Get(ctx), IntType::Get(ctx)));
+
+    solver->add(EqExpr::Create(
+        ArrayReadExpr::Create(a1->getRefExpr(), x->getRefExpr()),
+        x->getRefExpr()
+    ));
+    solver->add(EqExpr::Create(
+        ArrayWriteExpr::Create(a1->getRefExpr(), x->getRefExpr(), y->getRefExpr()),
+        a1->getRefExpr()
+    ));
+
+    auto result = solver->run();
+    ASSERT_EQ(result, Solver::SAT);
+
+    solver->add(NotEqExpr::Create(x->getRefExpr(), y->getRefExpr()));
+    result = solver->run();
+    ASSERT_EQ(result, Solver::UNSAT);
+}
+
+TEST(SolverZ3Test, TestArrayLiterals)
+{
+    GazerContext ctx;
+    Z3SolverFactory factory;
+    auto solver = factory.createSolver(ctx);
+
+    // Array literal with a default value.
+    auto a1 = ArrayLiteralExpr::Get(
+        ArrayType::Get(IntType::Get(ctx), IntType::Get(ctx)),
+        {
+            { IntLiteralExpr::Get(ctx, 1), IntLiteralExpr::Get(ctx, 1) },
+            { IntLiteralExpr::Get(ctx, 2), IntLiteralExpr::Get(ctx, 2) }
+        },
+        IntLiteralExpr::Get(ctx, 0)
+    );
+
+    // Array literal without a default value
+    auto a2 = ArrayLiteralExpr::Get(
+        ArrayType::Get(IntType::Get(ctx), IntType::Get(ctx)),
+        {
+            { IntLiteralExpr::Get(ctx, 1), IntLiteralExpr::Get(ctx, 1) },
+            { IntLiteralExpr::Get(ctx, 2), IntLiteralExpr::Get(ctx, 2) }
+        }
+    );
+
+    solver->add(EqExpr::Create(a1, a2));
+    auto result = solver->run();
+    ASSERT_EQ(result, Solver::SAT);
 }

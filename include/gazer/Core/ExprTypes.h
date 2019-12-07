@@ -388,6 +388,9 @@ public:
     }
 };
 
+// Composite type expressions
+//==------------------------------------------------------------------------==//
+
 class ArrayReadExpr final : public NonNullaryExpr
 {
     friend class ExprStorage;
@@ -433,6 +436,59 @@ public:
     {
         return expr.getKind() == Expr::ArrayWrite;
     }
+};
+
+class TupleSelectExpr final : public UnaryExpr
+{
+    friend class ExprStorage;
+protected:
+    template<class InputIterator>
+    TupleSelectExpr(ExprKind kind, Type& type, InputIterator begin, InputIterator end, unsigned index)
+        : UnaryExpr(kind, type, begin, end), mIndex(index)
+    {}
+
+public:
+    static ExprRef<TupleSelectExpr> Create(ExprPtr tuple, unsigned index);
+
+    unsigned getIndex() const { return mIndex; }
+
+    static bool classof(const Expr* expr) {
+        return expr->getKind() == Expr::TupleSelect;
+    }
+
+    static bool classof(const Expr& expr) {
+        return expr.getKind() == Expr::TupleSelect;
+    }
+
+private:
+    unsigned mIndex;
+};
+
+class TupleConstructExpr : public NonNullaryExpr
+{
+    friend class ExprStorage;
+protected:
+    using NonNullaryExpr::NonNullaryExpr;
+public:
+    static ExprRef<TupleConstructExpr> Create(TupleType& type, const ExprVector& exprs);
+
+    using value_iterator = std::vector<ExprRef<LiteralExpr>>::const_iterator;
+    value_iterator value_begin() const { return mValues.begin(); }
+    value_iterator value_end() const { return mValues.end(); }
+    llvm::iterator_range<value_iterator> values() const {
+        return llvm::make_range(value_begin(), value_end());
+    }
+
+    static bool classof(const Expr* expr) {
+        return expr->getKind() == Literal && expr->getType().isTupleType();
+    }
+
+    static bool classof(const Expr& expr) {
+        return classof(&expr);
+    }
+
+private:
+    std::vector<ExprRef<LiteralExpr>> mValues;
 };
 
 } // end namespace gazer

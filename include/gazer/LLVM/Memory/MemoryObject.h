@@ -142,14 +142,6 @@ private:
     Kind mKind;
 };
 
-enum class MemoryObjectType
-{
-    Unknown = 0,
-    Scalar,         ///< a primitive scalar type
-    Array,          ///< an array of some known type
-    Struct          ///< a struct
-};
-
 /// Represents an abstract memory object, a continuous place in memory
 /// which does not overlap with other memory objects.
 class MemoryObject
@@ -159,19 +151,41 @@ public:
     using MemoryObjectSize = uint64_t;
     static constexpr MemoryObjectSize UnknownSize = ~uint64_t(0);
 
+    enum ObjectKind
+    {
+        Kind_Unknown = 0,
+        Kind_Scalar,         ///< a primitive scalar type
+        Kind_Array,          ///< an array of some known type
+        Kind_Struct          ///< a struct
+    };
+
 public:
     MemoryObject(
         unsigned id,
-        MemoryObjectType objectType,
+        gazer::Type& objectType,
         MemoryObjectSize size,
         llvm::Type* valueType,
         llvm::StringRef name = ""
     ) :
         mId(id), mObjectType(objectType), mSize(size),
         mValueType(valueType), mName(!name.empty() ? name.str() : std::to_string(mId))
-    {}
+    {
+        if (mValueType->isArrayTy()) {
+            mKind = ObjectKind::Kind_Array;
+        } else if (mValueType->isStructTy()) {
+            mKind = ObjectKind::Kind_Struct;
+        } else if (mValueType->isSingleValueType()) {
+            mKind = ObjectKind::Kind_Scalar;
+        } else {
+            mKind = ObjectKind::Kind_Unknown;
+        }
+    }
 
     void print(llvm::raw_ostream& os) const;
+
+    gazer::Type& getObjectType() const { return mObjectType; }
+    ObjectKind getKind() const { return mKind; }
+
     llvm::Type* getValueType() const { return mValueType; }
     llvm::StringRef getName() const { return mName; }
 
@@ -205,7 +219,8 @@ private:
 
 private:
     unsigned mId;
-    MemoryObjectType mObjectType;
+    gazer::Type& mObjectType;
+    ObjectKind mKind;
     MemoryObjectSize mSize;
 
     llvm::Type* mValueType;

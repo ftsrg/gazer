@@ -54,6 +54,7 @@ public:
             }
 
             BasicBlock& entry = function.getEntryBlock();
+            entry.splitBasicBlock(entry.begin());
 
             auto dsp = function.getSubprogram();
             if (dsp != nullptr) {

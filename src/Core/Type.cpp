@@ -186,3 +186,22 @@ ArrayType& ArrayType::Get(Type& indexType, Type& elementType)
 
     return *result->second;
 }
+
+TupleType& TupleType::Get(std::vector<Type*> subtypes)
+{
+    assert(!subtypes.empty());
+    assert(subtypes.size() >= 2);
+
+    auto& ctx = subtypes[0]->getContext();
+    auto& pImpl = ctx.pImpl;
+
+    auto result = pImpl->TupleTypes.find(subtypes);
+    if (result == pImpl->TupleTypes.end()) {
+        auto ptr = new TupleType(ctx, subtypes);
+        pImpl->TupleTypes.emplace(subtypes, ptr);
+
+        return *ptr;
+    }
+
+    return *result->second;
+}

@@ -25,7 +25,6 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/range/irange.hpp>
 
-
 #include <algorithm>
 
 using namespace gazer;
@@ -108,7 +107,7 @@ private:
 
                 return (Twine(rl->getValue().numerator()) + "%" + Twine(rl->getValue().denominator())).str();
             }
-            // TODO: ArrayType
+            // TODO: Tuples, ArrayType
         }
 
         llvm_unreachable("Unknown literal expression kind.");

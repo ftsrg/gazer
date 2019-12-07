@@ -148,19 +148,46 @@ public:
 
     void handleBlock(const llvm::BasicBlock& bb, llvm2cfa::GenerationStepExtensionPoint& ep) override;
 
-    ExprPtr handleGetElementPtr(const llvm::GEPOperator& gep) override
+    ExprPtr handleGetElementPtr(
+        const llvm::GetElementPtrInst& gep,
+        llvm::ArrayRef<ExprPtr> ops
+    ) override
     {
-        return UndefExpr::Get(IntType::Get(mContext));
+        assert(ops.size() == gep.getNumOperands());
+        assert(ops[0]->getType().isArrayType()
+            && "Pointers must be represented as arrays in a BasicMemoryModel!");
+
+        auto& info = mFunctions[gep.getFunction()];
+
+        ExprPtr base = ops[0];
+        ExprPtr offset = IntLiteralExpr::Get(mContext, 0);
+
+        for (unsigned i = 1; i < ops.size(); ++i) {
+            offset = AddExpr::Create(offset, ops[i]);
+        }
+
+        return ArrayWriteExpr::Create(
+            base, IntLiteralExpr::Get(mContext, 1), offset
+        );
     }
 
     ExprPtr handlePointerCast(const llvm::CastInst& cast) override
     {
-        return UndefExpr::Get(IntType::Get(mContext));
+        return UndefExpr::Get(this->getPointerType());
     }
 
-    ExprPtr handlePointerValue(const llvm::Value* value) override
+    ExprPtr handlePointerValue(const llvm::Value* value, llvm::Function& function) override
     {
-        return UndefExpr::Get(IntType::Get(mContext));
+        auto& info = mFunctions[&function];
+
+        llvm::SmallPtrSet<MemoryObject*, 4> objects;
+        bool hasObject = this->trackPointerToMemoryObject(info, value, objects);
+
+        if (hasObject && objects.size() == 1) {
+            return this->makePointer(*objects.begin(), 0);
+        }
+
+        return UndefExpr::Get(this->getPointerType());
     }
 
     void handleStore(
@@ -174,13 +201,45 @@ public:
 
     Type& handlePointerType(const llvm::PointerType* type) override
     {
-        return IntType::Get(mContext);
-        //return ArrayType::Get(IntType::Get(mContext), IntType::Get(mContext));
+        return this->getPointerType();
     }
 
-    Type& handleArrayType(const llvm::ArrayType* type) override
+    ArrayType& handleArrayType(const llvm::ArrayType* type) override
     {
-        return IntType::Get(mContext);
+        return ArrayType::Get(
+            IntType::Get(mContext),
+            this->translateType(type->getArrayElementType())
+        );
+    }
+    
+    ExprPtr handleConstantDataArray(
+        const llvm::ConstantDataArray* cda,
+        llvm::ArrayRef<ExprRef<LiteralExpr>> elements
+    ) override
+    {
+        assert(elements.size() == cda->getNumElements());
+
+        ArrayLiteralExpr::Builder builder(this->handleArrayType(cda->getType()));
+        for (unsigned i = 0; i < cda->getNumElements(); ++i) {
+            builder.addValue(
+                IntLiteralExpr::Get(mContext, i),
+                elements[i]
+            );
+        }
+
+        return builder.build();
+    }
+
+    ExprRef<ArrayLiteralExpr> makePointer(MemoryObject* object, unsigned offset)
+    {
+        return ArrayLiteralExpr::Get(
+            this->getPointerType(),
+            {
+                { IntLiteralExpr::Get(mContext, 0), IntLiteralExpr::Get(mContext, object->getId())},
+                { IntLiteralExpr::Get(mContext, 1), IntLiteralExpr::Get(mContext, offset) }
+            },
+            IntLiteralExpr::Get(mContext, 0)
+        );
     }
 
     void declareProcedureVariables(llvm2cfa::VariableDeclExtensionPoint& extensionPoint) override;
@@ -189,11 +248,20 @@ protected:
     void initializeFunction(llvm::Function& function, MemorySSABuilder& builder) override;
 
 private:
-    MemoryObject* trackPointerToMemoryObject(FunctionMemoryInfo& function, llvm::Value* value);
+    ArrayType& getPointerType() const {
+        return ArrayType::Get(IntType::Get(mContext), IntType::Get(mContext));
+    }
+
+    bool trackPointerToMemoryObject(
+        FunctionMemoryInfo& function,
+        const llvm::Value* value,
+        llvm::SmallPtrSetImpl<MemoryObject*>& candidates
+    );
     void flattenType(llvm::Type* type, llvm::SmallVectorImpl<llvm::Type*>& flattened);
 
-    ExprPtr ptrForMemoryObject(MemoryObject* object) {
-        return IntLiteralExpr::Get(IntType::Get(mContext), object->getId());
+    ExprPtr ptrForMemoryObject(MemoryObject* object)
+    {
+        return this->makePointer(object, 0);
     }
 
     template<class Iterator>
@@ -225,26 +293,35 @@ private:
 
 } // end anonymous namespace
 
-MemoryObject* BasicMemoryModel::trackPointerToMemoryObject(FunctionMemoryInfo& function, llvm::Value* value)
+bool BasicMemoryModel::trackPointerToMemoryObject(
+    FunctionMemoryInfo& function,
+    const llvm::Value* value,
+    llvm::SmallPtrSetImpl<MemoryObject*>& candidates
+)
 {
     assert(value->getType()->isPointerTy());
 
-    llvm::Value* ptr = value;
-    while (true) {
+    llvm::SmallVector<const llvm::Value*, 4> wl;
+    wl.push_back(value);
+
+    while (!wl.empty()) {
+        const llvm::Value* ptr = wl.pop_back_val();
+
         MemoryObject* object = function.Objects.lookup(ptr);
         if (object != nullptr) {
-            return object;
+            candidates.insert(object);
+        } else if (auto bitcast = llvm::dyn_cast<llvm::BitCastInst>(ptr)) {
+            wl.push_back(bitcast->getOperand(0));
+        } else if (auto select = llvm::dyn_cast<llvm::SelectInst>(ptr)) {
+            wl.push_back(select->getOperand(1));
+            wl.push_back(select->getOperand(2));
+        } else {
+            // We cannot track this pointer any further.
+            return false;
         }
-
-        if (auto bitcast = llvm::dyn_cast<llvm::BitCastInst>(ptr)) {
-            ptr = bitcast->getOperand(0);
-        }
-
-        // We cannot track this pointer any further.
-        break;
     }
 
-    return nullptr;
+    return true;
 }
 
 void BasicMemoryModel::flattenType(llvm::Type* type, llvm::SmallVectorImpl<llvm::Type*>& flattened)
@@ -293,27 +370,24 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
     for (llvm::GlobalVariable& gv : function.getParent()->globals()) {
         auto gvTy = gv.getType()->getPointerElementType();
 
-        MemoryObjectType memoryObjectType;
-        llvm::Type* valueTy;
+        gazer::Type* objectType;
 
         if (gvTy->isSingleValueType() && !gvTy->isVectorTy()) {
-            memoryObjectType = MemoryObjectType::Scalar;
-            valueTy = gvTy;
+            objectType = &this->translateType(gvTy);
         } else if (gvTy->isArrayTy()) {
-            memoryObjectType = MemoryObjectType::Array;
-            valueTy = gvTy->getArrayElementType();
-        } else if (gvTy->isStructTy()) {
-            memoryObjectType = MemoryObjectType::Struct;
-            valueTy = gvTy;
+            objectType = &ArrayType::Get(
+                IntType::Get(mContext),
+                this->translateType(gvTy->getArrayElementType())
+            );
         } else {
             llvm_unreachable("Unknown LLVM type!");
         }
 
         MemoryObject* object = builder.createMemoryObject(
             mId++,
-            memoryObjectType,
+            *objectType,
             getDataLayout().getTypeAllocSize(gvTy),
-            valueTy,
+            gvTy,
             gv.getName()
         );
 
@@ -338,7 +412,7 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
 
             auto object = builder.createMemoryObject(
                 mId++,
-                MemoryObjectType::Scalar,
+                this->translateType(argTy->getPointerElementType()),
                 getDataLayout().getTypeAllocSize(argTy->getPointerElementType()),
                 argTy->getPointerElementType(),
                 name
@@ -358,9 +432,10 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
         if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(&inst)) {
             llvm::Type* allocatedTy = alloca->getType()->getPointerElementType();
             std::string name = alloca->hasName() ? alloca->getName().str() : ("alloca_" + std::to_string(tmp++));
+
             auto object = builder.createMemoryObject(
                 mId++,
-                MemoryObjectType::Scalar,
+                this->translateType(allocatedTy),
                 getDataLayout().getTypeAllocSize(allocatedTy),
                 allocatedTy,
                 name
@@ -374,25 +449,38 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
 
     // Now, walk over all instructions and search for pointer operands
     for (llvm::Instruction& inst : llvm::instructions(function)) {
+        llvm::SmallPtrSet<MemoryObject*, 4> candidates;
+
         if (auto store = llvm::dyn_cast<llvm::StoreInst>(&inst)) {
-            MemoryObject* object = trackPointerToMemoryObject(currentObjects, store->getPointerOperand());
-            if (object == nullptr) {
-                // We could not track this pointer to an origin,
+            bool hasValidObject = trackPointerToMemoryObject(
+                currentObjects, store->getPointerOperand(), candidates
+            );
+            if (!hasValidObject) {
+                // We could not track this pointer to known origins,
                 // we must clobber all memory objects in order to be safe.
                 for (auto& entry : currentObjects.Objects) {
                     builder.createStoreDef(entry.second, *store);
                 }
             } else {
-                // Otherwise, just create a definition for this one object.
-                builder.createStoreDef(object, *store);
+                // Otherwise, just create a definition for all possibly modified objects.
+                for (MemoryObject* object : candidates) {
+                    builder.createStoreDef(object, *store);
+                }
             }
         } else if (auto load = llvm::dyn_cast<llvm::LoadInst>(&inst)) {
-            MemoryObject* object = trackPointerToMemoryObject(currentObjects, load->getPointerOperand());
-            // If the object is nullptr, we could not track the origins of the pointer.
+            bool hasValidObject = trackPointerToMemoryObject(
+                currentObjects,
+                load->getPointerOperand(),
+                candidates
+            );
+
+            // If no valid object was traceable, we could not track the origins of the pointer.
             // We will not insert any annotations, and the LoadInst will be translated to
-            // an undef value.
-            if (object != nullptr) {
-                builder.createLoadUse(object, *load);
+            // an undef value. Otherwise, insert a use for all possibly read memory objects.
+            if (hasValidObject) {
+                for (MemoryObject* object : candidates) {
+                    builder.createLoadUse(object, *load);
+                }
             }
         } else if (auto call = llvm::dyn_cast<llvm::CallInst>(&inst)) {
             llvm::Function* callee = call->getCalledFunction();
@@ -416,8 +504,10 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
                 if (formalArg->getType()->isPointerTy()) {
                     CallParamScope scope(formalArg);
                     llvm::Value* arg = call->getArgOperand(i);
-                    MemoryObject* trackedObject = trackPointerToMemoryObject(currentObjects, arg);
-                    if (trackedObject == nullptr) {
+                    bool hasValidObject = trackPointerToMemoryObject(
+                        currentObjects, arg, candidates
+                    );
+                    if (!hasValidObject) {
                         // The memory object could not be resolved, we have to clobber all of them.
                         for (auto& [val, obj] : currentObjects.Objects) {
                             memory::CallDef* def = getOrCreateCallDefFor(builder, obj, call, defSet);
@@ -426,10 +516,12 @@ void BasicMemoryModel::initializeFunction(llvm::Function& function, MemorySSABui
                             paramsMapping[scope].inputCandidates.push_back(use);
                         }
                     } else {
-                        memory::CallDef* def = getOrCreateCallDefFor(builder, trackedObject, call, defSet);
-                        memory::CallUse* use = getOrCreateCallUseFor(builder, trackedObject, call, useSet);
-                        paramsMapping[scope].outputCandidates.push_back(def);
-                        paramsMapping[scope].inputCandidates.push_back(use);
+                        for (MemoryObject* object : candidates) {
+                            memory::CallDef* def = getOrCreateCallDefFor(builder, object, call, defSet);
+                            memory::CallUse* use = getOrCreateCallUseFor(builder, object, call, useSet);
+                            paramsMapping[scope].outputCandidates.push_back(def);
+                            paramsMapping[scope].inputCandidates.push_back(use);
+                        }
                     }
                 }
             }
@@ -494,6 +586,8 @@ void BasicMemoryModel::handleCall(
     FunctionMemoryInfo& callerInfo = mFunctions[call.getParent()->getParent()];
     FunctionMemoryInfo& calleeInfo = mFunctions[call.getCalledFunction()];
     assert(callerInfo.ActualParams.count(call) != 0);
+
+    llvm::SmallDenseMap<Variable*, llvm::SmallVector<ExprPtr, 1>, 4> outputCandidates;
 
     // Try to map formal parameters to actual ones.
 
@@ -613,11 +707,33 @@ void BasicMemoryModel::handleStore(
     if (annotations.size() == 1) {
         MemoryObjectDef* def = annotations[0];
         Variable* defVariable = ep.getVariableFor(def);
-        assert(defVariable != nullptr && "Each memory object definition should map to a variable in the CFA!");
-        assert(defVariable->getType() == value->getType());
+        assert(defVariable != nullptr
+            && "Each memory object definition should map to a variable in the CFA!");
 
-        if (!ep.tryToEliminate(def, defVariable, value)) {
-            assignments.emplace_back(defVariable, value);
+        ExprPtr lhs;
+        switch (def->getObject()->getKind()) {
+            case MemoryObject::Kind_Array: {
+                ExprPtr prev = ep.getAsOperand(def->getReachingDef());
+                lhs = ArrayWriteExpr::Create(
+                    prev,
+                    ArrayReadExpr::Create(pointer, IntLiteralExpr::Get(mContext, 1)),
+                    value
+                );
+                break;
+            }
+            case MemoryObject::Kind_Scalar: {
+                lhs = value;
+                break;
+            }
+            default:
+                lhs = UndefExpr::Get(defVariable->getType());
+                break;
+        }        
+
+        assert(defVariable->getType() == lhs->getType());
+
+        if (!ep.tryToEliminate(def, defVariable, lhs)) {
+            assignments.emplace_back(defVariable, lhs);
         }
         return;
     }

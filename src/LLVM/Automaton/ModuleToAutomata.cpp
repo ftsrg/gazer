@@ -337,12 +337,12 @@ void ModuleToCfa::createAutomata()
                     if (bb == loop->getHeader() && def.getKind() == MemoryObjectDef::PHI) {
                         memVar = loopVarDecl.createPhiInput(
                             &def,
-                            mMemoryModel.translateType(def.getObject()->getValueType())
+                            def.getObject()->getObjectType()
                         );
                     } else {
                         memVar = loopVarDecl.createLocal(
                             &def,
-                            mMemoryModel.translateType(def.getObject()->getValueType())
+                            def.getObject()->getObjectType()
                         );
                     }
 
@@ -370,7 +370,7 @@ void ModuleToCfa::createAutomata()
                         if (std::find(loopBlocks.begin(), loopBlocks.end(), defBlock) == loopBlocks.end()) {
                             loopVarDecl.createInput(
                                 use.getReachingDef(),
-                                mMemoryModel.translateType(use.getObject()->getValueType())
+                                use.getObject()->getObjectType()
                             );
                         }
                     }
@@ -379,7 +379,7 @@ void ModuleToCfa::createAutomata()
                     // All definitions inside the loop will be locals.
                     for (MemoryObjectDef& def : memorySSA.definitionAnnotationsFor(&inst)) {
                         Variable* memVar = loopVarDecl.createLocal(
-                            &def, mMemoryModel.translateType(def.getObject()->getValueType())
+                            &def, def.getObject()->getObjectType()
                         );
 
                         // If the definition has uses outside of the loop, it should also be marked as output.
@@ -509,9 +509,9 @@ void ModuleToCfa::createAutomata()
         for (MemoryObject& object : memorySSA.objects()) {
             for (MemoryObjectDef& def : object.defs()) {
                 if (auto liveOnEntry = llvm::dyn_cast<memory::LiveOnEntryDef>(&def)) {
-                    functionVarDecl.createInput(&def, mMemoryModel.translateType(object.getValueType()), "_mem");
+                    functionVarDecl.createInput(&def, object.getObjectType(), "_mem");
                 } else {
-                    functionVarDecl.createLocal(&def, mMemoryModel.translateType(object.getValueType()), "_mem");
+                    functionVarDecl.createLocal(&def, object.getObjectType(), "_mem");
                 }
             }
 
@@ -555,21 +555,19 @@ BlocksToCfa::BlocksToCfa(
     GenerationContext& generationContext,
     CfaGenInfo& genInfo,
     ExprBuilder& exprBuilder
-) : InstToExpr(exprBuilder, generationContext.getMemoryModel(), generationContext.getSettings()),
+) : InstToExpr(
+        *genInfo.getEntryBlock()->getParent(),
+        exprBuilder,
+        generationContext.getMemoryModel(),
+        generationContext.getSettings()
+    ),
     GenerationStepExtensionPoint(genInfo),
     mGenCtx(generationContext),
-    mCfa(genInfo.Automaton)
+    mCfa(genInfo.Automaton),
+    mEntryBlock(genInfo.getEntryBlock())
 {
-    if (auto function = genInfo.getSourceFunction()) {
-        mEntryBlock = &function->getEntryBlock();
-    } else if (auto loop = genInfo.getSourceLoop()) {
-        mEntryBlock = loop->getHeader();
-    } else {
-        llvm_unreachable("A CFA source can only be a function or a loop!");
-    }
-
     assert(mGenInfo.Blocks.count(mEntryBlock) != 0 && "Entry block must be in the block map!");
-    mMemorySSA = mMemoryModel.getFunctionMemorySSA(*mEntryBlock->getParent());
+    mMemorySSA = mMemoryModel.getFunctionMemorySSA(mFunction);
 }
 
 void BlocksToCfa::encode()

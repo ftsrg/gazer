@@ -36,15 +36,10 @@ llvm::BasicBlock* MemoryObjectDef::getParentBlock() const
 
 void MemoryObject::print(llvm::raw_ostream& os) const
 {
-    os << "(" << mId << (mName.empty() ? "" : ", \"" + mName + "\"");
-    os << ", objectType=";
-    switch (mObjectType) {
-        case MemoryObjectType::Unknown: os << "Unknown"; break;
-        case MemoryObjectType::Scalar: os << "Scalar"; break;
-        case MemoryObjectType::Array: os << "Array"; break;
-        case MemoryObjectType::Struct: os << "Struct"; break;
-    }
-    os << ", size=";
+    os
+        << "(" << mId << (mName.empty() ? "" : ", \"" + mName + "\"")
+        << ", objectType=" << mObjectType
+        << ", size=";
     if (mSize == UnknownSize) {
         os << "Unknown";
     } else {

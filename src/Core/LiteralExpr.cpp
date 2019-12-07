@@ -62,6 +62,22 @@ ExprRef<FloatLiteralExpr> FloatLiteralExpr::Get(FloatType& type, const llvm::APF
     return type.getContext().pImpl->Exprs.create<FloatLiteralExpr>(type, value);
 }
 
+ExprRef<ArrayLiteralExpr> ArrayLiteralExpr::Get(
+    ArrayType& type,
+    const MappingT& values,
+    const ExprRef<LiteralExpr>& elze)
+{
+    assert(std::all_of(values.begin(), values.end(), [&type](auto& pair) {
+        return pair.first->getType() == type.getIndexType()
+            && pair.second->getType() == type.getElementType();
+    }));
+    assert(elze == nullptr || elze->getType() == type.getElementType());
+
+    auto& pImpl = type.getContext().pImpl;
+
+    return pImpl->Exprs.create<ArrayLiteralExpr>(type, values, elze);
+}
+
 void UndefExpr::print(llvm::raw_ostream& os) const {
     os << "undef";
 }
@@ -87,4 +103,44 @@ void FloatLiteralExpr::print(llvm::raw_ostream& os) const
     llvm::SmallVector<char, 16> buffer;
     mValue.toString(buffer);
     os << buffer;
+}
+
+void ArrayLiteralExpr::print(llvm::raw_ostream& os) const
+{
+    os << "[";
+    for (auto& [index, elem] : mMap) {
+        os << *index << " -> " << *elem << ", ";
+    }
+    
+    if (mElse != nullptr) {
+        os << " else " << *mElse;
+    }
+
+    os << "]";
+}
+
+ExprRef<LiteralExpr> ArrayLiteralExpr::operator[](const ExprRef<LiteralExpr>& key) const
+{
+    assert(key->getType() == this->getType().getIndexType());
+    auto it = mMap.find(key);
+    if (it == mMap.end()) {
+        return nullptr;
+    }
+
+    return it->second;
+}
+
+void ArrayLiteralExpr::Builder::addValue(ExprRef<LiteralExpr> index, ExprRef<LiteralExpr> element)
+{
+    mValues[index] = element;
+}
+
+void ArrayLiteralExpr::Builder::setDefault(const ExprRef<LiteralExpr>& expr)
+{
+    mElse = expr;
+}
+
+auto ArrayLiteralExpr::Builder::build() -> ExprRef<ArrayLiteralExpr>
+{
+    return ArrayLiteralExpr::Get(mType, mValues, mElse);
 }
