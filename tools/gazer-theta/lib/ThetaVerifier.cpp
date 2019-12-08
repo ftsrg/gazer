@@ -231,7 +231,7 @@ std::unique_ptr<Trace> ThetaVerifierImpl::parseCex(llvm::StringRef cex, unsigned
 
         // Theta may insert unnamed locations, thus the format is either
         // (CfaState locName (ExplState ...)) or (CfaState (ExplState ...)).
-        // In the latter case, we must skip this location as it is not present.
+        // In the latter case, we must skip this location as it is not present
         // anywhere within gazer.
         if (stateList[1]->isList()) {
             continue;

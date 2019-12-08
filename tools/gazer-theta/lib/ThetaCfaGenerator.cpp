@@ -200,6 +200,10 @@ static std::string typeName(Type& type)
             return "rat";
         case Type::BoolTypeID:
             return "bool";
+        case Type::ArrayTypeID: {
+            auto& arrTy = llvm::cast<ArrayType>(type);
+            return "[" + typeName(arrTy.getIndexType()) + "] -> " + typeName(arrTy.getElementType());
+        }
         default:
             llvm_unreachable("Types which are unsupported by theta should have been eliminated earlier!");
     }

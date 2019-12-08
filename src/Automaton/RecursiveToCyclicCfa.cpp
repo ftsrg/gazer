@@ -97,7 +97,7 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
     Location* before = call->getSource();
     Location* after  = call->getTarget();
 
-    ExprRewrite rewrite(*mExprBuilder);
+    VariableExprRewrite rewrite(*mExprBuilder);
     llvm::DenseMap<Location*, Location*> locToLocMap;
     llvm::DenseMap<Variable*, Variable*> oldVarToNew;
 

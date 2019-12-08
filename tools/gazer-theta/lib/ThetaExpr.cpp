@@ -44,7 +44,7 @@ public:
     std::string visitExpr(const ExprPtr& expr) {
         mUnhandledExpr = expr;
         llvm::errs() << "Unhandled expr " << *expr << "\n";
-        return "???";
+        return "__UNHANDLED_EXPR__";
     }
 
     std::string visitLiteral(const ExprRef<LiteralExpr>& expr)
@@ -167,6 +167,14 @@ public:
 
     std::string visitSelect(const ExprRef<SelectExpr>& expr) {
         return "(if " + getOperand(0) + " then " + getOperand(1) + " else " + getOperand(2) + ")";
+    }
+
+    std::string visitArrayRead(const ExprRef<ArrayReadExpr>& expr) {
+        return  "(" + getOperand(0) + ")[" + getOperand(1) + "]";
+    }
+
+    std::string visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr) {
+        return  "(" + getOperand(0) + ")[" + getOperand(1) + " <- " + getOperand(2) + "]";
     }
 
 private:

@@ -155,7 +155,7 @@ public:
     }
 
 protected:
-    /// Returns the operand of index \p i of the topmost frame.
+    /// Returns the operand of index \p i in the topmost frame.
     [[nodiscard]] ReturnT getOperand(size_t i) const
     {
         assert(mTop != nullptr);
@@ -200,9 +200,46 @@ public:
         return static_cast<DerivedT*>(this)->visitExpr(expr);
     }
     ReturnT visitLiteral(const ExprRef<LiteralExpr>& expr) {
-        return static_cast<DerivedT*>(this)->visitExpr(expr);
+        // Disambiguate here for each literal type
+        #define EXPR_LITERAL_CASE(TYPE)                                         \
+            case Type::TYPE##TypeID:                                            \
+                return static_cast<DerivedT*>(this)                             \
+                    ->visit##TYPE##Literal(expr_cast<TYPE##LiteralExpr>(expr)); \
+
+        switch (expr->getType().getTypeID()) {
+            EXPR_LITERAL_CASE(Bool)
+            EXPR_LITERAL_CASE(Int)
+            EXPR_LITERAL_CASE(Real)
+            EXPR_LITERAL_CASE(Bv)
+            EXPR_LITERAL_CASE(Float)
+            EXPR_LITERAL_CASE(Array)
+        }
+
+        #undef EXPR_LITERAL_CASE
+
+        llvm_unreachable("Unknown literal expression kind!");
     }
     ReturnT visitVarRef(const ExprRef<VarRefExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitExpr(expr);
+    }
+
+    // Literals
+    ReturnT visitBoolLiteral(const ExprRef<BoolLiteralExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitExpr(expr);
+    }
+    ReturnT visitIntLiteral(const ExprRef<IntLiteralExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitExpr(expr);
+    }
+    ReturnT visitRealLiteral(const ExprRef<RealLiteralExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitExpr(expr);
+    }
+    ReturnT visitBvLiteral(const ExprRef<BvLiteralExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitExpr(expr);
+    }
+    ReturnT visitFloatLiteral(const ExprRef<FloatLiteralExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitExpr(expr);
+    }
+    ReturnT visitArrayLiteral(const ExprRef<ArrayLiteralExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitExpr(expr);
     }
 

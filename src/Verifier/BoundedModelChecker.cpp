@@ -700,7 +700,7 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
 
     llvm::DenseMap<Transition*, Transition*> edgeToEdgeMap;
 
-    ExprRewrite rewrite(mExprBuilder);
+    VariableExprRewrite rewrite(mExprBuilder);
 
     // Clone all local variables into the parent
     for (Variable& local : callee->locals()) {

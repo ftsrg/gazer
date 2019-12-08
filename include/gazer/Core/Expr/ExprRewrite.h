@@ -24,21 +24,60 @@
 namespace gazer
 {
 
-class ExprRewrite : public ExprWalker<ExprRewrite, ExprPtr>
+/// Non-template dependent functionality of the expression rewriter.
+class ExprRewriteBase
 {
-    friend class ExprWalker<ExprRewrite, ExprPtr>;
+protected:
+    ExprRewriteBase(ExprBuilder& builder)
+        : mExprBuilder(builder)
+    {}
+
+    ExprPtr rewriteNonNullary(const ExprRef<NonNullaryExpr>& expr, const ExprVector& ops);
+protected:
+    ExprBuilder& mExprBuilder;
+};
+
+/// Base class for expression rewrite implementations.
+template<class DerivedT>
+class ExprRewrite : public ExprWalker<DerivedT, ExprPtr>, public ExprRewriteBase
+{
+    friend class ExprWalker<DerivedT, ExprPtr>;
 public:
-    explicit ExprRewrite(ExprBuilder& builder);
+    explicit ExprRewrite(ExprBuilder& builder)
+        : ExprRewriteBase(builder)
+    {}
+
+protected:
+    ExprPtr visitExpr(const ExprPtr& expr) { return expr; }
+
+    ExprPtr visitNonNullary(const ExprRef<NonNullaryExpr>& expr)
+    {
+        ExprVector ops(expr->getNumOperands(), nullptr);
+        for (size_t i = 0; i < expr->getNumOperands(); ++i) {
+            ops[i] = this->getOperand(i);
+        }
+
+        return this->rewriteNonNullary(expr, ops);
+    }
+};
+
+/// An expression rewriter that replaces certain variables with some
+/// given expression, according to the values set by operator[].
+class VariableExprRewrite : public ExprRewrite<VariableExprRewrite>
+{
+    friend class ExprWalker<VariableExprRewrite, ExprPtr>;
+public:
+    explicit VariableExprRewrite(ExprBuilder& builder)
+        : ExprRewrite(builder)
+    {}
+
     ExprPtr& operator[](Variable* variable);
 
-private:
-    ExprPtr visitExpr(const ExprPtr& expr);
+protected:
     ExprPtr visitVarRef(const ExprRef<VarRefExpr>& expr);
-    ExprPtr visitNonNullary(const ExprRef<NonNullaryExpr>& expr);
 
 private:
     llvm::DenseMap<Variable*, ExprPtr> mRewriteMap;
-    ExprBuilder& mExprBuilder;
 };
 
 }

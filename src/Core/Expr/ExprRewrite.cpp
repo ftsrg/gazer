@@ -19,32 +19,8 @@
 
 using namespace gazer;
 
-ExprRewrite::ExprRewrite(ExprBuilder& builder)
-    : mExprBuilder(builder)
-{}
-
-ExprPtr ExprRewrite::visitExpr(const ExprPtr& expr)
+ExprPtr ExprRewriteBase::rewriteNonNullary(const ExprRef<NonNullaryExpr>& expr, const ExprVector& ops)
 {
-    return expr;
-}
-
-ExprPtr ExprRewrite::visitVarRef(const ExprRef<VarRefExpr>& expr)
-{
-    auto result = mRewriteMap[&expr->getVariable()];
-    if (result != nullptr) {
-        return result;
-    }
-
-    return expr;
-}
-
-ExprPtr ExprRewrite::visitNonNullary(const ExprRef<NonNullaryExpr>& expr)
-{
-    ExprVector ops(expr->getNumOperands(), nullptr);
-    for (size_t i = 0; i < expr->getNumOperands(); ++i) {
-        ops[i] = getOperand(i);
-    }
-
     switch (expr->getKind()) {
         case Expr::Not: return mExprBuilder.Not(ops[0]);
         case Expr::ZExt: return mExprBuilder.ZExt(ops[0], llvm::cast<BvType>(expr->getType()));
@@ -89,10 +65,50 @@ ExprPtr ExprRewrite::visitNonNullary(const ExprRef<NonNullaryExpr>& expr)
         case Expr::BvUGtEq: return mExprBuilder.BvUGtEq(ops[0], ops[1]);
         case Expr::FIsNan: return mExprBuilder.FIsNan(ops[0]);
         case Expr::FIsInf: return mExprBuilder.FIsInf(ops[0]);
-        case Expr::FAdd: return mExprBuilder.FAdd(ops[0], ops[1], llvm::cast<FAddExpr>(expr.get())->getRoundingMode());
-        case Expr::FSub: return mExprBuilder.FSub(ops[0], ops[1], llvm::cast<FSubExpr>(expr.get())->getRoundingMode());
-        case Expr::FMul: return mExprBuilder.FMul(ops[0], ops[1], llvm::cast<FMulExpr>(expr.get())->getRoundingMode());
-        case Expr::FDiv: return mExprBuilder.FDiv(ops[0], ops[1], llvm::cast<FDivExpr>(expr.get())->getRoundingMode());
+        case Expr::FCast: {
+            auto fcast = llvm::cast<FCastExpr>(expr);
+            return mExprBuilder.FCast(
+                ops[0],
+                llvm::cast<FloatType>(fcast->getType()),
+                llvm::cast<FCastExpr>(expr)->getRoundingMode()
+            );
+        }
+        case Expr::SignedToFp: {
+            auto casted = llvm::cast<SignedToFpExpr>(expr);
+            return mExprBuilder.SignedToFp(
+                ops[0],
+                llvm::cast<FloatType>(casted->getType()),
+                casted->getRoundingMode()
+            );
+        }
+        case Expr::UnsignedToFp: {
+            auto casted = llvm::cast<UnsignedToFpExpr>(expr);
+            return mExprBuilder.UnsignedToFp(
+                ops[0],
+                llvm::cast<FloatType>(casted->getType()),
+                casted->getRoundingMode()
+            );
+        }
+        case Expr::FpToSigned: {
+            auto casted = llvm::cast<FpToSignedExpr>(expr);
+            return mExprBuilder.FpToSigned(
+                ops[0],
+                llvm::cast<BvType>(casted->getType()),
+                casted->getRoundingMode()
+            );
+        }
+        case Expr::FpToUnsigned: {
+            auto casted = llvm::cast<FpToUnsignedExpr>(expr);
+            return mExprBuilder.FpToUnsigned(
+                ops[0],
+                llvm::cast<BvType>(casted->getType()),
+                casted->getRoundingMode()
+            );
+        }
+        case Expr::FAdd: return mExprBuilder.FAdd(ops[0], ops[1], llvm::cast<FAddExpr>(expr)->getRoundingMode());
+        case Expr::FSub: return mExprBuilder.FSub(ops[0], ops[1], llvm::cast<FSubExpr>(expr)->getRoundingMode());
+        case Expr::FMul: return mExprBuilder.FMul(ops[0], ops[1], llvm::cast<FMulExpr>(expr)->getRoundingMode());
+        case Expr::FDiv: return mExprBuilder.FDiv(ops[0], ops[1], llvm::cast<FDivExpr>(expr)->getRoundingMode());
         case Expr::FEq: return mExprBuilder.FEq(ops[0], ops[1]);
         case Expr::FGt: return mExprBuilder.FGt(ops[0], ops[1]);
         case Expr::FGtEq: return mExprBuilder.FGtEq(ops[0], ops[1]);
@@ -101,12 +117,27 @@ ExprPtr ExprRewrite::visitNonNullary(const ExprRef<NonNullaryExpr>& expr)
         case Expr::Select: return mExprBuilder.Select(ops[0], ops[1], ops[2]);
         case Expr::ArrayRead: return mExprBuilder.Read(ops[0], ops[1]);
         case Expr::ArrayWrite: return mExprBuilder.Write(ops[0], ops[1], ops[2]);
-        default:
-            llvm_unreachable("Invalid non-nullary expression kind.");
-    }    
+        // Add all the invalid cases as well
+        case Expr::Literal:
+        case Expr::Undef:
+        case Expr::VarRef:
+            break;
+    }
+
+    llvm_unreachable("Invalid non-nullary expression kind.");
 }
 
-ExprPtr& ExprRewrite::operator[](Variable* variable)
+ExprPtr VariableExprRewrite::visitVarRef(const ExprRef<VarRefExpr>& expr)
+{
+    auto result = mRewriteMap[&expr->getVariable()];
+    if (result != nullptr) {
+        return result;
+    }
+
+    return expr;
+}
+
+ExprPtr& VariableExprRewrite::operator[](Variable* variable)
 {
     return mRewriteMap[variable];
 }

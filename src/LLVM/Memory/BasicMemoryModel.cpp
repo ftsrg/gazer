@@ -61,6 +61,7 @@ public:
 
         return nullptr;
     }
+
     llvm::Argument* getArgumentSource() const {
         if (mScope == Scope_PtrArgument) {
             return std::get<llvm::Argument*>(mSource);

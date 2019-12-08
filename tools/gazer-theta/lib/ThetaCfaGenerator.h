@@ -35,6 +35,13 @@ std::string printThetaExpr(const ExprPtr& expr);
 
 std::string printThetaExpr(const ExprPtr& expr, std::function<std::string(Variable*)> variableNames);
 
+/// \brief Perform pre-processing steps required by theta on the input CFA.
+///
+/// This pass does the following transformations:
+///     - Undefined values in expressions are replaced with previously havoc'd variables.
+///     - Array literals are replaced with a appropriately constructed array variable.
+void preprocessCfa(Cfa* cfa);
+
 struct ThetaNameMapping
 {
     llvm::StringMap<Location*> locations;
