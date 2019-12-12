@@ -114,7 +114,9 @@ public:
     );
 
     memory::LiveOnEntryDef* createLiveOnEntryDef(MemoryObject* object);
-    memory::GlobalInitializerDef* createGlobalInitializerDef(MemoryObject* object, llvm::Value* initializer = nullptr);
+    memory::GlobalInitializerDef* createGlobalInitializerDef(
+        MemoryObject* object, llvm::GlobalVariable* gv
+    );
     memory::AllocaDef* createAllocaDef(MemoryObject* object, llvm::AllocaInst& alloca);
     memory::StoreDef* createStoreDef(MemoryObject* object, llvm::StoreInst& inst);
     memory::CallDef*  createCallDef(MemoryObject* object, llvm::CallSite call);

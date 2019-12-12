@@ -44,3 +44,14 @@ std::string ValueOrMemoryObject::getName() const
 
     return std::visit(GetNameVisitor{}, mVariant);
 }
+
+llvm::raw_ostream& gazer::operator<<(llvm::raw_ostream& os, const ValueOrMemoryObject& rhs)
+{
+    if (rhs.isValue()) {
+        os << *rhs.asValue();
+    } else if (rhs.isMemoryObjectDef()) {
+        os << *rhs.asMemoryObjectDef();
+    }
+
+    return os;
+}

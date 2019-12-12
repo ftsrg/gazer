@@ -71,6 +71,8 @@ public:
     llvm::Loop* getSourceLoop() const;
     llvm::Function* getSourceFunction() const;
 
+    llvm::Function* getParent() const;
+
 protected:
     CfaGenInfo& mGenInfo;
 };

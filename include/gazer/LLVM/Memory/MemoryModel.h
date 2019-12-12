@@ -87,6 +87,12 @@ public:
     //virtual std::optional<VariableAssignment> handleMemoryObjectDef(const MemoryObjectDef* def) = 0;
     //virtual std::optional<VariableAssignment> handleMemoryObjectUse(const MemoryObjectUse* use) = 0;
 
+    virtual ExprPtr handleGlobalInitializer(
+        memory::GlobalInitializerDef* def,
+        ExprPtr pointer,
+        llvm2cfa::GenerationStepExtensionPoint& ep
+    ) = 0;
+    
     /// Translates the given LoadInst into an assignable expression.
     virtual ExprPtr handleLoad(
         const llvm::LoadInst& load,
@@ -202,6 +208,14 @@ std::unique_ptr<MemoryModel> CreateHavocMemoryModel(
 // structs, and globals which do not have their address taken. This memory
 // model returns undef for all heap operations.
 std::unique_ptr<MemoryModel> CreateBasicMemoryModel(
+    GazerContext& context,
+    const LLVMFrontendSettings& settings,
+    const llvm::DataLayout& dl
+);
+
+//==-----------------------------------------------------------------------==//
+// FlatMemoryModel
+std::unique_ptr<MemoryModel> CreateFlatMemoryModel(
     GazerContext& context,
     const LLVMFrontendSettings& settings,
     const llvm::DataLayout& dl

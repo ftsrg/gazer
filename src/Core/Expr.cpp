@@ -34,7 +34,7 @@ std::size_t gazer::expr_kind_prime(Expr::ExprKind kind)
         290623u, 241291u, 579499u, 384287u, 125287u, 920273u, 485833u, 326449u,
         972683u, 485167u, 882599u, 535727u, 383651u, 159833u, 796001u, 218479u,
         163993u, 622561u, 938881u, 692467u, 851971u, 478427u, 653969u, 650329u,
-        645187u, 830827u, 431729u, 497663u, 392351u, 715237u
+        645187u, 830827u, 431729u, 497663u, 392351u, 715237u, 689891u
     };
 
     static_assert(
@@ -103,7 +103,7 @@ auto ExtractExpr::Create(const ExprPtr& operand, unsigned offset, unsigned width
 
     assert(opTy != nullptr && "Can only do bitwise cast on integers!");
     assert(width > 0 && "Can only extract at least one bit!");
-    assert(opTy->getWidth() > width + offset && "Extracted bit vector must be smaller than the original!");
+    assert(opTy->getWidth() >= width + offset && "Extracted bit vector must be smaller than the original!");
     auto& context = opTy->getContext();
 
     return context.pImpl->Exprs.create<ExtractExpr>(
@@ -139,6 +139,23 @@ auto ArithmeticExpr<Kind>::Create(const ExprPtr& left, const ExprPtr& right) -> 
     auto& context = left->getContext();
 
     return context.pImpl->Exprs.create<ArithmeticExpr<Kind>>(left->getType(), { left, right });
+}
+
+template<>
+auto ArithmeticExpr<Expr::BvConcat>::Create(const ExprPtr& left, const ExprPtr& right) -> ExprRef<ArithmeticExpr<Expr::BvConcat>>
+{
+    assert(left->getType().isBvType() && "Bv concat only works on Bv types!");
+    assert(right->getType().isBvType() && "Bv concat only works on Bv types!");
+
+    unsigned newSize = llvm::cast<BvType>(left->getType()).getWidth()
+                        + llvm::cast<BvType>(right->getType()).getWidth();
+
+    auto& context = left->getContext();
+
+    return context.pImpl->Exprs.create<BvConcatExpr>(
+        BvType::Get(context, newSize),
+        { left, right }
+    );
 }
 
 static constexpr bool is_bv_only_compare(Expr::ExprKind kind)
@@ -325,6 +342,7 @@ template class ArithmeticExpr<Expr::AShr>;
 template class ArithmeticExpr<Expr::BvAnd>;
 template class ArithmeticExpr<Expr::BvOr>;
 template class ArithmeticExpr<Expr::BvXor>;
+template class ArithmeticExpr<Expr::BvConcat>;
 
 template class CompareExpr<Expr::Eq>;
 template class CompareExpr<Expr::NotEq>;

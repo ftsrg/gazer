@@ -509,7 +509,12 @@ void ModuleToCfa::createAutomata()
         for (MemoryObject& object : memorySSA.objects()) {
             for (MemoryObjectDef& def : object.defs()) {
                 if (auto liveOnEntry = llvm::dyn_cast<memory::LiveOnEntryDef>(&def)) {
-                    functionVarDecl.createInput(&def, object.getObjectType(), "_mem");
+                    // TODO: Remove hard-coded main
+                    if (function.getName() == "main") {
+                        functionVarDecl.createLocal(&def, object.getObjectType(), "_mem");
+                    } else {
+                        functionVarDecl.createInput(&def, object.getObjectType(), "_mem");
+                    }
                 } else {
                     functionVarDecl.createLocal(&def, object.getObjectType(), "_mem");
                 }
@@ -587,7 +592,11 @@ void BlocksToCfa::encode()
         for (MemoryObjectDef& def : mMemorySSA->definitionAnnotationsFor(bb)) {
             Variable* defVariable = getVariable(&def);
             if (auto globalInit = llvm::dyn_cast<memory::GlobalInitializerDef>(&def)) {
-                assignments.emplace_back(defVariable, operand(globalInit->getInitializer()));
+                ExprPtr pointer = operand(globalInit->getGlobalVariable());
+                assignments.emplace_back(
+                    defVariable, 
+                    mMemoryModel.handleGlobalInitializer(globalInit, pointer, *this)
+                );
             }
         }
 
@@ -658,7 +667,7 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
     if (callee == nullptr) {
         // We do not support indirect calls yet.
         return false;
-    } else if (!callee->isDeclaration()) {                    
+    } else if (!callee->isDeclaration()) {
         CfaGenInfo& calledAutomatonInfo = mGenCtx.getFunctionCfa(callee);
         Cfa* calledCfa = calledAutomatonInfo.Automaton;
 

@@ -76,6 +76,19 @@ llvm::Function* ExtensionPoint::getSourceFunction() const
     return mGenInfo.getSourceFunction();
 }
 
+llvm::Function* ExtensionPoint::getParent() const
+{
+    if (auto fun = getSourceFunction()) {
+        return fun;
+    }
+
+    if (auto loop = getSourceLoop()) {
+        return loop->getHeader()->getParent();
+    }
+
+    llvm_unreachable("Invalid automaton source!");
+}
+
 Variable* VariableDeclExtensionPoint::createInput(ValueOrMemoryObject val, Type& type, const std::string& suffix)
 {
     Cfa* cfa = mGenInfo.Automaton;

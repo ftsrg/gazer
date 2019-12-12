@@ -107,9 +107,9 @@ void memory::LiveOnEntryDef::doPrint(llvm::raw_ostream& os) const
 void memory::GlobalInitializerDef::doPrint(llvm::raw_ostream& os) const
 {
     os << "globalInit(" << getObject()->getName();
-    if (mInitializer != nullptr) {
+    if (mGlobalVariable->hasInitializer()) {
         os << ", ";
-        mInitializer->printAsOperand(os);
+        mGlobalVariable->getInitializer()->printAsOperand(os);
     }
     os << ")";
 }

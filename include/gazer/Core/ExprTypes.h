@@ -187,6 +187,7 @@ using AShrExpr = ArithmeticExpr<Expr::AShr>;
 using BvAndExpr = ArithmeticExpr<Expr::BvAnd>;
 using BvOrExpr = ArithmeticExpr<Expr::BvOr>;
 using BvXorExpr = ArithmeticExpr<Expr::BvXor>;
+using BvConcatExpr = ArithmeticExpr<Expr::BvConcat>;
 
 template<Expr::ExprKind Kind>
 class CompareExpr final : public BinaryExpr

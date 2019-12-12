@@ -471,6 +471,11 @@ private:
         return createHandle(Z3_mk_bvxor(mZ3Context, getOperand(0), getOperand(1)));
     }
 
+    Z3AstHandle visitBvConcat(const ExprRef<BvConcatExpr>& expr)
+    {
+        return createHandle(Z3_mk_concat(mZ3Context, getOperand(0), getOperand(1)));
+    }
+
     // Logic
     Z3AstHandle visitAnd(const ExprRef<AndExpr>& expr)
     {

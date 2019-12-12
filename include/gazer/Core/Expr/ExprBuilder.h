@@ -46,6 +46,7 @@ public:
         return BvLiteralExpr::Get(BvType::Get(mContext, bits), llvm::APInt(bits, value));
     }
 
+    ExprRef<BvLiteralExpr> BvLit8(uint64_t value) { return BvLit(value, 8); }
     ExprRef<BvLiteralExpr> BvLit32(uint64_t value) { return BvLit(value, 32); }
     ExprRef<BvLiteralExpr> BvLit64(uint64_t value) { return BvLit(value, 64); }
 
@@ -139,6 +140,9 @@ public:
     }
     virtual ExprPtr BvXor(const ExprPtr& left, const ExprPtr& right) {
         return BvXorExpr::Create(left, right);
+    }
+    virtual ExprPtr BvConcat(const ExprPtr& left, const ExprPtr& right) {
+        return BvConcatExpr::Create(left, right);
     }
 
     //--- Logic ---//

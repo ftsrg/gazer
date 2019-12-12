@@ -98,12 +98,13 @@ public:
         BvURem, ///< unsigned remainder for bitvectors
 
         // Bitvector operations
-        Shl,    ///< binary shift left
-        LShr,   ///< logical shift right
-        AShr,   ///< arithmetic shift right
-        BvAnd,  ///< binary AND for bitvectors
-        BvOr,   ///< binary OR for bitvectors
-        BvXor,  ///< binary XOR for bitvectors
+        Shl,        ///< binary shift left
+        LShr,       ///< logical shift right
+        AShr,       ///< arithmetic shift right
+        BvAnd,      ///< binary AND for bitvectors
+        BvOr,       ///< binary OR for bitvectors
+        BvXor,      ///< binary XOR for bitvectors
+        BvConcat,   ///< bitvector concatenation
 
         // Binary logic
         And,    ///< multiary AND operator for booleans
@@ -178,9 +179,9 @@ public:
     
     // Binary operations
     static constexpr int FirstBinaryArithmetic = Add;
-    static constexpr int LastBinaryArithmetic = BvXor;
+    static constexpr int LastBinaryArithmetic = BvConcat;
     static constexpr int FirstBitLogic = Shl;
-    static constexpr int LastBitLogic  = BvXor;
+    static constexpr int LastBitLogic  = BvConcat;
 
     // Logic and compare
     static constexpr int FirstLogic = And;

@@ -17,7 +17,8 @@ set(SOURCE_FILES
     LLVMFrontend.cpp
     ClangFrontend.cpp
     Memory/MemoryObject.cpp
-    Memory/BasicMemoryModel.cpp
+    #Memory/BasicMemoryModel.cpp
+    Memory/FlatMemoryModel.cpp
     Memory/DummyMemoryModel.cpp
     Memory/MemoryModel.cpp
     Memory/MemorySSA.cpp

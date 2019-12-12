@@ -68,7 +68,7 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
         }
     }
 
-    auto memoryModel = CreateBasicMemoryModel(mContext, mSettings, module.getDataLayout());
+    auto memoryModel = CreateFlatMemoryModel(mContext, mSettings, module.getDataLayout());
     memoryModel->initialize(module, [this](llvm::Function& function) -> llvm::DominatorTree& {
         return getAnalysis<llvm::DominatorTreeWrapperPass>(function).getDomTree();
     });

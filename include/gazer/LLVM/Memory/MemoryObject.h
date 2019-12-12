@@ -376,14 +376,14 @@ public:
         MemoryObject* object,
         unsigned int version,
         llvm::BasicBlock* block,
-        llvm::Value* initValue = nullptr
+        llvm::GlobalVariable* gv
     )
         : BlockAnnotationDef(object, version, MemoryObjectDef::GlobalInitializer),
         mEntryBlock(block),
-        mInitializer(initValue)
+        mGlobalVariable(gv)
     {}
 
-    llvm::Value* getInitializer() const { return mInitializer; }
+    llvm::GlobalVariable* getGlobalVariable() const { return mGlobalVariable; }
     llvm::BasicBlock* getBlock() const override { return mEntryBlock; }
 
     static bool classof(const MemoryObjectDef* def) {
@@ -394,7 +394,7 @@ protected:
     void doPrint(llvm::raw_ostream& os) const override;
 private:
     llvm::BasicBlock* mEntryBlock;
-    llvm::Value* mInitializer;
+    llvm::GlobalVariable* mGlobalVariable;
 };
 
 class PhiDef : public BlockAnnotationDef

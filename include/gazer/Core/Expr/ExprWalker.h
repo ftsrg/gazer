@@ -308,6 +308,9 @@ public:
     ReturnT visitBvXor(const ExprRef<BvXorExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitNonNullary(expr);
     }
+    ReturnT visitBvConcat(const ExprRef<BvConcatExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
 
     // Logic
     ReturnT visitAnd(const ExprRef<AndExpr>& expr) {

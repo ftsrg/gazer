@@ -51,6 +51,16 @@ public:
         return UndefExpr::Get(BoolType::Get(mContext));
     }
 
+    ExprPtr handleGlobalInitializer(
+        memory::GlobalInitializerDef* def,
+        ExprPtr pointer,
+        llvm2cfa::GenerationStepExtensionPoint& ep
+    ) {
+        return UndefExpr::Get(
+            translateType(def->getGlobalVariable()->getType()->getPointerElementType())
+        );
+    }
+
     void handleStore(
         const llvm::StoreInst& store,
         const llvm::SmallVectorImpl<memory::StoreDef*>& annotations,

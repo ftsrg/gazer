@@ -77,16 +77,13 @@ memory::LiveOnEntryDef* MemorySSABuilder::createLiveOnEntryDef(gazer::MemoryObje
 }
 
 memory::GlobalInitializerDef* MemorySSABuilder::createGlobalInitializerDef(
-    gazer::MemoryObject* object, llvm::Value* initializer)
+    gazer::MemoryObject* object, llvm::GlobalVariable* gv)
 {
-    assert(!object->hasEntryDef() && "Attempting to insert two entry definitions for a single object!");
-
     llvm::BasicBlock* entryBlock = &mFunction.getEntryBlock();
-    auto def = new memory::GlobalInitializerDef(object, mVersionNumber++, entryBlock, initializer);
+    auto def = new memory::GlobalInitializerDef(object, mVersionNumber++, entryBlock, gv);
     mObjectInfo[object].defBlocks.insert(entryBlock);
     mValueDefs[&mFunction.getEntryBlock()].push_back(def);
     object->addDefinition(def);
-    object->setEntryDef(def);
 
     return def;
 }
@@ -195,6 +192,12 @@ void MemorySSABuilder::renameBlock(llvm::BasicBlock* block)
     // Handle all block-level annotations first
     for (auto& def : mValueDefs[block]) {
         MemoryObject* object = def->getObject();
+
+        MemoryObjectDef* reachingDef = mObjectInfo[object].getCurrentTopDefinition();
+        if (reachingDef != nullptr) {
+            def->setReachingDef(reachingDef);
+        }
+
         mObjectInfo[object].renameStack.push_back(&*def);
         defsInThisBlock[object]++;
     }

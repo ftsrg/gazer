@@ -45,6 +45,7 @@ ExprPtr ExprRewriteBase::rewriteNonNullary(const ExprRef<NonNullaryExpr>& expr, 
         case Expr::BvAnd: return mExprBuilder.BvAnd(ops[0], ops[1]);
         case Expr::BvOr: return mExprBuilder.BvOr(ops[0], ops[1]);
         case Expr::BvXor: return mExprBuilder.BvXor(ops[0], ops[1]);
+        case Expr::BvConcat: return mExprBuilder.BvConcat(ops[0], ops[1]);
         case Expr::And: return mExprBuilder.And(ops);
         case Expr::Or: return mExprBuilder.Or(ops);
         case Expr::Xor: return mExprBuilder.Xor(ops[0], ops[1]);
