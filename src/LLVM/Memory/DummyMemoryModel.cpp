@@ -41,7 +41,9 @@ public:
 
     ExprPtr handleAlloca(
         const llvm::AllocaInst& alloc,
-        const llvm::SmallVectorImpl<memory::AllocaDef*>& annotations
+        const llvm::SmallVectorImpl<memory::AllocaDef*>& annotations,
+        llvm2cfa::GenerationStepExtensionPoint& ep,
+        std::vector<VariableAssignment>& assignments
     ) override {
         return UndefExpr::Get(BoolType::Get(mContext));
     }

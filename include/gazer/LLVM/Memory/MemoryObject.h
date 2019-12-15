@@ -164,22 +164,12 @@ public:
         unsigned id,
         gazer::Type& objectType,
         MemoryObjectSize size,
-        llvm::Type* valueType,
+        llvm::Type* valueType = nullptr,
         llvm::StringRef name = ""
     ) :
         mId(id), mObjectType(objectType), mSize(size),
         mValueType(valueType), mName(!name.empty() ? name.str() : std::to_string(mId))
-    {
-        if (mValueType->isArrayTy()) {
-            mKind = ObjectKind::Kind_Array;
-        } else if (mValueType->isStructTy()) {
-            mKind = ObjectKind::Kind_Struct;
-        } else if (mValueType->isSingleValueType()) {
-            mKind = ObjectKind::Kind_Scalar;
-        } else {
-            mKind = ObjectKind::Kind_Unknown;
-        }
-    }
+    {}
 
     void print(llvm::raw_ostream& os) const;
 

@@ -473,13 +473,6 @@ protected:
 public:
     static ExprRef<TupleConstructExpr> Create(TupleType& type, const ExprVector& exprs);
 
-    using value_iterator = std::vector<ExprRef<LiteralExpr>>::const_iterator;
-    value_iterator value_begin() const { return mValues.begin(); }
-    value_iterator value_end() const { return mValues.end(); }
-    llvm::iterator_range<value_iterator> values() const {
-        return llvm::make_range(value_begin(), value_end());
-    }
-
     static bool classof(const Expr* expr) {
         return expr->getKind() == Literal && expr->getType().isTupleType();
     }
@@ -489,7 +482,6 @@ public:
     }
 
 private:
-    std::vector<ExprRef<LiteralExpr>> mValues;
 };
 
 } // end namespace gazer

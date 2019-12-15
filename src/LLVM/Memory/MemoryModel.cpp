@@ -16,6 +16,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "gazer/Core/LiteralExpr.h"
 #include "gazer/LLVM/Memory/MemorySSA.h"
 #include "gazer/LLVM/Memory/MemoryModel.h"
 
@@ -38,6 +39,11 @@ void MemoryModel::initialize(llvm::Module& module, std::function<llvm::Dominator
         auto memSSA = builder.build();
         mFunctions.try_emplace(&function, std::move(memSSA));
     }
+}
+
+ExprPtr MemoryModel::handleLiveOnEntry(memory::LiveOnEntryDef* def, llvm2cfa::GenerationStepExtensionPoint& ep)
+{
+    return nullptr;
 }
 
 void CollectMemoryDefsUsesVisitor::visitStoreInst(llvm::StoreInst& store)

@@ -1,5 +1,4 @@
 // XFAIL: memory
-// RUN: %bmc -bound 1 "%s" | FileCheck "%s"
 // RUN: %bmc -bound 1 -math-int "%s" | FileCheck "%s"
 
 // CHECK: Verification SUCCESSFUL
@@ -7,23 +6,15 @@
 
 int __VERIFIER_nondet_int(void);
 void __VERIFIER_error(void) __attribute__((__noreturn__));
-void __VERIFIER_assume(int expression);
+void __VERIFIER_assume(int);
 
-void make_symbolic(void* ptr);
+int a = 0, b = 1;
 
 int main(void)
 {
-    int a, b;
-    make_symbolic(&a);
-    make_symbolic(&b);
-    
-    __VERIFIER_assume(a < INT_MAX - 2);
-    
-    if (a == 0) {
-        b = a + 1;
-    } else {
-        b = a + 2;
-    }
+    a = __VERIFIER_nondet_int();
+    __VERIFIER_assume(a < INT_MAX - 1);
+    b = a;
 
     if (a > b) {
         __VERIFIER_error();

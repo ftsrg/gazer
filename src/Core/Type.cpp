@@ -191,6 +191,9 @@ TupleType& TupleType::Get(std::vector<Type*> subtypes)
 {
     assert(!subtypes.empty());
     assert(subtypes.size() >= 2);
+    assert(std::none_of(subtypes.begin(), subtypes.end(), [](Type* t) {
+        return t->isTupleType();
+    }) && "Nested tuples are not supported!");
 
     auto& ctx = subtypes[0]->getContext();
     auto& pImpl = ctx.pImpl;

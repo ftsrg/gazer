@@ -23,6 +23,16 @@
 
 using namespace gazer;
 
+ExprPtr ExprBuilder::createTupleConstructor(TupleType& type, const ExprVector& members)
+{
+    return TupleConstructExpr::Create(type, members);
+}
+
+ExprPtr ExprBuilder::TupSel(const ExprPtr& tuple, unsigned index)
+{
+    return TupleSelectExpr::Create(tuple, index);
+}
+
 std::unique_ptr<ExprBuilder> gazer::CreateExprBuilder(GazerContext& context)
 {
     return std::unique_ptr<ExprBuilder>(new ExprBuilder(context));

@@ -13,7 +13,7 @@ int main(void)
         x[i] = i;
     }
 
-    if (x[0] != 0) {
+    if (x[0] == 0) {
         __VERIFIER_error();
     }
 

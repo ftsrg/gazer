@@ -46,13 +46,11 @@ class FlatMemoryModel : public MemoryModel
 
     struct FunctionInfo
     {
-        MemoryObject* Stack;
-        MemoryObject* Global;
-        MemoryObject* Heap;
+        MemoryObject* Memory;
+        MemoryObject* StackPointer;
+        MemoryObject* FramePointer;
 
-        llvm::DenseMap<MemoryObjectDef*, MemoryObjectDefInfo> Defs;
         llvm::DenseMap<const llvm::GlobalVariable*, ExprPtr> GlobalPointers;
-        llvm::DenseMap<const llvm::Value*, MemoryObject*> KnownPointers;
     };
 
     // Memory object pointers are disambiguated using the highest bits of the pointer:
@@ -74,8 +72,11 @@ public:
     }
 
 public:
-    void declareProcedureVariables(llvm2cfa::VariableDeclExtensionPoint& extensionPoint) override
-    {}
+    void declareProcedureVariables(llvm2cfa::VariableDeclExtensionPoint& extensionPoint) override {}
+    ExprPtr handleLiveOnEntry(
+        memory::LiveOnEntryDef* def,
+        llvm2cfa::GenerationStepExtensionPoint& ep
+    ) override;
 
     ExprPtr handlePointerCast(const llvm::CastInst& cast) override {
         return UndefExpr::Get(translateType(cast.getType()));
@@ -92,12 +93,6 @@ public:
             }
         }
 
-        MemoryObject* object = info.KnownPointers[value];
-
-        if (object == nullptr) {
-        }
-
-        // TODO
         return UndefExpr::Get(this->getPointerType());
     }
 
@@ -120,10 +115,10 @@ public:
 
     ExprPtr handleAlloca(
         const llvm::AllocaInst& alloc,
-        const llvm::SmallVectorImpl<memory::AllocaDef*>& annotations
-    ) override {
-        return UndefExpr::Get(this->getPointerType());
-    }
+        const llvm::SmallVectorImpl<memory::AllocaDef*>& annotations,
+        llvm2cfa::GenerationStepExtensionPoint& ep,
+        std::vector<VariableAssignment>& assignments
+    ) override;
 
     /// Maps the given memory object to a memory object in function.
     void handleCall(
@@ -133,16 +128,12 @@ public:
         std::vector<VariableAssignment>& inputAssignments,
         std::vector<VariableAssignment>& outputAssignments,
         std::vector<VariableAssignment>& additionalAssignments
-    ) override
-    {
-    }
+    ) override;
 
     ExprPtr handleGetElementPtr(
         const llvm::GetElementPtrInst& gep,
         llvm::ArrayRef<ExprPtr> ops
-    ) override {
-        return UndefExpr::Get(this->getPointerType());
-    }
+    ) override;
 
     void handleBlock(
         const llvm::BasicBlock& bb,
@@ -168,11 +159,41 @@ public:
             this->getPointerType(),
             BvType::Get(mContext, 8)
         ));
+
+        llvm::Type* elemTy = cda->getType()->getArrayElementType();
+        unsigned size = mDataLayout.getTypeAllocSize(elemTy);
+
+        unsigned currentOffset = 0;
         for (unsigned i = 0; i < cda->getNumElements(); ++i) {
-            builder.addValue(
-                IntLiteralExpr::Get(mContext, i),
-                elements[i]
-            );
+            ExprRef<LiteralExpr> lit = elements[i];
+
+            if (auto bvLit = llvm::dyn_cast<BvLiteralExpr>(lit)) {
+                if (bvLit->getType().getWidth() < 8) {
+                    builder.addValue(
+                        this->ptrConstant(currentOffset),
+                        mExprBuilder->BvLit(bvLit->getValue().zext(8))
+                    );
+                    currentOffset += 1;
+                } else {
+                    for (unsigned j = 0; j < size; ++j) {
+                        auto byteValue = mExprBuilder->BvLit(bvLit->getValue().extractBits(8, j * 8));
+
+                        builder.addValue(
+                            this->ptrConstant(currentOffset),
+                            byteValue
+                        );
+                        currentOffset += j;
+                    }
+                }
+            } else if (auto boolLit = llvm::dyn_cast<BoolLiteralExpr>(lit)) {
+                builder.addValue(
+                    this->ptrConstant(currentOffset),
+                    boolLit->getValue() ? mExprBuilder->BvLit8(1) : mExprBuilder->BvLit8(0)
+                );
+                currentOffset += 1;
+            } else {
+                llvm_unreachable("Unsupported array type!");
+            }
         }
 
         return builder.build();
@@ -185,8 +206,6 @@ public:
         llvm2cfa::GenerationStepExtensionPoint& ep
     ) override
     {
-        auto& info = mFunctionInfo[ep.getParent()];
-
         llvm::GlobalVariable* gv = def->getGlobalVariable();
         llvm::Value* initializer = gv->getInitializer();
 
@@ -242,24 +261,32 @@ protected:
     void initializeFunction(llvm::Function& function, memory::MemorySSABuilder& builder) override;
 
 private:
-    BvType& getPointerType() const { return BvType::Get(mContext, 32); }
+    BvType& getPointerType() const { return BvType::Get(mContext, mDataLayout.getPointerSizeInBits()); }
+    ExprRef<BvLiteralExpr> ptrConstant(unsigned addr) {
+        return BvLiteralExpr::Get(getPointerType(), addr);
+    }
     
     ArrayType& getMemoryObjectType() const {
         return ArrayType::Get(this->getPointerType(), BvType::Get(mContext, 8));
     }
 
-    MemoryObject* trackPointerToSingleObject(FunctionInfo& info, const llvm::Value* value);
-
     ExprPtr pointerOffset(ExprPtr pointer, unsigned offset) {
-        return mExprBuilder->Add(pointer, mExprBuilder->BvLit32(offset));
+        return mExprBuilder->Add(pointer, BvLiteralExpr::Get(getPointerType(), offset));
     }
 
 private:
-    llvm::DenseMap<llvm::Function*, FunctionInfo> mFunctionInfo;
+    llvm::DenseMap<const llvm::Function*, FunctionInfo> mFunctionInfo;
     std::unique_ptr<ExprBuilder> mExprBuilder;
 };
 
 } // end anonymous namespace
+
+static bool hasPointerOperands(llvm::Function& func)
+{
+    return std::any_of(func.arg_begin(), func.arg_end(), [](llvm::Argument& arg) {
+        return arg.getType()->isPointerTy();
+    });
+}
 
 void FlatMemoryModel::initializeFunction(llvm::Function& function, memory::MemorySSABuilder& builder)
 {
@@ -267,75 +294,64 @@ void FlatMemoryModel::initializeFunction(llvm::Function& function, memory::Memor
     // TODO: This should be more flexible.
     bool isEntryFunction = function.getName() == "main";
 
-    // Each function inserts three memory objects: Global, Heap, and Stack.
-    info.Stack = builder.createMemoryObject(
-        StackBegin,
+    info.Memory = builder.createMemoryObject(
+        0,
         this->getMemoryObjectType(),
         MemoryObject::UnknownSize,
         llvm::Type::getInt8Ty(function.getContext()),
-        "Stack"
+        "Memory"
     );
-    info.Global = builder.createMemoryObject(
-        GlobalBegin,
-        this->getMemoryObjectType(),
+    info.StackPointer = builder.createMemoryObject(
+        1,
+        this->getPointerType(),
         MemoryObject::UnknownSize,
-        llvm::Type::getInt8Ty(function.getContext()),
-        "Global"
+        nullptr,
+        "StackPointer"
     );
-    info.Heap = builder.createMemoryObject(
-        HeapBegin,
-        this->getMemoryObjectType(),
+    info.FramePointer = builder.createMemoryObject(
+        2,
+        this->getPointerType(),
         MemoryObject::UnknownSize,
-        llvm::Type::getInt8Ty(function.getContext()),
-        "Heap"
+        nullptr,
+        "FramePointer"
     );
 
-    builder.createLiveOnEntryDef(info.Stack);
-    builder.createLiveOnEntryDef(info.Global);
-    builder.createLiveOnEntryDef(info.Heap);
+    builder.createLiveOnEntryDef(info.Memory);
+    builder.createLiveOnEntryDef(info.StackPointer);
+    builder.createLiveOnEntryDef(info.FramePointer);
 
     // Handle global variables
     unsigned globalAddr = GlobalBegin;
     for (llvm::GlobalVariable& gv : function.getParent()->globals()) {
-        info.GlobalPointers[&gv] = mExprBuilder->BvLit32(globalAddr);
-        info.KnownPointers[&gv] = info.Global;
+        info.GlobalPointers[&gv] = this->ptrConstant(globalAddr);
 
         unsigned siz = mDataLayout.getTypeAllocSize(gv.getType()->getPointerElementType());
         globalAddr += siz;
 
         if (isEntryFunction && gv.hasInitializer()) {
-            builder.createGlobalInitializerDef(info.Global, &gv);
+            builder.createGlobalInitializerDef(info.Memory, &gv);
         }
     }
 
     for (llvm::Instruction& inst : llvm::instructions(function)) {
         if (auto store = llvm::dyn_cast<llvm::StoreInst>(&inst)) {
-            MemoryObject* object = trackPointerToSingleObject(info, store->getPointerOperand());
-            if (object != nullptr) {
-                builder.createStoreDef(object, *store);
-            } else {
-                builder.createStoreDef(info.Stack, *store);
-                builder.createStoreDef(info.Global, *store);
-                builder.createStoreDef(info.Heap, *store);
-            }
+            builder.createStoreDef(info.Memory, *store);
         } else if (auto load = llvm::dyn_cast<llvm::LoadInst>(&inst)) {
-            MemoryObject* object = trackPointerToSingleObject(info, load->getPointerOperand());
-
-            if (object != nullptr) {
-                builder.createLoadUse(object, *load);
-            } else {
-                builder.createLoadUse(info.Stack, *load);
-                builder.createLoadUse(info.Global, *load);
-                builder.createLoadUse(info.Heap, *load);
-            }
+            builder.createLoadUse(info.Memory, *load);
         } else if (auto call = llvm::dyn_cast<llvm::CallInst>(&inst)) {
             llvm::Function* callee = call->getCalledFunction();
 
             if (callee == nullptr) {
                 // TODO: Indirect calls.
+                builder.createCallDef(info.Memory, call);
+                builder.createCallUse(info.Memory, call);
+                continue;
             }
 
-            if (callee->getName().startswith("gazer.") || callee->getName().startswith("llvm.")) {
+            if (callee->getName().startswith("gazer.")
+                || callee->getName().startswith("llvm.")
+                || callee->getName().startswith("verifier.")
+            ) {
                 // TODO: This may need to change in the case of some intrinsics (e.g. llvm.memcpy)
                 continue;
             }
@@ -344,21 +360,37 @@ void FlatMemoryModel::initializeFunction(llvm::Function& function, memory::Memor
             // global variables.
             // FIXME: We should make this configurable.
             if (!callee->isDeclaration() || callee->getReturnType()->isVoidTy()) {
-                builder.createCallDef(info.Global, call);
-                builder.createCallUse(info.Global, call);
+                builder.createCallDef(info.Memory, call);
+                builder.createCallUse(info.Memory, call);
+                builder.createCallUse(info.StackPointer, call);
+                builder.createCallUse(info.FramePointer, call);
             }
-
-            builder.createCallDef(info.Stack, call);
-            builder.createCallDef(info.Heap, call);
-
-            builder.createCallUse(info.Stack, call);
-            builder.createCallUse(info.Heap, call);
         } else if (auto ret = llvm::dyn_cast<llvm::ReturnInst>(&inst)) {
-            builder.createReturnUse(info.Global, *ret);
-            builder.createReturnUse(info.Heap, *ret);
-            // The stack should not be considered alive after a function exits.
+            builder.createReturnUse(info.Memory, *ret);
+        } else if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(&inst)) {
+            builder.createAllocaDef(info.Memory, *alloca);
+            builder.createAllocaDef(info.StackPointer, *alloca);
         }
     }   
+}
+
+ExprPtr FlatMemoryModel::handleLiveOnEntry(
+    memory::LiveOnEntryDef* def,
+    llvm2cfa::GenerationStepExtensionPoint& ep
+) {
+    llvm::Function* function = def->getParentBlock()->getParent();
+    if (function->getName() != "main") {
+        return MemoryModel::handleLiveOnEntry(def, ep);
+    }
+
+    auto& info = mFunctionInfo[function];
+
+    if (def->getObject() == info.StackPointer || def->getObject() == info.FramePointer) {
+        // Initialize the stack and frame pointers to the beginning of the stack.
+        return this->ptrConstant(StackBegin);
+    }
+
+    return MemoryModel::handleLiveOnEntry(def, ep);
 }
 
 ExprPtr FlatMemoryModel::handleLoad(
@@ -465,35 +497,92 @@ void FlatMemoryModel::handleStore(
             }
         }
 
-        assignments.emplace_back(defVariable, array);
+        if (!ep.tryToEliminate(def, defVariable, array)) {
+            assignments.emplace_back(defVariable, array);
+        }
     }
 }
 
-MemoryObject* FlatMemoryModel::trackPointerToSingleObject(FunctionInfo& info, const llvm::Value* value)
-{
-    assert(value->getType()->isPointerTy());
+ExprPtr FlatMemoryModel::handleAlloca(
+    const llvm::AllocaInst& alloc,
+    const llvm::SmallVectorImpl<memory::AllocaDef*>& annotations,
+        llvm2cfa::GenerationStepExtensionPoint& ep,
+    std::vector<VariableAssignment>& assignments
+) {
+    auto& info = mFunctionInfo[alloc.getFunction()];
 
-    llvm::SmallVector<const llvm::Value*, 4> wl;
-    wl.push_back(value);
-
-    while (!wl.empty()) {
-        const llvm::Value* ptr = wl.pop_back_val();
-
-        MemoryObject* object = info.KnownPointers.lookup(ptr);
-        if (object != nullptr) {
-            return object;
-        } else if (auto bitcast = llvm::dyn_cast<llvm::BitCastInst>(ptr)) {
-            wl.push_back(bitcast->getOperand(0));
-        } else if (auto select = llvm::dyn_cast<llvm::SelectInst>(ptr)) {
-            wl.push_back(select->getOperand(1));
-            wl.push_back(select->getOperand(2));
+    MemoryObjectDef* spDef;
+    MemoryObjectDef* memDef;
+    for (memory::AllocaDef* def : annotations) {
+        if (def->getObject() == info.StackPointer) {
+            spDef = def;
+        } else if (def->getObject() == info.Memory) {
+            memDef = def;
         } else {
-            // We cannot track this pointer any further.
-            return nullptr;
+            llvm_unreachable("Unknown alloca memory annotation!");
         }
     }
 
-    return nullptr;
+    unsigned size = mDataLayout.getTypeAllocSize(alloc.getAllocatedType());
+
+    // This alloca returns the pointer to the current stack frame top,
+    // which is then advanced by the size of the allocated type.
+    // We also clobber the relevant bytes of the memory array.
+    ExprPtr ptr = ep.getAsOperand(spDef->getReachingDef());
+    assignments.emplace_back(ep.getVariableFor(spDef), mExprBuilder->Add(
+        ptr, this->ptrConstant(size)
+    ));
+
+    ExprPtr resArray = ep.getAsOperand(memDef->getReachingDef());
+    for (unsigned i = 0; i < size; ++i) {
+        resArray = mExprBuilder->Write(
+            resArray,
+            this->pointerOffset(ptr, i),
+            mExprBuilder->Undef(BvType::Get(mContext, 8))
+        );
+    }
+
+    Variable* memVar = ep.getVariableFor(memDef);
+    if (!ep.tryToEliminate(memDef, memVar, resArray)) {
+        assignments.emplace_back(memVar, resArray);
+    }
+
+    return ptr;
+}
+
+void FlatMemoryModel::handleCall(
+    llvm::ImmutableCallSite call,
+    llvm2cfa::GenerationStepExtensionPoint& callerEp,
+    llvm2cfa::AutomatonInterfaceExtensionPoint& calleeEp,
+    std::vector<VariableAssignment>& inputAssignments,
+    std::vector<VariableAssignment>& outputAssignments,
+    std::vector<VariableAssignment>& additionalAssignments)
+{
+    const llvm::Function* callee = call.getCalledFunction();
+    if (callee == nullptr) {
+        // TODO: Indirect calls.
+        return;
+    }
+   
+}
+
+ExprPtr FlatMemoryModel::handleGetElementPtr(
+    const llvm::GetElementPtrInst& gep,
+    llvm::ArrayRef<ExprPtr> ops)
+{
+    assert(ops.size() == gep.getNumOperands());
+    assert(ops.size() >= 2);
+
+    ExprPtr addr = ops[0];
+    for (unsigned i = 1; i < ops.size(); ++i) {
+        llvm::Value* gepOperand = gep.getOperand(i);
+        addr = mExprBuilder->Add(
+            addr,
+            mExprBuilder->Mul(ops[i], this->ptrConstant(mDataLayout.getTypeAllocSize(gepOperand->getType())))
+        );
+    }
+
+    return addr;
 }
 
 auto gazer::CreateFlatMemoryModel(

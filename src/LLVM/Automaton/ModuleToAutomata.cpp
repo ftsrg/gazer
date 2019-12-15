@@ -597,6 +597,11 @@ void BlocksToCfa::encode()
                     defVariable, 
                     mMemoryModel.handleGlobalInitializer(globalInit, pointer, *this)
                 );
+            } else if (auto liveOnEntry = llvm::dyn_cast<memory::LiveOnEntryDef>(&def)) {
+                ExprPtr liveOnEntryInit = mMemoryModel.handleLiveOnEntry(liveOnEntry, *this);
+                if (liveOnEntryInit != nullptr) {
+                    assignments.emplace_back(defVariable, liveOnEntryInit);
+                }
             }
         }
 
@@ -637,7 +642,7 @@ void BlocksToCfa::encode()
                 llvm::SmallVector<memory::AllocaDef*, 4> allocaDefs;
                 memoryAccessOfKind(mMemorySSA->definitionAnnotationsFor(&inst), allocaDefs);
 
-                expr = mMemoryModel.handleAlloca(*alloca, allocaDefs);
+                expr = mMemoryModel.handleAlloca(*alloca, allocaDefs, *this, assignments);
             } else {
                 expr = this->transform(inst);
             }

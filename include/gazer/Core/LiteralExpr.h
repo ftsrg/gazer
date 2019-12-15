@@ -172,6 +172,9 @@ public:
 
 public:
     static ExprRef<BvLiteralExpr> Get(BvType& type, const llvm::APInt& value);
+    static ExprRef<BvLiteralExpr> Get(BvType& type, uint64_t value) {
+        return Get(type, llvm::APInt{type.getWidth(), value});
+    }
 
     llvm::APInt getValue() const { return mValue; }
 

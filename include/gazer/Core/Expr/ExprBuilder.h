@@ -279,6 +279,20 @@ public:
     virtual ExprPtr Read(const ExprPtr& array, const ExprPtr& index) {
         return ArrayReadExpr::Create(array, index);
     }
+
+    template<class First, class Second, class... Tail>
+    ExprPtr Tuple(const First& first, const Second& second, const Tail&... exprs)
+    {
+        TupleType& type = TupleType::Get(first->getType(), second->getType(), exprs->getType()...);
+        return this->createTupleConstructor(type, {first, second, exprs...});
+    }
+
+    virtual ExprPtr TupSel(const ExprPtr& tuple, unsigned index);
+
+protected:
+    /// Tuple constructor.
+    virtual ExprPtr createTupleConstructor(TupleType& type, const ExprVector& members);
+
 private:
     GazerContext& mContext;
 };

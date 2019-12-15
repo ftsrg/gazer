@@ -87,6 +87,11 @@ public:
     //virtual std::optional<VariableAssignment> handleMemoryObjectDef(const MemoryObjectDef* def) = 0;
     //virtual std::optional<VariableAssignment> handleMemoryObjectUse(const MemoryObjectUse* use) = 0;
 
+    virtual ExprPtr handleLiveOnEntry(
+        memory::LiveOnEntryDef* def,
+        llvm2cfa::GenerationStepExtensionPoint& ep
+    );
+
     virtual ExprPtr handleGlobalInitializer(
         memory::GlobalInitializerDef* def,
         ExprPtr pointer,
@@ -103,7 +108,9 @@ public:
 
     virtual ExprPtr handleAlloca(
         const llvm::AllocaInst& alloc,
-        const llvm::SmallVectorImpl<memory::AllocaDef*>& annotations
+        const llvm::SmallVectorImpl<memory::AllocaDef*>& annotations,
+        llvm2cfa::GenerationStepExtensionPoint& ep,
+        std::vector<VariableAssignment>& assignments
     ) = 0;
 
     /// Maps the given memory object to a memory object in function.
