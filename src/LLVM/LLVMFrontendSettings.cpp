@@ -68,6 +68,14 @@ namespace
         "dump-memssa", cl::desc("Dump the built MemorySSA information to stderr"),
         cl::cat(IrToCfaCategory)
     );
+    cl::opt<MemoryModelSetting> MemoryModelOpt("memory", cl::desc("Memory model to use:"),
+        cl::values(
+            clEnumValN(MemoryModelSetting::Flat, "flat", "Bit-precise flat memory model"),
+            clEnumValN(MemoryModelSetting::Havoc, "havoc", "Dummy havoc model")
+        ),
+        cl::init(MemoryModelSetting::Flat),
+        cl::cat(IrToCfaCategory)
+    );
 
     // Traceability options
     cl::opt<bool> PrintTrace(
@@ -95,6 +103,7 @@ LLVMFrontendSettings LLVMFrontendSettings::initFromCommandLine()
     settings.slicing =!NoSlice;
     settings.elimVars = ElimVarsLevelOpt;
     settings.simplifyExpr = !NoSimplifyExpr;
+    settings.memoryModel = MemoryModelOpt;
 
     if (ArithInts) {
         settings.ints = IntRepresentation::Integers;

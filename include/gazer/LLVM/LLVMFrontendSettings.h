@@ -49,6 +49,12 @@ enum class ElimVarsLevel
     Aggressive ///< Inline all suitable variables
 };
 
+enum class MemoryModelSetting
+{
+    Havoc,
+    Flat
+};
+
 class LLVMFrontendSettings
 {
 public:
@@ -72,6 +78,7 @@ public:
 
     // Memory models
     bool debugDumpMemorySSA = false;
+    MemoryModelSetting memoryModel = MemoryModelSetting::Flat;
 
 public:
     bool isElimVarsOff() const { return elimVars == ElimVarsLevel::Off; }

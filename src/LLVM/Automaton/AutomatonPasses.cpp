@@ -68,7 +68,17 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
         }
     }
 
-    auto memoryModel = CreateFlatMemoryModel(mContext, mSettings, module.getDataLayout());
+    std::unique_ptr<MemoryModel> memoryModel;
+    switch (mSettings.memoryModel) {
+        case MemoryModelSetting::Havoc:
+            memoryModel = CreateHavocMemoryModel(mContext, mSettings, module.getDataLayout());
+            break;
+        case MemoryModelSetting::Flat:
+            memoryModel = CreateFlatMemoryModel(mContext, mSettings, module.getDataLayout());
+            break;
+    }
+    assert(memoryModel != nullptr && "Unknown memory model setting!");
+    
     memoryModel->initialize(module, [this](llvm::Function& function) -> llvm::DominatorTree& {
         return getAnalysis<llvm::DominatorTreeWrapperPass>(function).getDomTree();
     });
