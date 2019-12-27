@@ -24,26 +24,51 @@ import shutil
 import os
 
 
-class VerifierConfig:
-    def __init__(self, tool, file, flags):
-        self.tool = tool
+class VerifierTool:
+    def __init__(self, toolpath: str, file: pathlib.Path, args):
+        self.toolpath = toolpath
+        self.args = args
         self.file = file
-        self.flags = flags
 
     def call_str(self):
-        return "{0} {1} {2}".format(self.tool, ' '.join(self.flags), self.file)
+        return "{0} {1} {2}".format(self.toolpath, ' '.join(self.args), self.file.name)
 
+    def success_pattern(self):
+        raise NotImplementedError()
+
+    def fail_pattern(self):
+        raise NotImplementedError()
+
+class GazerVerifier(VerifierTool):
+    def __init__(self, toolpath, file, args):
+        super().__init__(toolpath, file, args)
+
+    def success_pattern(self):
+        return '"Verification SUCCESSFUL"'
+
+    def fail_pattern(self):
+        return '"Verification FAILED"'
+
+class CpaVerifier(VerifierTool):
+    def __init__(self, toolpath, file, args):
+        super().__init__(toolpath, file, args)
+
+    def success_pattern(self):
+        return '"Verification result: TRUE"'
+
+    def fail_pattern(self):
+        return '"Verification result: FALSE"'
 
 class Reducer:
     early_reject = ""
 
-    def __init__(self, verif: VerifierConfig):
+    def __init__(self, verif: VerifierTool):
         self.verif = verif
 
     def generate(self):
         output = ""
         if self.early_reject != "":
-            output += "cat {0} | grep '{1}'\n".format(self.verif.file, self.early_reject)
+            output += "cat {0} | grep '{1}'\n".format(self.verif.file.name, self.early_reject)
         output += self.create_script()
 
         return output
@@ -54,14 +79,14 @@ class Reducer:
 
 class FalseCexReducer(Reducer):
     """Creates an interestingness test targeting an unreproducable counterexample."""
-    def __init__(self, verif: VerifierConfig, gazer_build_path: pathlib.Path):
+    def __init__(self, verif: VerifierTool, gazer_build_path: pathlib.Path):
         super().__init__(verif)
         self.check_cex = gazer_build_path.joinpath("../test/check-cex.sh").absolute()
         self.errors = gazer_build_path.joinpath("../test/errors.c").absolute()
 
     def create_script(self) -> str:
         output = self.verif.call_str() + " &> t.log\n"
-        output += 'cat t.log | grep "Verification FAILED"\n'
+        output += 'cat t.log | grep {0}\n'.format(self.verif.fail_pattern)
         output += 'RESULT=$?\n'
         output += 'if [ $RESULT -ne 0 ]; then\n'
         output += '    exit 1\n'
@@ -77,17 +102,17 @@ class FalseCexReducer(Reducer):
 
 
 class InvalidFailReducer(Reducer):
-    def __init__(self, verif: VerifierConfig, safe: VerifierConfig):
+    def __init__(self, verif: VerifierTool, safe: VerifierTool):
         super().__init__(verif)
         self.safe = safe
 
     def create_script(self) -> str:
-        output = self.verif.call_str() + ' | grep "FAILED"\n'
+        output = '{0} | grep {1}\n'.format(self.verif.call_str(), self.verif.fail_pattern())
         output += 'RES1=$?\n'
         output += 'if [ $RES1 -ne 0 ]; then\n'
         output += '    exit 1\n'
         output += 'fi\n'
-        output += self.safe.call_str() + ' | grep "SUCCESSFUL"\n'
+        output += '{0} | grep {1}\n'.format(self.safe.call_str(), self.verif.success_pattern())
         output += 'RES2=$?\n'
         output += 'if [ $RES2 -ne 0 ]; then\n'
         output += '    exit 1\n'
@@ -97,17 +122,17 @@ class InvalidFailReducer(Reducer):
 
 
 class InvalidSuccessReducer(Reducer):
-    def __init__(self, verif: VerifierConfig, safe: VerifierConfig):
+    def __init__(self, verif: VerifierTool, safe: VerifierTool):
         super().__init__(verif)
         self.safe = safe
 
     def create_script(self) -> str:
-        output = self.verif.call_str() + ' | grep "SUCCESSFUL"\n'
+        output = '{0} | grep {1}\n'.format(self.verif.call_str(), self.verif.success_pattern())
         output += 'RES1=$?\n'
         output += 'if [ $RES1 -ne 0 ]; then\n'
         output += '    exit 1\n'
         output += 'fi\n'
-        output += self.safe.call_str() + ' | grep "FAILED"\n'
+        output += '{0} | grep {1}\n'.format(self.safe.call_str(), self.safe.fail_pattern())
         output += 'RES2=$?\n'
         output += 'if [ $RES2 -ne 0 ]; then\n'
         output += '    exit 1\n'
@@ -117,7 +142,7 @@ class InvalidSuccessReducer(Reducer):
 
 
 class OutputPatternReducer(Reducer):
-    def __init__(self, verif: VerifierConfig, pattern: str):
+    def __init__(self, verif: VerifierTool, pattern: str):
         super().__init__(verif)
         self.pattern = pattern
 
@@ -126,14 +151,14 @@ class OutputPatternReducer(Reducer):
 
         return output
 
+def find_tool(toolname, toolpath) -> pathlib.Path:
+    if toolpath != "":
+        return pathlib.Path(toolpath).absolute()
 
-def find_tool(toolname, gazer_dir):
-    if toolname == "bmc":
-        return pathlib.Path(gazer_dir).joinpath("tools/gazer-bmc/gazer-bmc")
-    elif toolname == "theta":
-        return pathlib.Path(gazer_dir).joinpath("tools/gazer-theta/gazer-theta")
+    if toolname == "cpa":
+        return "cpa"
 
-    raise ValueError("Unknown toolname")
+    return pathlib.Path(os.getcwd()).joinpath("tools/gazer-{0}/gazer-{0}".format(toolname))
 
 
 if __name__ == "__main__":
@@ -141,55 +166,54 @@ if __name__ == "__main__":
     parser.add_argument('target', choices=['crash', 'false-cex', 'invalid-fail', 'pattern', 'invalid-success'], help='The target behavior to debug')
     parser.add_argument('file', help='The input file to reduce')
     parser.add_argument('--pattern', help='A pattern which must be present in the output')
-    parser.add_argument('--gazer-dir', default=os.getcwd())
     parser.add_argument("--early-reject", default="", help="Reject the generated C file if it does not contain the given grep pattern")
-    parser.add_argument('--tool', choices=['bmc', 'theta'], default='bmc')
-    parser.add_argument('--tool-args', metavar='<tool arguments>', default="")
-    parser.add_argument('--safe-tool', choices=['bmc', 'theta', 'cpa'])
-    parser.add_argument('--safe-tool-args', metavar='<safe tool arguments>', default="")
+    parser.add_argument('--tool', choices=['bmc', 'theta'], default='bmc', help="The gazer tool to debug")
+    parser.add_argument('--tool-args', metavar='<tool arguments>', default="", help="Arguments for the gazer tool, enclosed in quotes")
+    parser.add_argument('--safe-tool', choices=['bmc', 'theta', 'cpa'], help="Safe tool for comparison in case of false positives and false negatives")
+    parser.add_argument('--safe-tool-args', metavar='<safe tool arguments>', default="", help="Arguments for the safe tool, enclosed in quotes")
+    parser.add_argument('--tool-path', default="")
+    parser.add_argument('--safe-tool-path', default="")
 
     args = parser.parse_args()
 
-    tool = find_tool(args.tool, args.gazer_dir)
+    tool_path = find_tool(args.tool, args.tool_path)
+    file_path = pathlib.Path(args.file)
+    file_copy = pathlib.Path(os.getcwd()).joinpath(file_path.name).with_suffix(file_path.suffix + "_creduce.c")
+    
+    tool = None
+    if args.tool in ['bmc', 'theta']:
+        tool = GazerVerifier(tool_path, file_copy, args.tool_args.split(' '))
+    else:
+        raise ValueError("Unknown gazer tool!")
 
+
+    safe_tool_path = None
+    if args.safe_tool != "":
+        safe_tool_path = find_tool(args.safe_tool, args.safe_tool_path)
+
+    safe_tool = None
+    if args.safe_tool in ['bmc', 'theta']:
+        safe_tool = GazerVerifier(safe_tool_path, file_copy, args.safe_tool_args.split(' '))
+    elif args.safe_tool == 'cpa':
+        safe_tool = CpaVerifier(safe_tool_path, file_copy, args.safe_tool_args.split(' '))
+    else:
+        raise ValueError("Unknown safe tool!")
+
+    reducer = None
     if args.target == 'false-cex':
-        fcopy = pathlib.Path(args.file).name + "_credue.c"
-        shutil.copy(args.file, fcopy)
-
-        config = VerifierConfig(tool, pathlib.Path(fcopy).name, args.tool_args.split(' '))
-        config.flags.extend(['-trace', '-test-harness', 'harness.bc'])
-
-        reducer = FalseCexReducer(config, pathlib.Path(args.gazer_dir).absolute())
-        print(reducer.generate())
+        tool.args.extend(['-trace', '-test-harness', 'harness.bc'])
+        reducer = FalseCexReducer(tool, pathlib.Path(args.gazer_dir).absolute())
     elif args.target == 'invalid-fail':
-        safe_tool = find_tool(args.safe_tool, args.gazer_dir)
-
-        fcopy = pathlib.Path(args.file).name + "_credue.c"
-        shutil.copy(args.file, fcopy)
-
-        config = VerifierConfig(tool, pathlib.Path(fcopy).name, args.tool_args.split(' '))
-        safe_config = VerifierConfig(safe_tool, pathlib.Path(fcopy).name, args.safe_tool_args.split(' '))
-
-        reducer = InvalidFailReducer(config, safe_config)
-        print(reducer.generate())
+        reducer = InvalidFailReducer(tool, safe_tool)
     elif args.target == 'invalid-success':
-        safe_tool = find_tool(args.safe_tool, args.gazer_dir)
-
-        fcopy = pathlib.Path(args.file).name + "_credue.c"
-        shutil.copy(args.file, fcopy)
-
-        config = VerifierConfig(tool, pathlib.Path(fcopy).name, args.tool_args.split(' '))
-        safe_config = VerifierConfig(safe_tool, pathlib.Path(fcopy).name, args.safe_tool_args.split(' '))
-
-        reducer = InvalidSuccessReducer(config, safe_config)
-        print(reducer.generate())
+        reducer = InvalidSuccessReducer(tool, safe_tool)
     elif args.target == 'pattern':
-        fcopy = pathlib.Path(args.file).name + "_credue.c"
-        shutil.copy(args.file, fcopy)
+        reducer = OutputPatternReducer(tool, args.pattern)
+    else:
+        raise ValueError("Invalid debug target!")
 
-        config = VerifierConfig(tool, pathlib.Path(fcopy).name, args.tool_args.split(' '))
-
-        reducer = OutputPatternReducer(config, args.pattern)
+    if args.early_reject != "":
         reducer.early_reject = args.early_reject
-        print(reducer.generate())
 
+    shutil.copy(args.file, file_copy.as_posix())
+    print(reducer.generate())
