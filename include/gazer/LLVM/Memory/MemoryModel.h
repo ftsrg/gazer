@@ -63,6 +63,7 @@ public:
     )
         : mContext(context),
         mTypes(*this, settings.ints),
+        mSettings(settings),
         mDataLayout(dl)
     {}
 
@@ -72,7 +73,7 @@ public:
     /// Initializes this memory model for a specific module.
     /// \param module The LLVM module to initialize this memory model for.
     /// \param getDomTree A callable which returns the dominator tree for each function.
-    void initialize(llvm::Module& module, std::function<llvm::DominatorTree&(llvm::Function&)> getDomTree);
+    void initialize(llvm::Module& module);
 
     /// Declares all input/output/local variables that should be inserted into the CFA.
     virtual void declareProcedureVariables(llvm2cfa::VariableDeclExtensionPoint& extensionPoint) = 0;
@@ -101,19 +102,16 @@ public:
     /// Translates the given LoadInst into an assignable expression.
     virtual ExprPtr handleLoad(
         const llvm::LoadInst& load,
-        const llvm::SmallVectorImpl<memory::LoadUse*>& annotations,
         ExprPtr pointer,
         llvm2cfa::GenerationStepExtensionPoint& ep
     ) = 0;
 
+    /// Translates an alloca instruction into an assignable expression.
     virtual ExprPtr handleAlloca(
         const llvm::AllocaInst& alloc,
-        const llvm::SmallVectorImpl<memory::AllocaDef*>& annotations,
-        llvm2cfa::GenerationStepExtensionPoint& ep,
-        std::vector<VariableAssignment>& assignments
+        llvm2cfa::GenerationStepExtensionPoint& ep
     ) = 0;
 
-    /// Maps the given memory object to a memory object in function.
     virtual void handleCall(
         llvm::ImmutableCallSite call,
         llvm2cfa::GenerationStepExtensionPoint& callerEp,
@@ -130,11 +128,9 @@ public:
 
     virtual void handleStore(
         const llvm::StoreInst& store,
-        const llvm::SmallVectorImpl<memory::StoreDef*>& annotations,
         ExprPtr pointer,
         ExprPtr value,
-        llvm2cfa::GenerationStepExtensionPoint& ep,
-        std::vector<VariableAssignment>& assignments
+        llvm2cfa::GenerationStepExtensionPoint& ep
     ) = 0;
 
     virtual void handleBlock(
@@ -171,6 +167,7 @@ protected:
 protected:
     GazerContext& mContext;
     LLVMTypeTranslator mTypes;
+    LLVMFrontendSettings mSettings;
     const llvm::DataLayout& mDataLayout;
 
 private:

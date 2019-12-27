@@ -63,7 +63,7 @@ protected:
     {}
 
 public:
-    ExtensionPoint(const ExtensionPoint&) = delete;
+    ExtensionPoint(const ExtensionPoint&) = default;
     ExtensionPoint& operator=(const ExtensionPoint&) = delete;
 
     const Cfa& getCfa() const;
@@ -121,6 +121,8 @@ public:
 
     /// Attempts to inline and eliminate a given variable from the CFA.
     virtual bool tryToEliminate(ValueOrMemoryObject val, Variable* variable, ExprPtr expr) = 0;
+
+    virtual void insertAssignment(Variable* variable, ExprPtr value) = 0;
 };
 
 } // end namespace llvm2cfa

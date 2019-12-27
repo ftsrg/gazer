@@ -182,7 +182,8 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
     }
 
     unsigned tmp = 0;
-    for (size_t bound = 0; bound < mSettings.eagerUnroll; ++bound) {
+    for (size_t bound = 1; bound <= mSettings.eagerUnroll; ++bound) {
+        llvm::outs() << "Eager iteration " << bound << "\n";
         mOpenCalls.clear();
         for (auto& [call, info] : mCalls) {
             if (info.getCost() <= bound) {
@@ -319,7 +320,7 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
             this->pop();
 
             // If the under-approximated formula was UNSAT, there is no feasible path from start to the error location
-            // which does not involve a call. Find the lowest common ancestor of all existing calls, and set is as the
+            // which does not involve a call. Find the lowest common dominator of all existing calls, and set is as the
             // start location.
             // TODO: We should also delete locations which have no reachable call descendants.
 

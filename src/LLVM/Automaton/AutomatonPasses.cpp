@@ -79,9 +79,7 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
     }
     assert(memoryModel != nullptr && "Unknown memory model setting!");
     
-    memoryModel->initialize(module, [this](llvm::Function& function) -> llvm::DominatorTree& {
-        return getAnalysis<llvm::DominatorTreeWrapperPass>(function).getDomTree();
-    });
+    memoryModel->initialize(module);
 
     if (mSettings.debugDumpMemorySSA) {
         for (auto& function : module.functions()) {

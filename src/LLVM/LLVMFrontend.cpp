@@ -127,23 +127,7 @@ void LLVMFrontend::registerVerificationPipeline()
         mPassManager.add(llvm::createDeadCodeEliminationPass());
         mPassManager.add(llvm::createCFGSimplificationPass());
 
-        if (mSettings.slicing) {
-            // Run program slicing
-            mPassManager.add(gazer::createBackwardSlicerPass([](llvm::Instruction* inst) -> bool {
-                if (inst->getParent()->getParent()->getName() != "main") {
-                    return false;
-                }
-
-                if (auto call = llvm::dyn_cast<llvm::CallInst>(inst)) {
-                    Function* callee = call->getCalledFunction();
-                    if (callee != nullptr && callee->getName() == CheckRegistry::ErrorFunctionName) {
-                        return true;
-                    }
-                }
-
-                return false;
-            }));
-        }
+        // FIXME: Run program slicing here if requested.
     }
 
     // Execute late optimization passes.
@@ -214,13 +198,15 @@ bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
         }
     } else if (mResult->isSuccess()) {
         llvm::outs() << "Verification SUCCESSFUL.\n";
+    } else if (mResult->getStatus() == VerificationResult::BoundReached) {
+        llvm::outs() << "Verification BOUND REACHED.\n";
     } else if (auto internalError = llvm::dyn_cast<InternalErrorResult>(mResult.get())) {
         llvm::outs() << "Verification INTERNAL ERROR.\n";
         llvm::outs() << "  " << internalError->getMessage() << "\n";
     } else if (mResult->getStatus() == VerificationResult::Timeout) {
-        llvm::outs() << "Verification TIMEOUT\n";
+        llvm::outs() << "Verification TIMEOUT.\n";
     } else {
-        llvm::outs() << "Verification UNKNOWN\n";
+        llvm::outs() << "Verification UNKNOWN.\n";
     }
 
     return false;

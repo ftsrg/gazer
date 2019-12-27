@@ -143,7 +143,30 @@ Variable* AutomatonInterfaceExtensionPoint::getVariableFor(ValueOrMemoryObject v
     return mGenInfo.findVariable(val);
 }
 
+// Genaration step extension point
+//===----------------------------------------------------------------------===//
+
 Variable* GenerationStepExtensionPoint::createAuxiliaryVariable(const std::string& name, Type& type)
 {
     return mGenInfo.Automaton->createLocal(name, type);
+}
+
+auto BlocksToCfa::ExtensionPointImpl::getAsOperand(ValueOrMemoryObject val) -> ExprPtr
+{
+    return mBlocksToCfa.operand(val);
+}
+
+bool BlocksToCfa::ExtensionPointImpl::tryToEliminate(ValueOrMemoryObject val, Variable* variable, ExprPtr expr)
+{
+    return mBlocksToCfa.tryToEliminate(val, variable, expr);
+}
+
+void BlocksToCfa::ExtensionPointImpl::insertAssignment(Variable* variable, ExprPtr value)
+{
+    mAssigns.emplace_back(variable, value);
+}
+
+auto BlocksToCfa::createExtensionPoint(std::vector<VariableAssignment>& assignments) -> ExtensionPointImpl
+{
+    return ExtensionPointImpl(*this, assignments);
 }

@@ -1,4 +1,4 @@
-// RUN: %theta "%s" | FileCheck "%s"
+// RUN: %theta -memory=havoc "%s" | FileCheck "%s"
 
 // CHECK: Verification SUCCESSFUL
 

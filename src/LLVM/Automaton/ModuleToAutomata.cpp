@@ -566,10 +566,10 @@ BlocksToCfa::BlocksToCfa(
         generationContext.getMemoryModel(),
         generationContext.getSettings()
     ),
-    GenerationStepExtensionPoint(genInfo),
+    mGenInfo(genInfo),
     mGenCtx(generationContext),
-    mCfa(genInfo.Automaton),
-    mEntryBlock(genInfo.getEntryBlock())
+    mCfa(mGenInfo.Automaton),
+    mEntryBlock(mGenInfo.getEntryBlock())
 {
     assert(mGenInfo.Blocks.count(mEntryBlock) != 0 && "Entry block must be in the block map!");
     mMemorySSA = mMemoryModel.getFunctionMemorySSA(mFunction);
@@ -588,6 +588,8 @@ void BlocksToCfa::encode()
 
         std::vector<VariableAssignment> assignments;
 
+        auto ep = this->createExtensionPoint(assignments);
+
         // Handle block-level memory annotations first
         for (MemoryObjectDef& def : mMemorySSA->definitionAnnotationsFor(bb)) {
             Variable* defVariable = getVariable(&def);
@@ -595,10 +597,10 @@ void BlocksToCfa::encode()
                 ExprPtr pointer = operand(globalInit->getGlobalVariable());
                 assignments.emplace_back(
                     defVariable, 
-                    mMemoryModel.handleGlobalInitializer(globalInit, pointer, *this)
+                    mMemoryModel.handleGlobalInitializer(globalInit, pointer, ep)
                 );
             } else if (auto liveOnEntry = llvm::dyn_cast<memory::LiveOnEntryDef>(&def)) {
-                ExprPtr liveOnEntryInit = mMemoryModel.handleLiveOnEntry(liveOnEntry, *this);
+                ExprPtr liveOnEntryInit = mMemoryModel.handleLiveOnEntry(liveOnEntry, ep);
                 if (liveOnEntryInit != nullptr) {
                     assignments.emplace_back(defVariable, liveOnEntryInit);
                 }
@@ -617,10 +619,7 @@ void BlocksToCfa::encode()
                 auto storeValue = this->operand(store->getValueOperand());
                 auto ptr = this->operand(store->getPointerOperand());
 
-                llvm::SmallVector<memory::StoreDef*, 4> storeDefs;
-                memoryAccessOfKind(mMemorySSA->definitionAnnotationsFor(&inst), storeDefs);
-
-                mMemoryModel.handleStore(*store, storeDefs, ptr, storeValue, *this, assignments);
+                mMemoryModel.handleStore(*store, ptr, storeValue, ep);
                 continue;
             }
 
@@ -633,16 +632,9 @@ void BlocksToCfa::encode()
 
             if (auto load = llvm::dyn_cast<LoadInst>(&inst)) {
                 auto ptr = this->operand(load->getPointerOperand());
-
-                llvm::SmallVector<memory::LoadUse*, 4> loadUses;
-                memoryAccessOfKind(mMemorySSA->useAnnotationsFor(&inst), loadUses);
-
-                expr = mMemoryModel.handleLoad(*load, loadUses, ptr, *this);
-            }  else if (auto alloca = llvm::dyn_cast<AllocaInst>(&inst)) {
-                llvm::SmallVector<memory::AllocaDef*, 4> allocaDefs;
-                memoryAccessOfKind(mMemorySSA->definitionAnnotationsFor(&inst), allocaDefs);
-
-                expr = mMemoryModel.handleAlloca(*alloca, allocaDefs, *this, assignments);
+                expr = mMemoryModel.handleLoad(*load, ptr, ep);
+            } else if (auto alloca = llvm::dyn_cast<AllocaInst>(&inst)) {
+                expr = mMemoryModel.handleAlloca(*alloca, ep);
             } else {
                 expr = this->transform(inst);
             }
@@ -704,8 +696,12 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
         }
 
         // Insert arguments coming from the memory model.
+        auto callerEP = this->createExtensionPoint(previousAssignments);
         AutomatonInterfaceExtensionPoint calleeEP(calledAutomatonInfo);
-        mMemoryModel.handleCall(call, *this, calleeEP, inputs, outputs, additionalAssignments);
+
+        calledAutomatonInfo.Automaton->printDeclaration(llvm::errs());
+
+        mMemoryModel.handleCall(call, callerEP, calleeEP, inputs, outputs, additionalAssignments);
 
         if (!callee->getReturnType()->isVoidTy()) {
             Variable* variable = getVariable(call);
@@ -904,7 +900,7 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
         }
 
         for (auto& [valueOrMemObj, variable] : mGenInfo.Inputs) {
-            ExprPtr argExpr = operand(valueOrMemObj.asValue());
+            ExprPtr argExpr = operand(valueOrMemObj);
             loopArgs.emplace_back(variable, argExpr);
         }
 

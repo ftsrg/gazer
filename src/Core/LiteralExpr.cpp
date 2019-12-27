@@ -20,6 +20,7 @@
 
 #include <llvm/IR/Constants.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/ADT/SmallString.h>
 
 using namespace gazer;
 
@@ -94,8 +95,12 @@ void RealLiteralExpr::print(llvm::raw_ostream& os) const {
     os << mValue.numerator() << "/" << mValue.denominator();
 }
 
-void BvLiteralExpr::print(llvm::raw_ostream& os) const {
-    os << mValue;
+void BvLiteralExpr::print(llvm::raw_ostream& os) const
+{
+    llvm::SmallString<100> buffer;
+    mValue.toStringUnsigned(buffer, /*radix=*/16);
+
+    os << "#" << buffer << "bv" << getType().getWidth();
 }
 
 void FloatLiteralExpr::print(llvm::raw_ostream& os) const

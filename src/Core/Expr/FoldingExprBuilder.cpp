@@ -70,8 +70,6 @@ public:
             return this->GtEq(e1, e2);
         }
 
-        // Not(Or(V1, Not(And(V2)))) --> And(Not(V1), V2)
-
         return ConstantFolder::Not(op);
     }
 
@@ -94,8 +92,7 @@ public:
         if (offset == 0) {
             // Extract(SRem(SExt(X1), SExt(X2)), 0, w) --> SRem(X1, X2) if width(X1) == width(X2) == w
             if (match(op, m_BvSRem(m_SExt(m_Expr(x1)), m_SExt(m_Expr(x2))))) {
-                assert(x1->getType().isBvType());
-                assert(x1->getType() == x2->getType());
+                assert(x1->getType().isBvType() && x2->getType().isBvType());
                 auto& bvTy = *llvm::cast<BvType>(&x1->getType());
 
                 if (bvTy.getWidth() == width) {
@@ -323,21 +320,24 @@ public:
         }
 
         // Eq(Select(C1, E1, E2), E1) --> C1
-        // Eq(Select(C1, E1, E2), E2) --> Not(C1)
         if (unord_match(left, right, m_Select(m_Expr(c1), m_Expr(e1), m_Expr(e2)), m_Specific(e1))) {
             return c1;
         }
 
+        // Eq(Select(C1, E1, E2), E2) --> Not(C1)
         if (unord_match(left, right, m_Select(m_Expr(c1), m_Expr(e1), m_Expr(e2)), m_Specific(e2))) {
             return this->Not(c1);
         }
 
-
         llvm::APInt i1, i2;
 
-        // Eq(Add(E1, C1), C2) --> Eq(E1, C2 - C1)
-        if (unord_match(left, right, m_Add(m_Expr(e1), m_Bv(&i1)), m_Bv(&i2))) {
-            return ConstantFolder::Eq(e1, this->BvLit(i2 - i1));
+        // Eq(ZExt.W(E1), C1) --> Eq(E1, C1) if width(E1) >= width(c1)
+        if (unord_match(left, right, m_ZExt(m_Expr(e1)), m_Bv(&i1))) {
+            auto& bvTy = llvm::cast<BvType>(e1->getType());
+
+            if (i1.getActiveBits() <= bvTy.getWidth()) {
+                return ConstantFolder::Eq(e1, this->BvLit(i1.zextOrTrunc(bvTy.getWidth())));
+            }
         }
 
         return ConstantFolder::Eq(left, right);
@@ -551,11 +551,46 @@ public:
             return then;
         }
 
+        // Select(C, E, False) --> And(C, E)
+        if (elze == this->False()) {
+            return this->And({ condition, then });
+        }
+
+        // Select(C, E, True) --> Or(not C, E)
+        if (elze == this->True()) {
+            return this->Or({ this->Not(condition), then });
+        }
+
+        // Select(C, True, E) --> Or(C, E)
+        if (then == this->True()) {
+            return this->Or({ condition, elze });
+        }
+
+        // Select(C, False, E) --> And(not C, E)
+        if (then == this->False()) {
+            return this->And({ this->Not(condition), elze });
+        }
+
         // Select(not C, E1, E2) --> Select(C, E2, E1)
         if (match(condition, then, elze, m_Not(m_Expr(c1)), m_Expr(e1), m_Expr(e2))) {
             return ConstantFolder::Select(condition, elze, then);
         }
 
+        // Select(C1, Select(C1, E1, E'), E2) --> Select(C1, E1, E2)
+        if (match(condition, then, elze, m_Expr(c1), m_Select(m_Specific(c1), m_Expr(e1), m_Expr()), m_Expr(e2))) {
+            return ConstantFolder::Select(c1, e1, e2);
+        }
+
+        // Select(C1, E1, Select(C1, E', E2)) --> Select(C1, E1, E2)
+        if (match(condition, then, elze, m_Expr(c1), m_Expr(e1), m_Select(m_Specific(c1), m_Expr(), m_Expr(e2)))) {
+            return ConstantFolder::Select(c1, e1, e2);
+        }
+
+        // Select(C1, Select(C2, E1, E2), E1) --> Select(C1 and not C2, E2, E1)
+        if (match(condition, then, elze, m_Expr(c1), m_Select(m_Expr(c2), m_Expr(e1), m_Expr(e2)), m_Specific(e1))) {
+            return ConstantFolder::Select(this->And({c1, this->Not(c2)}), e1, e2);
+        }
+    
         // Select(C1, Select(C2, E1, E2), E2) --> Select(C1 and C2, E1, E2)
         if (match(condition, then, elze, m_Expr(c1), m_Select(m_Expr(c2), m_Expr(e1), m_Expr(e2)), m_Specific(e2))) {
             return ConstantFolder::Select(ConstantFolder::And({c1, c2}), e1, e2);

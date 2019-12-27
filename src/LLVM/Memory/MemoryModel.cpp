@@ -25,14 +25,14 @@ using namespace gazer;
 using gazer::memory::MemorySSA;
 using gazer::memory::MemorySSABuilder;
 
-void MemoryModel::initialize(llvm::Module& module, std::function<llvm::DominatorTree&(llvm::Function&)> getDomTree)
+void MemoryModel::initialize(llvm::Module& module)
 {
     for (llvm::Function& function : module) {
         if (function.isDeclaration()) {
             continue;
         }
 
-        llvm::DominatorTree& dominatorTree = getDomTree(function);
+        llvm::DominatorTree dominatorTree(function);
         MemorySSABuilder builder(function, mDataLayout, dominatorTree);
         this->initializeFunction(function, builder);
 

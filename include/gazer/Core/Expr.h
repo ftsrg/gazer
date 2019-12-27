@@ -392,7 +392,9 @@ public:
     VariableAssignment(Variable *variable, ExprPtr value)
         : mVariable(variable), mValue(std::move(value))
     {
-        assert(variable->getType() == mValue->getType());
+        assert(mVariable != nullptr);
+        assert(mValue != nullptr);
+        assert(mVariable->getType() == mValue->getType());
     }
 
     bool operator==(const VariableAssignment& other) const {

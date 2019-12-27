@@ -41,9 +41,7 @@ public:
 
     ExprPtr handleAlloca(
         const llvm::AllocaInst& alloc,
-        const llvm::SmallVectorImpl<memory::AllocaDef*>& annotations,
-        llvm2cfa::GenerationStepExtensionPoint& ep,
-        std::vector<VariableAssignment>& assignments
+        llvm2cfa::GenerationStepExtensionPoint& ep
     ) override {
         return UndefExpr::Get(BoolType::Get(mContext));
     }
@@ -65,14 +63,12 @@ public:
 
     void handleStore(
         const llvm::StoreInst& store,
-        const llvm::SmallVectorImpl<memory::StoreDef*>& annotations,
         ExprPtr pointer,
         ExprPtr value,
-        llvm2cfa::GenerationStepExtensionPoint& ep,
-        std::vector<VariableAssignment>& assignments
+        llvm2cfa::GenerationStepExtensionPoint& ep
     ) override {}
 
-    virtual void handleCall(
+    void handleCall(
         llvm::ImmutableCallSite call,
         llvm2cfa::GenerationStepExtensionPoint& callerEp,
         llvm2cfa::AutomatonInterfaceExtensionPoint& calleeEp,
@@ -83,9 +79,8 @@ public:
 
     void handleBlock(const llvm::BasicBlock& bb, llvm2cfa::GenerationStepExtensionPoint& ep) override {}
 
-    virtual ExprPtr handleLoad(
+    ExprPtr handleLoad(
         const llvm::LoadInst& load,
-        const llvm::SmallVectorImpl<memory::LoadUse*>& annotations,
         ExprPtr pointer,
         llvm2cfa::GenerationStepExtensionPoint& ep
     ) override {

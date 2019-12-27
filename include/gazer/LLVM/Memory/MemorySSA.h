@@ -64,12 +64,40 @@ public:
     llvm::iterator_range<def_iterator> definitionAnnotationsFor(const llvm::Value*);
     llvm::iterator_range<use_iterator> useAnnotationsFor(const llvm::Value*);
 
+    template<class AccessKind>
+    typename std::enable_if_t<std::is_base_of_v<MemoryObjectDef, AccessKind>>
+    memoryAccessOfKind(const llvm::Value* value, llvm::SmallVectorImpl<AccessKind*>& vec)
+    {
+        return this->memoryAccessOfKindImpl(this->definitionAnnotationsFor(value), vec);
+    }
+
+    template<class AccessKind>
+    typename std::enable_if_t<std::is_base_of_v<MemoryObjectUse, AccessKind>>
+    memoryAccessOfKind(const llvm::Value* value, llvm::SmallVectorImpl<AccessKind*>& vec)
+    {
+        return this->memoryAccessOfKindImpl(this->useAnnotationsFor(value), vec);
+    }
+
     // Iterator support
     //==--------------------------------------------------------------------==//
     using object_iterator = boost::indirect_iterator<std::vector<std::unique_ptr<MemoryObject>>::iterator>;
     object_iterator object_begin() { return boost::make_indirect_iterator(mObjects.begin()); }
     object_iterator object_end() { return boost::make_indirect_iterator(mObjects.end()); }
     llvm::iterator_range<object_iterator> objects() { return llvm::make_range(object_begin(), object_end()); }
+
+private:
+
+    template<class AccessKind, class Range>
+    static void memoryAccessOfKindImpl(Range&& range, llvm::SmallVectorImpl<AccessKind*>& vec)
+    {
+        static_assert(std::is_base_of_v<MemoryAccess, AccessKind>, "AccessKind must be a subclass of MemoryAccess!");
+
+        for (auto& access : range) {
+            if (auto casted = llvm::dyn_cast<AccessKind>(&access)) {
+                vec.push_back(casted);
+            }
+        }
+    }
 
 private:
     llvm::Function& mFunction;

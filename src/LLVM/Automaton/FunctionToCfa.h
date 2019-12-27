@@ -300,8 +300,25 @@ private:
     unsigned mValueCount = 0;
 };
 
-class BlocksToCfa : public InstToExpr, public GenerationStepExtensionPoint
+class BlocksToCfa : public InstToExpr
 {
+protected:
+    class ExtensionPointImpl : public GenerationStepExtensionPoint
+    {
+    public:
+        ExtensionPointImpl(BlocksToCfa& blocksToCfa, std::vector<VariableAssignment>& assigns)
+            : GenerationStepExtensionPoint(blocksToCfa.mGenInfo),
+            mBlocksToCfa(blocksToCfa), mAssigns(assigns)
+        {}
+
+        ExprPtr getAsOperand(ValueOrMemoryObject val) override;
+        bool tryToEliminate(ValueOrMemoryObject val, Variable* variable, ExprPtr expr) override;
+        void insertAssignment(Variable* variable, ExprPtr value) override;
+
+    private:
+        BlocksToCfa& mBlocksToCfa;
+        std::vector<VariableAssignment>& mAssigns;
+    };
 public:
     BlocksToCfa(
         GenerationContext& generationContext,
@@ -319,8 +336,7 @@ private:
     GazerContext& getContext() const { return mGenCtx.getSystem().getContext(); }
 
 private:
-    bool tryToEliminate(ValueOrMemoryObject val, Variable* variable, ExprPtr expr) override;
-    ExprPtr getAsOperand(ValueOrMemoryObject val) override { return this->operand(val); }
+    bool tryToEliminate(ValueOrMemoryObject val, Variable* variable, ExprPtr expr);
 
     void insertOutputAssignments(CfaGenInfo& callee, std::vector<VariableAssignment>& outputArgs);
     void insertPhiAssignments(const llvm::BasicBlock* source, const llvm::BasicBlock* target, std::vector<VariableAssignment>& phiAssignments);
@@ -339,8 +355,11 @@ private:
 
     size_t getNumUsesInBlocks(const llvm::Instruction* inst) const;
 
+    ExtensionPointImpl createExtensionPoint(std::vector<VariableAssignment>& assignments);
+
 private:
     GenerationContext& mGenCtx;
+    CfaGenInfo& mGenInfo;
     Cfa* mCfa;
     unsigned mCounter = 0;
     llvm::DenseMap<ValueOrMemoryObject, ExprPtr> mInlinedVars;

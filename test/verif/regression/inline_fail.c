@@ -3,8 +3,9 @@
 
 // CHECK: Verification FAILED
 
-a, b;
-c(f) {
+int a, b;
+
+int c(f) {
   if (f) {
     b = 3;
     return 3;
@@ -12,11 +13,13 @@ c(f) {
   if (b)
     a = e();
 }
-e() {
+
+int e() {
   if (a)
     __VERIFIER_error();
 }
-main() {
+
+int main(void) {
   while (1) {
     int d;
     c(d);

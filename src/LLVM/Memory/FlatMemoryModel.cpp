@@ -25,6 +25,7 @@
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
 #include "gazer/Core/ExprTypes.h"
 #include "gazer/Core/Expr/ExprBuilder.h"
+#include "gazer/Support/Math.h"
 
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
@@ -44,13 +45,28 @@ class FlatMemoryModel : public MemoryModel
         Variable* SizeVar;
     };
 
+    struct CallInfo
+    {
+        memory::CallUse* MemoryUse;
+        memory::CallUse* StackPtrUse;
+        memory::CallUse* FramePtrUse;
+
+        memory::CallDef* MemoryDef;
+    };
+
     struct FunctionInfo
     {
         MemoryObject* Memory;
         MemoryObject* StackPointer;
         MemoryObject* FramePointer;
 
+        memory::RetUse* MemExitUse;
+        memory::LiveOnEntryDef* MemEntryDef;
+        memory::LiveOnEntryDef* StackPtrEntryDef;
+        memory::LiveOnEntryDef* FramePtrEntryDef;
+
         llvm::DenseMap<const llvm::GlobalVariable*, ExprPtr> GlobalPointers;
+        llvm::DenseMap<const llvm::Value*, CallInfo> Calls;
     };
 
     // Memory object pointers are disambiguated using the highest bits of the pointer:
@@ -66,7 +82,7 @@ public:
         GazerContext& context, LLVMFrontendSettings settings, const llvm::DataLayout& dl
     ) : MemoryModel(context, settings, dl)
     {
-        mExprBuilder = settings.simplifyExpr
+        mExprBuilder = mSettings.simplifyExpr
                         ? CreateFoldingExprBuilder(context)
                         : CreateExprBuilder(context);
     }
@@ -99,25 +115,20 @@ public:
     /// Translates the given LoadInst into an assignable expression.
     ExprPtr handleLoad(
         const llvm::LoadInst& load,
-        const llvm::SmallVectorImpl<memory::LoadUse*>& annotations,
         ExprPtr pointer,
         llvm2cfa::GenerationStepExtensionPoint& ep
     ) override;
 
     void handleStore(
         const llvm::StoreInst& store,
-        const llvm::SmallVectorImpl<memory::StoreDef*>& annotations,
         ExprPtr pointer,
         ExprPtr value,
-        llvm2cfa::GenerationStepExtensionPoint& ep,
-        std::vector<VariableAssignment>& assignments
+        llvm2cfa::GenerationStepExtensionPoint& ep
     ) override;
 
     ExprPtr handleAlloca(
         const llvm::AllocaInst& alloc,
-        const llvm::SmallVectorImpl<memory::AllocaDef*>& annotations,
-        llvm2cfa::GenerationStepExtensionPoint& ep,
-        std::vector<VariableAssignment>& assignments
+        llvm2cfa::GenerationStepExtensionPoint& ep
     ) override;
 
     /// Maps the given memory object to a memory object in function.
@@ -249,7 +260,7 @@ public:
                 array = mExprBuilder->Write(
                     array,
                     this->pointerOffset(pointer, i),
-                    mExprBuilder->Undef(BvType::Get(mContext, 8))
+                    mExprBuilder->Undef(this->getMemoryCellType())
                 );
             }
         }
@@ -267,12 +278,23 @@ private:
     }
     
     ArrayType& getMemoryObjectType() const {
-        return ArrayType::Get(this->getPointerType(), BvType::Get(mContext, 8));
+        return ArrayType::Get(this->getPointerType(), this->getMemoryCellType());
     }
 
     ExprPtr pointerOffset(ExprPtr pointer, unsigned offset) {
         return mExprBuilder->Add(pointer, BvLiteralExpr::Get(getPointerType(), offset));
     }
+
+    Type& getMemoryCellType() const
+    {
+        if (mSettings.ints == IntRepresentation::Integers) {
+            return IntType::Get(mContext);
+        }
+
+        return BvType::Get(mContext, 8);
+    }
+
+    ExprPtr buildMemoryRead(Type& targetTy, unsigned size, ExprPtr array, ExprPtr pointer);
 
 private:
     llvm::DenseMap<const llvm::Function*, FunctionInfo> mFunctionInfo;
@@ -316,9 +338,9 @@ void FlatMemoryModel::initializeFunction(llvm::Function& function, memory::Memor
         "FramePointer"
     );
 
-    builder.createLiveOnEntryDef(info.Memory);
-    builder.createLiveOnEntryDef(info.StackPointer);
-    builder.createLiveOnEntryDef(info.FramePointer);
+    info.MemEntryDef = builder.createLiveOnEntryDef(info.Memory);
+    info.StackPtrEntryDef = builder.createLiveOnEntryDef(info.StackPointer);
+    info.FramePtrEntryDef = builder.createLiveOnEntryDef(info.FramePointer);
 
     // Handle global variables
     unsigned globalAddr = GlobalBegin;
@@ -360,13 +382,17 @@ void FlatMemoryModel::initializeFunction(llvm::Function& function, memory::Memor
             // global variables.
             // FIXME: We should make this configurable.
             if (!callee->isDeclaration() || callee->getReturnType()->isVoidTy()) {
-                builder.createCallDef(info.Memory, call);
-                builder.createCallUse(info.Memory, call);
-                builder.createCallUse(info.StackPointer, call);
-                builder.createCallUse(info.FramePointer, call);
+                auto& callInfo = info.Calls[call];
+
+                callInfo.MemoryDef = builder.createCallDef(info.Memory, call);
+                callInfo.MemoryUse = builder.createCallUse(info.Memory, call);
+                callInfo.StackPtrUse = builder.createCallUse(info.StackPointer, call);
+                callInfo.FramePtrUse = builder.createCallUse(info.FramePointer, call);
             }
         } else if (auto ret = llvm::dyn_cast<llvm::ReturnInst>(&inst)) {
-            builder.createReturnUse(info.Memory, *ret);
+            memory::RetUse* use = builder.createReturnUse(info.Memory, *ret);
+            assert(info.MemExitUse == nullptr && "There must be at most one return use!");
+            info.MemExitUse = use;
         } else if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(&inst)) {
             builder.createAllocaDef(info.Memory, *alloca);
             builder.createAllocaDef(info.StackPointer, *alloca);
@@ -393,12 +419,102 @@ ExprPtr FlatMemoryModel::handleLiveOnEntry(
     return MemoryModel::handleLiveOnEntry(def, ep);
 }
 
+ExprPtr FlatMemoryModel::buildMemoryRead(
+    gazer::Type& targetTy, unsigned size, ExprPtr array, ExprPtr pointer)
+{
+    if (mSettings.ints == IntRepresentation::BitVectors) {
+        switch (targetTy.getTypeID()) {
+            case Type::BvTypeID: {
+                ExprPtr result = mExprBuilder->Read(array, pointer);
+                for (unsigned i = 1; i < size; ++i) {
+                    // FIXME: Little/big endian
+                    result = mExprBuilder->BvConcat(
+                        mExprBuilder->Read(array, this->pointerOffset(pointer, i)),
+                        result
+                    );
+                }
+                return result;
+            }
+            case Type::BoolTypeID: {
+                ExprPtr result = mExprBuilder->NotEq(mExprBuilder->Read(array, pointer), mExprBuilder->BvLit8(0));
+                for (unsigned i = 1; i < size; ++i) {
+                    result = mExprBuilder->And(
+                        mExprBuilder->NotEq(
+                            mExprBuilder->Read(array, this->pointerOffset(pointer, i)),
+                            mExprBuilder->BvLit8(0)
+                        ),
+                        result
+                    );
+
+                    return result;
+                }
+            }
+            case Type::FloatTypeID: {
+                // TODO: We will need a bitcast from bitvectors to floats.
+                return mExprBuilder->Undef(targetTy);
+            }
+            default:
+                // If it is not a convertible type, just undef it.
+                return mExprBuilder->Undef(targetTy);
+        }
+
+        llvm_unreachable("Unhandled target type!");
+    }
+
+    if (mSettings.ints == IntRepresentation::Integers) {
+        switch (targetTy.getTypeID()) {
+            case Type::IntTypeID: {
+                // Try to reconstruct the value from the integer operands.
+                // To do so, we iterate over each cell, and use the following formula:
+                //  x += (Mem[ptr + i] mod 256) * pow(2, i * 8)
+
+                ExprPtr result = mExprBuilder->IntLit(0);
+                for (unsigned i = 0; i < size; ++i) {
+                    // FIXME: Little/big endian
+                    result = mExprBuilder->Add(
+                        mExprBuilder->Mul(
+                            mExprBuilder->Mod(
+                                mExprBuilder->Read(array, this->pointerOffset(pointer, i)), mExprBuilder->IntLit(256)
+                            ),
+                            mExprBuilder->IntLit(math::ipow(2, i * 8))
+                        ),
+                        result
+                    );
+                }
+
+                return result;
+            }
+            case Type::BoolTypeID: {
+                ExprPtr result = mExprBuilder->NotEq(mExprBuilder->Read(array, pointer), mExprBuilder->IntLit(0));
+                for (unsigned i = 1; i < size; ++i) {
+                    result = mExprBuilder->And(
+                        mExprBuilder->NotEq(
+                            mExprBuilder->Read(array, this->pointerOffset(pointer, i)),
+                            mExprBuilder->IntLit(0)
+                        ),
+                        result
+                    );
+
+                    return result;
+                }
+            }
+            default:
+                // If it is not a convertible type, just undef it.
+                return mExprBuilder->Undef(targetTy);
+        }
+
+        llvm_unreachable("Unknown integer representation!");
+    }
+}
+
 ExprPtr FlatMemoryModel::handleLoad(
     const llvm::LoadInst& load,
-    const llvm::SmallVectorImpl<memory::LoadUse*>& annotations,
     ExprPtr pointer,
     llvm2cfa::GenerationStepExtensionPoint& ep)
 {
+    llvm::SmallVector<memory::LoadUse*, 1> annotations;
+    this->getFunctionMemorySSA(*load.getFunction())->memoryAccessOfKind(&load, annotations);
+
     Type& loadTy = translateType(load.getType());
     ExprPtr array = UndefExpr::Get(this->getMemoryObjectType());
     if (annotations.size() == 1) {
@@ -411,32 +527,7 @@ ExprPtr FlatMemoryModel::handleLoad(
         unsigned size = mDataLayout.getTypeAllocSize(load.getType());
         assert(size >= 1);
 
-        ExprPtr result;
-        if (loadTy.isBvType()) {
-            result = mExprBuilder->Read(array, pointer);
-            for (unsigned i = 1; i < size; ++i) {
-                // TODO: Little/big endian
-                result = mExprBuilder->BvConcat(
-                    mExprBuilder->Read(array, this->pointerOffset(pointer, i)),
-                    result
-                );
-            }
-        } else if (loadTy.isBoolType()) {
-            result = mExprBuilder->NotEq(
-                mExprBuilder->Read(array, pointer),
-                mExprBuilder->BvLit8(0)
-            );
-        } else if (loadTy.isFloatType()) {
-            // TODO: We will need a bitcast from bitvectors to floats.
-            return UndefExpr::Get(loadTy);
-        } else {
-            return UndefExpr::Get(loadTy);
-        }
-        
-        assert(result->getType() == loadTy);
-        return result;
-    } else {
-        // TODO
+        return this->buildMemoryRead(loadTy, size, array, pointer);
     }
 
     return UndefExpr::Get(translateType(load.getType()));
@@ -444,92 +535,92 @@ ExprPtr FlatMemoryModel::handleLoad(
 
 void FlatMemoryModel::handleStore(
     const llvm::StoreInst& store,
-    const llvm::SmallVectorImpl<memory::StoreDef*>& annotations,
     ExprPtr pointer,
     ExprPtr value,
-    llvm2cfa::GenerationStepExtensionPoint& ep,
-    std::vector<VariableAssignment>& assignments)
+    llvm2cfa::GenerationStepExtensionPoint& ep)
 {
-    if (annotations.size() == 0) {
+    auto& info = mFunctionInfo[store.getFunction()];
+    memory::MemorySSA* memSSA = this->getFunctionMemorySSA(*store.getFunction());
+
+    auto annotations = memSSA->definitionAnnotationsFor(&store);
+
+    if (annotations.begin() == annotations.end()) {
         return;
     }
 
-    if (annotations.size() == 1) {
-        MemoryObjectDef* def = annotations[0];
-        Variable* defVariable = ep.getVariableFor(def);
+    assert(std::next(annotations.begin(), 1) == annotations.end());
 
-        ExprPtr reachingDef = ep.getAsOperand(def->getReachingDef());
+    MemoryObjectDef& def = *annotations.begin();
+    Variable* defVariable = ep.getVariableFor(&def);
 
-        unsigned size = mDataLayout.getTypeAllocSize(store.getValueOperand()->getType());
-        ExprPtr array = reachingDef;
+    ExprPtr reachingDef = ep.getAsOperand(def.getReachingDef());
 
-        if (auto bvTy = llvm::dyn_cast<BvType>(&value->getType())) {
-            if (bvTy->getWidth() == 8) {
-                array = mExprBuilder->Write(array, pointer, value);
-            } else if (bvTy->getWidth() < 8) {
-                array = mExprBuilder->Write(
-                    array, pointer, mExprBuilder->ZExt(value, BvType::Get(mContext, 8))
-                );
-            } else {
-                for (unsigned i = 0; i < size; ++i) {
-                    array = mExprBuilder->Write(
-                        array,
-                        this->pointerOffset(pointer, i),
-                        mExprBuilder->Extract(value, i * 8, 8)
-                    );
-                }
-            }
-        } else if (value->getType().isBoolType()) {
+    unsigned size = mDataLayout.getTypeAllocSize(store.getValueOperand()->getType());
+    ExprPtr array = reachingDef;
+
+    if (auto bvTy = llvm::dyn_cast<BvType>(&value->getType())) {
+        if (bvTy->getWidth() == 8) {
+            array = mExprBuilder->Write(array, pointer, value);
+        } else if (bvTy->getWidth() < 8) {
             array = mExprBuilder->Write(
-                array,
-                pointer,
-                mExprBuilder->Select(value, mExprBuilder->BvLit8(0x01), mExprBuilder->BvLit8(0x00))
+                array, pointer, mExprBuilder->ZExt(value, BvType::Get(mContext, 8))
             );
         } else {
-            // Even with unknown/unhandled types, we know which bytes we modify -- we just
-            // do not know the value.
             for (unsigned i = 0; i < size; ++i) {
                 array = mExprBuilder->Write(
                     array,
                     this->pointerOffset(pointer, i),
-                    mExprBuilder->Undef(BvType::Get(mContext, 8))
+                    mExprBuilder->Extract(value, i * 8, 8)
                 );
             }
         }
-
-        if (!ep.tryToEliminate(def, defVariable, array)) {
-            assignments.emplace_back(defVariable, array);
+    } else if (value->getType().isBoolType()) {
+        array = mExprBuilder->Write(
+            array,
+            pointer,
+            mExprBuilder->Select(value, mExprBuilder->BvLit8(0x01), mExprBuilder->BvLit8(0x00))
+        );
+    } else {
+        // Even with unknown/unhandled types, we know which bytes we modify -- we just
+        // do not know the value.
+        for (unsigned i = 0; i < size; ++i) {
+            array = mExprBuilder->Write(
+                array,
+                this->pointerOffset(pointer, i),
+                mExprBuilder->Undef(BvType::Get(mContext, 8))
+            );
         }
+    }
+
+    if (!ep.tryToEliminate(&def, defVariable, array)) {
+        ep.insertAssignment(defVariable, array);
     }
 }
 
 ExprPtr FlatMemoryModel::handleAlloca(
     const llvm::AllocaInst& alloc,
-    const llvm::SmallVectorImpl<memory::AllocaDef*>& annotations,
-        llvm2cfa::GenerationStepExtensionPoint& ep,
-    std::vector<VariableAssignment>& assignments
+    llvm2cfa::GenerationStepExtensionPoint& ep
 ) {
     auto& info = mFunctionInfo[alloc.getFunction()];
+    auto annot = this->getFunctionMemorySSA(*alloc.getFunction())->definitionAnnotationsFor(&alloc);
 
-    MemoryObjectDef* spDef;
-    MemoryObjectDef* memDef;
-    for (memory::AllocaDef* def : annotations) {
-        if (def->getObject() == info.StackPointer) {
-            spDef = def;
-        } else if (def->getObject() == info.Memory) {
-            memDef = def;
-        } else {
-            llvm_unreachable("Unknown alloca memory annotation!");
-        }
-    }
+    auto spDef = std::find_if(annot.begin(), annot.end(), [&info](MemoryObjectDef& def) {
+        return def.getObject() == info.StackPointer;
+    });
+    auto memDef = std::find_if(annot.begin(), annot.end(), [&info](MemoryObjectDef& def) {
+        return def.getObject() == info.Memory;
+    });
+
+    assert(spDef != annot.end());
+    assert(memDef != annot.end());
 
     unsigned size = mDataLayout.getTypeAllocSize(alloc.getAllocatedType());
 
-    // This alloca returns the pointer to the current stack frame top,
+    // This alloca returns the pointer to the current stack frame,
     // which is then advanced by the size of the allocated type.
     // We also clobber the relevant bytes of the memory array.
     ExprPtr ptr = ep.getAsOperand(spDef->getReachingDef());
-    assignments.emplace_back(ep.getVariableFor(spDef), mExprBuilder->Add(
+    ep.insertAssignment(ep.getVariableFor(&*spDef), mExprBuilder->Add(
         ptr, this->ptrConstant(size)
     ));
 
@@ -542,9 +633,9 @@ ExprPtr FlatMemoryModel::handleAlloca(
         );
     }
 
-    Variable* memVar = ep.getVariableFor(memDef);
-    if (!ep.tryToEliminate(memDef, memVar, resArray)) {
-        assignments.emplace_back(memVar, resArray);
+    Variable* memVar = ep.getVariableFor(&*memDef);
+    if (!ep.tryToEliminate(&*memDef, memVar, resArray)) {
+        ep.insertAssignment(memVar, resArray);
     }
 
     return ptr;
@@ -563,7 +654,45 @@ void FlatMemoryModel::handleCall(
         // TODO: Indirect calls.
         return;
     }
-   
+
+    auto& calleeInfo = mFunctionInfo[callee];
+    auto& callerInfo = mFunctionInfo[call->getFunction()];
+    auto& callInstInfo = callerInfo.Calls[call.getInstruction()];
+
+    auto memSSA = this->getFunctionMemorySSA(*call->getFunction());
+
+    auto callDefs = memSSA->definitionAnnotationsFor(call.getInstruction());
+    auto callUses = memSSA->useAnnotationsFor(call.getInstruction());
+
+    assert(std::distance(callDefs.begin(), callDefs.end()) == 1
+        && "A call instruction should define only the Memory array!");
+    assert(callDefs.begin()->getObject() == callerInfo.Memory);
+    
+    assert(std::distance(callUses.begin(), callUses.end()) == 3
+        && "A call instruction should only use the Memory array, Stack and Frame pointer objects!");
+
+    assert(calleeInfo.MemExitUse != nullptr
+        && "There must be a single memory exit use!");
+
+    // Map the definition to the memory object return use
+    outputAssignments.emplace_back(
+        callerEp.getVariableFor(&*callDefs.begin()),
+        calleeEp.getOutputVariableFor(calleeInfo.MemExitUse->getReachingDef())->getRefExpr()
+    );
+
+    // Map call uses to entry definitions
+    inputAssignments.emplace_back(
+        calleeEp.getInputVariableFor(calleeInfo.MemEntryDef),
+        callerEp.getAsOperand(callInstInfo.MemoryUse->getReachingDef())
+    );
+    inputAssignments.emplace_back(
+        calleeEp.getInputVariableFor(calleeInfo.StackPtrEntryDef),
+        callerEp.getAsOperand(callInstInfo.StackPtrUse->getReachingDef())
+    );
+    inputAssignments.emplace_back(
+        calleeEp.getInputVariableFor(calleeInfo.FramePtrEntryDef),
+        callerEp.getAsOperand(callInstInfo.FramePtrUse->getReachingDef())
+    );
 }
 
 ExprPtr FlatMemoryModel::handleGetElementPtr(

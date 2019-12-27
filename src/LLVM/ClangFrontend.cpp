@@ -131,7 +131,7 @@ static bool executeLinker(llvm::StringRef linker, const std::vector<std::string>
     );
 
     if (returnCode == -1) {
-        llvm::errs() << "ERROR: failed to execute clang:"
+        llvm::errs() << "ERROR: failed to execute llvm-link:"
             << (linkerErrors.empty() ? "Unknown error." : linkerErrors) << "\n";
         return false;
     }
