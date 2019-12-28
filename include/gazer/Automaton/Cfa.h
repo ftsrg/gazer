@@ -211,7 +211,7 @@ public:
     }
     size_t getNumOutputs() const { return mOutputArgs.size(); }
 
-    ExprPtr getInputArgument(size_t i) const { return mInputArgs[i].getValue(); }
+    std::optional<VariableAssignment> getInputArgument(Variable& input) const;
     std::optional<VariableAssignment> getOutputArgument(Variable& variable) const;
 
     static bool classof(const Transition* edge) {

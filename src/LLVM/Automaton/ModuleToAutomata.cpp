@@ -591,22 +591,9 @@ void BlocksToCfa::encode()
         auto ep = this->createExtensionPoint(assignments);
 
         // Handle block-level memory annotations first
-        for (MemoryObjectDef& def : mMemorySSA->definitionAnnotationsFor(bb)) {
-            Variable* defVariable = getVariable(&def);
-            if (auto globalInit = llvm::dyn_cast<memory::GlobalInitializerDef>(&def)) {
-                ExprPtr pointer = operand(globalInit->getGlobalVariable());
-                assignments.emplace_back(
-                    defVariable, 
-                    mMemoryModel.handleGlobalInitializer(globalInit, pointer, ep)
-                );
-            } else if (auto liveOnEntry = llvm::dyn_cast<memory::LiveOnEntryDef>(&def)) {
-                ExprPtr liveOnEntryInit = mMemoryModel.handleLiveOnEntry(liveOnEntry, ep);
-                if (liveOnEntryInit != nullptr) {
-                    assignments.emplace_back(defVariable, liveOnEntryInit);
-                }
-            }
-        }
+        mMemoryModel.handleBlock(*bb, ep);
 
+        // Translate instructions one-by-one
         for (auto it = bb->getFirstInsertionPt(), ie = bb->end(); it != ie; ++it) {
             const llvm::Instruction& inst = *it;
 
@@ -698,8 +685,6 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
         // Insert arguments coming from the memory model.
         auto callerEP = this->createExtensionPoint(previousAssignments);
         AutomatonInterfaceExtensionPoint calleeEP(calledAutomatonInfo);
-
-        calledAutomatonInfo.Automaton->printDeclaration(llvm::errs());
 
         mMemoryModel.handleCall(call, callerEP, calleeEP, inputs, outputs, additionalAssignments);
 

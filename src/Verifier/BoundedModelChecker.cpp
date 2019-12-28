@@ -202,122 +202,59 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
     mStats.NumBeginLocals = mRoot->getNumLocals();
     Location* start = mRoot->getEntry();
 
-    Stopwatch<> sw;
-
+    Stopwatch<> sw;    
+    bool skipUnderApprox = false;
+    
     // Let's do some verification.
     for (size_t bound = mSettings.eagerUnroll + 1; bound <= mSettings.maxBound; ++bound) {
         llvm::outs() << "Iteration " << bound << "\n";
 
         while (true) {
             unsigned numUnhandledCallSites = 0;
-            llvm::outs() << "  Under-approximating.\n";
+            ExprPtr formula;
+            Solver::SolverStatus status = Solver::UNKNOWN;
 
-            for (auto& entry : mCalls) {
-                entry.second.overApprox = mExprBuilder.False();
-            }
+            if (!skipUnderApprox) {
+                llvm::outs() << "  Under-approximating.\n";
 
-            ExprPtr formula = this->forwardReachableCondition(start, mError);
-
-            this->push();
-            llvm::outs() << "    Transforming formula...\n";
-            if (mSettings.dumpFormula) {
-                formula->print(llvm::errs());
-            }
-
-            mSolver->add(formula);
-
-            if (mSettings.dumpSolver) {
-                mSolver->dump(llvm::errs());
-            }
-
-            llvm::outs() << "    Running solver...\n";
-
-            sw.start();
-            auto status = mSolver->run();
-            sw.stop();
-
-            llvm::outs() << "      Elapsed time: ";
-            sw.format(llvm::outs(), "s");
-            llvm::outs() << "\n";
-            mStats.SolverTime += sw.elapsed();
-
-            if (status == Solver::SAT) {
-                llvm::outs() << "  Under-approximated formula is SAT.\n";
-                //LLVM_DEBUG(formula->print(llvm::dbgs()));
-                //mRoot->view();
-                
-                auto model = mSolver->getModel();
-                ExprEvaluator eval{model};
-
-                if (mSettings.dumpSolverModel) {
-                    model.print(llvm::errs());
+                for (auto& entry : mCalls) {
+                    entry.second.overApprox = mExprBuilder.False();
                 }
 
-                std::unique_ptr<Trace> trace;
-                if (mSettings.trace) {
-                    std::vector<Location*> states;
-                    std::vector<std::vector<VariableAssignment>> actions;
+                formula = this->forwardReachableCondition(start, mError);
 
-                    bmc::BmcCex cex{mError, *mRoot, eval, mPredecessors};
-                    for (auto state : cex) {
-                        Location* loc = state.getLocation();
-                        Transition* edge = state.getOutgoingTransition();
-
-                        Location* origLoc = mInlinedLocations.lookup(loc);
-
-                        states.push_back(origLoc != nullptr ? origLoc : loc);
-
-                        if (edge == nullptr) {
-                            continue;
-                        }
-
-                        auto assignEdge = llvm::dyn_cast<AssignTransition>(edge);
-                        assert(assignEdge != nullptr && "BMC traces must contain only assign transitions!");
-
-                        std::vector<VariableAssignment> traceAction;
-                        for (const VariableAssignment& assignment : *assignEdge) {
-                            Variable* variable = assignment.getVariable();
-                            Variable* origVariable = mInlinedVariables.lookup(assignment.getVariable());
-                            if (origVariable == nullptr) {
-                                // This variable was not inlined, just use the original one.
-                                origVariable = variable;
-                            }
-
-                            ExprRef<AtomicExpr> value;
-                            if (model.find(assignment.getVariable()) == model.end()) {
-                                value = UndefExpr::Get(variable->getType());
-                            } else {
-                                value = eval.walk(assignment.getVariable()->getRefExpr());
-                            }
-
-                            traceAction.emplace_back(origVariable, value);
-                        }
-
-                        actions.push_back(traceAction);
-                    }
-
-                    std::reverse(states.begin(), states.end());
-                    std::reverse(actions.begin(), actions.end());
-
-                    trace = mTraceBuilder.build(states, actions);
-                } else {
-                    trace = std::make_unique<Trace>(std::vector<std::unique_ptr<TraceEvent>>());
+                this->push();
+                llvm::outs() << "    Transforming formula...\n";
+                if (mSettings.dumpFormula) {
+                    formula->print(llvm::errs());
                 }
 
-                ExprRef<LiteralExpr> errorExpr = eval.walk(mErrorFieldVariable->getRefExpr());
-                assert(errorExpr != nullptr && "The error field must be present in the model as a literal expression!");
+                mSolver->add(formula);
 
-                switch (errorExpr->getType().getTypeID()) {
-                    case Type::BvTypeID:
-                        return VerificationResult::CreateFail(llvm::cast<BvLiteralExpr>(errorExpr)->getValue().getLimitedValue(), std::move(trace));
-                    case Type::IntTypeID:
-                        return VerificationResult::CreateFail(llvm::cast<IntLiteralExpr>(errorExpr)->getValue(), std::move(trace));
-                    default:
-                        llvm_unreachable("Invalid error field type!");
+                if (mSettings.dumpSolver) {
+                    mSolver->dump(llvm::errs());
                 }
+
+                llvm::outs() << "    Running solver...\n";
+
+                sw.start();
+                status = mSolver->run();
+                sw.stop();
+
+                llvm::outs() << "      Elapsed time: ";
+                sw.format(llvm::outs(), "s");
+                llvm::outs() << "\n";
+                mStats.SolverTime += sw.elapsed();
+
+                if (status == Solver::SAT) {
+                    llvm::outs() << "  Under-approximated formula is SAT.\n";
+                    return this->createFailResult();
+                }
+
+                this->pop();
             }
 
-            this->pop();
+            skipUnderApprox = false;
 
             // If the under-approximated formula was UNSAT, there is no feasible path from start to the error location
             // which does not involve a call. Find the lowest common dominator of all existing calls, and set is as the
@@ -386,7 +323,7 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
 
             if (status == Solver::SAT) {
                 llvm::outs() << "      Over-approximated formula is SAT.\n";
-                llvm::outs() << "      Checking counterexample....\n";
+                llvm::outs() << "      Checking counterexample...\n";
 
                 // We have a counterexample, but it may be spurious.
                 auto model = mSolver->getModel();
@@ -435,7 +372,7 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
                     mStats.NumEndLocals = mRoot->getNumLocals();
 
                     return VerificationResult::CreateSuccess();
-                }  else if (bound == mSettings.maxBound) {
+                } else if (bound == mSettings.maxBound) {
                     // The maximum bound was reached.
                     llvm::outs() << "Maximum bound is reached.\n";
                     
@@ -448,6 +385,11 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
                     llvm::outs() << "    Open call sites still present. Increasing bound.\n";
                     this->pop();
                     start = lca;
+
+                    // Skip redundant under-approximation step - all calls in the system are
+                    // under-approximated with 'False', which will not change when we jump
+                    // back to the under-approximation step.
+                    skipUnderApprox = true;
                     break;
                 }
             } else {
@@ -722,8 +664,12 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
             auto newInput = mRoot->createLocal(varname, input.getType());
             oldVarToNew[&input] = newInput;
             vmap[newInput] = &input;
-            //rewrite[input] = call->getInputArgument(i);
-            rewrite[&input] = newInput->getRefExpr();
+
+            auto arg = call->getInputArgument(input);
+            assert(arg.has_value()
+                && "Each call input assignment must map to an input variable in callee!");
+            rewrite[&input] = arg->getValue();
+            //rewrite[&input] = newInput->getRefExpr();
         }
     }
 
@@ -839,12 +785,12 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     Location* after  = call->getTarget();
 
     std::vector<VariableAssignment> inputAssigns;
-    for (auto& input : call->inputs()) {
-        VariableAssignment inputAssignment(oldVarToNew[input.getVariable()], input.getValue());
-        LLVM_DEBUG(llvm::dbgs() << "Added input assignment " << inputAssignment
-             << " for variable " << *input.getVariable() << "n");
-        inputAssigns.push_back(inputAssignment);
-    }
+    // for (auto& input : call->inputs()) {
+    //     VariableAssignment inputAssignment(oldVarToNew[input.getVariable()], input.getValue());
+    //     LLVM_DEBUG(llvm::dbgs() << "Added input assignment " << inputAssignment
+    //          << " for variable " << *input.getVariable() << "n");
+    //     inputAssigns.push_back(inputAssignment);
+    // }
 
     mRoot->createAssignTransition(
         before, locToLocMap[callee->getEntry()], call->getGuard(), inputAssigns

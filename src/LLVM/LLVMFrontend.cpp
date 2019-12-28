@@ -97,6 +97,24 @@ LLVMFrontend::LLVMFrontend(
     mSettings(settings)
 {
     llvm::initializeAnalysis(*llvm::PassRegistry::getPassRegistry());
+
+    // Force settings to be consistent
+    if (mSettings.ints == IntRepresentation::Integers) {
+        llvm::outs().changeColor(llvm::raw_ostream::YELLOW, true);
+        llvm::outs() << "warning: ";
+        llvm::outs().resetColor();
+        llvm::outs() << "-math-int mode forces havoc memory model, analysis may be unsound\n";
+        mSettings.memoryModel = MemoryModelSetting::Havoc;
+    }
+
+    if (mSettings.memoryModel == MemoryModelSetting::Havoc) {
+        llvm::outs().changeColor(llvm::raw_ostream::YELLOW, true);
+        llvm::outs() << "warning: ";
+        llvm::outs().resetColor();
+        llvm::outs() << "havoc memory model forces -inline and -inline-globals, analysis of recursive programs may be unsound\n";
+        mSettings.inlineFunctions = true;
+        mSettings.inlineGlobals = true;
+    }
 }
 
 void LLVMFrontend::registerVerificationPipeline()

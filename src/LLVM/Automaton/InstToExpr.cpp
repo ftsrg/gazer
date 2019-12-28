@@ -409,7 +409,8 @@ ExprPtr InstToExpr::visitCastInst(const llvm::CastInst& cast)
     }
     
     if (cast.getType()->isPointerTy()) {
-        return mMemoryModel.handlePointerCast(cast);
+        auto origPtr = operand(cast.getOperand(0));
+        return mMemoryModel.handlePointerCast(cast, origPtr);
     }
 
     if (castOp->getType().isBoolType()) {

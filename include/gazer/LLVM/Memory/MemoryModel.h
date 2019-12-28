@@ -78,7 +78,7 @@ public:
     /// Declares all input/output/local variables that should be inserted into the CFA.
     virtual void declareProcedureVariables(llvm2cfa::VariableDeclExtensionPoint& extensionPoint) = 0;
 
-    virtual ExprPtr handlePointerCast(const llvm::CastInst& cast) = 0;
+    virtual ExprPtr handlePointerCast(const llvm::CastInst& cast, ExprPtr origPtr) = 0;
 
     /// Handles an arbitrary pointer value.
     /// The second operand allows function-specific lookups.

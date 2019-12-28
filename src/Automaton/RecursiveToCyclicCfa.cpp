@@ -177,7 +177,7 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
                     Variable* input = callee->getInput(i);
 
                     auto variable = oldVarToNew[input];
-                    auto value = rewrite.walk(nestedCall->getInputArgument(i));
+                    auto value = rewrite.walk(nestedCall->getInputArgument(*input)->getValue());
 
                     if (variable->getRefExpr() != value) {
                         // Do not add unneeded assignments (X := X).
@@ -241,7 +241,7 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
         Variable* input = callee->getInput(i);
         inputArgs.push_back({
             oldVarToNew[input],
-            call->getInputArgument(i)
+            call->getInputArgument(*input)->getValue()
         });
     }
 

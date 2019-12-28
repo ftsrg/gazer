@@ -30,6 +30,7 @@
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/InstIterator.h>
+#include <llvm/Transforms/Utils/GlobalStatus.h>
 
 using namespace gazer;
 
@@ -47,11 +48,8 @@ class FlatMemoryModel : public MemoryModel
 
     struct CallInfo
     {
-        memory::CallUse* MemoryUse;
-        memory::CallUse* StackPtrUse;
-        memory::CallUse* FramePtrUse;
-
-        memory::CallDef* MemoryDef;
+        llvm::DenseMap<MemoryObject*, memory::CallUse*> Uses;
+        llvm::DenseMap<MemoryObject*, memory::CallDef*> Defs;
     };
 
     struct FunctionInfo
@@ -60,12 +58,11 @@ class FlatMemoryModel : public MemoryModel
         MemoryObject* StackPointer;
         MemoryObject* FramePointer;
 
-        memory::RetUse* MemExitUse;
-        memory::LiveOnEntryDef* MemEntryDef;
-        memory::LiveOnEntryDef* StackPtrEntryDef;
-        memory::LiveOnEntryDef* FramePtrEntryDef;
+        llvm::DenseMap<MemoryObject*, memory::LiveOnEntryDef*> EntryDefs;
+        llvm::DenseMap<MemoryObject*, memory::RetUse*> ExitUses;
 
         llvm::DenseMap<const llvm::GlobalVariable*, ExprPtr> GlobalPointers;
+        llvm::DenseMap<const llvm::Value*, MemoryObject*> Globals;
         llvm::DenseMap<const llvm::Value*, CallInfo> Calls;
     };
 
@@ -89,13 +86,15 @@ public:
 
 public:
     void declareProcedureVariables(llvm2cfa::VariableDeclExtensionPoint& extensionPoint) override {}
+    
     ExprPtr handleLiveOnEntry(
         memory::LiveOnEntryDef* def,
         llvm2cfa::GenerationStepExtensionPoint& ep
     ) override;
 
-    ExprPtr handlePointerCast(const llvm::CastInst& cast) override {
-        return UndefExpr::Get(translateType(cast.getType()));
+    ExprPtr handlePointerCast(const llvm::CastInst& cast, ExprPtr opPtr) override
+    {
+        return opPtr;
     }
 
     ExprPtr handlePointerValue(const llvm::Value* value, llvm::Function& parent) override
@@ -149,7 +148,7 @@ public:
     void handleBlock(
         const llvm::BasicBlock& bb,
         llvm2cfa::GenerationStepExtensionPoint& ep
-    ) override {}
+    ) override;
 
     gazer::Type& handlePointerType(const llvm::PointerType* type) override {
         return this->getPointerType();
@@ -221,6 +220,15 @@ public:
         llvm::Value* initializer = gv->getInitializer();
 
         assert(def->getReachingDef() != nullptr);
+
+        auto& info = mFunctionInfo[def->getParentBlock()->getParent()];
+        if (auto gvObj = info.Globals.lookup(gv)) {
+            if (gv->hasInitializer()) {
+                return ep.getAsOperand(initializer);
+            }
+
+            return mExprBuilder->Undef(def->getObject()->getObjectType());
+        }
 
         ExprPtr array = ep.getAsOperand(def->getReachingDef());
         unsigned size = mDataLayout.getTypeAllocSize(initializer->getType());
@@ -310,6 +318,14 @@ static bool hasPointerOperands(llvm::Function& func)
     });
 }
 
+static bool hasUsesInFunction(llvm::GlobalVariable& gv, llvm::Function& func)
+{
+    return std::any_of(gv.user_begin(), gv.user_end(), [&func](llvm::User* user) {
+        return llvm::isa<llvm::Instruction>(user)
+            && llvm::cast<llvm::Instruction>(user)->getFunction() == &func;
+    });
+}
+
 void FlatMemoryModel::initializeFunction(llvm::Function& function, memory::MemorySSABuilder& builder)
 {
     auto& info = mFunctionInfo[&function];
@@ -338,28 +354,58 @@ void FlatMemoryModel::initializeFunction(llvm::Function& function, memory::Memor
         "FramePointer"
     );
 
-    info.MemEntryDef = builder.createLiveOnEntryDef(info.Memory);
-    info.StackPtrEntryDef = builder.createLiveOnEntryDef(info.StackPointer);
-    info.FramePtrEntryDef = builder.createLiveOnEntryDef(info.FramePointer);
+    info.EntryDefs[info.Memory] = builder.createLiveOnEntryDef(info.Memory);
+    info.EntryDefs[info.StackPointer] = builder.createLiveOnEntryDef(info.StackPointer);
+    info.EntryDefs[info.FramePointer] = builder.createLiveOnEntryDef(info.FramePointer);
 
     // Handle global variables
     unsigned globalAddr = GlobalBegin;
+
+    unsigned globalCnt = 2;
     for (llvm::GlobalVariable& gv : function.getParent()->globals()) {
-        info.GlobalPointers[&gv] = this->ptrConstant(globalAddr);
+        // If the global variable never has its address taken, we can lift it from the memory array
+        // into its own memory object, as distinct globals never alias.
+        // FIXME: Analyzing globals should be done once per module, not once per function.
+        llvm::GlobalStatus globalStatus;
+        bool hasAddressTaken = llvm::GlobalStatus::analyzeGlobal(&gv, globalStatus);
 
         unsigned siz = mDataLayout.getTypeAllocSize(gv.getType()->getPointerElementType());
-        globalAddr += siz;
+
+        MemoryObject* gvObject;
+        if (!hasAddressTaken) {
+            gvObject = builder.createMemoryObject(
+                ++globalCnt,
+                translateType(gv.getType()->getPointerElementType()),
+                siz,
+                gv.getType()->getPointerElementType(),
+                gv.getName()
+            );
+            info.Globals[&gv] = gvObject;
+            info.EntryDefs[gvObject] = builder.createLiveOnEntryDef(gvObject);
+        } else {
+            gvObject = info.Memory;
+            info.GlobalPointers[&gv] = this->ptrConstant(globalAddr);
+            globalAddr += siz;
+        }
 
         if (isEntryFunction && gv.hasInitializer()) {
-            builder.createGlobalInitializerDef(info.Memory, &gv);
+            builder.createGlobalInitializerDef(gvObject, &gv);
         }
     }
 
     for (llvm::Instruction& inst : llvm::instructions(function)) {
         if (auto store = llvm::dyn_cast<llvm::StoreInst>(&inst)) {
-            builder.createStoreDef(info.Memory, *store);
+            if (auto gvObj = info.Globals.lookup(store->getPointerOperand())) {
+                builder.createStoreDef(gvObj, *store);
+            } else {
+                builder.createStoreDef(info.Memory, *store);
+            }
         } else if (auto load = llvm::dyn_cast<llvm::LoadInst>(&inst)) {
-            builder.createLoadUse(info.Memory, *load);
+            if (auto gvObj = info.Globals.lookup(load->getPointerOperand())) {
+                builder.createLoadUse(gvObj, *load);
+            } else {
+                builder.createLoadUse(info.Memory, *load);
+            }
         } else if (auto call = llvm::dyn_cast<llvm::CallInst>(&inst)) {
             llvm::Function* callee = call->getCalledFunction();
 
@@ -384,20 +430,49 @@ void FlatMemoryModel::initializeFunction(llvm::Function& function, memory::Memor
             if (!callee->isDeclaration() || callee->getReturnType()->isVoidTy()) {
                 auto& callInfo = info.Calls[call];
 
-                callInfo.MemoryDef = builder.createCallDef(info.Memory, call);
-                callInfo.MemoryUse = builder.createCallUse(info.Memory, call);
-                callInfo.StackPtrUse = builder.createCallUse(info.StackPointer, call);
-                callInfo.FramePtrUse = builder.createCallUse(info.FramePointer, call);
+                callInfo.Defs[info.Memory] = builder.createCallDef(info.Memory, call);
+                callInfo.Uses[info.Memory] = builder.createCallUse(info.Memory, call);
+                callInfo.Uses[info.StackPointer] = builder.createCallUse(info.StackPointer, call);
+                callInfo.Uses[info.FramePointer] = builder.createCallUse(info.FramePointer, call);
+
+                for (auto& [gv, gvObj] : info.Globals) {
+                    callInfo.Defs[gvObj] = builder.createCallDef(gvObj, call);
+                    callInfo.Uses[gvObj] = builder.createCallUse(gvObj, call);
+                }
             }
         } else if (auto ret = llvm::dyn_cast<llvm::ReturnInst>(&inst)) {
             memory::RetUse* use = builder.createReturnUse(info.Memory, *ret);
-            assert(info.MemExitUse == nullptr && "There must be at most one return use!");
-            info.MemExitUse = use;
+            assert(info.ExitUses.count(info.Memory) == 0 && "There must be at most one return use!");
+            
+            info.ExitUses[info.Memory] = use;
+
+            for (auto& [gv, gvObj] : info.Globals) {
+                assert(info.ExitUses.count(gvObj) == 0 && "There must be at most one return use!");
+                info.ExitUses[gvObj] = builder.createReturnUse(gvObj, *ret);
+            }
         } else if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(&inst)) {
             builder.createAllocaDef(info.Memory, *alloca);
             builder.createAllocaDef(info.StackPointer, *alloca);
         }
     }   
+}
+
+void FlatMemoryModel::handleBlock(const llvm::BasicBlock& bb, llvm2cfa::GenerationStepExtensionPoint& ep)
+{
+    auto memSSA = this->getFunctionMemorySSA(*bb.getParent());
+
+    for (MemoryObjectDef& def : memSSA->definitionAnnotationsFor(&bb)) {
+        Variable* defVariable = ep.getVariableFor(&def);
+        if (auto globalInit = llvm::dyn_cast<memory::GlobalInitializerDef>(&def)) {
+            ExprPtr pointer = ep.getAsOperand(globalInit->getGlobalVariable());
+            ep.insertAssignment(defVariable, this->handleGlobalInitializer(globalInit, pointer, ep));
+        } else if (auto liveOnEntry = llvm::dyn_cast<memory::LiveOnEntryDef>(&def)) {
+            ExprPtr liveOnEntryInit = this->handleLiveOnEntry(liveOnEntry, ep);
+            if (liveOnEntryInit != nullptr) {
+                ep.insertAssignment(defVariable, liveOnEntryInit);
+            }
+        }
+    }
 }
 
 ExprPtr FlatMemoryModel::handleLiveOnEntry(
@@ -502,9 +577,9 @@ ExprPtr FlatMemoryModel::buildMemoryRead(
                 // If it is not a convertible type, just undef it.
                 return mExprBuilder->Undef(targetTy);
         }
-
-        llvm_unreachable("Unknown integer representation!");
     }
+
+    llvm_unreachable("Unknown integer representation strategy!");
 }
 
 ExprPtr FlatMemoryModel::handleLoad(
@@ -515,22 +590,26 @@ ExprPtr FlatMemoryModel::handleLoad(
     llvm::SmallVector<memory::LoadUse*, 1> annotations;
     this->getFunctionMemorySSA(*load.getFunction())->memoryAccessOfKind(&load, annotations);
 
-    Type& loadTy = translateType(load.getType());
-    ExprPtr array = UndefExpr::Get(this->getMemoryObjectType());
-    if (annotations.size() == 1) {
-        MemoryObjectUse* use = annotations[0];
-        MemoryObjectDef* def = use->getReachingDef();
-        assert(def != nullptr && "There must be a reaching definition for this load!");
+    assert(annotations.size() == 1);
+    MemoryObjectUse* use = annotations[0];
+    MemoryObjectDef* def = use->getReachingDef();
 
-        array = ep.getAsOperand(def);
-
-        unsigned size = mDataLayout.getTypeAllocSize(load.getType());
-        assert(size >= 1);
-
-        return this->buildMemoryRead(loadTy, size, array, pointer);
+    auto& info = mFunctionInfo[load.getFunction()];
+    if (auto gvObj = info.Globals.lookup(load.getPointerOperand())) {
+        // If the object is a partitioned global, just return its reaching definition.
+        return ep.getAsOperand(def);
     }
 
-    return UndefExpr::Get(translateType(load.getType()));
+    Type& loadTy = translateType(load.getType());
+    ExprPtr array = UndefExpr::Get(this->getMemoryObjectType());
+    
+    assert(def != nullptr && "There must be a reaching definition for this load!");
+    array = ep.getAsOperand(def);
+
+    unsigned size = mDataLayout.getTypeAllocSize(load.getType());
+    assert(size >= 1);
+
+    return this->buildMemoryRead(loadTy, size, array, pointer);
 }
 
 void FlatMemoryModel::handleStore(
@@ -553,9 +632,18 @@ void FlatMemoryModel::handleStore(
     MemoryObjectDef& def = *annotations.begin();
     Variable* defVariable = ep.getVariableFor(&def);
 
-    ExprPtr reachingDef = ep.getAsOperand(def.getReachingDef());
+    if (auto gvObj = info.Globals.lookup(store.getPointerOperand())) {
+        // This is a partitioned global variable, just write the given value into it.
+        if (!ep.tryToEliminate(&def, defVariable, value)) {
+            ep.insertAssignment(defVariable, value);
+        }
+        return;
+    }
 
+    // Write the values into the array, byte-by-byte.
     unsigned size = mDataLayout.getTypeAllocSize(store.getValueOperand()->getType());
+
+    ExprPtr reachingDef = ep.getAsOperand(def.getReachingDef());
     ExprPtr array = reachingDef;
 
     if (auto bvTy = llvm::dyn_cast<BvType>(&value->getType())) {
@@ -664,35 +752,43 @@ void FlatMemoryModel::handleCall(
     auto callDefs = memSSA->definitionAnnotationsFor(call.getInstruction());
     auto callUses = memSSA->useAnnotationsFor(call.getInstruction());
 
-    assert(std::distance(callDefs.begin(), callDefs.end()) == 1
-        && "A call instruction should define only the Memory array!");
-    assert(callDefs.begin()->getObject() == callerInfo.Memory);
-    
-    assert(std::distance(callUses.begin(), callUses.end()) == 3
-        && "A call instruction should only use the Memory array, Stack and Frame pointer objects!");
-
-    assert(calleeInfo.MemExitUse != nullptr
-        && "There must be a single memory exit use!");
-
-    // Map the definition to the memory object return use
+    // Map memory call definitions to return uses
     outputAssignments.emplace_back(
-        callerEp.getVariableFor(&*callDefs.begin()),
-        calleeEp.getOutputVariableFor(calleeInfo.MemExitUse->getReachingDef())->getRefExpr()
+        callerEp.getVariableFor(callInstInfo.Defs[callerInfo.Memory]),
+        calleeEp.getOutputVariableFor(calleeInfo.ExitUses[calleeInfo.Memory]->getReachingDef())->getRefExpr()
     );
 
-    // Map call uses to entry definitions
-    inputAssignments.emplace_back(
-        calleeEp.getInputVariableFor(calleeInfo.MemEntryDef),
-        callerEp.getAsOperand(callInstInfo.MemoryUse->getReachingDef())
-    );
-    inputAssignments.emplace_back(
-        calleeEp.getInputVariableFor(calleeInfo.StackPtrEntryDef),
-        callerEp.getAsOperand(callInstInfo.StackPtrUse->getReachingDef())
-    );
-    inputAssignments.emplace_back(
-        calleeEp.getInputVariableFor(calleeInfo.FramePtrEntryDef),
-        callerEp.getAsOperand(callInstInfo.FramePtrUse->getReachingDef())
-    );
+    // Map possible partitioned globals and insert output assignments
+    for (auto [gv, obj] : callerInfo.Globals) {
+        outputAssignments.emplace_back(
+            callerEp.getVariableFor(callInstInfo.Defs[obj]),
+            calleeEp.getOutputVariableFor(
+                calleeInfo.ExitUses[calleeInfo.Globals[gv]]->getReachingDef()
+            )->getRefExpr()
+        );
+    }
+
+    // Map memory, stack and frame pointers
+    for (auto [actual, formal] : std::initializer_list<std::pair<MemoryObject*, MemoryObject*>>{ 
+        { callerInfo.Memory, calleeInfo.Memory },
+        { callerInfo.StackPointer, calleeInfo.StackPointer },
+        { callerInfo.FramePointer, calleeInfo.FramePointer }})
+    {
+        inputAssignments.emplace_back(
+            calleeEp.getInputVariableFor(calleeInfo.EntryDefs[formal]),
+            callerEp.getAsOperand(callInstInfo.Uses[actual]->getReachingDef())
+        );
+    }
+
+    // Map partitioned globals
+    for (auto [gv, obj] : callerInfo.Globals) {
+        inputAssignments.emplace_back(
+            calleeEp.getInputVariableFor(
+                calleeInfo.EntryDefs[calleeInfo.Globals[gv]]
+            ),
+            callerEp.getAsOperand(callInstInfo.Uses[obj]->getReachingDef())
+        );
+    }
 }
 
 ExprPtr FlatMemoryModel::handleGetElementPtr(

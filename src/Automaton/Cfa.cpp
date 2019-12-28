@@ -325,6 +325,19 @@ CallTransition::CallTransition(
     assert(callee->getNumOutputs() == mOutputArgs.size());
 }
 
+std::optional<VariableAssignment> CallTransition::getInputArgument(Variable& input) const
+{
+    auto result = std::find_if(mInputArgs.begin(), mInputArgs.end(), [&input](auto& assign) {
+        return assign.getVariable() == &input;
+    });
+
+    if (result == mInputArgs.end()) {
+        return std::nullopt;
+    }
+
+    return *result;
+}
+
 std::optional<VariableAssignment> CallTransition::getOutputArgument(Variable& variable) const
 {
     ExprPtr ref = variable.getRefExpr();

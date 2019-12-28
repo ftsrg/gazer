@@ -45,7 +45,7 @@ public:
     ) override {
         return UndefExpr::Get(BoolType::Get(mContext));
     }
-    ExprPtr handlePointerCast(const llvm::CastInst& cast) override;
+    ExprPtr handlePointerCast(const llvm::CastInst& cast, ExprPtr opPtr) override;
 
     ExprPtr handlePointerValue(const llvm::Value* value, llvm::Function& parent) override {
         return UndefExpr::Get(BoolType::Get(mContext));
@@ -118,7 +118,7 @@ void DummyMemoryModel::initializeFunction(llvm::Function& function, memory::Memo
     // Intentionally empty.
 }
 
-ExprPtr DummyMemoryModel::handlePointerCast(const llvm::CastInst& cast)
+ExprPtr DummyMemoryModel::handlePointerCast(const llvm::CastInst& cast, ExprPtr opPtr)
 {
     return UndefExpr::Get(BoolType::Get(mContext));
 }

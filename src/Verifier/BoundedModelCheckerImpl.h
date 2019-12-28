@@ -164,6 +164,8 @@ private:
 
     void findOpenCallsInCex(Valuation& model, llvm::SmallVectorImpl<CallTransition*>& callsInCex);
 
+    std::unique_ptr<VerificationResult> createFailResult();
+
     void push() {
         mSolver->push();
         mPredecessors.push();
