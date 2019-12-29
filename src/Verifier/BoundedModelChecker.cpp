@@ -458,7 +458,6 @@ ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Loc
             predVar = nullptr;
         } else if (preds.size() == 1) {
             predExpr = mExprBuilder.IntLit(preds[0].first->getSource()->getId());
-            //predExpr = mExprBuilder.BvLit(preds[0].first->getSource()->getId(), 32);
             mPredecessors.insert(loc, {predVar, predExpr});
         } else if (preds.size() == 2) {
             predVar = mSystem.getContext().createVariable(
@@ -470,14 +469,12 @@ ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Loc
             unsigned second = preds[1].first->getSource()->getId();
             
             predExpr = mExprBuilder.Select(
-                //predVar->getRefExpr(), mExprBuilder.BvLit(first, 32), mExprBuilder.BvLit(second, 32)
                 predVar->getRefExpr(), mExprBuilder.IntLit(first), mExprBuilder.IntLit(second)
             );
             mPredecessors.insert(loc, {predVar, predExpr});
         } else {
             predVar = mSystem.getContext().createVariable(
                 "__gazer_pred_" + std::to_string(mTmp++),
-                //BvType::Get(mSystem.getContext(), 32)
                 IntType::Get(mSystem.getContext())
             );
             predExpr = predVar->getRefExpr();
@@ -497,7 +494,6 @@ ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Loc
             } else {
                 predIdentification = mExprBuilder.Eq(
                     predVar->getRefExpr(),
-                    //mExprBuilder.BvLit(preds[j].first->getSource()->getId(), 32)
                     mExprBuilder.IntLit(preds[j].first->getSource()->getId())
                 );
             }

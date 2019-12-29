@@ -22,6 +22,7 @@ set(SOURCE_FILES
     Memory/DummyMemoryModel.cpp
     Memory/MemoryModel.cpp
     Memory/MemorySSA.cpp
+    Memory/MemoryUtils.cpp
     Automaton/AutomatonPasses.cpp
     Automaton/ExtensionPoints.cpp
     Automaton/ValueOrMemoryObject.cpp

@@ -1,4 +1,5 @@
-// RUN: %theta -inline "%s" | FileCheck "%s"
+// XFAIL: memory.burstall
+// RUN: %theta "%s" | FileCheck "%s"
 
 // CHECK: Verification SUCCESSFUL
 

@@ -15,12 +15,15 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
-///
-/// This memory model declares three memory objects: Global, Stack and Heap.
-///
+//
+/// \file This memory model declares a single flat memory object that represents
+/// the entire memory. Globals which do not have their address taken are put
+/// into their own partitions for efficiency.
+//
 //===----------------------------------------------------------------------===//
 #include "gazer/LLVM/Memory/MemoryModel.h"
 #include "gazer/LLVM/Memory/MemorySSA.h"
+#include "gazer/LLVM/Memory/MemoryUtils.h"
 #include "gazer/Core/LiteralExpr.h"
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
 #include "gazer/Core/ExprTypes.h"
@@ -366,8 +369,7 @@ void FlatMemoryModel::initializeFunction(llvm::Function& function, memory::Memor
         // If the global variable never has its address taken, we can lift it from the memory array
         // into its own memory object, as distinct globals never alias.
         // FIXME: Analyzing globals should be done once per module, not once per function.
-        llvm::GlobalStatus globalStatus;
-        bool hasAddressTaken = llvm::GlobalStatus::analyzeGlobal(&gv, globalStatus);
+        bool hasAddressTaken = memory::isGlobalUsedAsPointer(gv);
 
         unsigned siz = mDataLayout.getTypeAllocSize(gv.getType()->getPointerElementType());
 
@@ -465,11 +467,16 @@ void FlatMemoryModel::handleBlock(const llvm::BasicBlock& bb, llvm2cfa::Generati
         Variable* defVariable = ep.getVariableFor(&def);
         if (auto globalInit = llvm::dyn_cast<memory::GlobalInitializerDef>(&def)) {
             ExprPtr pointer = ep.getAsOperand(globalInit->getGlobalVariable());
-            ep.insertAssignment(defVariable, this->handleGlobalInitializer(globalInit, pointer, ep));
+            ExprPtr globalValue = this->handleGlobalInitializer(globalInit, pointer, ep);
+            if (!ep.tryToEliminate(&def, defVariable, globalValue)) {
+                ep.insertAssignment(defVariable, globalValue);
+            }
         } else if (auto liveOnEntry = llvm::dyn_cast<memory::LiveOnEntryDef>(&def)) {
             ExprPtr liveOnEntryInit = this->handleLiveOnEntry(liveOnEntry, ep);
             if (liveOnEntryInit != nullptr) {
-                ep.insertAssignment(defVariable, liveOnEntryInit);
+                if (!ep.tryToEliminate(&def, defVariable, liveOnEntryInit)) {
+                    ep.insertAssignment(defVariable, liveOnEntryInit);
+                }
             }
         }
     }
