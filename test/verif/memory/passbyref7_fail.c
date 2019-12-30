@@ -1,4 +1,3 @@
-// XFAIL: memory.cs
 // RUN: %bmc -bound 1 -inline "%s" | FileCheck "%s"
 // RUN: %bmc -bound 1 "%s" | FileCheck "%s"
 
@@ -21,7 +20,7 @@ int main(void)
     int prod;
     sumprod(a, b, &prod, &prod);
 
-    if (prod != 25) {
+    if (prod == 25) {
         __VERIFIER_error();
     }
 

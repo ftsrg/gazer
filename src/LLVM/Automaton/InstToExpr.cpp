@@ -621,7 +621,9 @@ ExprPtr InstToExpr::operandValue(const llvm::Value* value)
     }
 
     // Non-instruction pointer values should be resolved using the memory model
-    if (!llvm::isa<llvm::Instruction>(value) && value->getType()->isPointerTy()) {
+    if (value->getType()->isPointerTy()
+        && !llvm::isa<llvm::Instruction>(value)
+        && !llvm::isa<llvm::Argument>(value)) {
         return mMemoryModel.handlePointerValue(value, mFunction);
     }
     

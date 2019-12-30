@@ -1,5 +1,4 @@
-// XFAIL: memory
-// RUN: %bmc -bound 1 "%s" | FileCheck "%s"
+// RUN: %bmc -bound 1 -memory=flat "%s" | FileCheck "%s"
 
 // CHECK: Verification SUCCESSFUL
 

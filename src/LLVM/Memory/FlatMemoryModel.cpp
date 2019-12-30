@@ -34,6 +34,7 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/InstIterator.h>
 #include <llvm/Transforms/Utils/GlobalStatus.h>
+#include <llvm/IR/GetElementPtrTypeIterator.h>
 
 using namespace gazer;
 
@@ -314,9 +315,9 @@ private:
 
 } // end anonymous namespace
 
-static bool hasPointerOperands(llvm::Function& func)
+static bool hasPointerOperands(llvm::Function* func)
 {
-    return std::any_of(func.arg_begin(), func.arg_end(), [](llvm::Argument& arg) {
+    return std::any_of(func->arg_begin(), func->arg_end(), [](llvm::Argument& arg) {
         return arg.getType()->isPointerTy();
     });
 }
@@ -426,12 +427,11 @@ void FlatMemoryModel::initializeFunction(llvm::Function& function, memory::Memor
                 continue;
             }
 
-            // Currently we assume that function declarations which return a value do not modify
-            // global variables.
+            // Currently we assume that function declarations only modify memory if they have pointer
+            // operands or return values. 
             // FIXME: We should make this configurable.
-            if (!callee->isDeclaration() || callee->getReturnType()->isVoidTy()) {
-                auto& callInfo = info.Calls[call];
-
+            auto& callInfo = info.Calls[call];
+            if (!callee->isDeclaration()) {
                 callInfo.Defs[info.Memory] = builder.createCallDef(info.Memory, call);
                 callInfo.Uses[info.Memory] = builder.createCallUse(info.Memory, call);
                 callInfo.Uses[info.StackPointer] = builder.createCallUse(info.StackPointer, call);
@@ -441,6 +441,9 @@ void FlatMemoryModel::initializeFunction(llvm::Function& function, memory::Memor
                     callInfo.Defs[gvObj] = builder.createCallDef(gvObj, call);
                     callInfo.Uses[gvObj] = builder.createCallUse(gvObj, call);
                 }
+            } else if (hasPointerOperands(callee) || callee->getReturnType()->isPointerTy()) {
+                callInfo.Defs[info.Memory] = builder.createCallDef(info.Memory, call);
+                callInfo.Uses[info.Memory] = builder.createCallUse(info.Memory, call);
             }
         } else if (auto ret = llvm::dyn_cast<llvm::ReturnInst>(&inst)) {
             memory::RetUse* use = builder.createReturnUse(info.Memory, *ret);
@@ -504,89 +507,42 @@ ExprPtr FlatMemoryModel::handleLiveOnEntry(
 ExprPtr FlatMemoryModel::buildMemoryRead(
     gazer::Type& targetTy, unsigned size, ExprPtr array, ExprPtr pointer)
 {
-    if (mSettings.ints == IntRepresentation::BitVectors) {
-        switch (targetTy.getTypeID()) {
-            case Type::BvTypeID: {
-                ExprPtr result = mExprBuilder->Read(array, pointer);
-                for (unsigned i = 1; i < size; ++i) {
-                    // FIXME: Little/big endian
-                    result = mExprBuilder->BvConcat(
+    switch (targetTy.getTypeID()) {
+        case Type::BvTypeID: {
+            ExprPtr result = mExprBuilder->Read(array, pointer);
+            for (unsigned i = 1; i < size; ++i) {
+                // FIXME: Little/big endian
+                result = mExprBuilder->BvConcat(
+                    mExprBuilder->Read(array, this->pointerOffset(pointer, i)),
+                    result
+                );
+            }
+            return result;
+        }
+        case Type::BoolTypeID: {
+            ExprPtr result = mExprBuilder->NotEq(mExprBuilder->Read(array, pointer), mExprBuilder->BvLit8(0));
+            for (unsigned i = 1; i < size; ++i) {
+                result = mExprBuilder->And(
+                    mExprBuilder->NotEq(
                         mExprBuilder->Read(array, this->pointerOffset(pointer, i)),
-                        result
-                    );
-                }
-                return result;
-            }
-            case Type::BoolTypeID: {
-                ExprPtr result = mExprBuilder->NotEq(mExprBuilder->Read(array, pointer), mExprBuilder->BvLit8(0));
-                for (unsigned i = 1; i < size; ++i) {
-                    result = mExprBuilder->And(
-                        mExprBuilder->NotEq(
-                            mExprBuilder->Read(array, this->pointerOffset(pointer, i)),
-                            mExprBuilder->BvLit8(0)
-                        ),
-                        result
-                    );
-
-                    return result;
-                }
-            }
-            case Type::FloatTypeID: {
-                // TODO: We will need a bitcast from bitvectors to floats.
-                return mExprBuilder->Undef(targetTy);
-            }
-            default:
-                // If it is not a convertible type, just undef it.
-                return mExprBuilder->Undef(targetTy);
-        }
-
-        llvm_unreachable("Unhandled target type!");
-    }
-
-    if (mSettings.ints == IntRepresentation::Integers) {
-        switch (targetTy.getTypeID()) {
-            case Type::IntTypeID: {
-                // Try to reconstruct the value from the integer operands.
-                // To do so, we iterate over each cell, and use the following formula:
-                //  x += (Mem[ptr + i] mod 256) * pow(2, i * 8)
-
-                ExprPtr result = mExprBuilder->IntLit(0);
-                for (unsigned i = 0; i < size; ++i) {
-                    // FIXME: Little/big endian
-                    result = mExprBuilder->Add(
-                        mExprBuilder->Mul(
-                            mExprBuilder->Mod(
-                                mExprBuilder->Read(array, this->pointerOffset(pointer, i)), mExprBuilder->IntLit(256)
-                            ),
-                            mExprBuilder->IntLit(math::ipow(2, i * 8))
-                        ),
-                        result
-                    );
-                }
+                        mExprBuilder->BvLit8(0)
+                    ),
+                    result
+                );
 
                 return result;
             }
-            case Type::BoolTypeID: {
-                ExprPtr result = mExprBuilder->NotEq(mExprBuilder->Read(array, pointer), mExprBuilder->IntLit(0));
-                for (unsigned i = 1; i < size; ++i) {
-                    result = mExprBuilder->And(
-                        mExprBuilder->NotEq(
-                            mExprBuilder->Read(array, this->pointerOffset(pointer, i)),
-                            mExprBuilder->IntLit(0)
-                        ),
-                        result
-                    );
-
-                    return result;
-                }
-            }
-            default:
-                // If it is not a convertible type, just undef it.
-                return mExprBuilder->Undef(targetTy);
         }
+        case Type::FloatTypeID: {
+            // TODO: We will need a bitcast from bitvectors to floats.
+            return mExprBuilder->Undef(targetTy);
+        }
+        default:
+            // If it is not a convertible type, just undef it.
+            return mExprBuilder->Undef(targetTy);
     }
 
-    llvm_unreachable("Unknown integer representation strategy!");
+    llvm_unreachable("Unhandled target type!");
 }
 
 ExprPtr FlatMemoryModel::handleLoad(
@@ -806,12 +762,40 @@ ExprPtr FlatMemoryModel::handleGetElementPtr(
     assert(ops.size() >= 2);
 
     ExprPtr addr = ops[0];
+
+    auto ti = llvm::gep_type_begin(gep);
+    assert(std::distance(ti, llvm::gep_type_end(gep)) == ops.size() - 1);
+
     for (unsigned i = 1; i < ops.size(); ++i) {
         llvm::Value* gepOperand = gep.getOperand(i);
+
+        // Calculate the size of the current step
+        unsigned siz = mDataLayout.getTypeAllocSize(ti.getIndexedType());
+
+        // Index arguments may be integer types different from the pointer type.
+        // Extend/truncate them into the proper pointer length.
+        // As per the LLVM language reference:
+        //  * When indexing into a (optionally packed) structure, only i32 integer constants are allowed.
+        //  * Indexing into an array, pointer or vector, integers of any width are allowed, and they are not required to be constant.
+        //  * These integers are treated as signed values where relevant.
+        ExprPtr index = ops[i];
+        BvType& indexTy = llvm::cast<BvType>(index->getType());
+        if (this->getPointerType().getWidth() > indexTy.getWidth()) {
+            // We use SExt here to preserve the sign in case of possibly negative indices.
+            // This should not affect the struct member case, as we could only observe a difference if
+            // the first bit of a i32 constant is 1, meaning that we would need to have at least
+            // 2147483648 struct members for this behavior to occur.
+            index = mExprBuilder->SExt(index, this->getPointerType());
+        } else if (this->getPointerType().getWidth() < indexTy.getWidth()) {
+            index = mExprBuilder->Trunc(index, this->getPointerType());
+        }
+
         addr = mExprBuilder->Add(
             addr,
-            mExprBuilder->Mul(ops[i], this->ptrConstant(mDataLayout.getTypeAllocSize(gepOperand->getType())))
+            mExprBuilder->Mul(index, this->ptrConstant(siz))
         );
+
+        ++ti;
     }
 
     return addr;
