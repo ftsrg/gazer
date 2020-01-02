@@ -41,6 +41,9 @@ add_definitions(-DBOOST_NO_RTTI -DBOOST_EXCEPTION_DISABLE -DBOOST_NO_EXCEPTIONS)
 # Project directories
 include_directories(include)
 
+# Find out which solvers are enabled
+set(GAZER_ENABLE_SOLVERS "z3" CACHE STRING "Semicolon-separated list of solvers to build")
+
 add_subdirectory(src)
 add_subdirectory(tools)
 

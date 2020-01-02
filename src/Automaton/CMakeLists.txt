@@ -2,6 +2,7 @@ set(SOURCE_FILES
     Cfa.cpp
     CfaPrinter.cpp
     CallGraph.cpp
+    CfaUtils.cpp
     RecursiveToCyclicCfa.cpp
 )
 

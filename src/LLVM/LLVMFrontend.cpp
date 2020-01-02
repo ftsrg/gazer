@@ -181,54 +181,62 @@ bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
     LLVMTraceBuilder traceBuilder{system.getContext(), cfaToLlvmTrace};
 
     mResult = mAlgorithm.check(system, traceBuilder);
+    switch (mResult->getStatus()) {
+        case VerificationResult::Fail: {
+            auto fail = llvm::cast<FailResult>(mResult.get());
+            unsigned ec = fail->getErrorID();
+            std::string msg = mChecks.messageForCode(ec);
 
-    if (auto fail = llvm::dyn_cast<FailResult>(mResult.get())) {
-        unsigned ec = fail->getErrorID();
-        std::string msg = mChecks.messageForCode(ec);
+            llvm::outs() << "Verification FAILED.\n";
+            llvm::outs() << "  " << msg << "\n";
 
-        llvm::outs() << "Verification FAILED.\n";
-        llvm::outs() << "  " << msg << "\n";
-
-        if (mSettings.trace) {
-            auto writer = trace::CreateTextWriter(llvm::outs(), true);
-            llvm::outs() << "Error trace:\n";
-            llvm::outs() << "------------\n";
-            if (fail->hasTrace()) {
-                writer->write(fail->getTrace());
-            } else {
-                llvm::outs() << "Error trace is unavailable.\n";
+            if (mSettings.trace) {
+                auto writer = trace::CreateTextWriter(llvm::outs(), true);
+                llvm::outs() << "Error trace:\n";
+                llvm::outs() << "------------\n";
+                if (fail->hasTrace()) {
+                    writer->write(fail->getTrace());
+                } else {
+                    llvm::outs() << "Error trace is unavailable.\n";
+                }
             }
-        }
 
-        if (!mSettings.testHarnessFile.empty() && fail->hasTrace()) {
-            llvm::outs() << "Generating test harness.\n";
-            auto test = GenerateTestHarnessModuleFromTrace(
-                fail->getTrace(), 
-                module.getContext(),
-                module
-            );
+            if (!mSettings.testHarnessFile.empty() && fail->hasTrace()) {
+                llvm::outs() << "Generating test harness.\n";
+                auto test = GenerateTestHarnessModuleFromTrace(
+                    fail->getTrace(), 
+                    module.getContext(),
+                    module
+                );
 
-            llvm::StringRef filename(mSettings.testHarnessFile);
-            std::error_code osError;
-            llvm::raw_fd_ostream testOS(filename, osError, llvm::sys::fs::OpenFlags::OF_None);
+                llvm::StringRef filename(mSettings.testHarnessFile);
+                std::error_code osError;
+                llvm::raw_fd_ostream testOS(filename, osError, llvm::sys::fs::OpenFlags::OF_None);
 
-            if (filename.endswith("ll")) {
-                testOS << *test;
-            } else {
-                llvm::WriteBitcodeToFile(*test, testOS);
+                if (filename.endswith("ll")) {
+                    testOS << *test;
+                } else {
+                    llvm::WriteBitcodeToFile(*test, testOS);
+                }
             }
+            break;
         }
-    } else if (mResult->isSuccess()) {
-        llvm::outs() << "Verification SUCCESSFUL.\n";
-    } else if (mResult->getStatus() == VerificationResult::BoundReached) {
-        llvm::outs() << "Verification BOUND REACHED.\n";
-    } else if (auto internalError = llvm::dyn_cast<InternalErrorResult>(mResult.get())) {
-        llvm::outs() << "Verification INTERNAL ERROR.\n";
-        llvm::outs() << "  " << internalError->getMessage() << "\n";
-    } else if (mResult->getStatus() == VerificationResult::Timeout) {
-        llvm::outs() << "Verification TIMEOUT.\n";
-    } else {
-        llvm::outs() << "Verification UNKNOWN.\n";
+        case VerificationResult::Success:
+            llvm::outs() << "Verification SUCCESSFUL.\n";
+            break;
+        case VerificationResult::Timeout:
+            llvm::outs() << "Verification TIMEOUT.\n";
+            break;
+        case VerificationResult::BoundReached:
+            llvm::outs() << "Verification BOUND REACHED.\n";
+            break;
+        case VerificationResult::InternalError:
+            llvm::outs() << "Verification INTERNAL ERROR.\n";
+            llvm::outs() << "  " << mResult->getMessage() << "\n";
+            break;
+        case VerificationResult::Unknown:
+            llvm::outs() << "Verification UNKNOWN.\n";
+            break;
     }
 
     return false;

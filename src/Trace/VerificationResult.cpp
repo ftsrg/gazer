@@ -23,7 +23,7 @@ using namespace gazer;
 
 std::unique_ptr<VerificationResult> VerificationResult::CreateSuccess()
 {
-    return std::make_unique<SuccessResult>();
+    return std::unique_ptr<VerificationResult>(new VerificationResult(Success));
 }
 
 std::unique_ptr<VerificationResult> VerificationResult::CreateFail(unsigned ec, std::unique_ptr<Trace> trace)
@@ -33,15 +33,20 @@ std::unique_ptr<VerificationResult> VerificationResult::CreateFail(unsigned ec, 
 
 std::unique_ptr<VerificationResult> VerificationResult::CreateUnknown()
 {
-    return std::make_unique<UnknownResult>();
+    return std::unique_ptr<VerificationResult>(new VerificationResult(Unknown));
 }
 
 std::unique_ptr<VerificationResult> VerificationResult::CreateInternalError(llvm::Twine message)
 {
-    return std::make_unique<InternalErrorResult>(message);
+    return std::unique_ptr<VerificationResult>(new VerificationResult(InternalError, message.str()));
 }
 
 std::unique_ptr<VerificationResult> VerificationResult::CreateTimeout()
 {
-    return std::make_unique<UnknownResult>();
+    return std::unique_ptr<VerificationResult>(new VerificationResult(Timeout));
+}
+
+std::unique_ptr<VerificationResult> VerificationResult::CreateBoundReached()
+{
+    return std::unique_ptr<VerificationResult>(new VerificationResult(BoundReached));
 }

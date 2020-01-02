@@ -32,8 +32,8 @@ public:
 
     enum Status { Success, Fail, Timeout, Unknown, BoundReached, InternalError };
 protected:
-    explicit VerificationResult(Status status)
-        : mStatus(status)
+    explicit VerificationResult(Status status, std::string message = "")
+        : mStatus(status), mMessage(message)
     {}
 
 public:
@@ -43,6 +43,8 @@ public:
 
     [[nodiscard]] Status getStatus() const { return mStatus; }
 
+    llvm::StringRef getMessage() const { return mMessage; }
+
     static std::unique_ptr<VerificationResult> CreateSuccess();
 
     static std::unique_ptr<VerificationResult> CreateFail(unsigned ec, std::unique_ptr<Trace> trace = nullptr);
@@ -50,11 +52,13 @@ public:
     static std::unique_ptr<VerificationResult> CreateUnknown();
     static std::unique_ptr<VerificationResult> CreateTimeout();
     static std::unique_ptr<VerificationResult> CreateInternalError(llvm::Twine message);
+    static std::unique_ptr<VerificationResult> CreateBoundReached();
 
     virtual ~VerificationResult() = default;
 
 private:
     Status mStatus;
+    std::string mMessage;
 };
 
 class FailResult final : public VerificationResult
@@ -78,53 +82,6 @@ public:
 private:
     unsigned mErrorID;
     std::unique_ptr<Trace> mTrace;
-};
-
-class SuccessResult final : public VerificationResult
-{
-public:
-    SuccessResult()
-        : VerificationResult(VerificationResult::Success)
-    {}
-
-    static bool classof(const VerificationResult* result) {
-        return result->getStatus() == VerificationResult::Success;
-    }
-};
-
-class UnknownResult final : public VerificationResult
-{
-public:
-    explicit UnknownResult(std::string message = "")
-        : VerificationResult(VerificationResult::Unknown), mMessage(std::move(message))
-    {}
-
-    [[nodiscard]] llvm::StringRef getMessage() const { return mMessage; }
-
-    static bool classof(const VerificationResult* result) {
-        return result->getStatus() == VerificationResult::Unknown;
-    }
-
-private:
-    std::string mMessage;
-};
-
-class InternalErrorResult final : public VerificationResult
-{
-public:
-    InternalErrorResult(llvm::Twine message)
-        : VerificationResult(VerificationResult::InternalError),
-        mMessage(message.str())
-    {}
-
-    llvm::StringRef getMessage() const { return mMessage; }
-
-    static bool classof(const VerificationResult* result) {
-        return result->getStatus() == VerificationResult::InternalError;
-    }
-
-private:
-    std::string mMessage;
 };
 
 } // end namespace gazer

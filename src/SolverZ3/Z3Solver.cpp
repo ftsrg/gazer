@@ -140,41 +140,13 @@ template<> inline Z3_ast Z3Handle<Z3_func_decl>::as_ast() {
 }
 
 using Z3AstHandle = Z3Handle<Z3_ast>;
-
-class Z3Solver : public Solver
-{
-public:
-    using CacheMapT = ScopedCache<ExprPtr, Z3AstHandle, std::unordered_map<ExprPtr, Z3AstHandle>>;
-    
-public:
-    explicit Z3Solver(GazerContext& context)
-        : Solver(context), mSolver(mZ3Context)
-    {}
-
-    void printStats(llvm::raw_ostream& os) override;
-    void dump(llvm::raw_ostream& os) override;
-    SolverStatus run() override;
-    Valuation getModel() override;
-    void reset() override;
-
-    void push() override;
-    void pop() override;
-
-protected:
-    void addConstraint(ExprPtr expr) override;
-
-protected:
-    z3::context mZ3Context;
-    z3::solver mSolver;
-    unsigned mTmpCount = 0;
-    CacheMapT mCache;
-};
+using CacheMapT = ScopedCache<ExprPtr, Z3AstHandle, std::unordered_map<ExprPtr, Z3AstHandle>>;
 
 class Z3ExprTransformer : public ExprWalker<Z3ExprTransformer, Z3AstHandle>
 {
     friend class ExprWalker<Z3ExprTransformer, Z3AstHandle>;
 public:
-    Z3ExprTransformer(z3::context& context, unsigned& tmpCount, Z3Solver::CacheMapT& cache)
+    Z3ExprTransformer(z3::context& context, unsigned& tmpCount, CacheMapT& cache)
         : mZ3Context(context), mTmpCount(tmpCount), mCache(cache)
     {}
 
@@ -766,7 +738,36 @@ protected:
 protected:
     z3::context& mZ3Context;
     unsigned& mTmpCount;
-    Z3Solver::CacheMapT& mCache;
+    CacheMapT& mCache;
+};
+
+/// Z3 solver implementation.
+class Z3Solver : public Solver
+{
+public:
+    explicit Z3Solver(GazerContext& context)
+        : Solver(context), mSolver(mZ3Context),
+        mTransformer(mZ3Context, mTmpCount, mCache)
+    {}
+
+    void printStats(llvm::raw_ostream& os) override;
+    void dump(llvm::raw_ostream& os) override;
+    SolverStatus run() override;
+    Valuation getModel() override;
+    void reset() override;
+
+    void push() override;
+    void pop() override;
+
+protected:
+    void addConstraint(ExprPtr expr) override;
+
+protected:
+    z3::context mZ3Context;
+    z3::solver mSolver;
+    unsigned mTmpCount = 0;
+    CacheMapT mCache;
+    Z3ExprTransformer mTransformer;
 };
 
 } // end anonymous namespace
@@ -786,8 +787,7 @@ Solver::SolverStatus Z3Solver::run()
 
 void Z3Solver::addConstraint(ExprPtr expr)
 {
-    Z3ExprTransformer transformer(mZ3Context, mTmpCount, mCache);
-    auto z3Expr = transformer.walk(expr);
+    auto z3Expr = mTransformer.walk(expr);
     mSolver.add(z3::expr(mZ3Context, z3Expr));
 }
 

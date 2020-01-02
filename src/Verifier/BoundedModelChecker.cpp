@@ -19,6 +19,7 @@
 
 #include "gazer/Core/Expr/ExprRewrite.h"
 #include "gazer/Core/Expr/ExprUtils.h"
+#include "gazer/Automaton/CfaUtils.h"
 
 #include "gazer/Support/Stopwatch.h"
 
@@ -136,23 +137,52 @@ ERROR_TYPE_FOUND:
         }
     }
 
-    mLocNumbers[mError] = mTopo.size();
-    mTopo.push_back(mError);
+    // Create a dummy transition from the error location into the exit location.
+    mRoot->createAssignTransition(mError, mRoot->getExit(), mExprBuilder.False());
 
     return true;
 }
 
+void BoundedModelCheckerImpl::removeIrrelevantLocations()
+{
+    // The CFA construction algorithm must guarantee that the automata are
+    // connected graphs where every location is reachable from the entry,
+    // and all locations have a path (possibly annotated with an 'assume false')
+    // to the exit location.
+    llvm::df_iterator_default_set<Location*> visited;
+    auto begin = llvm::idf_ext_begin(mError, visited);
+    auto end = llvm::idf_ext_end(mError, visited);
+
+    // Do the DFS visit
+    while (begin != end) {
+        ++begin;
+    }
+
+    // Disconnect all unvisited locations, minus the exit location.
+    visited.insert(mRoot->getExit());
+    for (auto& loc : mRoot->nodes()) {
+        if (visited.count(&*loc) == 0) {
+            mRoot->disconnectLocation(&*loc);
+        }
+    }
+
+    mRoot->clearDisconnectedElements();
+}
+
 std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
 {
-    // Create the topological sorts
-    this->createTopologicalSorts();
-
     // Initialize error field
     bool hasErrorLocation = this->initializeErrorField();
-
     if (!hasErrorLocation) {
         return VerificationResult::CreateSuccess();
     }
+
+    // Do a pre-processing step: remove all locations from which the error
+    // location is not reachable.
+    this->removeIrrelevantLocations();
+
+    // Create the topological sorts
+    this->createTopologicalSorts();
 
     // Insert initial call approximations.
     for (auto& edge : mRoot->edges()) {
@@ -167,6 +197,19 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
             cfa.view();
         }
     }
+
+    // Initialize the path condition calculator
+    PathConditionCalculator pathConditions(
+        mTopo,
+        mExprBuilder,
+        this->createLocNumberFunc(),
+        [this](CallTransition* call) -> ExprPtr {
+            return mCalls[call].overApprox;
+        },
+        [this](Location* l, Variable* v, ExprPtr e) {
+            mPredecessors.insert(l, {v, e});
+        }
+    );
 
     // We are using a dynamic programming-based approach.
     // As the CFA is required to be a DAG, we have a topological sort
@@ -200,7 +243,9 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
 
     mStats.NumBeginLocs = mRoot->getNumLocations();
     mStats.NumBeginLocals = mRoot->getNumLocals();
-    Location* start = mRoot->getEntry();
+
+    Location* top = mRoot->getEntry();
+    Location* bottom = mError;
 
     Stopwatch<> sw;    
     bool skipUnderApprox = false;
@@ -221,7 +266,7 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
                     entry.second.overApprox = mExprBuilder.False();
                 }
 
-                formula = this->forwardReachableCondition(start, mError);
+                formula = pathConditions.encode(top, bottom);
 
                 this->push();
                 llvm::outs() << "    Transforming formula...\n";
@@ -262,15 +307,18 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
             // TODO: We should also delete locations which have no reachable call descendants.
 
             llvm::outs() << "  Attempting to set a new starting point...\n";
-            Location* lca = this->findCommonCallAncestor();
+            auto lca = this->findCommonCallAncestor(top, bottom);
 
             this->push();
-            if (lca != nullptr) {
-                LLVM_DEBUG(llvm::dbgs() << "Found LCA, " << lca->getId() << ".\n");
-                mSolver->add(forwardReachableCondition(start, lca));
+            if (lca.first != nullptr) {
+                LLVM_DEBUG(llvm::dbgs() << "Found LCA, " << lca.first->getId() << ".\n");
+                assert(lca.second != nullptr);
+
+                mSolver->add(pathConditions.encode(top, lca.first));
+                mSolver->add(pathConditions.encode(lca.second, bottom));
             } else {
-                LLVM_DEBUG(llvm::dbgs() << "No calls present, LCA is " << start->getId() << ".\n");
-                lca = start;
+                LLVM_DEBUG(llvm::dbgs() << "No calls present, LCA is " << top->getId() << ".\n");
+                lca = { top, bottom };
             }
 
             // Now try to over-approximate.
@@ -299,7 +347,7 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
             this->push();
 
             llvm::outs() << "    Calculating verification condition...\n";
-            formula = this->forwardReachableCondition(lca, mError);
+            formula = pathConditions.encode(lca.first, lca.second);
             if (mSettings.dumpFormula) {
                 formula->print(llvm::errs());
             }
@@ -362,7 +410,8 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
                 }
 
                 this->pop();
-                start = lca;
+                top = lca.first;
+                bottom = lca.second;
             } else if (status == Solver::UNSAT) {
                 llvm::outs() << "  Over-approximated formula is UNSAT.\n";
                 if (numUnhandledCallSites == 0) {
@@ -379,12 +428,13 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
                     mStats.NumEndLocs = mRoot->getNumLocations();
                     mStats.NumEndLocals = mRoot->getNumLocals();
 
-                    return VerificationResult::CreateSuccess();
+                    return VerificationResult::CreateBoundReached();
                 } else {
                     // Try with an increased bound.
                     llvm::outs() << "    Open call sites still present. Increasing bound.\n";
                     this->pop();
-                    start = lca;
+                    top = lca.first;
+                    bottom = lca.second;
 
                     // Skip redundant under-approximation step - all calls in the system are
                     // under-approximated with 'False', which will not change when we jump
@@ -398,207 +448,38 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
         }
     }
 
-    return VerificationResult::CreateSuccess();
+    return VerificationResult::CreateBoundReached();
 }
 
-ExprPtr BoundedModelCheckerImpl::forwardReachableCondition(Location* source, Location* target)
+auto BoundedModelCheckerImpl::createLocNumberFunc()
+    -> std::function<size_t(Location*)>
 {
-    if (source == target) {
-        return mExprBuilder.True();
-    }
+    return [this](Location* loc) {
+        auto predIt = mLocNumbers.find(loc);
+        assert(predIt != mLocNumbers.end()
+            && "All locations must be present in the location map!");
 
-    size_t startIdx = mLocNumbers[source];
-    size_t targetIdx = mLocNumbers[target];
-    
-    LLVM_DEBUG(
-        llvm::dbgs()
-        << "Calculating condition between "
-        << source->getId() << "(topo: " << startIdx << ")"
-        << " and "
-        << target->getId() << "(topo: " << targetIdx << ")"
-        << "\n");
-
-    assert(startIdx < targetIdx && "The source location must be before the target in a topological sort!");
-    assert(targetIdx < mTopo.size() && "The target index is out of range in the VC array!");
-
-    std::vector<ExprPtr> dp(targetIdx - startIdx + 1);
-
-    std::fill(dp.begin(), dp.end(), mExprBuilder.False());
-
-    // The first location is always reachable from itself.
-    dp[0] = mExprBuilder.True();
-
-    for (size_t i = 1; i < dp.size(); ++i) {
-        Location* loc = mTopo[i + startIdx];
-        ExprVector exprs;
-
-        llvm::SmallVector<std::pair<Transition*, size_t>, 16> preds;
-        for (Transition* edge : loc->incoming()) {
-            auto predIt = mLocNumbers.find(edge->getSource());
-            assert(predIt != mLocNumbers.end()
-                && "All locations must be present in the location map");
-
-            size_t predIdx = predIt->second;
-            assert(predIdx < i + startIdx
-                && "Predecessors must be before block in a topological sort. "
-                "Maybe there is a loop in the automaton?");
-
-            if (predIdx >= startIdx) {
-                // We are skipping the predecessors which are outside the region we are interested in.
-                preds.push_back({edge, predIdx});
-            }
-        }
-
-        ExprPtr predExpr = nullptr;
-        Variable* predVar = nullptr;
-
-        // Add predecessor identifications.
-        if (preds.empty()) {
-            predExpr = nullptr;
-            predVar = nullptr;
-        } else if (preds.size() == 1) {
-            predExpr = mExprBuilder.IntLit(preds[0].first->getSource()->getId());
-            mPredecessors.insert(loc, {predVar, predExpr});
-        } else if (preds.size() == 2) {
-            predVar = mSystem.getContext().createVariable(
-                "__gazer_pred_" + std::to_string(mTmp++),
-                BoolType::Get(mSystem.getContext())
-            );
-
-            unsigned first =  preds[0].first->getSource()->getId();
-            unsigned second = preds[1].first->getSource()->getId();
-            
-            predExpr = mExprBuilder.Select(
-                predVar->getRefExpr(), mExprBuilder.IntLit(first), mExprBuilder.IntLit(second)
-            );
-            mPredecessors.insert(loc, {predVar, predExpr});
-        } else {
-            predVar = mSystem.getContext().createVariable(
-                "__gazer_pred_" + std::to_string(mTmp++),
-                IntType::Get(mSystem.getContext())
-            );
-            predExpr = predVar->getRefExpr();
-            mPredecessors.insert(loc, {predVar, predExpr});
-        }
-        
-        for (size_t j = 0; j < preds.size(); ++j) {
-            Transition* edge = preds[j].first;
-            size_t predIdx = preds[j].second;
-
-            ExprPtr predIdentification;
-            if (predVar == nullptr) {
-                predIdentification = mExprBuilder.True();
-            } else if (predVar->getType().isBoolType()) {
-                predIdentification =
-                    (j == 0 ? predVar->getRefExpr() : mExprBuilder.Not(predVar->getRefExpr()));
-            } else {
-                predIdentification = mExprBuilder.Eq(
-                    predVar->getRefExpr(),
-                    mExprBuilder.IntLit(preds[j].first->getSource()->getId())
-                );
-            }
-
-            ExprPtr formula = mExprBuilder.And({
-                dp[predIdx - startIdx],
-                predIdentification,
-                edge->getGuard()
-            });
-
-            if (auto assignEdge = llvm::dyn_cast<AssignTransition>(edge)) {
-                ExprVector assigns;
-
-                for (auto& assignment : *assignEdge) {
-                    // As we are dealing with an SSA-formed CFA, we can just omit undef assignments.
-                    if (assignment.getValue()->getKind() != Expr::Undef) {
-                        auto eqExpr = mExprBuilder.Eq(assignment.getVariable()->getRefExpr(), assignment.getValue());
-                        assigns.push_back(eqExpr);
-                    }
-                }
-
-                if (!assigns.empty()) {
-                    formula = mExprBuilder.And(formula, mExprBuilder.And(assigns));
-                }
-            } else if (auto callEdge = llvm::dyn_cast<CallTransition>(edge)) {
-                formula = mExprBuilder.And(formula, mCalls[callEdge].overApprox);
-            }
-
-            exprs.push_back(formula);
-        }
-
-        if (!exprs.empty()) {
-            dp[i] = mExprBuilder.Or(exprs);
-        } else {
-            dp[i] = mExprBuilder.False();
-        }
-    }
-
-    return dp.back();
+        return predIt->second;
+    };
 }
 
-Location* BoundedModelCheckerImpl::findCommonCallAncestor()
+auto BoundedModelCheckerImpl::findCommonCallAncestor(Location* fwd, Location* bwd)
+    -> std::pair<Location*, Location*>
 {
     // Calculate the closest common dominator for all call nodes
-    if (mCalls.empty()) {
-        // There is no suitable ancestor as no calls are present in the graph.
-        return nullptr;
-    }
-
-    auto end = std::max_element(mCalls.begin(), mCalls.end(), [this](auto& a, auto& b) {
-        return mLocNumbers[a.first->getSource()] < mLocNumbers[b.first->getSource()];
+    std::vector<Transition*> targets;
+    std::transform(mCalls.begin(), mCalls.end(), std::back_inserter(targets), [](auto& pair) {
+        return pair.first;
     });
 
-    size_t lastIdx = mLocNumbers[end->first->getTarget()];
+    Location* lca = findLowestCommonDominator(
+        targets, mTopo, this->createLocNumberFunc(), fwd
+    );
+    Location* pdom = findHighestCommonPostDominator(
+        targets, mTopo, this->createLocNumberFunc(), bwd
+    );
 
-    // We will calculate dominators in one go, exploiting that the graph is guaranteed to be
-    // a DAG and that we already have the topological sort. We will use the standard definition:
-    //      Dom(n_0) = { n_0 }
-    //      Dom(n) = Union({ n }, Intersect({ p in pred(n): Dom(p) }))
-    // To represent the Dom sets for each node n, we will use a bitset, where a bit i is set if
-    // topo[i] dominates n.
-    std::vector<boost::dynamic_bitset<>> dominators(lastIdx, boost::dynamic_bitset(lastIdx));
-    llvm::DenseSet<Location*> candidates;
-
-    // The entry node always dominates itself.
-    dominators[0][0] = true;
-    for (size_t i = 1; i < lastIdx; ++i) {
-        Location* loc = mTopo[i];
-        
-        boost::dynamic_bitset<> bs(lastIdx);
-        bs.set();
-        for (Transition* edge : loc->incoming()) {
-            auto predIt = mLocNumbers.find(edge->getSource());
-            assert(predIt != mLocNumbers.end()
-                && "All locations must be present in the location map");
-
-            size_t predIdx = predIt->second;
-            assert(predIdx < i
-                && "Predecessors must be before node in a topological sort. "
-                "Maybe there is a loop in the automaton?");
-
-            bs = bs & dominators[predIdx];
-        }
-        bs[i] = true;
-        dominators[i] = bs;
-    }
-
-    // Now that we have the dominators, find the common dominators for the calls
-    boost::dynamic_bitset<> callDominators(lastIdx);
-    callDominators.set();
-    for (auto& [call, info] : mCalls) {
-        size_t idx = mLocNumbers[call->getSource()];
-        callDominators = callDominators & dominators[idx];
-    }
-
-    // Find the highest set bit
-    size_t commonDominatorIndex = 0;
-    for (size_t i = callDominators.size() - 1; i > 0; --i) {
-        if (callDominators[i]) {
-            commonDominatorIndex = i;
-            break;
-        }
-    }
-
-    return mTopo[commonDominatorIndex];
+    return { lca, pdom };
 }
 
 void BoundedModelCheckerImpl::findOpenCallsInCex(Valuation& model, llvm::SmallVectorImpl<CallTransition*>& callsInCex)

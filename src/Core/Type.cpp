@@ -172,6 +172,30 @@ const llvm::fltSemantics& FloatType::getLLVMSemantics() const
     llvm_unreachable("Invalid floating-point type");
 }
 
+unsigned FloatType::getExponentWidth() const
+{
+    switch (getPrecision()) {
+        case Half: return ExponentBitsInHalfTy;
+        case Single: return ExponentBitsInSingleTy;
+        case Double: return ExponentBitsInDoubleTy;
+        case Quad: return ExponentBitsInQuadTy;
+    }
+
+    llvm_unreachable("Invalid floating-point precision!");
+}
+
+unsigned FloatType::getSignificandWidth() const
+{
+    switch (getPrecision()) {
+        case Half: return SignificandBitsInHalfTy;
+        case Single: return SignificandBitsInSingleTy;
+        case Double: return SignificandBitsInDoubleTy;
+        case Quad: return SignificandBitsInQuadTy;
+    }
+
+    llvm_unreachable("Invalid floating-point precision!");
+}
+
 ArrayType& ArrayType::Get(Type& indexType, Type& elementType)
 {
     auto& pImpl = indexType.getContext().pImpl;

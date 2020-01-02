@@ -36,10 +36,18 @@ add_subdirectory(${GOOGLETEST_SOURCE_DIR}
 # Add tests
 add_subdirectory(Core)
 add_subdirectory(Automaton)
-add_subdirectory(SolverZ3)
 add_subdirectory(LLVM)
 add_subdirectory(Support)
 add_subdirectory(tools/gazer-theta)
+
+# Only add tests for requested targets
+if ("z3" IN_LIST GAZER_ENABLE_SOLVERS)
+    add_subdirectory(SolverZ3)
+endif()
+
+if ("mathsat5" IN_LIST GAZER_ENABLE_SOLVERS)
+    add_subdirectory(SolverMathSAT5)
+endif()
 
 add_custom_target(check-unit
     COMMAND ctest --output-on-failure

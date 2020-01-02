@@ -261,7 +261,7 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
         // Do the actual encoding.
         blocksToCfa.encode();
     }
-    
+
     // CFAs must be connected graphs. Remove unreachable components now.
     for (auto& cfa : *mSystem) {
         // We do not want to remove the exit location - if it is unreachable,
@@ -774,7 +774,9 @@ void BlocksToCfa::handleTerminator(const llvm::BasicBlock* bb, Location* entry, 
             });
         }
     } else if (terminator->getOpcode() == Instruction::Unreachable) {
-        // Do nothing.
+        // We want automata to be connected and the exit location should be reachable.
+        // As such, we insert a dummy transition from here to the exit.
+        mCfa->createAssignTransition(exit, mCfa->getExit(), mExprBuilder.False());
     } else {
         LLVM_DEBUG(llvm::dbgs() << *terminator << "\n");
         llvm_unreachable("Unknown terminator instruction.");

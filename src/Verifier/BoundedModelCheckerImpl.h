@@ -147,6 +147,7 @@ public:
 private:
     void createTopologicalSorts();
     bool initializeErrorField();
+    void removeIrrelevantLocations();
 
     void inlineCallIntoRoot(
         CallTransition* call,
@@ -155,12 +156,11 @@ private:
         llvm::SmallVectorImpl<CallTransition*>& newCalls
     );
     
-    /// Calculates a the path condition expression between \p source and \p target.
-    ExprPtr forwardReachableCondition(Location* source, Location* target);
-
-    /// Finds the closest common ancestor node for all call transitions.
+    /// Finds the closest common (post-)dominating node for all call transitions.
     /// If no call transitions are present in the CFA, this function returns nullptr.
-    Location* findCommonCallAncestor();
+    std::pair<Location*, Location*> findCommonCallAncestor(Location* fwd, Location* bwd);
+
+    std::function<size_t(Location*)> createLocNumberFunc();
 
     void findOpenCallsInCex(Valuation& model, llvm::SmallVectorImpl<CallTransition*>& callsInCex);
 

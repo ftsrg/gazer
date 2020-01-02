@@ -223,6 +223,9 @@ public:
     [[nodiscard]] const llvm::fltSemantics& getLLVMSemantics() const;
     [[nodiscard]] unsigned getWidth() const { return mPrecision; }
 
+    unsigned getExponentWidth() const;
+    unsigned getSignificandWidth() const;
+
     static FloatType& Get(GazerContext& context, FloatPrecision precision);
 
     static bool classof(const Type* type) {
