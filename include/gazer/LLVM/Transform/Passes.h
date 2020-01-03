@@ -34,6 +34,9 @@ llvm::Pass* createLiftErrorCallsPass();
 /// This pass normalizes some known verifier calls into a uniform format.
 llvm::Pass* createNormalizeVerifierCallsPass();
 
+/// A simpler (and more restricted) inlining pass.
+llvm::Pass* createSimpleInlinerPass(llvm::Function* entry);
+
 }
 
 #endif

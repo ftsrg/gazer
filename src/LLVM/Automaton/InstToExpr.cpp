@@ -172,8 +172,7 @@ ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop)
                 return mExprBuilder.Div(intLHS, intRHS);
             case Instruction::SRem:
             case Instruction::URem:
-                // TODO: Add arithmetic Rem
-                llvm_unreachable("Unsupported Rem expression");
+                return mExprBuilder.Rem(intLHS, intRHS);
             case Instruction::Shl:
             case Instruction::LShr:
             case Instruction::AShr:

@@ -45,10 +45,6 @@ if ("z3" IN_LIST GAZER_ENABLE_SOLVERS)
     add_subdirectory(SolverZ3)
 endif()
 
-if ("mathsat5" IN_LIST GAZER_ENABLE_SOLVERS)
-    add_subdirectory(SolverMathSAT5)
-endif()
-
 add_custom_target(check-unit
     COMMAND ctest --output-on-failure
 )

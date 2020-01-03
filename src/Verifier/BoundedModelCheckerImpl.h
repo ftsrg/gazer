@@ -25,6 +25,7 @@
 #include "gazer/Automaton/Cfa.h"
 #include "gazer/Trace/Trace.h"
 
+#include "gazer/Support/Stopwatch.h"
 #include "gazer/ADT/ScopedCache.h"
 
 #include <llvm/ADT/iterator.h>
@@ -176,6 +177,8 @@ private:
         mSolver->pop();
     }
 
+    Solver::SolverStatus runSolver();
+
 private:
     AutomataSystem& mSystem;
     ExprBuilder& mExprBuilder;
@@ -201,6 +204,7 @@ private:
     size_t mTmp = 0;
 
     Stats mStats;
+    Stopwatch<> mTimer;
     Variable* mErrorFieldVariable = nullptr;
 };
 

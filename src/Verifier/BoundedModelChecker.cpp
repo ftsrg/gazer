@@ -193,15 +193,12 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
     }
 
     if (mSettings.debugDumpCfa) {
-        for (Cfa& cfa : mSystem) {
-            cfa.view();
-        }
+        for (Cfa& cfa : mSystem) { cfa.view(); }
     }
 
     // Initialize the path condition calculator
     PathConditionCalculator pathConditions(
-        mTopo,
-        mExprBuilder,
+        mTopo, mExprBuilder,
         this->createLocNumberFunc(),
         [this](CallTransition* call) -> ExprPtr {
             return mCalls[call].overApprox;
@@ -211,14 +208,7 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
         }
     );
 
-    // We are using a dynamic programming-based approach.
-    // As the CFA is required to be a DAG, we have a topological sort
-    // of its locations. Then we create an array with the size of numLocs, and
-    // perform DP as the following:
-    //  (0) dp[0] := True (as the entry node is always reachable)
-    //  (1) dp[i] := Or(forall p in pred(i): And(dp[p], SMT(p,i)))
-    // This way dp[err] will contain the SMT encoding of all bounded error paths.
-
+    // Do eager unrolling, if requested
     if (mSettings.eagerUnroll > mSettings.maxBound) {
         llvm::errs() << "ERROR: Eager unrolling bound is larger than maximum bound.\n";
         return VerificationResult::CreateUnknown();
@@ -247,7 +237,6 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
     Location* top = mRoot->getEntry();
     Location* bottom = mError;
 
-    Stopwatch<> sw;    
     bool skipUnderApprox = false;
     
     // Let's do some verification.
@@ -279,17 +268,8 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
                 if (mSettings.dumpSolver) {
                     mSolver->dump(llvm::errs());
                 }
-
-                llvm::outs() << "    Running solver...\n";
-
-                sw.start();
-                status = mSolver->run();
-                sw.stop();
-
-                llvm::outs() << "      Elapsed time: ";
-                sw.format(llvm::outs(), "s");
-                llvm::outs() << "\n";
-                mStats.SolverTime += sw.elapsed();
+                
+                status = this->runSolver();
 
                 if (status == Solver::SAT) {
                     llvm::outs() << "  Under-approximated formula is SAT.\n";
@@ -301,12 +281,13 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
 
             skipUnderApprox = false;
 
-            // If the under-approximated formula was UNSAT, there is no feasible path from start to the error location
-            // which does not involve a call. Find the lowest common dominator of all existing calls, and set is as the
-            // start location.
-            // TODO: We should also delete locations which have no reachable call descendants.
-
-            llvm::outs() << "  Attempting to set a new starting point...\n";
+            // If the under-approximated formula was UNSAT, there is no feasible path from start
+            // to the error location which does not involve a call. Find the lowest common dominator
+            // of all calls, and set is as the start location. Similarly, we can calculate the
+            // highest common post-dominator for the error location of all calls to update the
+            // target state. These nodes are the lowest common ancestors (LCA) of the calls in
+            // the (post-)dominator trees.
+            llvm::outs() << "  Attempting to set new starting and target points...\n";
             auto lca = this->findCommonCallAncestor(top, bottom);
 
             this->push();
@@ -316,6 +297,17 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
 
                 mSolver->add(pathConditions.encode(top, lca.first));
                 mSolver->add(pathConditions.encode(lca.second, bottom));
+
+                // Run the solver and check whether top and bottom are consistent -- if not,
+                // we can return that the program is safe as all possible error paths will
+                // encode these program parts.
+                status = this->runSolver();
+    
+                if (status == Solver::UNSAT) {
+                    llvm::outs() << "    Start and target points are inconsitent, no errors are reachable.\n";
+                    return VerificationResult::CreateSuccess();
+                }
+
             } else {
                 LLVM_DEBUG(llvm::dbgs() << "No calls present, LCA is " << top->getId() << ".\n");
                 lca = { top, bottom };
@@ -358,16 +350,8 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
             if (mSettings.dumpSolver) {
                 mSolver->dump(llvm::errs());
             }
-            llvm::outs() << "    Running solver...\n";
 
-            sw.start();
-            status = mSolver->run();
-            sw.stop();
-
-            llvm::outs() << "      Elapsed time: ";
-            sw.format(llvm::outs(), "s");
-            llvm::outs() << "\n";
-            mStats.SolverTime += sw.elapsed();
+            status = this->runSolver();
 
             if (status == Solver::SAT) {
                 llvm::outs() << "      Over-approximated formula is SAT.\n";
@@ -701,7 +685,23 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     mRoot->disconnectEdge(call);
 }
 
-void BoundedModelCheckerImpl::printStats(llvm::raw_ostream& os) {
+Solver::SolverStatus BoundedModelCheckerImpl::runSolver()
+{
+    llvm::outs() << "    Running solver...\n";
+    mTimer.start();
+    auto status = mSolver->run();
+    mTimer.stop();
+
+    llvm::outs() << "      Elapsed time: ";
+    mTimer.format(llvm::outs(), "s");
+    llvm::outs() << "\n";
+    mStats.SolverTime += mTimer.elapsed();
+
+    return status;
+}
+
+void BoundedModelCheckerImpl::printStats(llvm::raw_ostream& os)
+{
     os << "--------- Statistics ---------\n";
     os << "Total solver time: ";
     llvm::format_provider<std::chrono::milliseconds>::format(mStats.SolverTime, os, "s");

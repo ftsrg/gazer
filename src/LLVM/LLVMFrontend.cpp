@@ -266,7 +266,8 @@ void LLVMFrontend::registerInlining()
             gv.setLinkage(GlobalValue::InternalLinkage);
         }
 
-        mPassManager.add(llvm::createAlwaysInlinerLegacyPass());
+        mPassManager.add(gazer::createSimpleInlinerPass(mModule->getFunction("main")));
+        //mPassManager.add(llvm::createAlwaysInlinerLegacyPass());
 
         if (mSettings.inlineGlobals) {
             mPassManager.add(createInlineGlobalVariablesPass());
@@ -304,7 +305,9 @@ void LLVMFrontend::registerLateOptimizations()
     if (mSettings.optimize) {
         mPassManager.add(llvm::createFloat2IntPass());
 
-        mPassManager.add(llvm::createIndVarSimplifyPass());
+        // IndVarSimplify seems to produce a lot of overhead for certain programs,
+        // disable it for the time being.
+        //mPassManager.add(llvm::createIndVarSimplifyPass());
         mPassManager.add(llvm::createLICMPass());
     }
 

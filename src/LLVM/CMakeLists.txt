@@ -4,6 +4,7 @@ set(SOURCE_FILES
     Transform/LiftErrorsPass.cpp
     Transform/NormalizeVerifierCalls.cpp
     Transform/BackwardSlicer.cpp
+    Transform/Inline.cpp
     Instrumentation/MarkFunctionEntries.cpp
     Instrumentation/Check.cpp
     Instrumentation/DefaultChecks.cpp
