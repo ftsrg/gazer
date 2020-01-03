@@ -1,4 +1,4 @@
-// RUN: %bmc -bound 1 -inline "%s" | FileCheck "%s"
+// RUN: %bmc -bound 1 "%s" | FileCheck "%s"
 // RUN: %bmc -bound 1 "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED

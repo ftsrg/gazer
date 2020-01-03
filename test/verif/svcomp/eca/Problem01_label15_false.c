@@ -1,7 +1,7 @@
-// RUN: %bmc -bound 10 -inline -trace -test-harness="%t1.bc" "%s" | FileCheck --check-prefix=RESULT  "%s" 
-// RUN: %bmc -bound 10 -inline -trace -test-harness="%t2.bc" -math-int "%s" | FileCheck --check-prefix=RESULT "%s"
-// RUN: %bmc -bound 10 -inline -trace -test-harness="%t3.bc" -no-optimize "%s" | FileCheck --check-prefix=RESULT "%s"
-// RUN: %bmc -bound 10 -inline -trace -test-harness="%t4.bc" -no-optimize -math-int "%s" | FileCheck --check-prefix=RESULT "%s"
+// RUN: %bmc -bound 10 -trace -test-harness="%t1.bc" "%s" | FileCheck --check-prefix=RESULT  "%s" 
+// RUN: %bmc -bound 10 -trace -test-harness="%t2.bc" -math-int "%s" | FileCheck --check-prefix=RESULT "%s"
+// RUN: %bmc -bound 10 -trace -test-harness="%t3.bc" -no-optimize "%s" | FileCheck --check-prefix=RESULT "%s"
+// RUN: %bmc -bound 10 -trace -test-harness="%t4.bc" -no-optimize -math-int "%s" | FileCheck --check-prefix=RESULT "%s"
 // RUN: %bmc -bound 10 -trace -test-harness="%t5.bc" "%s" | FileCheck --check-prefix=RESULT "%s"
 // RUN: %bmc -bound 10 -trace -test-harness="%t6.bc" -math-int "%s" | FileCheck --check-prefix=RESULT "%s"
 

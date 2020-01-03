@@ -1,6 +1,6 @@
 // RUN: %bmc -bound 10 -math-int "%s" | FileCheck "%s"
 
-// CHECK: Verification SUCCESSFUL
+// CHECK: Verification {{(SUCCESSFUL|BOUND REACHED)}}
 
 extern int __VERIFIER_nondet_int();
 extern void __VERIFIER_error();

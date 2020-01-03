@@ -54,6 +54,11 @@ procedure main() -> (main/RET_VAL : Bv32)
         assume true
     {
     };
+    
+    transition $7 -> $1
+        assume false
+    {
+    };
 
 }
 procedure main/while.cond(main/while.cond/call : Bv32) -> (main/while.cond/__output_selector : Bv8)

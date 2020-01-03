@@ -56,6 +56,11 @@ procedure main() -> (main/RET_VAL : Bv32)
     {
     };
 
+    transition $7 -> $1
+        assume false
+    {
+    };
+
     transition $8 -> $9
         assume true
     {

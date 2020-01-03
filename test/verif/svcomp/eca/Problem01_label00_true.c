@@ -1,9 +1,9 @@
-// RUN: %bmc -bound 10 -inline "%s" | FileCheck "%s"
-// RUN: %bmc -bound 10 -inline -math-int "%s" | FileCheck "%s"
+// RUN: %bmc -bound 10 "%s" | FileCheck "%s"
+// RUN: %bmc -bound 10 -math-int "%s" | FileCheck "%s"
 // RUN: %bmc -bound 10 "%s" | FileCheck "%s"
 // RUN: %bmc -bound 10 -math-int "%s" | FileCheck "%s"
 
-// CHECK: Verification SUCCESSFUL
+// CHECK: Verification {{(SUCCESSFUL|BOUND REACHED)}}
 int calculate_output(int);
 extern void __VERIFIER_error(void);
 extern int __VERIFIER_nondet_int(void);

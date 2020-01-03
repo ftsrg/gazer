@@ -2,7 +2,7 @@
 // RUN: %bmc -bound 1 "%s" | FileCheck "%s"
 // RUN: %bmc -bound 1 -math-int "%s" | FileCheck "%s"
 
-// CHECK: Verification SUCCESSFUL
+// CHECK: Verification {{(SUCCESSFUL|BOUND REACHED)}}
 #include <limits.h>
 
 int __VERIFIER_nondet_int(void);

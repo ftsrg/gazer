@@ -56,7 +56,6 @@ struct InlineGlobalVariablesPass final : public ModulePass
 
 bool InlineGlobalVariablesPass::shouldInlineGlobal(llvm::CallGraph& cg, llvm::GlobalVariable& gv) const
 {
-    llvm::Function* accessingFunction;
     llvm::GlobalStatus status;
 
     if (llvm::GlobalStatus::analyzeGlobal(&gv, status)) {
@@ -69,7 +68,7 @@ bool InlineGlobalVariablesPass::shouldInlineGlobal(llvm::CallGraph& cg, llvm::Gl
         return false;
     }
 
-    llvm::CallGraphNode* cgNode = cg[accessingFunction];
+    llvm::CallGraphNode* cgNode = cg[status.AccessingFunction];
     if (isRecursive(cgNode)) {
         return false;
     }
@@ -95,6 +94,7 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
     llvm::CallGraph& cg = getAnalysis<llvm::CallGraphWrapperPass>().getCallGraph();
 
     auto mark = GazerIntrinsic::GetOrInsertInlinedGlobalWrite(module);
+    cg.getOrInsertFunction(llvm::cast<llvm::Function>(mark.getCallee()));
 
     // Create a dbg declaration if it does not exist yet.
     Intrinsic::getDeclaration(&module, Intrinsic::dbg_declare);

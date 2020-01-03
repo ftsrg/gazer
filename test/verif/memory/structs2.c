@@ -1,3 +1,4 @@
+// XFAIL: memory.structs
 // RUN: %bmc -bound 1 -memory=flat "%s" | FileCheck "%s"
 
 // CHECK: Verification {{(SUCCESSFUL|BOUND REACHED)}}
@@ -7,17 +8,21 @@ void __VERIFIER_error(void) __attribute__((__noreturn__));
 
 void make_symbolic(void* ptr);
 
-int a, b;
+typedef struct X
+{
+    int a;
+    int b;
+} X;
 
 int main(void)
 {
-    int* pA = &a;
-    int* pB = &b;
+    X x;
+    int a = __VERIFIER_nondet_int();
+    x.a = a;
 
-    a = __VERIFIER_nondet_int();
-    b = a;
+    make_symbolic(&x.b);
 
-    if (*pA != *pB) {
+    if (x.a != a) {
         __VERIFIER_error();
     }
 

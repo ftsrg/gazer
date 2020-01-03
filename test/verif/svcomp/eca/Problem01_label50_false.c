@@ -1,5 +1,5 @@
-// RUN: %bmc -bound 10 -inline "%s" | FileCheck "%s"
-// RUN: %bmc -bound 10 -inline -math-int "%s" | FileCheck "%s"
+// RUN: %bmc -bound 10 "%s" | FileCheck "%s"
+// RUN: %bmc -bound 10 -math-int "%s" | FileCheck "%s"
 // RUN: %bmc -bound 10 "%s" | FileCheck "%s"
 // RUN: %bmc -bound 10 -math-int "%s" | FileCheck "%s"
 

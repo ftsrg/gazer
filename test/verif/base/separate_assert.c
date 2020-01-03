@@ -1,6 +1,6 @@
 // RUN: %bmc "%s" | FileCheck "%s"
 
-// CHECK: Verification SUCCESSFUL
+// CHECK: Verification {{(SUCCESSFUL|BOUND REACHED)}}
 
 void a(b) {
   if (!b)

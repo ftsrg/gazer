@@ -1,7 +1,7 @@
 // XFAIL: memory.arrays
 // RUN: %bmc -bound 10 -math-int "%s" | FileCheck "%s"
 
-// CHECK: Verification SUCCESSFUL
+// CHECK: Verification {{(SUCCESSFUL|BOUND REACHED)}}
 int __VERIFIER_nondet_int(void);
 void __VERIFIER_error(void) __attribute__((__noreturn__));
 

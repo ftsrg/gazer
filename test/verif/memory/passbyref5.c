@@ -1,7 +1,7 @@
 // RUN: %bmc -bound 1 "%s" | FileCheck "%s"
-// RUN: %bmc -bound 1 -inline "%s" | FileCheck "%s"
+// RUN: %bmc -bound 1 "%s" | FileCheck "%s"
 
-// CHECK: Verification SUCCESSFUL
+// CHECK: Verification {{(SUCCESSFUL|BOUND REACHED)}}
 
 int __VERIFIER_nondet_int(void);
 void __VERIFIER_error(void) __attribute__((__noreturn__));
