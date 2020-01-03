@@ -76,6 +76,10 @@ namespace
 
         bool runOnModule(llvm::Module& module) override;
 
+        llvm::StringRef getPassName() const override {
+            return "Verification backend pass";
+        }
+
     private:
         const CheckRegistry& mChecks;
         VerificationAlgorithm& mAlgorithm;
@@ -106,15 +110,6 @@ LLVMFrontend::LLVMFrontend(
         llvm::errs().resetColor();
         llvm::errs() << "-math-int mode forces havoc memory model, analysis may be unsound\n";
         mSettings.memoryModel = MemoryModelSetting::Havoc;
-    }
-
-    if (mSettings.memoryModel == MemoryModelSetting::Havoc) {
-        llvm::errs().changeColor(llvm::raw_ostream::YELLOW, true);
-        llvm::errs() << "warning: ";
-        llvm::errs().resetColor();
-        llvm::errs() << "havoc memory model forces -inline and -inline-globals, analysis of recursive programs may be unsound\n";
-        mSettings.inlineFunctions = true;
-        mSettings.inlineGlobals = true;
     }
 }
 
@@ -244,34 +239,32 @@ bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
 
 void LLVMFrontend::registerEnabledChecks()
 {
-    mChecks.add(checks::CreateAssertionFailCheck());
-    mChecks.add(checks::CreateDivisionByZeroCheck());
+    mChecks.add(checks::createAssertionFailCheck());
+    mChecks.add(checks::createDivisionByZeroCheck());
     mChecks.registerPasses(mPassManager);
 }
 
 void LLVMFrontend::registerInlining()
 {
     if (mSettings.inlineFunctions) {
-        // Mark all functions but the main as 'always inline'
-        for (auto &func : mModule->functions()) {
-            // Ignore the main function and declaration-only functions
-            if (func.getName() != "main" && !func.isDeclaration()) {
-                func.addAttribute(llvm::AttributeList::FunctionIndex, llvm::Attribute::AlwaysInline);
-                func.setLinkage(GlobalValue::InternalLinkage);
+        mPassManager.add(llvm::createInternalizePass([](auto& gv) {
+            if (auto fun = llvm::dyn_cast<llvm::Function>(&gv)) {
+                return fun->getName() == "main";
             }
-        }
-
-        // Mark globals as internal
-        for (auto &gv : mModule->globals()) {
-            gv.setLinkage(GlobalValue::InternalLinkage);
-        }
-
+            return false;
+        }));
         mPassManager.add(gazer::createSimpleInlinerPass(mModule->getFunction("main")));
-        //mPassManager.add(llvm::createAlwaysInlinerLegacyPass());
 
+        // Remove dead functions
+        mPassManager.add(llvm::createGlobalDCEPass());
+
+        // Inline eligible global variables
         if (mSettings.inlineGlobals) {
-            mPassManager.add(createInlineGlobalVariablesPass());
+            mPassManager.add(gazer::createInlineGlobalVariablesPass());
         }
+
+        // Remove dead globals
+        mPassManager.add(llvm::createGlobalDCEPass());
 
         // Transform the generated alloca instructions into registers
         mPassManager.add(llvm::createPromoteMemoryToRegisterPass());

@@ -5,6 +5,7 @@ set(SOURCE_FILES
     Transform/NormalizeVerifierCalls.cpp
     Transform/BackwardSlicer.cpp
     Transform/Inline.cpp
+    Transform/TransformUtils.cpp
     Instrumentation/MarkFunctionEntries.cpp
     Instrumentation/Check.cpp
     Instrumentation/DefaultChecks.cpp
@@ -18,7 +19,6 @@ set(SOURCE_FILES
     LLVMFrontend.cpp
     ClangFrontend.cpp
     Memory/MemoryObject.cpp
-    #Memory/BasicMemoryModel.cpp
     Memory/FlatMemoryModel.cpp
     Memory/DummyMemoryModel.cpp
     Memory/MemoryModel.cpp

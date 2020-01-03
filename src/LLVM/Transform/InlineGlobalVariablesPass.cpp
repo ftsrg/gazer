@@ -15,6 +15,9 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
+
+#include "TransformUtils.h"
+
 #include "gazer/LLVM/Transform/Passes.h"
 #include "gazer/LLVM/Instrumentation/Intrinsics.h"
 
@@ -24,8 +27,8 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/IntrinsicInst.h>
-
-#include <llvm/Pass.h>
+#include <llvm/Analysis/CallGraph.h>
+#include <llvm/Transforms/Utils/GlobalStatus.h>
 
 using namespace llvm;
 using namespace gazer;
@@ -41,8 +44,38 @@ struct InlineGlobalVariablesPass final : public ModulePass
         : ModulePass(ID)
     {}
 
+    void getAnalysisUsage(llvm::AnalysisUsage& au) const override
+    {
+        au.addRequired<llvm::CallGraphWrapperPass>();
+    }
+
     bool runOnModule(Module& module) override;
+
+    bool shouldInlineGlobal(llvm::CallGraph& cg, llvm::GlobalVariable& gv) const;
 };
+
+bool InlineGlobalVariablesPass::shouldInlineGlobal(llvm::CallGraph& cg, llvm::GlobalVariable& gv) const
+{
+    llvm::Function* accessingFunction;
+    llvm::GlobalStatus status;
+
+    if (llvm::GlobalStatus::analyzeGlobal(&gv, status)) {
+        return false;
+    }
+
+    if (status.HasMultipleAccessingFunctions
+        || status.AccessingFunction == nullptr
+    ) {
+        return false;
+    }
+
+    llvm::CallGraphNode* cgNode = cg[accessingFunction];
+    if (isRecursive(cgNode)) {
+        return false;
+    }
+
+    return true;
+}
 
 char InlineGlobalVariablesPass::ID = 0;
 
@@ -58,6 +91,8 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
         // No globals to inline
         return false;
     }
+
+    llvm::CallGraph& cg = getAnalysis<llvm::CallGraphWrapperPass>().getCallGraph();
 
     auto mark = GazerIntrinsic::GetOrInsertInlinedGlobalWrite(module);
 
@@ -78,11 +113,20 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
             continue;
         }
 
+        if (!this->shouldInlineGlobal(cg, gv)) {
+            continue;
+        }
+
         auto type = gv.getType()->getElementType();
         AllocaInst* alloc = builder.CreateAlloca(type, nullptr, gv.getName());
 
+        // TODO: I'm not entirely sure if this is sound - this undef should probably
+        // be replaced by a nondetermistic call.
         Value* init = gv.hasInitializer() ? gv.getInitializer() : UndefValue::get(type);
         builder.CreateStore(init, alloc);
+
+        // TODO: We should check external calls and clobber the alloca with a nondetermistic
+        // store if the ExternFuncGlobalBehavior setting requires this.
 
         // Add some metadata stuff
         // FIXME: There should be a more intelligent way for finding

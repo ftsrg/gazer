@@ -174,10 +174,10 @@ char SignedIntegerOverflowCheck::ID;
 
 } // end anonymous namespace
 
-Check* gazer::checks::CreateDivisionByZeroCheck() {
+Check* gazer::checks::createDivisionByZeroCheck() {
     return new DivisionByZeroCheck();
 }
 
-Check* gazer::checks::CreateAssertionFailCheck() {
+Check* gazer::checks::createAssertionFailCheck() {
     return new AssertionFailCheck();
 }

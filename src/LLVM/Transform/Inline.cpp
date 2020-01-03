@@ -21,13 +21,16 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "TransformUtils.h"
+
 #include "gazer/LLVM/Transform/Passes.h"
 
 #include <llvm/Pass.h>
-#include <llvm/ADT/SCCIterator.h>
 #include <llvm/IR/InstIterator.h>
 #include <llvm/Analysis/CallGraph.h>
 #include <llvm/Transforms/Utils/Cloning.h>
+
+using namespace gazer;
 
 namespace
 {
@@ -65,23 +68,6 @@ private:
 
 char InlinePass::ID;
 
-static bool isRecursive(llvm::CallGraphNode* target)
-{
-    // We wish to identify the cases of direct AND indirect static
-    // recursion. We do not bother with function pointers and
-    // external calls.
-    auto begin = llvm::scc_begin(target);
-    auto end = llvm::scc_end(target);
-
-    for (auto it = begin; it != end; ++it) {
-        if (it.hasLoop()) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 bool InlinePass::shouldInlineFunction(llvm::CallGraphNode* target, unsigned allowedRefs)
 {
     // We only want to inline functions which are non-recursive,
@@ -109,7 +95,8 @@ bool InlinePass::runOnModule(llvm::Module& module)
 
     while (!wl.empty()) {
         llvm::CallSite cs = wl.pop_back_val();
-        changed |= llvm::InlineFunction(cs, ifi);
+        bool success = llvm::InlineFunction(cs, ifi);
+        changed |= success;
 
         for (llvm::Value* newCall : ifi.InlinedCalls) {
             llvm::CallSite newCS(newCall);

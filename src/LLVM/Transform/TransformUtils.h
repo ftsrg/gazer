@@ -15,19 +15,14 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
-#include "gazer/LLVM/Instrumentation/Check.h"
+#include <llvm/Analysis/CallGraph.h>
 
-namespace gazer::checks
+namespace gazer
 {
-    /// Check for assertion violations within the program.
-    Check* createAssertionFailCheck();
 
-    /// This check fails if a division instruction is reachable
-    /// with its second operand's value being 0.
-    Check* createDivisionByZeroCheck();
+/// Returns true if the given call graph node represents a recursive function.
+/// This function does not take dynamic properties (e.g. function pointers)
+/// into account.
+bool isRecursive(llvm::CallGraphNode* target);
 
-    /// This check fails if a signed integer operation results
-    /// in an over- or underflow.
-    Check* createSignedIntegerOverflowCheck();
-
-} // end namespace gazer::checks
+}

@@ -39,6 +39,10 @@ public:
         : ModulePass(ID)
     {}
 
+    llvm::StringRef getPassName() const override {
+        return "Mark function entries";
+    }
+
     bool runOnModule(Module& module) override
     {
         LLVMContext& context = module.getContext();

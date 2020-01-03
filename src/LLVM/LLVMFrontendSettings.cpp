@@ -32,10 +32,10 @@ namespace gazer
 namespace
 {
     // LLVM frontend and transformation options
-    cl::opt<bool> InlineFunctions(
-        "inline", cl::desc("Inline function calls"), cl::cat(LLVMFrontendCategory));
-    cl::opt<bool> InlineGlobals(
-        "inline-globals", cl::desc("Inline global variables"), cl::cat(LLVMFrontendCategory));
+    cl::opt<bool> NoInlineFunctions(
+        "no-inline", cl::desc("Do not inline function calls"), cl::cat(LLVMFrontendCategory));
+    cl::opt<bool> NoInlineGlobals(
+        "no-inline-globals", cl::desc("Do not inline eligible global variables"), cl::cat(LLVMFrontendCategory));
     cl::opt<bool> NoOptimize(
         "no-optimize", cl::desc("Do not run optimization passes"), cl::cat(LLVMFrontendCategory));
     cl::opt<bool> NoAssertLift(
@@ -96,13 +96,15 @@ LLVMFrontendSettings LLVMFrontendSettings::initFromCommandLine()
 {
     LLVMFrontendSettings settings;
 
-    settings.inlineFunctions = InlineFunctions;
-    settings.inlineGlobals = InlineGlobals;
+    // opt-out settings
+    settings.inlineFunctions = !NoInlineFunctions;
+    settings.inlineGlobals = !NoInlineGlobals;
     settings.optimize = !NoOptimize;
     settings.liftAsserts = !NoAssertLift;
     settings.slicing =!NoSlice;
-    settings.elimVars = ElimVarsLevelOpt;
     settings.simplifyExpr = !NoSimplifyExpr;
+
+    settings.elimVars = ElimVarsLevelOpt;
     settings.memoryModel = MemoryModelOpt;
 
     if (ArithInts) {

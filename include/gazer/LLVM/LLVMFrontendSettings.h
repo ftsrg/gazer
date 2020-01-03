@@ -55,6 +55,26 @@ enum class MemoryModelSetting
     Flat
 };
 
+/// This structure tells later analyses how to handle
+/// global information in the presence of external
+/// functions.
+enum class ExternFuncGlobalBehavior
+{
+    /// Assume that all external functions are pure and never
+    /// modify global variables.
+    NeverModifies = 0,
+    /// Assume that external functions modify global variables
+    /// if they receive a pointer operand which may alias with
+    /// a global variable.
+    PointerArgModifies = 1,
+    /// Assume that functions which take no input parameters
+    /// modify global variables.
+    NoParamModifies = 2,
+    /// Assume that external functions which return void modify
+    /// global variables.
+    RetVoidModifies = 4,
+};
+
 class LLVMFrontendSettings
 {
 public:
@@ -79,6 +99,7 @@ public:
     // Memory models
     bool debugDumpMemorySSA = false;
     MemoryModelSetting memoryModel = MemoryModelSetting::Flat;
+    ExternFuncGlobalBehavior externFuncGlobals = ExternFuncGlobalBehavior::PointerArgModifies;
 
 public:
     bool isElimVarsOff() const { return elimVars == ElimVarsLevel::Off; }

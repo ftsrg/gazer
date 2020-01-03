@@ -15,19 +15,29 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
-#include "gazer/LLVM/Instrumentation/Check.h"
 
-namespace gazer::checks
+#include "TransformUtils.h"
+
+#include <llvm/ADT/SCCIterator.h>
+
+namespace gazer
 {
-    /// Check for assertion violations within the program.
-    Check* createAssertionFailCheck();
 
-    /// This check fails if a division instruction is reachable
-    /// with its second operand's value being 0.
-    Check* createDivisionByZeroCheck();
+bool isRecursive(llvm::CallGraphNode* target)
+{
+    // We wish to identify the cases of direct AND indirect static
+    // recursion. We do not bother with function pointers and
+    // external calls.
+    auto begin = llvm::scc_begin(target);
+    auto end = llvm::scc_end(target);
 
-    /// This check fails if a signed integer operation results
-    /// in an over- or underflow.
-    Check* createSignedIntegerOverflowCheck();
+    for (auto it = begin; it != end; ++it) {
+        if (it.hasLoop()) {
+            return true;
+        }
+    }
 
-} // end namespace gazer::checks
+    return false;
+}
+
+}
