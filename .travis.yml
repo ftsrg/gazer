@@ -15,6 +15,7 @@ addons:
     - python3
     - python3-pip
     - python3-setuptools
+    - python3-psutil
 script:
 # fetch LLVM and other dependencies
 - wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
