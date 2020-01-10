@@ -38,6 +38,12 @@
 
 using namespace gazer;
 
+namespace
+{
+    llvm::cl::opt<bool> NoDomPush("no-dom-push", llvm::cl::Hidden);
+    llvm::cl::opt<bool> NoPostDomPush("no-postdom-push", llvm::cl::Hidden);
+}
+
 std::unique_ptr<VerificationResult> BoundedModelChecker::check(AutomataSystem& system, CfaTraceBuilder& traceBuilder)
 {
     std::unique_ptr<ExprBuilder> builder;
@@ -174,6 +180,7 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
     // Initialize error field
     bool hasErrorLocation = this->initializeErrorField();
     if (!hasErrorLocation) {
+        llvm::outs() << "No error location is present or it was discarded by the frontend.\n";
         return VerificationResult::CreateSuccess();
     }
 
@@ -456,14 +463,22 @@ auto BoundedModelCheckerImpl::findCommonCallAncestor(Location* fwd, Location* bw
         return pair.first;
     });
 
-    Location* lca = findLowestCommonDominator(
-        targets, mTopo, this->createLocNumberFunc(), fwd
-    );
-    Location* pdom = findHighestCommonPostDominator(
-        targets, mTopo, this->createLocNumberFunc(), bwd
-    );
+    Location* dom;
+    Location* pdom;
 
-    return { lca, pdom };
+    if (!NoDomPush) {
+        dom = findLowestCommonDominator(targets, mTopo, this->createLocNumberFunc(), fwd);
+    } else {
+        dom = fwd;
+    }
+
+    if (!NoPostDomPush) {
+        pdom = findHighestCommonPostDominator(targets, mTopo, this->createLocNumberFunc(), bwd);
+    } else {
+        pdom = bwd;
+    }
+
+    return { dom, pdom };
 }
 
 void BoundedModelCheckerImpl::findOpenCallsInCex(Valuation& model, llvm::SmallVectorImpl<CallTransition*>& callsInCex)
