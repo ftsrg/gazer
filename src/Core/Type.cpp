@@ -196,14 +196,32 @@ unsigned FloatType::getSignificandWidth() const
     llvm_unreachable("Invalid floating-point precision!");
 }
 
+CompositeType::CompositeType(GazerContext& context, TypeID id, std::vector<Type*> subTypes)
+    : Type(context, id), mSubTypes(std::move(subTypes))
+{
+    assert(!mSubTypes.empty());
+    assert(std::all_of(mSubTypes.begin(), mSubTypes.end(), [&context](auto& ty) {
+        return ty->getContext() == context;
+    }));
+}
+
+ArrayType::ArrayType(GazerContext& context, std::vector<Type*> types)
+    : CompositeType(context, ArrayTypeID, types)
+{
+    assert(types.size() == 2);
+}
+
 ArrayType& ArrayType::Get(Type& indexType, Type& elementType)
 {
-    auto& pImpl = indexType.getContext().pImpl;
+    auto& ctx = indexType.getContext();
+    auto& pImpl = ctx.pImpl;
 
-    auto result = pImpl->ArrayTypes.find({&indexType, &elementType});
+    std::vector<Type*> subtypes = { &indexType, &elementType };
+
+    auto result = pImpl->ArrayTypes.find(subtypes);
     if (result == pImpl->ArrayTypes.end()) {
-        auto ptr = new ArrayType(&indexType, &elementType);
-        pImpl->ArrayTypes.emplace(std::make_pair(&indexType, &elementType), ptr);
+        auto ptr = new ArrayType(ctx, subtypes);
+        pImpl->ArrayTypes.emplace(subtypes, ptr);
 
         return *ptr;
     }
@@ -232,3 +250,4 @@ TupleType& TupleType::Get(std::vector<Type*> subtypes)
 
     return *result->second;
 }
+

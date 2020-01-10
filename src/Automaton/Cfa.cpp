@@ -39,7 +39,7 @@ Cfa::Cfa(GazerContext &context, std::string name, AutomataSystem& parent)
 }
 
 // Location and edge construction
-//-------------------------------------------------------------------------
+//===----------------------------------------------------------------------===//
 Location* Cfa::createLocation()
 {
     auto loc = new Location(mLocationIdx++, this);
@@ -63,6 +63,7 @@ Location* Cfa::findLocationById(unsigned id)
 {
     return mLocationNumbers.lookup(id);
 }
+
 
 AssignTransition *Cfa::createAssignTransition(
     Location *source, Location *target,
@@ -306,6 +307,16 @@ void Location::removeOutgoing(Transition *edge)
 
 // Transitions
 //-----------------------------------------------------------------------------
+Transition::Transition(Location* source, Location* target, ExprPtr expr, EdgeKind kind)
+    : mSource(source), mTarget(target), mExpr(expr), mEdgeKind(kind)
+{
+    assert(source != nullptr && "Transition source location must not be null!");
+    assert(target != nullptr && "Transition target location must not be null!");
+    assert(expr != nullptr && "Transition guard expression must not be null!");
+    assert(expr->getType().isBoolType()
+        && "Transition guards can only be booleans!");
+}
+
 AssignTransition::AssignTransition(
     Location *source, Location *target, ExprPtr guard,
     std::vector<VariableAssignment> assignments

@@ -1,4 +1,4 @@
-//==-------------------------------------------------------------*- C++ -*--==//
+//==- Expr.h - Core expression classes --------------------------*- C++ -*--==//
 //
 // Copyright 2019 Contributors to the Gazer project
 //
@@ -15,30 +15,22 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
-#ifndef GAZER_VERIFIER_VERIFICATIONALGORITHM_H
-#define GAZER_VERIFIER_VERIFICATIONALGORITHM_H
+//
+/// \file This file contains a forward declaration for Expr and ExprRef.
+//
+//===----------------------------------------------------------------------===//
+#ifndef GAZER_CORE_EXPRREF_H
+#define GAZER_CORE_EXPRREF_H
 
-#include "gazer/Core/Decl.h"
-#include "gazer/Trace/VerificationResult.h"
+#include <boost/intrusive_ptr.hpp>
 
 namespace gazer
 {
 
-class Location;
-class AutomataSystem;
+class Expr;
 
-using CfaTraceBuilder = TraceBuilder<Location*, std::vector<VariableAssignment>>;
-
-class VerificationAlgorithm
-{
-public:
-    virtual std::unique_ptr<VerificationResult> check(
-        AutomataSystem& system,
-        CfaTraceBuilder& traceBuilder
-    ) = 0;
-
-    virtual ~VerificationAlgorithm() = default;
-};
+template<class T = Expr> using ExprRef = boost::intrusive_ptr<T>;
+using ExprPtr = ExprRef<Expr>;
 
 }
 

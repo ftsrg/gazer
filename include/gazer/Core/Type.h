@@ -22,6 +22,7 @@
 
 #include <llvm/Support/Casting.h>
 #include <llvm/ADT/iterator.h>
+#include <llvm/ADT/ArrayRef.h>
 
 #include <vector>
 #include <string>
@@ -53,18 +54,15 @@ public:
         RealTypeID,
 
         // Composite types
-        //PointerTypeID,
         ArrayTypeID,
         TupleTypeID,
-        //StructTypeID,
-        //FunctionTypeID
+        FunctionTypeID
     };
 
     static constexpr int FirstPrimitive = BoolTypeID;
     static constexpr int LastPrimitive = FloatTypeID;
-    //static constexpr int FirstComposite = PointerTypeID;
     static constexpr int FirstComposite = ArrayTypeID;
-    static constexpr int LastComposite = ArrayTypeID;
+    static constexpr int LastComposite = FunctionTypeID;
 protected:
     explicit Type(GazerContext& context, TypeID id)
         : mContext(context), mTypeID(id)
@@ -110,7 +108,8 @@ private:
 
 llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Type& type);
 
-//------------------------ Type declarations --------------------------------//
+// Primitive type declarations
+//===----------------------------------------------------------------------===//
 
 class BoolType final : public Type
 {
@@ -240,30 +239,38 @@ private:
     static FloatType HalfTy, SingleTy, DoubleTy, QuadTy;
 };
 
-/// Represents an array type with arbitrary index and element types.
-class ArrayType final : public Type
+// Composite types
+//===----------------------------------------------------------------------===//
+
+class CompositeType : public Type
 {
-    ArrayType(Type* indexType, Type* elementType)
-        : Type(indexType->getContext(), ArrayTypeID), mIndexType(indexType), mElementType(elementType)
-    {
-        assert(indexType != nullptr);
-        assert(elementType != nullptr);
-        assert(indexType->getContext() == elementType->getContext());
-    }
+protected:
+    CompositeType(GazerContext& context, TypeID id, std::vector<Type*> subTypes);
 
 public:
-    [[nodiscard]] Type& getIndexType() const { return *mIndexType; }
-    [[nodiscard]] Type& getElementType() const { return *mElementType; }
+    Type& getSubType(unsigned idx) const
+    {
+        assert(idx <= mSubTypes.size());
+        return *mSubTypes[idx];
+    }
+
+private:
+    std::vector<Type*> mSubTypes;
+};
+
+/// Represents an array type with arbitrary index and element types.
+class ArrayType final : public CompositeType
+{
+    ArrayType(GazerContext& context, std::vector<Type*> types);
+public:
+    Type& getIndexType() const { return getSubType(0); }
+    Type& getElementType() const { return getSubType(1); }
 
     static ArrayType& Get(Type& indexType, Type& elementType);
 
     static bool classof(const Type* type) {
         return type->getTypeID() == ArrayTypeID;
     }
-
-private:
-    Type* mIndexType;
-    Type* mElementType;
 };
 
 class TupleType final : public Type
@@ -295,6 +302,34 @@ private:
 
 private:
     std::vector<Type*> mSubtypeList;
+};
+
+class FunctionType : public Type
+{
+    FunctionType(GazerContext& context, Type* resultType, std::vector<Type*> paramTypes)
+        : Type(context, FunctionTypeID), mResultType(resultType), mParamTypeList(paramTypes)
+    {}
+
+public:
+    template<class... Tys>
+    static typename std::enable_if<std::is_base_of_v<Type, Tys...>, FunctionType&>::type
+    Get(Type& result, Tys&... params)
+    {
+        std::array<Type*, sizeof...(Tys)> paramTypes({ &params... });
+        return FunctionType::Get(&result, paramTypes);
+    }
+
+    unsigned getArity() const { return mParamTypeList.size(); }
+
+    Type& getResultType() const { return *mResultType; }
+    Type& getParamType(unsigned idx) const;
+
+private:
+    FunctionType& Get(Type* resultType, llvm::ArrayRef<Type*> paramTypes);
+
+private:
+    Type* mResultType;
+    std::vector<Type*> mParamTypeList;
 };
 
 }

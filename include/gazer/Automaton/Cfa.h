@@ -119,15 +119,7 @@ public:
     };
 
 protected:
-    Transition(Location* source, Location* target, ExprPtr expr, EdgeKind kind)
-        : mSource(source), mTarget(target), mExpr(expr), mEdgeKind(kind)
-    {
-        assert(source != nullptr && "Transition source location must not be null!");
-        assert(target != nullptr && "Transition target location must not be null!");
-        assert(expr != nullptr && "Transition guard expression must not be null!");
-        assert(expr->getType().isBoolType()
-            && "Transition guards can only be booleans!");
-    }
+    Transition(Location* source, Location* target, ExprPtr expr, EdgeKind kind);
 public:
     Transition(Transition&) = delete;
     Transition& operator=(Transition&) = delete;

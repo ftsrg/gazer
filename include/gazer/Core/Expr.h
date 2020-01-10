@@ -25,6 +25,8 @@
 #define GAZER_CORE_EXPR_H
 
 #include "gazer/Core/Type.h"
+#include "gazer/Core/Decl.h"
+#include "gazer/Core/ExprRef.h"
 
 #include <llvm/ADT/StringRef.h>
 
@@ -40,13 +42,7 @@ namespace llvm {
 namespace gazer
 {
 
-class Expr;
 class GazerContextImpl;
-
-/// Intrusive reference counting pointer for expression types.
-template<class T = Expr> using ExprRef = boost::intrusive_ptr<T>;
-
-using ExprPtr = ExprRef<Expr>;
 
 /// \brief Base class for all gazer expressions.
 ///
@@ -334,33 +330,6 @@ public:
     }
 };
 
-class VarRefExpr;
-
-class Variable final
-{
-    friend class GazerContext;
-    friend class GazerContextImpl;
-
-    Variable(llvm::StringRef name, Type& type);
-public:
-    Variable(const Variable&) = delete;
-    Variable& operator=(const Variable&) = delete;
-
-    bool operator==(const Variable& other) const;
-    bool operator!=(const Variable& other) const { return !operator==(other); }
-
-    [[nodiscard]] std::string getName() const { return mName; }
-    [[nodiscard]] Type& getType() const { return mType; }
-    [[nodiscard]] ExprRef<VarRefExpr> getRefExpr() const { return mExpr; }
-
-    [[nodiscard]] GazerContext& getContext() const { return mType.getContext(); }
-
-private:
-    std::string mName;
-    Type& mType;
-    ExprRef<VarRefExpr> mExpr;
-};
-
 class VarRefExpr final : public Expr
 {
     friend class Variable;
@@ -380,42 +349,6 @@ public:
 private:
     Variable* mVariable;
 };
-
-/// Convenience class for representing assignments to variables.
-class VariableAssignment final
-{
-public:
-    VariableAssignment()
-        : mVariable(nullptr), mValue(nullptr)
-    {}
-
-    VariableAssignment(Variable *variable, ExprPtr value)
-        : mVariable(variable), mValue(std::move(value))
-    {
-        assert(mVariable != nullptr);
-        assert(mValue != nullptr);
-        assert(mVariable->getType() == mValue->getType());
-    }
-
-    bool operator==(const VariableAssignment& other) const {
-        return mVariable == other.mVariable && mValue == other.mValue;
-    }
-
-    bool operator!=(const VariableAssignment& other) const { return !operator==(other); }
-
-    [[nodiscard]] Variable* getVariable() const { return mVariable; }
-    [[nodiscard]] ExprPtr getValue() const { return mValue; }
-
-    void print(llvm::raw_ostream& os) const;
-
-private:
-    Variable* mVariable;
-    ExprPtr mValue;
-};
-
-
-llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Variable& variable);
-llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const VariableAssignment& va);
 
 /// Base class for all expressions holding one or more operands.
 class NonNullaryExpr : public Expr

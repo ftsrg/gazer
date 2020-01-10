@@ -32,6 +32,7 @@ class Type;
 class Variable;
 class GazerContext;
 class GazerContextImpl;
+class Decl;
 
 class GazerContext
 {

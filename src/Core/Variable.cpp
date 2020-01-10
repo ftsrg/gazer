@@ -17,10 +17,12 @@
 //===----------------------------------------------------------------------===//
 #include "GazerContextImpl.h"
 
+#include "gazer/Core/Expr.h"
+
 using namespace gazer;
 
 Variable::Variable(llvm::StringRef name, Type& type)
-    : mName(name), mType(type)
+    : Decl(Decl::Variable, type), mName(name)
 {
     mExpr = type.getContext().pImpl->Exprs.create<VarRefExpr>(this);
 }
@@ -42,6 +44,29 @@ bool Variable::operator==(const Variable &other) const
 void VarRefExpr::print(llvm::raw_ostream& os) const {
     os << mVariable->getType().getName() << " " << mVariable->getName();
 }
+
+VariableAssignment::VariableAssignment()
+    : mVariable(nullptr), mValue(nullptr)
+{}
+
+VariableAssignment::VariableAssignment(Variable *variable, ExprPtr value)
+    : mVariable(variable), mValue(std::move(value))
+{
+    assert(mVariable != nullptr);
+    assert(mValue != nullptr);
+    assert(mVariable->getType() == mValue->getType());
+}
+
+bool VariableAssignment::operator==(const VariableAssignment& other) const {
+    return mVariable == other.mVariable && mValue == other.mValue;
+}
+
+bool VariableAssignment::operator!=(const VariableAssignment& other) const {
+    return !operator==(other);
+}
+
+Variable* VariableAssignment::getVariable() const { return mVariable; }
+ExprPtr VariableAssignment::getValue() const { return mValue; }
 
 llvm::raw_ostream& gazer::operator<<(llvm::raw_ostream& os, const Variable& variable)
 {

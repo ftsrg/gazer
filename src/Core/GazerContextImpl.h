@@ -18,8 +18,9 @@
 #ifndef GAZER_SRC_GAZERCONTEXTIMPL_H
 #define GAZER_SRC_GAZERCONTEXTIMPL_H
 
-#include "gazer/Core/GazerContext.h"
 #include "gazer/Core/Type.h"
+#include "gazer/Core/Decl.h"
+#include "gazer/Core/GazerContext.h"
 #include "gazer/Core/LiteralExpr.h"
 #include "gazer/Core/ExprTypes.h"
 #include "gazer/Support/DenseMapKeyInfo.h"
@@ -351,7 +352,6 @@ public:
     size_t size() const { return mEntryCount; }
 
 private:
-
     template<class ExprTy, class... ConstructorArgs>
     ExprRef<ExprTy> createIfNotExists(ConstructorArgs&&... args)
     {
@@ -426,15 +426,20 @@ public:
     std::unordered_map<unsigned, std::unique_ptr<BvType>> BvTypes;
     FloatType FpHalfTy, FpSingleTy, FpDoubleTy, FpQuadTy;
     std::unordered_map<
-        std::pair<Type*, Type*>,
+        std::vector<Type*>,
         std::unique_ptr<ArrayType>,
-        boost::hash<std::pair<Type*, Type*>>
+        boost::hash<std::vector<Type*>>
     > ArrayTypes;
     std::unordered_map<
         std::vector<Type*>,
         std::unique_ptr<TupleType>,
         boost::hash<std::vector<Type*>>
     > TupleTypes;
+    std::unordered_map<
+        std::pair<Type*, std::vector<Type*>>,
+        std::unique_ptr<FunctionType>,
+        boost::hash<std::pair<Type*, std::vector<Type*>>>
+    > FunctionTypes;
 
     //------------------- Expressions -------------------//
     ExprStorage Exprs;
