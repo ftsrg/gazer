@@ -37,6 +37,22 @@ public:
     static constexpr char FunctionReturnValuePrefix[] = "gazer.function.return_value.";
     static constexpr char InlinedGlobalWriteName[] = "gazer.inlined_global.write";
 
+    static constexpr char NoOverflowPrefix[] = "gazer.no_overflow";
+
+    static constexpr char SAddNoOverflowPrefix[] = "gazer.no_overflow.sadd.";
+    static constexpr char SSubNoOverflowPrefix[] = "gazer.no_overflow.ssub.";
+    static constexpr char SMulNoOverflowPrefix[] = "gazer.no_overflow.smul.";
+    static constexpr char SDivNoOverflowPrefix[] = "gazer.no_overflow.sdiv.";
+
+    static constexpr char UAddNoOverflowPrefix[] = "gazer.no_overflow.uadd.";
+    static constexpr char USubNoOverflowPrefix[] = "gazer.no_overflow.usub.";
+    static constexpr char UMulNoOverflowPrefix[] = "gazer.no_overflow.umul.";
+
+    enum class Overflow
+    {
+        SAdd, UAdd, SSub, USub, SMul, UMul, SDiv, Shl
+    };
+
 public:
     static llvm::CallInst* CreateInlinedGlobalWrite(llvm::Value* value, llvm::DIGlobalVariable* gv);
     static llvm::CallInst* CreateFunctionEntry(llvm::Module& module, llvm::DISubprogram* dsp = nullptr);
@@ -57,6 +73,11 @@ public:
 
     /// Returns a 'gazer.inlined_global_write(metadata value, metadata gv_name)' intrinsic.
     static llvm::FunctionCallee GetOrInsertInlinedGlobalWrite(llvm::Module& module);
+
+    /// Returns a 'gazer.KIND.no_overflow.T(T left, T right)' intrinsic.
+    static llvm::FunctionCallee GetOrInsertOverflowCheck(llvm::Module& module, Overflow kind, llvm::Type* type);
+
+    static bool isPredicate(llvm::Function& function);
 };
 
 }

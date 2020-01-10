@@ -96,6 +96,8 @@ private:
     ExprPtr operandValue(const llvm::Value* value);
     ExprPtr operandMemoryObject(const MemoryObjectDef* def);
 
+    ExprPtr handleOverflowPredicate(const llvm::CallInst& call);
+
 protected:
     llvm::Function& mFunction;
     ExprBuilder& mExprBuilder;

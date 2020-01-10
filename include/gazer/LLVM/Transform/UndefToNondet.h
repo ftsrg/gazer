@@ -39,6 +39,8 @@ public:
     bool runOnModule(llvm::Module& module) override;
 };
 
+llvm::Pass* createPromoteUndefsPass();
+
 }
 
 #endif

@@ -134,7 +134,7 @@ std::string CheckRegistry::messageForCode(unsigned ec) const
     assert(ec != VerificationResult::SuccessErrorCode && "Error code must be non-zero for failures!");
 
     if (ec == VerificationResult::GeneralFailureCode) {
-        return "Unknown failure.\n";
+        return "Unknown failure: a property violation was found, but I could not create an error trace.\n";
     }
 
     auto result = mCheckMap.find(ec);

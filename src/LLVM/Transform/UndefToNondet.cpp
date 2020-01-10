@@ -85,3 +85,6 @@ bool UndefToNondetCallPass::runOnModule(llvm::Module& module)
 
     return changed;
 }
+
+
+llvm::Pass* gazer::createPromoteUndefsPass() { return new UndefToNondetCallPass(); }

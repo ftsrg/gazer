@@ -17,6 +17,7 @@
 //===----------------------------------------------------------------------===//
 #include "gazer/LLVM/Automaton/InstToExpr.h"
 #include "gazer/LLVM/Memory/MemoryModel.h"
+#include "gazer/LLVM/Instrumentation/Intrinsics.h"
 
 #include <llvm/Support/Debug.h>
 
@@ -550,6 +551,130 @@ ExprPtr InstToExpr::boolToIntCast(const llvm::CastInst& cast, const ExprPtr& ope
     llvm_unreachable("Invalid integer cast type!");
 }
 
+static GazerIntrinsic::Overflow getOverflowKind(llvm::StringRef name)
+{
+    #define HANDLE_PREFIX(PREFIX, KIND)                                           \
+        if (name.startswith(PREFIX)) { return GazerIntrinsic::Overflow::KIND; } \
+
+    HANDLE_PREFIX(GazerIntrinsic::SAddNoOverflowPrefix, SAdd)
+    HANDLE_PREFIX(GazerIntrinsic::SSubNoOverflowPrefix, SSub)
+    HANDLE_PREFIX(GazerIntrinsic::SMulNoOverflowPrefix, SMul)
+    HANDLE_PREFIX(GazerIntrinsic::SDivNoOverflowPrefix, SDiv)
+
+    #undef HANDLE_PREFIX
+
+    llvm_unreachable("Unknown overflow check!");
+}
+
+static ExprPtr handleSAddOverflow(const ExprPtr& left, const ExprPtr& right, ExprBuilder& builder)
+{
+    auto& bvType = llvm::cast<BvType>(left->getType());
+    unsigned width = bvType.getWidth();
+
+    auto& newType = BvType::Get(left->getContext(), width + 1);
+
+    ExprPtr el = builder.SExt(left, newType);
+    ExprPtr er = builder.SExt(right, newType);
+
+    ExprPtr result = builder.Add(el, er);
+
+    return builder.And(
+        builder.BvSLt(result, builder.BvLit(llvm::APInt::getSignedMaxValue(width).sext(width + 1))),
+        builder.BvSGt(result, builder.BvLit(llvm::APInt::getSignedMinValue(width).sext(width + 1)))
+    );
+}
+
+static ExprPtr handleSSubOverflow(const ExprPtr& left, const ExprPtr& right, ExprBuilder& builder)
+{
+    auto& bvType = llvm::cast<BvType>(left->getType());
+    auto neg = builder.Mul(
+        builder.BvLit(llvm::APInt::getAllOnesValue(bvType.getWidth())),
+        right
+    );
+
+    return handleSAddOverflow(left, neg, builder);
+}
+
+static ExprPtr handleSDivOverflow(const ExprPtr& left, const ExprPtr& right, ExprBuilder& builder)
+{
+    auto& bvType = llvm::cast<BvType>(left->getType());
+    unsigned width = bvType.getWidth();
+
+    auto& newType = BvType::Get(left->getContext(), width + 1);
+
+    ExprPtr el = builder.SExt(left, newType);
+    ExprPtr er = builder.SExt(right, newType);
+
+    ExprPtr result = builder.BvSDiv(el, er);
+
+    return builder.And(
+        builder.BvSLt(result, builder.BvLit(llvm::APInt::getSignedMaxValue(width).sext(width + 1))),
+        builder.BvSGt(result, builder.BvLit(llvm::APInt::getSignedMinValue(width).sext(width + 1)))
+    );
+}
+
+static ExprPtr handleSMulOverflow(const ExprPtr& left, const ExprPtr& right, ExprBuilder& builder)
+{
+    auto& bvType = llvm::cast<BvType>(left->getType());
+    unsigned width = bvType.getWidth();
+
+    auto& newType = BvType::Get(left->getContext(), 2 * width);
+
+    ExprPtr el = builder.SExt(left, newType);
+    ExprPtr er = builder.SExt(right, newType);
+
+    ExprPtr result = builder.Mul(el, er);
+
+    return builder.And(
+        builder.BvSLt(result, builder.BvLit(llvm::APInt::getSignedMaxValue(width).sext(2 * width))),
+        builder.BvSGt(result, builder.BvLit(llvm::APInt::getSignedMinValue(width).sext(2 * width)))
+    );
+}
+
+ExprPtr InstToExpr::handleOverflowPredicate(const llvm::CallInst& call)
+{
+    Function* callee = call.getCalledFunction();
+    assert(callee != nullptr);
+
+    ExprPtr left  = this->operand(call.getArgOperand(0));
+    ExprPtr right = this->operand(call.getArgOperand(1));
+    
+    GazerIntrinsic::Overflow kind = getOverflowKind(callee->getName());
+
+    if (left->getType().isIntType()) {
+        ExprPtr result;
+        switch (kind) {
+            case GazerIntrinsic::Overflow::SAdd: result = mExprBuilder.Add(left, right); break;
+            case GazerIntrinsic::Overflow::SSub: result = mExprBuilder.Sub(left, right); break;
+            case GazerIntrinsic::Overflow::SMul: result = mExprBuilder.Mul(left, right); break;
+            case GazerIntrinsic::Overflow::SDiv: result = mExprBuilder.Div(left, right); break;
+            default:
+                llvm_unreachable("Unknown overflow kind!");
+        }
+
+        unsigned width = call.getArgOperand(0)->getType()->getIntegerBitWidth();
+
+        // TODO: We should use a BigInteger implementation here instead of clamping an APInt to int64_t
+        return mExprBuilder.And(
+            mExprBuilder.GtEq(result, mExprBuilder.IntLit(llvm::APInt::getSignedMinValue(width).getSExtValue())),
+            mExprBuilder.LtEq(result, mExprBuilder.IntLit(llvm::APInt::getSignedMaxValue(width).getSExtValue()))
+        );
+    }
+
+    if (left->getType().isBvType()) {
+        switch (kind) {
+            case GazerIntrinsic::Overflow::SAdd: return handleSAddOverflow(left, right, mExprBuilder);
+            case GazerIntrinsic::Overflow::SSub: return handleSSubOverflow(left, right, mExprBuilder);
+            case GazerIntrinsic::Overflow::SMul: return handleSMulOverflow(left, right, mExprBuilder);
+            case GazerIntrinsic::Overflow::SDiv: return handleSDivOverflow(left, right, mExprBuilder);
+            default:
+                llvm_unreachable("Unknown overflow kind!");
+        }
+    }
+    
+    llvm_unreachable("Invalid type!");
+}
+
 ExprPtr InstToExpr::visitCallInst(const llvm::CallInst& call)
 {
     gazer::Type& callTy = this->translateType(call.getType());
@@ -559,6 +684,10 @@ ExprPtr InstToExpr::visitCallInst(const llvm::CallInst& call)
         return UndefExpr::Get(callTy);
         // This is an indirect call, use the memory model to resolve it.
         //return mMemoryModel.handleCall(call);
+    }
+
+    if (callee->getName().startswith(GazerIntrinsic::NoOverflowPrefix)) {
+        return this->handleOverflowPredicate(call);
     }
 
     return UndefExpr::Get(callTy);

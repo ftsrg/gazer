@@ -35,7 +35,6 @@ namespace gazer
 
 namespace
 {
-
     // Add some common clang options
     cl::list<std::string> Includes("I", cl::Prefix,cl::ZeroOrMore,
         cl::desc("Add directory to include search path"),
@@ -53,7 +52,9 @@ namespace
     );
 }
 
-static bool executeClang(llvm::StringRef clang, llvm::StringRef input, llvm::StringRef output)
+static bool executeClang(
+    llvm::StringRef clang, llvm::StringRef input,
+    llvm::StringRef output, llvm::ArrayRef<llvm::StringRef> flags)
 {
     // Build our clang configuration
     std::vector<llvm::StringRef> clangArgs = {
@@ -80,6 +81,9 @@ static bool executeClang(llvm::StringRef clang, llvm::StringRef input, llvm::Str
     }
 
     clangArgs.insert(clangArgs.end(), prefixedStrings.begin(), prefixedStrings.end());
+
+    // Add other custom args
+    clangArgs.insert(clangArgs.end(), flags.begin(), flags.end());
 
     clangArgs.insert(clangArgs.end(), {
         input, "-o", output
@@ -144,8 +148,11 @@ static bool executeLinker(llvm::StringRef linker, const std::vector<std::string>
     return true;
 }
 
-auto gazer::ClangCompileAndLink(llvm::ArrayRef<std::string> files, llvm::LLVMContext& llvmContext)
-    -> std::unique_ptr<llvm::Module>
+auto gazer::ClangCompileAndLink(
+    llvm::ArrayRef<std::string> files,
+    llvm::LLVMContext& llvmContext,
+    ClangFrontendSettings& settings)
+-> std::unique_ptr<llvm::Module>
 {
 #define CHECK_ERROR(ERRORCODE, MSG) if (ERRORCODE) {                            \
     llvm::errs() << MSG << "\n";                                                \
@@ -189,8 +196,14 @@ auto gazer::ClangCompileAndLink(llvm::ArrayRef<std::string> files, llvm::LLVMCon
         llvm::sys::path::append(outputPath, llvm::sys::path::filename(inputPath));
         llvm::sys::path::replace_extension(outputPath, "bc");
 
+        // Add extra flags
+        std::vector<llvm::StringRef> flags;
+        if (settings.sanitizeOverflow) {
+            flags.emplace_back("-ftrapv");
+        }
+
         // Call clang
-        bool clangSuccess = executeClang(*clang, inputPath, outputPath);
+        bool clangSuccess = executeClang(*clang, inputPath, outputPath, flags);
         if (!clangSuccess) {
             // TODO: Clean-up the working directory?
             llvm::errs() << "Failed to compile input file '" << inputFile << "'.\n";

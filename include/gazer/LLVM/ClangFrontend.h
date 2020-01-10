@@ -30,11 +30,17 @@ namespace llvm
 namespace gazer
 {
 
+struct ClangFrontendSettings
+{
+    bool sanitizeOverflow = false;
+};
+
 /// Compiles a set of C and/or LLVM bitcode files using clang, links them
 /// together with llvm-link and parses the resulting module.
 std::unique_ptr<llvm::Module> ClangCompileAndLink(
     llvm::ArrayRef<std::string> files,
-    llvm::LLVMContext& llvmContext
+    llvm::LLVMContext& llvmContext,
+    ClangFrontendSettings& settings
 );
 
 }

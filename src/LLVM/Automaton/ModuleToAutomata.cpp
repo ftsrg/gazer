@@ -20,14 +20,17 @@
 /// transformation.
 ///
 //===----------------------------------------------------------------------===//
-
+#include "FunctionToCfa.h"
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
+
+#include "gazer/LLVM/Memory/MemoryModel.h"
+#include "gazer/LLVM/Instrumentation/Check.h"
+
 #include "gazer/Automaton/Cfa.h"
 #include "gazer/Core/Expr/ExprBuilder.h"
-#include "gazer/ADT/StringUtils.h"
-#include "gazer/LLVM/Instrumentation/Check.h"
 #include "gazer/Core/Expr/ExprUtils.h"
-#include "gazer/LLVM/Memory/MemoryModel.h"
+
+#include "gazer/ADT/StringUtils.h"
 
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Instructions.h>
@@ -35,8 +38,6 @@
 #include <llvm/Analysis/LoopInfo.h>
 #include <llvm/IR/InstIterator.h>
 #include <llvm/ADT/StringExtras.h>
-
-#include "FunctionToCfa.h"
 
 #define DEBUG_TYPE "ModuleToCfa"
 

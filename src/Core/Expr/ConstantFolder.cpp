@@ -325,6 +325,13 @@ ExprPtr ConstantFolder::NotEq(const ExprPtr& left, const ExprPtr& right)
         return BoolLiteralExpr::False(left->getContext());
     }
 
+    if (auto c1 = dyn_cast<LiteralExpr>(left.get())) {
+        if (auto c2 = dyn_cast<LiteralExpr>(right.get())) {
+            assert(c1->getType() == c2->getType() && "Equals expression operand types must match!");
+            return BoolLiteralExpr::Get(left->getContext(), c1 != c2);
+        }
+    }
+
     return NotEqExpr::Create(left, right);
 }
 

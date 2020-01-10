@@ -28,7 +28,7 @@ namespace gazer
 class CheckRegistry;
 
 /// A check is a special kind of an LLVM pass, which marks instrunctions 
-/// with pre- or postconditions which must be always true.
+/// with pre- or postconditions that must be always true.
 class Check : public llvm::ModulePass
 {
     friend class CheckRegistry;

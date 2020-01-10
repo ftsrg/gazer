@@ -90,3 +90,31 @@ llvm::FunctionCallee GazerIntrinsic::GetOrInsertInlinedGlobalWrite(llvm::Module&
         llvm::Type::getMetadataTy(module.getContext())
     );
 }
+
+llvm::FunctionCallee GazerIntrinsic::GetOrInsertOverflowCheck(llvm::Module& module, Overflow kind, llvm::Type* type)
+{
+    std::string name;
+
+    switch (kind) {
+        case Overflow::SAdd: name = SAddNoOverflowPrefix; break;
+        case Overflow::UAdd: name = UAddNoOverflowPrefix; break;
+        case Overflow::SSub: name = SSubNoOverflowPrefix; break;
+        case Overflow::USub: name = USubNoOverflowPrefix; break;
+        case Overflow::SMul: name = SMulNoOverflowPrefix; break;
+        case Overflow::UMul: name = UMulNoOverflowPrefix; break;
+        case Overflow::SDiv: name = SDivNoOverflowPrefix; break;
+        default:
+            llvm_unreachable("Unknown overflow kind!");
+    }
+
+    llvm::raw_string_ostream rso(name);
+    type->print(rso, false, true);
+    rso.flush();
+
+    return module.getOrInsertFunction(
+        name,
+        llvm::Type::getInt1Ty(module.getContext()),
+        type,
+        type
+    );
+}

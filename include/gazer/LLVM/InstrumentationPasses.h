@@ -31,8 +31,6 @@ public:
     static llvm::Function* getGazerMallocIntrinsic(llvm::Module& module);
 };
 
-llvm::Pass* createPromoteUndefsPass();
-
 llvm::Pass* createMarkFunctionEntriesPass();
 
 llvm::Pass* createInsertLastAddressPass();

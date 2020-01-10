@@ -139,7 +139,10 @@ int main(int argc, char* argv[])
     }
 
     // Run the clang frontend
-    auto module = ClangCompileAndLink(InputFilenames, llvmContext);
+    ClangFrontendSettings clangSettings;
+    clangSettings.sanitizeOverflow = true;
+
+    auto module = ClangCompileAndLink(InputFilenames, llvmContext, clangSettings);
     if (module == nullptr) {
         return 1;
     }

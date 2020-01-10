@@ -75,6 +75,8 @@ static BmcSettings initBmcSettingsFromCommandLine();
 
 int main(int argc, char* argv[])
 {
+    llvm::llvm_shutdown_obj shutdown;
+
     cl::HideUnrelatedOptions({
         &LLVMFrontendCategory, &BmcAlgorithmCategory, &IrToCfaCategory, &TraceCategory, &ClangFrontendCategory
     });
@@ -93,15 +95,17 @@ int main(int argc, char* argv[])
 
     GazerContext context;
     llvm::LLVMContext llvmContext;
-
-    auto settings = LLVMFrontendSettings::initFromCommandLine();
-
+    
     // Run the clang frontend
-    auto module = ClangCompileAndLink(InputFilenames, llvmContext);
+    ClangFrontendSettings clangSettings;
+    clangSettings.sanitizeOverflow = true;
+
+    auto module = ClangCompileAndLink(InputFilenames, llvmContext, clangSettings);
     if (module == nullptr) {
         return 1;
     }
 
+    auto settings = LLVMFrontendSettings::initFromCommandLine();
     auto frontend = std::make_unique<LLVMFrontend>(std::move(module), context, settings);
 
     // TODO: This should be more flexible.
@@ -120,8 +124,6 @@ int main(int argc, char* argv[])
     frontend->registerVerificationPipeline();
 
     frontend->run();
-
-    llvm::llvm_shutdown();
 
     return 0;
 }

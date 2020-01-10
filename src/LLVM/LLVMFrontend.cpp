@@ -31,7 +31,7 @@
 #include <llvm/Transforms/Utils.h>
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Transforms/IPO.h>
-#include <llvm/Transforms/IPO/AlwaysInliner.h>
+#include <llvm/Transforms/InstCombine/InstCombine.h>
 #include <llvm/Transforms/Utils/UnifyFunctionExitNodes.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/InitializePasses.h>
@@ -118,14 +118,14 @@ void LLVMFrontend::registerVerificationPipeline()
     // Do basic preprocessing: get rid of alloca's and turn undef's
     //  into nondet function calls.
     mPassManager.add(llvm::createPromoteMemoryToRegisterPass());
-    mPassManager.add(new gazer::UndefToNondetCallPass());
-
-    // Execute early optimization passes.
-    registerEarlyOptimizations();
+    mPassManager.add(gazer::createPromoteUndefsPass());
 
     // Perform check instrumentation.
     mPassManager.add(gazer::createNormalizeVerifierCallsPass());
     registerEnabledChecks();
+
+    // Execute early optimization passes.
+    registerEarlyOptimizations();
 
     // Inline functions and global variables if requested.
     mPassManager.add(gazer::createMarkFunctionEntriesPass());
@@ -241,6 +241,7 @@ void LLVMFrontend::registerEnabledChecks()
 {
     mChecks.add(checks::createAssertionFailCheck());
     mChecks.add(checks::createDivisionByZeroCheck());
+    mChecks.add(checks::createSignedIntegerOverflowCheck());
     mChecks.registerPasses(mPassManager);
 }
 
@@ -285,11 +286,20 @@ void LLVMFrontend::registerEarlyOptimizations()
 {
     if (mSettings.optimize) {
         mPassManager.add(llvm::createCFGSimplificationPass());
+        
+        // SROA may introduce new undef values, so we run another promote undef pass after it
         mPassManager.add(llvm::createSROAPass());
-    
+        mPassManager.add(gazer::createPromoteUndefsPass());
+
+        mPassManager.add(llvm::createInstructionCombiningPass());
+        mPassManager.add(llvm::createCFGSimplificationPass());
+
         mPassManager.add(llvm::createIPSCCPPass());
         mPassManager.add(llvm::createGlobalOptimizerPass());
         mPassManager.add(llvm::createDeadArgEliminationPass());
+        
+        // Optimize loops
+        mPassManager.add(llvm::createIndVarSimplifyPass());
     }
 }
 
@@ -297,10 +307,7 @@ void LLVMFrontend::registerLateOptimizations()
 {
     if (mSettings.optimize) {
         mPassManager.add(llvm::createFloat2IntPass());
-
-        // IndVarSimplify seems to produce a lot of overhead for certain programs,
-        // disable it for the time being.
-        //mPassManager.add(llvm::createIndVarSimplifyPass());
+        mPassManager.add(llvm::createBasicAAWrapperPass());
         mPassManager.add(llvm::createLICMPass());
     }
 
