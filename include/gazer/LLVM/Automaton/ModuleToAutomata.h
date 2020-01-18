@@ -169,7 +169,7 @@ class ModuleToAutomataPass : public llvm::ModulePass
 public:
     static char ID;
 
-    ModuleToAutomataPass(GazerContext& context, LLVMFrontendSettings settings)
+    ModuleToAutomataPass(GazerContext& context, LLVMFrontendSettings& settings)
         : ModulePass(ID), mContext(context), mSettings(settings)
     {}
 
@@ -190,7 +190,7 @@ private:
     llvm::DenseMap<llvm::Value*, Variable*> mVariables;
     CfaToLLVMTrace mTraceInfo;
     GazerContext& mContext;
-    LLVMFrontendSettings mSettings;
+    LLVMFrontendSettings& mSettings;
 };
 
 std::unique_ptr<AutomataSystem> translateModuleToAutomata(

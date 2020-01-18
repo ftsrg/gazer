@@ -54,7 +54,7 @@ namespace
 
 static bool executeClang(
     llvm::StringRef clang, llvm::StringRef input,
-    llvm::StringRef output, llvm::ArrayRef<llvm::StringRef> flags)
+    llvm::StringRef output, llvm::ArrayRef<std::string> flags)
 {
     // Build our clang configuration
     std::vector<llvm::StringRef> clangArgs = {
@@ -151,7 +151,7 @@ static bool executeLinker(llvm::StringRef linker, const std::vector<std::string>
 auto gazer::ClangCompileAndLink(
     llvm::ArrayRef<std::string> files,
     llvm::LLVMContext& llvmContext,
-    ClangFrontendSettings& settings)
+    ClangOptions& settings)
 -> std::unique_ptr<llvm::Module>
 {
 #define CHECK_ERROR(ERRORCODE, MSG) if (ERRORCODE) {                            \
@@ -197,10 +197,8 @@ auto gazer::ClangCompileAndLink(
         llvm::sys::path::replace_extension(outputPath, "bc");
 
         // Add extra flags
-        std::vector<llvm::StringRef> flags;
-        if (settings.sanitizeOverflow) {
-            flags.emplace_back("-ftrapv");
-        }
+        std::vector<std::string> flags;
+        settings.createArgumentList(flags);
 
         // Call clang
         bool clangSuccess = executeClang(*clang, inputPath, outputPath, flags);
@@ -230,4 +228,18 @@ auto gazer::ClangCompileAndLink(
     }
 
     return module;
+}
+
+using namespace gazer;
+
+void ClangOptions::addSanitizerFlag(llvm::StringRef flag)
+{
+    mSanitizerFlags.insert(flag);
+}
+
+void ClangOptions::createArgumentList(std::vector<std::string>& args)
+{
+    if (!mSanitizerFlags.empty()) {
+        args.emplace_back("-fsanitize-trap=" + llvm::join(mSanitizerFlags, ","));
+    }
 }

@@ -16,6 +16,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "gazer/LLVM/LLVMFrontendSettings.h"
+#include "gazer/LLVM/Instrumentation/Check.h"
 
 #include <llvm/Support/CommandLine.h>
 
@@ -27,10 +28,13 @@ namespace gazer
     cl::OptionCategory LLVMFrontendCategory("LLVM frontend settings");
     cl::OptionCategory IrToCfaCategory("LLVM IR translation settings");
     cl::OptionCategory TraceCategory("Traceability settings");
+    cl::OptionCategory ChecksCategory("Check instrumentation settings");
 } // end namespace gazer
 
 namespace
 {
+    cl::opt<std::string> EnabledChecks("checks", cl::desc("List of enabled checks"), cl::cat(ChecksCategory));
+
     // LLVM frontend and transformation options
     cl::opt<bool> NoInlineFunctions(
         "no-inline", cl::desc("Do not inline function calls"), cl::cat(LLVMFrontendCategory));
@@ -106,6 +110,8 @@ LLVMFrontendSettings LLVMFrontendSettings::initFromCommandLine()
 
     settings.elimVars = ElimVarsLevelOpt;
     settings.memoryModel = MemoryModelOpt;
+
+    settings.checks = EnabledChecks;
 
     if (ArithInts) {
         settings.ints = IntRepresentation::Integers;

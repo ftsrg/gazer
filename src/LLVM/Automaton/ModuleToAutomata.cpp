@@ -318,6 +318,8 @@ void ModuleToCfa::createAutomata()
             Loop* loop = *li;
             CfaGenInfo& loopGenInfo = mGenCtx.getLoopCfa(loop);
 
+            LLVM_DEBUG(llvm::dbgs() << "Translating loop " << loop->getName() << "\n");
+
             Cfa* nested = loopGenInfo.Automaton;
 
             ArrayRef<BasicBlock*> loopBlocks = loop->getBlocks();

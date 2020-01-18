@@ -18,7 +18,6 @@
 #include "lib/ThetaVerifier.h"
 #include "lib/ThetaCfaGenerator.h"
 
-#include "gazer/LLVM/ClangFrontend.h"
 #include "gazer/LLVM/LLVMFrontend.h"
 #include "gazer/Core/GazerContext.h"
 
@@ -26,22 +25,13 @@
 #include <boost/dll/runtime_symbol_info.hpp>
 
 #ifndef NDEBUG
-#include <llvm/Support/Debug.h>
 #include <llvm/Support/PrettyStackTrace.h>
 #include <llvm/Support/Signals.h>
+#include <llvm/Support/Debug.h>
 #endif
 
 using namespace gazer;
 using namespace llvm;
-using namespace llvm;
-
-namespace gazer
-{
-    extern cl::OptionCategory LLVMFrontendCategory;
-    extern cl::OptionCategory IrToCfaCategory;
-    extern cl::OptionCategory TraceCategory;
-    extern cl::OptionCategory ClangFrontendCategory;
-}
 
 namespace
 {
@@ -85,19 +75,25 @@ namespace
     cl::opt<std::string> InitPrec("initPrec", cl::desc("Initial precision of abstraction"), cl::init("EMPTY"), cl::cat(ThetaAlgorithmCategory));
 } // end anonymous namespace
 
+namespace gazer
+{
+    extern cl::OptionCategory LLVMFrontendCategory;
+    extern cl::OptionCategory IrToCfaCategory;
+    extern cl::OptionCategory TraceCategory;
+    extern cl::OptionCategory ChecksCategory;
+} // end namespace gazer
+
 static theta::ThetaSettings initSettingsFromCommandLine();
 
 int main(int argc, char* argv[])
 {
     cl::HideUnrelatedOptions({
-        &LLVMFrontendCategory, &ThetaAlgorithmCategory, &ThetaEnvironmentCategory, &IrToCfaCategory,
-        &TraceCategory, &ClangFrontendCategory
+        &LLVMFrontendCategory, &IrToCfaCategory,
+        &TraceCategory, &ChecksCategory,
+        &ThetaEnvironmentCategory, &ThetaAlgorithmCategory
     });
-    cl::SetVersionPrinter([](llvm::raw_ostream& os) {
-        os << "gazer - a formal verification frontend\n";
-        os << "   version 0.1\n";
-        os << "   LLVM version 9.0\n";
-    });
+
+    cl::SetVersionPrinter(&FrontendConfigWrapper::PrintVersion);
     cl::ParseCommandLineOptions(argc, argv);
 
     #ifndef NDEBUG
@@ -106,18 +102,9 @@ int main(int argc, char* argv[])
     llvm::EnableDebugBuffering = true;
     #endif
 
-    // Set up the basics
-    GazerContext context;
-    llvm::LLVMContext llvmContext;
-
     // Set up settings
+    FrontendConfigWrapper config;
     theta::ThetaSettings backendSettings = initSettingsFromCommandLine();
-    auto settings = LLVMFrontendSettings::initFromCommandLine();
-
-    // Force -math-int, -inline and -inline-globals
-    settings.ints = IntRepresentation::Integers;
-    settings.inlineFunctions = true;
-    settings.inlineGlobals = true;
 
     if (backendSettings.thetaCfaPath.empty() || backendSettings.thetaLibPath.empty()) {
         // Find the current program location
@@ -138,27 +125,15 @@ int main(int argc, char* argv[])
         }
     }
 
-    // Run the clang frontend
-    ClangFrontendSettings clangSettings;
-    clangSettings.sanitizeOverflow = true;
+    // Force -math-int
+    config.getSettings().ints = IntRepresentation::Integers;
 
-    auto module = ClangCompileAndLink(InputFilenames, llvmContext, clangSettings);
-    if (module == nullptr) {
-        return 1;
-    }
-
-    auto frontend = std::make_unique<LLVMFrontend>(std::move(module), context, settings);
-
-    // TODO: This should be more flexible.
-    if (frontend->getModule().getFunction("main") == nullptr) {
-        llvm::errs() << "ERROR: No 'main' function found.\n";
-        return 1;
-    }
+    // Create the frontend object
+    auto frontend = config.buildFrontend(InputFilenames);
 
     if (!ModelOnly) {
         frontend->setBackendAlgorithm(new theta::ThetaVerifier(backendSettings));
         frontend->registerVerificationPipeline();
-        frontend->run();
     } else {
         if (ModelPath.empty()) {
             llvm::errs() << "ERROR: -model-only must be supplied together with -o <path>!\n";
@@ -176,10 +151,10 @@ int main(int argc, char* argv[])
         // Do not run theta, just generate the model.
         frontend->registerVerificationPipeline();
         frontend->registerPass(theta::createThetaCfaWriterPass(rfo));
-        frontend->run();
     }
 
-    llvm::llvm_shutdown();
+    // Finally, execute the frontend
+    frontend->run();
 
     return 0;
 }

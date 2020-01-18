@@ -87,7 +87,7 @@ public:
         return true;
     }
 
-    llvm::StringRef getCheckName() const override { return "assert-fail"; }
+    llvm::StringRef getCheckName() const override { return "assert"; }
     llvm::StringRef getErrorDescription() const override { return "Assertion failure"; }
 };
 
@@ -150,7 +150,7 @@ public:
         return true;
     }
 
-    llvm::StringRef getCheckName() const override { return "div-by-zero"; }
+    llvm::StringRef getCheckName() const override { return "integer-divide-by-zero"; }
     llvm::StringRef getErrorDescription() const override { return "Divison by zero"; }
 };
 
@@ -167,7 +167,7 @@ public:
     
     bool mark(llvm::Function& function) override;
 
-    llvm::StringRef getCheckName() const override { return "overflow"; }
+    llvm::StringRef getCheckName() const override { return "signed-integer-overflow"; }
     llvm::StringRef getErrorDescription() const override { return "Signed integer overflow"; }
 private:
     bool isOverflowIntrinsic(llvm::Function* callee, GazerIntrinsic::Overflow* ovrKind);
@@ -250,6 +250,9 @@ bool SignedIntegerOverflowCheck::mark(llvm::Function& function)
 
         builder.SetInsertPoint(call);
         auto check = builder.CreateCall(fn, { lhs, rhs }, "ovr_check");
+        auto ovrFail = builder.CreateNot(check);
+
+        auto prev = builder.GetInsertPoint();
 
         llvm::Value* binOp;
         switch (ovrKind) {
@@ -266,7 +269,7 @@ bool SignedIntegerOverflowCheck::mark(llvm::Function& function)
         BasicBlock* bb = call->getParent();
         BasicBlock* errorBB = this->createErrorBlock(function, "error.ovr", call);
 
-        BasicBlock* newBB = bb->splitBasicBlock(llvm::cast<Instruction>(binOp));
+        BasicBlock* newBB = bb->splitBasicBlock(std::next(prev));
         builder.ClearInsertionPoint();
         llvm::ReplaceInstWithInst(
             bb->getTerminator(),
@@ -285,7 +288,7 @@ bool SignedIntegerOverflowCheck::mark(llvm::Function& function)
                 if (index == 0) {
                     extract->replaceAllUsesWith(binOp);
                 } else if (index == 1) {
-                    extract->replaceAllUsesWith(check);
+                    extract->replaceAllUsesWith(ovrFail);
                 } else {
                     llvm_unreachable("Unknown index for a { iN, i1 } struct!");
                 }
@@ -301,6 +304,18 @@ bool SignedIntegerOverflowCheck::mark(llvm::Function& function)
     return true;
 }
 
-Check* gazer::checks::createDivisionByZeroCheck() { return new DivisionByZeroCheck(); }
-Check* gazer::checks::createAssertionFailCheck() { return new AssertionFailCheck(); }
-Check* gazer::checks::createSignedIntegerOverflowCheck() { return new SignedIntegerOverflowCheck(); }
+Check* gazer::checks::createDivisionByZeroCheck(ClangOptions& options)
+{
+    return new DivisionByZeroCheck();
+}
+
+Check* gazer::checks::createAssertionFailCheck(ClangOptions& options)
+{
+    return new AssertionFailCheck();
+}
+
+Check* gazer::checks::createSignedIntegerOverflowCheck(ClangOptions& options)
+{
+    options.addSanitizerFlag("signed-integer-overflow");
+    return new SignedIntegerOverflowCheck();
+}

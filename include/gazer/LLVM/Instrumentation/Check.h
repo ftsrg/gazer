@@ -18,8 +18,8 @@
 #ifndef GAZER_LLVM_INSTRUMENTATION_CHECK_H
 #define GAZER_LLVM_INSTRUMENTATION_CHECK_H
 
-#include <llvm/IR/Instructions.h>
 #include <llvm/Pass.h>
+#include <llvm/IR/Instructions.h>
 #include <llvm/IR/LegacyPassManager.h>
 
 namespace gazer
@@ -42,14 +42,15 @@ public:
 
     bool runOnModule(llvm::Module& module) final;
 
-    /// Returns this check's name. Names should be descriptive,
-    /// but must not contain whitespaces,
+    /// Returns this check's name. This name will be used to identify
+    /// the check through the command-line, thus this should be short,
+    /// descriptive and must not contain whitespaces,
     /// e.g.: "assert-fail", "div-by-zero", "int-overflow"
     virtual llvm::StringRef getCheckName() const = 0;
 
     /// Returns a user-friendly error description on why this particular
     /// check failed. Such descriptions should be short and simple, e.g.
-    /// "Assertion failure", "Division by zero", or "Integer overflow".
+    /// "Assertion failure", "Division by zero", or "Signed integer overflow".
     virtual llvm::StringRef getErrorDescription() const = 0;
 
     /// Marks the given function's instructions with required
@@ -113,7 +114,10 @@ public:
     static llvm::IntegerType* GetErrorCodeType(llvm::LLVMContext& context);
 
 public:
+    /// Inserts a check into the check registry.
     void add(Check* check);
+
+    /// Registers all enabled checks into the pass manager.
     void registerPasses(llvm::legacy::PassManager& pm);
 
     /// Creates a new check violation with a unique error code for a given check and location.
@@ -123,9 +127,8 @@ public:
     std::string messageForCode(unsigned ec) const;
 private:
     llvm::LLVMContext& mLlvmContext;
-    std::vector<Check*> mChecks;
     llvm::DenseMap<unsigned, CheckViolation> mCheckMap;
-    llvm::StringMap<Check*> mCheckNames;
+    std::vector<Check*> mChecks;
 
     // 0 stands for success, 1 for unknown failures.
     unsigned mErrorCodeCnt = 2;

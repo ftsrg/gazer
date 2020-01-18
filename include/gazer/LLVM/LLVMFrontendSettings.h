@@ -89,6 +89,9 @@ public:
     bool liftAsserts = true;
     bool slicing = true;
 
+    // Checks
+    std::string checks = "";
+
     // IR translation
     ElimVarsLevel elimVars = ElimVarsLevel::Off;
     LoopRepresentation loops = LoopRepresentation::Recursion;

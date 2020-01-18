@@ -25,6 +25,8 @@
 #include "gazer/LLVM/Trace/TestHarnessGenerator.h"
 #include "gazer/LLVM/Transform/BackwardSlicer.h"
 
+#include <llvm/Analysis/ScopedNoAliasAA.h>
+#include <llvm/Analysis/TypeBasedAliasAnalysis.h>
 #include <llvm/Analysis/BasicAliasAnalysis.h>
 #include <llvm/Analysis/GlobalsModRef.h>
 #include <llvm/Analysis/MemorySSA.h>
@@ -32,6 +34,7 @@
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/InstCombine/InstCombine.h>
+#include <llvm/Transforms/AggressiveInstCombine/AggressiveInstCombine.h>
 #include <llvm/Transforms/Utils/UnifyFunctionExitNodes.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/InitializePasses.h>
@@ -239,9 +242,6 @@ bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
 
 void LLVMFrontend::registerEnabledChecks()
 {
-    mChecks.add(checks::createAssertionFailCheck());
-    mChecks.add(checks::createDivisionByZeroCheck());
-    mChecks.add(checks::createSignedIntegerOverflowCheck());
     mChecks.registerPasses(mPassManager);
 }
 
@@ -284,29 +284,57 @@ void LLVMFrontend::run()
 
 void LLVMFrontend::registerEarlyOptimizations()
 {
-    if (mSettings.optimize) {
-        mPassManager.add(llvm::createCFGSimplificationPass());
-        
-        // SROA may introduce new undef values, so we run another promote undef pass after it
-        mPassManager.add(llvm::createSROAPass());
-        mPassManager.add(gazer::createPromoteUndefsPass());
-
-        mPassManager.add(llvm::createInstructionCombiningPass());
-        mPassManager.add(llvm::createCFGSimplificationPass());
-
-        mPassManager.add(llvm::createIPSCCPPass());
-        mPassManager.add(llvm::createGlobalOptimizerPass());
-        mPassManager.add(llvm::createDeadArgEliminationPass());
-        
-        // Optimize loops
-        mPassManager.add(llvm::createIndVarSimplifyPass());
+    if (!mSettings.optimize) {
+        return;
     }
+
+    // Try to remove irreducible control flow
+    mPassManager.add(llvm::createStructurizeCFGPass());
+
+    // Start with some metadata-based typed AA
+    mPassManager.add(llvm::createTypeBasedAAWrapperPass());
+    mPassManager.add(llvm::createScopedNoAliasAAWrapperPass());
+
+    // Split call sites under conditionals
+    mPassManager.add(llvm::createCallSiteSplittingPass());
+
+    // Do some inter-procedural reductions
+    mPassManager.add(llvm::createIPSCCPPass());
+    mPassManager.add(llvm::createGlobalOptimizerPass());
+    mPassManager.add(llvm::createDeadArgEliminationPass());
+
+    // Clean up
+    mPassManager.add(llvm::createInstructionCombiningPass());
+    mPassManager.add(llvm::createCFGSimplificationPass());
+
+    // SROA may introduce new undef values, so we run another promote undef pass after it
+    mPassManager.add(llvm::createSROAPass());
+    mPassManager.add(gazer::createPromoteUndefsPass());
+    //mPassManager.add(llvm::createEarlyCSEPass());
+
+    mPassManager.add(llvm::createCFGSimplificationPass());
+    mPassManager.add(llvm::createAggressiveInstCombinerPass());
+    mPassManager.add(llvm::createInstructionCombiningPass());
+
+//    mPassManager.add(llvm::createLICMPass());
+    
+    // Optimize loops
+    //mPassManager.add(llvm::createLoopInstSimplifyPass());
+    //mPassManager.add(llvm::createLoopSimplifyCFGPass());
+    // mPassManager.add(llvm::createLoopRotatePass());
+    //mPassManager.add(llvm::createLICMPass());
+
+    // mPassManager.add(llvm::createCFGSimplificationPass());
+    // mPassManager.add(llvm::createInstructionCombiningPass());
+    mPassManager.add(llvm::createIndVarSimplifyPass());
+    mPassManager.add(llvm::createLoopDeletionPass());
+
+    //mPassManager.add(llvm::createNewGVNPass());
 }
 
 void LLVMFrontend::registerLateOptimizations()
 {
     if (mSettings.optimize) {
-        mPassManager.add(llvm::createFloat2IntPass());
         mPassManager.add(llvm::createBasicAAWrapperPass());
         mPassManager.add(llvm::createLICMPass());
     }

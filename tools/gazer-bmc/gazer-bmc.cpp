@@ -30,20 +30,13 @@
 #ifndef NDEBUG
 #include <llvm/Support/PrettyStackTrace.h>
 #include <llvm/Support/Signals.h>
+#include <llvm/Support/Debug.h>
 #endif
 
 #include <string>
 
 using namespace gazer;
 using namespace llvm;
-
-namespace gazer
-{
-    extern cl::OptionCategory LLVMFrontendCategory;
-    extern cl::OptionCategory IrToCfaCategory;
-    extern cl::OptionCategory TraceCategory;
-    extern cl::OptionCategory ClangFrontendCategory;
-}
 
 namespace
 {
@@ -71,20 +64,24 @@ namespace
     );
 }
 
+namespace gazer
+{
+    extern cl::OptionCategory LLVMFrontendCategory;
+    extern cl::OptionCategory IrToCfaCategory;
+    extern cl::OptionCategory TraceCategory;
+    extern cl::OptionCategory ChecksCategory;
+} // end namespace gazer
+
 static BmcSettings initBmcSettingsFromCommandLine();
 
 int main(int argc, char* argv[])
 {
-    llvm::llvm_shutdown_obj shutdown;
-
     cl::HideUnrelatedOptions({
-        &LLVMFrontendCategory, &BmcAlgorithmCategory, &IrToCfaCategory, &TraceCategory, &ClangFrontendCategory
+        &LLVMFrontendCategory, &IrToCfaCategory,
+        &TraceCategory, &ChecksCategory, &BmcAlgorithmCategory
     });
-    cl::SetVersionPrinter([](llvm::raw_ostream& os) {
-        os << "gazer - a formal verification frontend\n";
-        os << "   version 0.1\n";
-        os << "   LLVM version 9.0\n";
-    });
+
+    cl::SetVersionPrinter(&FrontendConfigWrapper::PrintVersion);
     cl::ParseCommandLineOptions(argc, argv);
 
     #ifndef NDEBUG
@@ -93,32 +90,15 @@ int main(int argc, char* argv[])
     llvm::EnableDebugBuffering = true;
     #endif
 
-    GazerContext context;
-    llvm::LLVMContext llvmContext;
-    
-    // Run the clang frontend
-    ClangFrontendSettings clangSettings;
-    clangSettings.sanitizeOverflow = true;
-
-    auto module = ClangCompileAndLink(InputFilenames, llvmContext, clangSettings);
-    if (module == nullptr) {
-        return 1;
-    }
-
-    auto settings = LLVMFrontendSettings::initFromCommandLine();
-    auto frontend = std::make_unique<LLVMFrontend>(std::move(module), context, settings);
-
-    // TODO: This should be more flexible.
-    if (frontend->getModule().getFunction("main") == nullptr) {
-        llvm::errs() << "ERROR: No 'main' function found.\n";
-        return 1;
-    }
+    // Create the frontend object
+    FrontendConfigWrapper config;
+    auto frontend = config.buildFrontend(InputFilenames);
 
     Z3SolverFactory solverFactory;
 
     auto bmcSettings = initBmcSettingsFromCommandLine();
-    bmcSettings.simplifyExpr = settings.simplifyExpr;
-    bmcSettings.trace = settings.trace;
+    bmcSettings.simplifyExpr = frontend->getSettings().simplifyExpr;
+    bmcSettings.trace = frontend->getSettings().trace;
 
     frontend->setBackendAlgorithm(new BoundedModelChecker(solverFactory, bmcSettings));
     frontend->registerVerificationPipeline();

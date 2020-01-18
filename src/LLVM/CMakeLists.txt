@@ -18,6 +18,7 @@ set(SOURCE_FILES
     LLVMFrontendSettings.cpp
     LLVMFrontend.cpp
     ClangFrontend.cpp
+    FrontendConfig.cpp
     Memory/MemoryObject.cpp
     Memory/FlatMemoryModel.cpp
     Memory/DummyMemoryModel.cpp

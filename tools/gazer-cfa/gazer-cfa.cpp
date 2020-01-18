@@ -17,6 +17,7 @@
 //===----------------------------------------------------------------------===//
 /// \file A simple tool which dumps a gazer CFA translated from
 /// an input LLVM IR file.
+//===----------------------------------------------------------------------===//
 
 #include "gazer/LLVM/LLVMFrontend.h"
 #include "gazer/Core/GazerContext.h"
@@ -45,38 +46,20 @@ namespace
 int main(int argc, char* argv[])
 {
     cl::ParseCommandLineOptions(argc, argv);
-    
-    #ifndef NDEBUG
-    llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
-    llvm::PrettyStackTraceProgram(argc, argv);
-    llvm::EnableDebugBuffering = true;
-    #endif
+    FrontendConfigWrapper config;
+    auto frontend = config.buildFrontend(InputFilenames);
 
-    GazerContext context;
-    llvm::LLVMContext llvmContext;
-
-    auto settings = LLVMFrontendSettings::initFromCommandLine();
     if (CyclicCfa) {
-        settings.loops = LoopRepresentation::Cycle;
+        frontend->getSettings().loops = LoopRepresentation::Cycle;
     }
-
-    // Run the clang frontend
-    ClangFrontendSettings clangSettings;
-    clangSettings.sanitizeOverflow = true;
-
-    auto module = ClangCompileAndLink(InputFilenames, llvmContext, clangSettings);
-    if (module == nullptr) {
-        return 1;
-    }
-
-    auto frontend = std::make_unique<LLVMFrontend>(std::move(module), context, settings);
 
     if (RunPipeline) {
         frontend->registerVerificationPipeline();
     } else {
-        frontend->registerPass(new gazer::ModuleToAutomataPass(context, settings));
+        frontend->registerPass(new gazer::ModuleToAutomataPass(config.context, frontend->getSettings()));
         frontend->registerPass(gazer::createCfaPrinterPass());
     }
+    
     if (ViewCfa) {
         frontend->registerPass(gazer::createCfaViewerPass());
     }

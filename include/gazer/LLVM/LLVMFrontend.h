@@ -18,6 +18,7 @@
 #ifndef GAZER_LLVM_LLVMFRONTEND_H
 #define GAZER_LLVM_LLVMFRONTEND_H
 
+#include "gazer/LLVM/ClangFrontend.h"
 #include "gazer/LLVM/Instrumentation/Check.h"
 #include "gazer/LLVM/LLVMFrontendSettings.h"
 #include "gazer/Verifier/VerificationAlgorithm.h"
@@ -29,6 +30,72 @@ namespace gazer
 {
 
 class GazerContext;
+class LLVMFrontend;
+
+/// Builder class for LLVM frontends.
+class FrontendConfig
+{
+public:
+    using CheckFactory = std::function<Check*(ClangOptions&)>;
+
+    static constexpr char AllChecksSetting[] = "all";
+public:
+    FrontendConfig();
+
+    /// Inserts a given check into the system. Inserted checks may be disabled
+    /// through the command-line. The check factory should be responsible for
+    /// creating the check object and inserting relevant flags into the
+    /// provided ClangOptions object. The factory will be executed (and the
+    /// flags will be inserted) only if the corresponding check was enabled.
+    void registerCheck(llvm::StringRef name, CheckFactory factory);
+
+    template<class T>
+    void registerCheck(llvm::StringRef name)
+    {
+        static_assert(std::is_base_of_v<Check, T>, "Registered checks must inherit from Check!");
+        addCheck(name, []() { return new T(); });
+    }
+
+    std::unique_ptr<LLVMFrontend> buildFrontend(
+        llvm::ArrayRef<std::string> inputs,
+        GazerContext& context,
+        llvm::LLVMContext& llvmContext
+    );
+
+    LLVMFrontendSettings& getSettings() { return mSettings; }
+
+private:
+    void createChecks(std::vector<Check*>& checks);
+
+private:
+    ClangOptions mClangSettings;
+    LLVMFrontendSettings mSettings;
+    std::map<std::string, CheckFactory> mFactories;
+};
+
+/// A convenience frontend object which sets up command-line arguments
+/// and performs some clean-up on destruction.
+class FrontendConfigWrapper
+{
+public:
+    static void PrintVersion(llvm::raw_ostream& os);
+public:
+    FrontendConfigWrapper() = default;
+
+    std::unique_ptr<LLVMFrontend> buildFrontend(llvm::ArrayRef<std::string> inputs)
+    {
+        return config.buildFrontend(inputs, context, llvmContext);
+    }
+
+    LLVMFrontendSettings& getSettings() { return config.getSettings(); }
+
+private:
+    llvm::llvm_shutdown_obj mShutdown; // This should be kept as first, will be destroyed last
+public:
+    llvm::LLVMContext llvmContext;
+    GazerContext context;
+    FrontendConfig config;
+};
 
 class LLVMFrontend
 {
@@ -49,6 +116,13 @@ public:
         LLVMFrontendSettings settings
     );
 
+    static std::unique_ptr<LLVMFrontend> FromInputFiles(
+        llvm::ArrayRef<std::string> inputs,
+        GazerContext& context,
+        llvm::LLVMContext& llvmContext,
+        LLVMFrontendSettings& settings
+    );
+
     /// Registers the common preprocessing analyses and transforms of the 
     /// verification pipeline into the pass manager. After executing the
     /// registered passes, the input LLVM module will be optimized, and the
@@ -64,17 +138,18 @@ public:
     /// Note: this function *must* be called before `registerVerificationPipeline`!
     void setBackendAlgorithm(VerificationAlgorithm* backend)
     {
-        assert(mBackendAlgorithm == nullptr && "Can only register one backend algorithm!");
+        assert(mBackendAlgorithm == nullptr && "Can register only one backend algorithm!");
         mBackendAlgorithm.reset(backend);
     }
 
     /// Runs the registered LLVM pass pipeline.
     void run();
 
-    GazerContext& getContext() const { return mContext; }
-    const CheckRegistry& getChecks() const { return mChecks; }
-    llvm::Module& getModule() const { return *mModule; }
+    CheckRegistry& getChecks() { return mChecks; }
+    LLVMFrontendSettings& getSettings() { return mSettings; }
 
+    GazerContext& getContext() const { return mContext; }
+    llvm::Module& getModule() const { return *mModule; }
 private:
     //---------------------- Individual pipeline steps ---------------------//
     void registerEnabledChecks();

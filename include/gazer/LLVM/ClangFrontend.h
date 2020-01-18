@@ -21,6 +21,8 @@
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/StringRef.h>
 
+#include <set>
+
 namespace llvm
 {
     class Module;
@@ -30,9 +32,16 @@ namespace llvm
 namespace gazer
 {
 
-struct ClangFrontendSettings
+/// Represents Clang configurations.
+class ClangOptions
 {
-    bool sanitizeOverflow = false;
+public:
+    void addSanitizerFlag(llvm::StringRef flag);
+
+    void createArgumentList(std::vector<std::string>& args);
+
+private:
+    std::set<std::string> mSanitizerFlags;
 };
 
 /// Compiles a set of C and/or LLVM bitcode files using clang, links them
@@ -40,7 +49,7 @@ struct ClangFrontendSettings
 std::unique_ptr<llvm::Module> ClangCompileAndLink(
     llvm::ArrayRef<std::string> files,
     llvm::LLVMContext& llvmContext,
-    ClangFrontendSettings& settings
+    ClangOptions& settings
 );
 
 }

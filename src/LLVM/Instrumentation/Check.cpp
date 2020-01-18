@@ -23,7 +23,9 @@
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <llvm/IR/DebugLoc.h>
 #include <llvm/IR/DebugInfoMetadata.h>
-#include <gazer/Trace/VerificationResult.h>
+#include <llvm/ADT/StringExtras.h>
+
+#include "gazer/Trace/VerificationResult.h"
 
 using namespace gazer;
 using namespace llvm;
@@ -116,8 +118,6 @@ llvm::FunctionCallee CheckRegistry::GetErrorFunction(llvm::Module& module)
 
 void CheckRegistry::add(Check* check)
 {
-    mCheckNames[check->getCheckName()] = check;
-
     check->setCheckRegistry(*this);
     mChecks.push_back(check);
 }
