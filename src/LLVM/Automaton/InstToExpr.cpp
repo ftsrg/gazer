@@ -655,10 +655,21 @@ ExprPtr InstToExpr::handleOverflowPredicate(const llvm::CallInst& call)
         unsigned width = call.getArgOperand(0)->getType()->getIntegerBitWidth();
 
         // TODO: We should use a BigInteger implementation here instead of clamping an APInt to int64_t
-        return mExprBuilder.And(
-            mExprBuilder.GtEq(result, mExprBuilder.IntLit(llvm::APInt::getSignedMinValue(width).getSExtValue())),
-            mExprBuilder.LtEq(result, mExprBuilder.IntLit(llvm::APInt::getSignedMaxValue(width).getSExtValue()))
-        );
+        auto min = llvm::APInt::getSignedMinValue(width).getSExtValue();
+        auto max = llvm::APInt::getSignedMaxValue(width).getSExtValue();
+
+        // Operands are representable => Result must be representable as well
+        auto ops = mExprBuilder.And({
+            mExprBuilder.GtEq(left, mExprBuilder.IntLit(min)),
+            mExprBuilder.LtEq(left, mExprBuilder.IntLit(max)),
+            mExprBuilder.GtEq(right, mExprBuilder.IntLit(min)),
+            mExprBuilder.LtEq(right, mExprBuilder.IntLit(max))
+        });
+
+        return mExprBuilder.Imply(ops, mExprBuilder.And(
+            mExprBuilder.GtEq(result, mExprBuilder.IntLit(min)),
+            mExprBuilder.LtEq(result, mExprBuilder.IntLit(max))
+        ));
     }
 
     if (left->getType().isBvType()) {

@@ -102,7 +102,7 @@ procedure main/__loop_0(main/__loop_0/.01 : Bv32, main/__loop_0/.0 : Bv32, main/
     };
 
     transition $3 -> $1
-        assume sge(main/__loop_0/.01,main/__loop_0/_)
+        assume not (slt(main/__loop_0/.01,main/__loop_0/_))
     {
         main/__loop_0/.0_out := main/__loop_0/.0;
     };

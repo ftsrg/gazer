@@ -56,20 +56,7 @@ public:
         if (match(op, m_NotEq(m_Expr(e1), m_Expr(e2)))) {
             return ConstantFolder::Eq(e1, e2);
         }
-
-        // Not(LESSTHAN(E1, E2)) --> GREATERTHANEQ(E1, E2)
-        if (match(op, m_BvULt(m_Expr(e1), m_Expr(e2)))) {
-            return ConstantFolder::BvUGtEq(e1, e2);
-        }
-
-        if (match(op, m_BvSLt(m_Expr(e1), m_Expr(e2)))) {
-            return ConstantFolder::BvSGtEq(e1, e2);
-        }
-
-        if (match(op, m_Lt(m_Expr(e1), m_Expr(e2)))) {
-            return this->GtEq(e1, e2);
-        }
-
+        
         return ConstantFolder::Not(op);
     }
 
