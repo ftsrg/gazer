@@ -205,7 +205,7 @@ private:
     void addDefinition(MemoryObjectDef* def);
     void addUse(MemoryObjectUse* use);
     void setEntryDef(MemoryObjectDef* def);
-    void setExitUse(MemoryObjectUse* def);
+    void setExitUse(MemoryObjectUse* use);
 
 private:
     unsigned mId;

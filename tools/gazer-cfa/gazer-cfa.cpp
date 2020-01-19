@@ -47,7 +47,11 @@ int main(int argc, char* argv[])
 {
     cl::ParseCommandLineOptions(argc, argv);
     FrontendConfigWrapper config;
+    
     auto frontend = config.buildFrontend(InputFilenames);
+    if (frontend == nullptr) {
+        return 1;
+    }
 
     if (CyclicCfa) {
         frontend->getSettings().loops = LoopRepresentation::Cycle;

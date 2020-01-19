@@ -97,7 +97,7 @@ auto ProgramDependenceGraph::Create(
         // All uses of an instruction 'I' flow depend on 'I'
         for (auto& use_it : inst.operands()) {
             if (llvm::isa<llvm::Instruction>(&use_it)) {
-                llvm::Instruction* use = llvm::dyn_cast<llvm::Instruction>(&use_it);
+                auto use = llvm::dyn_cast<llvm::Instruction>(&use_it);
                 if (use != &inst) {
                     auto& source = nodes[use];
                     auto& target = nodes[&inst];

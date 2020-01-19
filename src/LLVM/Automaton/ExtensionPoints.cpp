@@ -33,14 +33,12 @@ std::string GenerationContext::uniqueName(const llvm::Twine& base)
     llvm::StringRef name = base.toStringRef(buffer);
 
     if (name.empty()) {
-        llvm::Twine tempName = "_" + llvm::Twine(mTmp++);
-        name = tempName.toStringRef(buffer);
+        name = ("_" + llvm::Twine(mTmp++)).toStringRef(buffer);
     }
 
     GazerContext& context = mSystem.getContext();
     while (context.getVariable(name) != nullptr) {
-        llvm::Twine newName = base + llvm::Twine(mTmp++);
-        name = newName.toStringRef(buffer);
+        name = (base + llvm::Twine(mTmp++)).toStringRef(buffer);
     }
 
     return buffer.str();
@@ -156,7 +154,7 @@ auto BlocksToCfa::ExtensionPointImpl::getAsOperand(ValueOrMemoryObject val) -> E
     return mBlocksToCfa.operand(val);
 }
 
-bool BlocksToCfa::ExtensionPointImpl::tryToEliminate(ValueOrMemoryObject val, Variable* variable, ExprPtr expr)
+bool BlocksToCfa::ExtensionPointImpl::tryToEliminate(ValueOrMemoryObject val, Variable* variable, const ExprPtr& expr)
 {
     return mBlocksToCfa.tryToEliminate(val, variable, expr);
 }

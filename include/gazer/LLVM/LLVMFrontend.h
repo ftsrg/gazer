@@ -36,7 +36,7 @@ class LLVMFrontend;
 class FrontendConfig
 {
 public:
-    using CheckFactory = std::function<Check*(ClangOptions&)>;
+    using CheckFactory = std::function<std::unique_ptr<Check>(ClangOptions&)>;
 
     static constexpr char AllChecksSetting[] = "all";
 public:
@@ -53,7 +53,7 @@ public:
     void registerCheck(llvm::StringRef name)
     {
         static_assert(std::is_base_of_v<Check, T>, "Registered checks must inherit from Check!");
-        addCheck(name, []() { return new T(); });
+        addCheck(name, []() { return std::make_unique<T>(); });
     }
 
     std::unique_ptr<LLVMFrontend> buildFrontend(
@@ -65,7 +65,7 @@ public:
     LLVMFrontendSettings& getSettings() { return mSettings; }
 
 private:
-    void createChecks(std::vector<Check*>& checks);
+    void createChecks(std::vector<std::unique_ptr<Check>>& checks);
 
 private:
     ClangOptions mClangSettings;
@@ -103,7 +103,7 @@ public:
     LLVMFrontend(
         std::unique_ptr<llvm::Module> module,
         GazerContext& context,
-        LLVMFrontendSettings settings
+        LLVMFrontendSettings& settings
     );
 
     LLVMFrontend(const LLVMFrontend&) = delete;
@@ -111,13 +111,6 @@ public:
 
     static std::unique_ptr<LLVMFrontend> FromInputFile(
         llvm::StringRef input,
-        GazerContext& context,
-        llvm::LLVMContext& llvmContext,
-        LLVMFrontendSettings settings
-    );
-
-    static std::unique_ptr<LLVMFrontend> FromInputFiles(
-        llvm::ArrayRef<std::string> inputs,
         GazerContext& context,
         llvm::LLVMContext& llvmContext,
         LLVMFrontendSettings& settings
@@ -164,7 +157,7 @@ private:
     CheckRegistry mChecks;
     llvm::legacy::PassManager mPassManager;
 
-    LLVMFrontendSettings mSettings;
+    LLVMFrontendSettings& mSettings;
     std::unique_ptr<VerificationAlgorithm> mBackendAlgorithm = nullptr; 
 };
 

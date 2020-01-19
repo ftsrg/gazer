@@ -86,13 +86,13 @@ std::unique_ptr<Module> gazer::GenerateTestHarnessModuleFromTrace(
         auto arrTy = llvm::ArrayType::get(retTy, values.size());
         auto array = llvm::ConstantArray::get(arrTy, values);
 
-        llvm::GlobalVariable* valueArray = new GlobalVariable(
+        auto valueArray = new GlobalVariable(
             *test, arrTy, true, GlobalValue::PrivateLinkage, array, "gazer.trace_value." + function->getName()
         );
 
         // Create a global variable counting the calls to this function
         auto counterTy = llvm::Type::getInt32Ty(context);
-        llvm::GlobalVariable* counter = new GlobalVariable(
+        auto counter = new GlobalVariable(
             *test, counterTy, false, GlobalValue::PrivateLinkage,
             llvm::ConstantInt::get(counterTy, 0),
             "gazer.trace_counter." + function->getName()

@@ -77,6 +77,7 @@ namespace
 
 namespace gazer
 {
+    extern cl::OptionCategory ClangFrontendCategory;
     extern cl::OptionCategory LLVMFrontendCategory;
     extern cl::OptionCategory IrToCfaCategory;
     extern cl::OptionCategory TraceCategory;
@@ -88,8 +89,8 @@ static theta::ThetaSettings initSettingsFromCommandLine();
 int main(int argc, char* argv[])
 {
     cl::HideUnrelatedOptions({
-        &LLVMFrontendCategory, &IrToCfaCategory,
-        &TraceCategory, &ChecksCategory,
+        &ClangFrontendCategory, &LLVMFrontendCategory,
+        &IrToCfaCategory, &TraceCategory, &ChecksCategory,
         &ThetaEnvironmentCategory, &ThetaAlgorithmCategory
     });
 
@@ -130,6 +131,9 @@ int main(int argc, char* argv[])
 
     // Create the frontend object
     auto frontend = config.buildFrontend(InputFilenames);
+    if (frontend == nullptr) {
+        return 1;
+    }
 
     if (!ModelOnly) {
         frontend->setBackendAlgorithm(new theta::ThetaVerifier(backendSettings));

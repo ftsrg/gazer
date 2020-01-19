@@ -174,10 +174,15 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
                                 // TODO: Add location
                             ));
                         } else {
-                            auto expr = this->getLiteralFromValue(loc->getAutomaton(), &inst, currentVals);
-                            if (i == 1 && expr == BoolLiteralExpr::True(mContext)) {
-                                undefs.insert(&inst);
-                            } else if (i == 2 && expr == BoolLiteralExpr::False(mContext)) {
+                            auto expr = this->getLiteralFromValue(loc->getAutomaton(), inst.getOperand(0), currentVals);
+
+                            // We get undefined value in two cases:
+                            //  1) if the condition is true and the use is the 'then' value, or
+                            //  2) if the condition is false and the use is the 'else' value.
+                            bool isUB = (i == 1 && expr == BoolLiteralExpr::True(mContext));
+                            isUB |= (i == 2 && expr == BoolLiteralExpr::False(mContext)) ;
+                            
+                            if (isUB) {
                                 undefs.insert(&inst);
                             }
                         }
@@ -192,7 +197,7 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
             }
 
             auto call = dyn_cast<CallInst>(&inst);
-            if (!call || call->getCalledFunction() == nullptr) {
+            if (call == nullptr || call->getCalledFunction() == nullptr) {
                 continue;
             }
 
@@ -203,7 +208,7 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
                 auto mdValue = cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata();
                 auto value = cast<ValueAsMetadata>(mdValue)->getValue();
 
-                auto mdGlobal = dyn_cast<DIGlobalVariable>(
+                auto mdGlobal = cast<DIGlobalVariable>(
                     cast<MetadataAsValue>(call->getArgOperand(1))->getMetadata()
                 );
 
@@ -215,12 +220,12 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
                 }
 
                 events.push_back(std::make_unique<AssignTraceEvent>(
-                    this->traceVarFromDIVar(mdGlobal),
+                    traceVarFromDIVar(mdGlobal),
                     lit,
                     location
                 ));
             } else if (callee->getName().startswith(GazerIntrinsic::FunctionEntryPrefix)) {
-                auto diSP = dyn_cast<DISubprogram>(
+                auto diSP = cast<DISubprogram>(
                     cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata()
                 );
 
@@ -236,7 +241,7 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
                     args
                 ));
             } else if (callee->getName() == GazerIntrinsic::FunctionReturnVoidName) {
-                auto diSP = dyn_cast<DISubprogram>(
+                auto diSP = cast<DISubprogram>(
                     cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata()
                 );
 
@@ -245,7 +250,7 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
                     nullptr
                 ));
             } else if (callee->getName().startswith(GazerIntrinsic::FunctionReturnValuePrefix))  {
-                auto diSP = dyn_cast<DISubprogram>(
+                auto diSP = cast<DISubprogram>(
                     cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata()
                 );
 
@@ -255,7 +260,7 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
                     expr
                 ));
             } else if (callee->getName() == GazerIntrinsic::FunctionCallReturnedName) {
-                auto diSP = dyn_cast<DISubprogram>(
+                auto diSP = cast<DISubprogram>(
                     cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata()
                 );
 
@@ -314,7 +319,7 @@ void LLVMTraceBuilder::handleDbgValueInst(
     std::vector<std::unique_ptr<TraceEvent>>& events,
     Valuation& currentVals
 ) {
-    if (dvi->getValue() && dvi->getVariable()) {
+    if (dvi->getValue() != nullptr && dvi->getVariable() != nullptr) {
         Value* value = dvi->getValue();
         DILocalVariable* diVar = dvi->getVariable();
 
@@ -339,7 +344,7 @@ void LLVMTraceBuilder::handleDbgValueInst(
 
         auto lit = getLiteralFromValue(loc->getAutomaton(), value, currentVals, preferredType);
         events.push_back(std::make_unique<AssignTraceEvent>(
-            this->traceVarFromDIVar(diVar),
+            traceVarFromDIVar(diVar),
             lit,
             location
         ));

@@ -31,7 +31,7 @@ using namespace llvm;
 namespace gazer
 {
     cl::OptionCategory ClangFrontendCategory("Clang compilation settings");
-}
+} // end namespace gazer
 
 namespace
 {
@@ -50,7 +50,7 @@ namespace
         cl::desc("Enable the specified warning"),
         cl::cat(gazer::ClangFrontendCategory)
     );
-}
+} // end anonymous namespace
 
 static bool executeClang(
     llvm::StringRef clang, llvm::StringRef input,
@@ -118,10 +118,10 @@ static bool executeClang(
 static bool executeLinker(llvm::StringRef linker, const std::vector<std::string>& bitcodeFiles, llvm::StringRef output)
 {
     std::vector<llvm::StringRef> linkerArgs;
-    linkerArgs.push_back(linker);
+    linkerArgs.emplace_back(linker);
     linkerArgs.insert(linkerArgs.end(), bitcodeFiles.begin(), bitcodeFiles.end());
-    linkerArgs.push_back("-o");
-    linkerArgs.push_back(output);
+    linkerArgs.emplace_back("-o");
+    linkerArgs.emplace_back(output);
 
     std::string linkerErrors;
     int returnCode = llvm::sys::ExecuteAndWait(
@@ -155,7 +155,7 @@ auto gazer::ClangCompileAndLink(
 -> std::unique_ptr<llvm::Module>
 {
 #define CHECK_ERROR(ERRORCODE, MSG) if (ERRORCODE) {                            \
-    llvm::errs() << MSG << "\n";                                                \
+    llvm::errs() << (MSG) << "\n";                                                \
     llvm::errs() << (ERRORCODE).message() << "\n";                              \
     return nullptr;                                                             \
 }

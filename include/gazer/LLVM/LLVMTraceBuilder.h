@@ -55,14 +55,13 @@ private:
         Cfa* cfa, const llvm::Value* value, Valuation& model, Type* preferredType = nullptr
     );
 
-    TraceVariable traceVarFromDIVar(const llvm::DIVariable* diVar);
+    static TraceVariable traceVarFromDIVar(const llvm::DIVariable* diVar);
 
 private:
     GazerContext& mContext;
     CfaToLLVMTrace& mCfaToLlvmTrace;
-
 };
 
-}
+} // end namespace gazer
 
 #endif

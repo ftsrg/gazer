@@ -52,8 +52,7 @@ public:
         for (BasicBlock& bb : function) {
             auto it = bb.begin();
             while (it != bb.end()) {
-                if (it->getOpcode() == llvm::Instruction::Call) {
-                    auto call = llvm::dyn_cast<llvm::CallInst>(&*it);
+                if (auto call = llvm::dyn_cast<llvm::CallInst>(&*it)) {
                     llvm::Function* callee = call->getCalledFunction();
                     if (callee == nullptr) {
                         ++it;
@@ -304,18 +303,18 @@ bool SignedIntegerOverflowCheck::mark(llvm::Function& function)
     return true;
 }
 
-Check* gazer::checks::createDivisionByZeroCheck(ClangOptions& options)
+std::unique_ptr<Check> gazer::checks::createDivisionByZeroCheck(ClangOptions& options)
 {
-    return new DivisionByZeroCheck();
+    return std::make_unique<DivisionByZeroCheck>();
 }
 
-Check* gazer::checks::createAssertionFailCheck(ClangOptions& options)
+std::unique_ptr<Check> gazer::checks::createAssertionFailCheck(ClangOptions& options)
 {
-    return new AssertionFailCheck();
+    return std::make_unique<AssertionFailCheck>();
 }
 
-Check* gazer::checks::createSignedIntegerOverflowCheck(ClangOptions& options)
+std::unique_ptr<Check> gazer::checks::createSignedIntegerOverflowCheck(ClangOptions& options)
 {
     options.addSanitizerFlag("signed-integer-overflow");
-    return new SignedIntegerOverflowCheck();
+    return std::make_unique<SignedIntegerOverflowCheck>();
 }

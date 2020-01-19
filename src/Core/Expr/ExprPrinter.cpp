@@ -35,7 +35,7 @@ namespace
 
 using llvm::Twine;
 
-std::string castTypeName(llvm::Twine name, const Type& from, const Type& to)
+std::string castTypeName(const llvm::Twine& name, const Type& from, const Type& to)
 {
     std::string fromStr = from.getName();
     std::string toStr = to.getName();

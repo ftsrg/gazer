@@ -21,14 +21,14 @@
 namespace gazer::checks
 {
     /// Check for assertion violations within the program.
-    Check* createAssertionFailCheck(ClangOptions& options);
+    std::unique_ptr<Check> createAssertionFailCheck(ClangOptions& options);
 
     /// This check fails if a division instruction is reachable
     /// with its second operand's value being 0.
-    Check* createDivisionByZeroCheck(ClangOptions& options);
+    std::unique_ptr<Check> createDivisionByZeroCheck(ClangOptions& options);
 
     /// This check fails if a signed integer operation results
     /// in an over- or underflow.
-    Check* createSignedIntegerOverflowCheck(ClangOptions& options);
+    std::unique_ptr<Check> createSignedIntegerOverflowCheck(ClangOptions& options);
 
 } // end namespace gazer::checks

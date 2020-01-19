@@ -64,7 +64,7 @@ private:
     llvm::Function* mEntryFunction;
 };
 
-}
+} // end anonymous namespace
 
 char InlinePass::ID;
 

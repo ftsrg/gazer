@@ -84,22 +84,22 @@ bool Type::equals(const Type* other) const
     }
     
     if (getTypeID() == BvTypeID) {
-        auto left = llvm::dyn_cast<BvType>(this);
-        auto right = llvm::dyn_cast<BvType>(other);
+        auto left = llvm::cast<BvType>(this);
+        auto right = llvm::cast<BvType>(other);
 
         return left->getWidth() == right->getWidth();
     }
     
     if (getTypeID() == FloatTypeID) {
-        auto left = llvm::dyn_cast<FloatType>(this);
-        auto right = llvm::dyn_cast<FloatType>(other);
+        auto left = llvm::cast<FloatType>(this);
+        auto right = llvm::cast<FloatType>(other);
 
         return left->getPrecision() == right->getPrecision();
     }
     
     if (getTypeID() == ArrayTypeID) {
-        auto left = llvm::dyn_cast<ArrayType>(this);
-        auto right = llvm::dyn_cast<ArrayType>(other);
+        auto left = llvm::cast<ArrayType>(this);
+        auto right = llvm::cast<ArrayType>(other);
 
         return left->getIndexType() == right->getIndexType()
             && left->getElementType() == right->getElementType();

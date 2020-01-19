@@ -115,20 +115,28 @@ public:
 
 public:
     /// Inserts a check into the check registry.
+    /// This class will take ownership of the check object.
     void add(Check* check);
 
     /// Registers all enabled checks into the pass manager.
+    /// As the pass manager takes ownership of all registered
+    /// passes, this class will release all enabled checks
+    /// after calling this method.
     void registerPasses(llvm::legacy::PassManager& pm);
 
-    /// Creates a new check violation with a unique error code for a given check and location.
+    /// Creates a new check violation with a unique error code
+    /// for a given check and location.
     /// \return An LLVM value representing the error code.
     llvm::Value* createCheckViolation(Check* check, llvm::DebugLoc loc);
 
     std::string messageForCode(unsigned ec) const;
+
+    ~CheckRegistry();
 private:
     llvm::LLVMContext& mLlvmContext;
     llvm::DenseMap<unsigned, CheckViolation> mCheckMap;
     std::vector<Check*> mChecks;
+    bool mRegisterPassesCalled = false;
 
     // 0 stands for success, 1 for unknown failures.
     unsigned mErrorCodeCnt = 2;

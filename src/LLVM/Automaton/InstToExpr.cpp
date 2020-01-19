@@ -29,12 +29,12 @@ using namespace llvm;
 ExprPtr InstToExpr::transform(const llvm::Instruction& inst)
 {
     LLVM_DEBUG(llvm::dbgs() << "  Transforming instruction " << inst << "\n");
-    if (inst.isBinaryOp()) {
-        return visitBinaryOperator(*dyn_cast<llvm::BinaryOperator>(&inst));
+    if (auto binOp = llvm::dyn_cast<llvm::BinaryOperator>(&inst)) {
+        return visitBinaryOperator(*binOp);
     }
     
-    if (inst.isCast()) {
-        return visitCastInst(*dyn_cast<llvm::CastInst>(&inst));
+    if (auto cast = llvm::dyn_cast<llvm::CastInst>(&inst)) {
+        return visitCastInst(*cast);
     }
 
 #define HANDLE_INST(OPCODE, NAME)                                       \
@@ -800,7 +800,7 @@ ExprPtr InstToExpr::asBool(const ExprPtr& operand)
     }
     
     if (operand->getType().isBvType()) {
-        auto bvTy = dyn_cast<BvType>(&operand->getType());
+        auto bvTy = cast<BvType>(&operand->getType());
         unsigned bits = bvTy->getWidth();
 
         return mExprBuilder.Select(
@@ -865,8 +865,8 @@ ExprPtr InstToExpr::castResult(const ExprPtr& expr, const Type& type)
         return asBool(expr);
     }
     
-    if (type.isBvType()) {
-        return asBv(expr, dyn_cast<BvType>(&type)->getWidth());
+    if (auto bvTy = llvm::dyn_cast<BvType>(&type)) {
+        return asBv(expr, bvTy->getWidth());
     }
 
     if (type.isIntType()) {

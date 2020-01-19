@@ -53,7 +53,7 @@ static bool isDefinedInCaller(llvm::Value* value, llvm::ArrayRef<llvm::BasicBloc
 
     if (auto i = dyn_cast<Instruction>(value)) {
         if (std::find(blocks.begin(), blocks.end(), i->getParent()) != blocks.end()) {
-            return false;
+            return false; // NOLINT
         }
 
         return true;
@@ -175,7 +175,7 @@ static llvm::Loop* getNestedLoopOf(GenerationContext& genCtx, CfaGenInfo& genInf
         assert(nested != loop);
 
         llvm::Loop* current = nested;
-        while ((current = current->getParentLoop())) {
+        while ((current = current->getParentLoop()) != nullptr) {
             if (current == loop) {
                 // 'loop' is the parent of 'nested', return the nested loop
                 return nested;
@@ -227,7 +227,7 @@ ModuleToCfa::ModuleToCfa(
     GenerationContext::LoopInfoMapTy& loops,
     GazerContext& context,
     MemoryModel& memoryModel,
-    LLVMFrontendSettings settings
+    LLVMFrontendSettings& settings
 ) : mModule(module),
     mContext(context),
     mMemoryModel(memoryModel),
@@ -526,7 +526,7 @@ void ModuleToCfa::createAutomata()
             llvm::SmallVector<memory::RetUse*, 1> retUses;
             memoryAccessOfKind(object.uses(), retUses);
 
-            assert(retUses.size() == 0 || retUses.size() == 1);
+            assert(retUses.empty() || retUses.size() == 1);
             if (!retUses.empty()) {
                 Variable* output = genInfo.findVariable(retUses[0]->getReachingDef());
                 functionVarDecl.markOutput(retUses[0]->getReachingDef(), output);
@@ -569,8 +569,8 @@ BlocksToCfa::BlocksToCfa(
         generationContext.getMemoryModel(),
         generationContext.getSettings()
     ),
-    mGenInfo(genInfo),
     mGenCtx(generationContext),
+    mGenInfo(genInfo),
     mCfa(mGenInfo.Automaton),
     mEntryBlock(mGenInfo.getEntryBlock())
 {
@@ -654,7 +654,9 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
     if (callee == nullptr) {
         // We do not support indirect calls yet.
         return false;
-    } else if (!callee->isDeclaration()) {
+    }
+    
+    if (!callee->isDeclaration()) {
         CfaGenInfo& calledAutomatonInfo = mGenCtx.getFunctionCfa(callee);
         Cfa* calledCfa = calledAutomatonInfo.Automaton;
 
@@ -708,7 +710,9 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
 
         // Do not generate an assignment for this call.
         return false;
-    } else if (callee->getName() == CheckRegistry::ErrorFunctionName) {
+    }
+    
+    if (callee->getName() == CheckRegistry::ErrorFunctionName) {
         assert(exit->isError() && "The target location of a 'gazer.error_code' call must be an error location!");
         llvm::Value* arg = call->getArgOperand(0);
 
@@ -786,7 +790,7 @@ void BlocksToCfa::handleTerminator(const llvm::BasicBlock* bb, Location* entry, 
     }
 }
 
-bool BlocksToCfa::tryToEliminate(ValueOrMemoryObject val, Variable* variable, ExprPtr expr)
+bool BlocksToCfa::tryToEliminate(ValueOrMemoryObject val, Variable* variable, const ExprPtr& expr)
 {
     if (mGenCtx.getSettings().isElimVarsOff()) {
         return false;
@@ -810,7 +814,7 @@ bool BlocksToCfa::tryToEliminate(ValueOrMemoryObject val, Variable* variable, Ex
     }
 
     if (val.isValue() && llvm::isa<llvm::Instruction>(val.asValue())) {
-        const llvm::Instruction* inst = llvm::cast<llvm::Instruction>(val.asValue());
+        auto inst = llvm::cast<llvm::Instruction>(val.asValue());
         // On 'Normal' level, we do not want to inline expressions which have multiple uses
         // and have already inlined operands.
 

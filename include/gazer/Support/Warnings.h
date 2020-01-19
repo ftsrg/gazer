@@ -15,37 +15,24 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
-#include "gazer/Core/Valuation.h"
-#include "gazer/Core/LiteralExpr.h"
+#ifndef GAZER_SUPPORT_WARNINGS_H
+#define GAZER_SUPPORT_WARNINGS_H
 
+#include <llvm/Support/Format.h>
 #include <llvm/Support/raw_ostream.h>
 
-using namespace gazer;
-
-void Valuation::print(llvm::raw_ostream& os)
+namespace gazer
 {
-    for (auto& [variable, expr] : mMap) {
-        os << variable->getName() << " = ";
-        expr->print(os);
-        os << "\n";
-    }
+
+template<class... Ts>
+void emit_warning(const char* fmt, Ts... params)
+{
+    llvm::errs().changeColor(llvm::raw_ostream::Colors::YELLOW, /*bold=*/true, /*bg=*/false);
+    llvm::errs() << "warning: ";
+    llvm::errs().resetColor();
+    llvm::errs() << llvm::format(fmt, params...) << "\n";
 }
 
-ExprRef<LiteralExpr>& Valuation::operator[](const Variable& variable)
-{
-    return mMap[&variable];
 }
 
-ExprRef<AtomicExpr> Valuation::eval(const ExprPtr& expr)
-{
-    if (auto varRef = llvm::dyn_cast<VarRefExpr>(expr.get())) {
-        auto lit = this->operator[](varRef->getVariable());
-        return lit != nullptr ? boost::static_pointer_cast<AtomicExpr>(lit) : UndefExpr::Get(expr->getType());
-    }
-    
-    if (expr->getKind() == Expr::Literal) {
-        return llvm::cast<LiteralExpr>(expr);
-    }
-
-    return UndefExpr::Get(expr->getType());
-}
+#endif

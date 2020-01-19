@@ -110,6 +110,8 @@ void ExprStorage::removeFromList(Expr* expr)
         Expr* prev = nullptr;
         Expr* current = bucket.Ptr;
 
+        assert(current != expr && "current must not be the first element in the bucket!");
+
         while (current != expr) {
             prev = current;
             current = current->mNextPtr;

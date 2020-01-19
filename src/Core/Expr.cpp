@@ -88,8 +88,8 @@ auto ExtCastExpr<Kind>::Create(const ExprPtr& operand, Type& type) -> ExprRef<Ex
     assert(operand->getType().isBvType() && "Can only do bitwise cast on bit vectors!");
     assert(type.isBvType() && "Can only bitwise cast to a bit vector type!");
 
-    auto lhsTy = llvm::dyn_cast<BvType>(&operand->getType());
-    auto rhsTy = llvm::dyn_cast<BvType>(&type);
+    auto lhsTy = llvm::cast<BvType>(&operand->getType());
+    auto rhsTy = llvm::cast<BvType>(&type);
 
     assert((rhsTy->getWidth() > lhsTy->getWidth()) && "Extend casts must increase bit width!");
     auto& context = lhsTy->getContext();
@@ -126,7 +126,7 @@ auto ArithmeticExpr<Kind>::Create(const ExprPtr& left, const ExprPtr& right) -> 
 {
     auto& leftTy = left->getType();
     assert(leftTy == right->getType() && "Arithmetic expression operand types must match!");
-    if constexpr (is_bv_only(Kind)) {
+    if constexpr (is_bv_only(Kind)) { // NOLINT
         assert(leftTy.isBvType() && "Can only perform bitvector arithmetic on Bv types!");
     } else if constexpr (is_arithmetic_only(Kind)) { // NOLINT
         assert(leftTy.isArithmetic() && "Can only perform bitvector arithmetic on Bv types!");
@@ -280,9 +280,8 @@ auto SelectExpr::Create(const ExprPtr& condition, const ExprPtr& then, const Exp
     return context.pImpl->Exprs.create<SelectExpr>(then->getType(), { condition, then, elze });
 }
 
-ExprRef<ArrayReadExpr> ArrayReadExpr::Create(
-    ExprPtr array, ExprPtr index
-) {
+ExprRef<ArrayReadExpr> ArrayReadExpr::Create(const ExprPtr& array, const ExprPtr& index)
+{
     assert(array->getType().isArrayType() && "ArrayRead only works on arrays.");
     auto arrTy = llvm::cast<ArrayType>(&array->getType());
     assert(arrTy->getIndexType() == index->getType() &&
@@ -292,9 +291,8 @@ ExprRef<ArrayReadExpr> ArrayReadExpr::Create(
     return context.pImpl->Exprs.create<ArrayReadExpr>(arrTy->getElementType(), { array, index });
 }
 
-ExprRef<ArrayWriteExpr> ArrayWriteExpr::Create(
-    ExprPtr array, ExprPtr index, ExprPtr value
-) {
+ExprRef<ArrayWriteExpr> ArrayWriteExpr::Create(const ExprPtr& array, const ExprPtr& index, const ExprPtr& value)
+{
     assert(array->getType().isArrayType() && "ArrayRead only works on arrays.");
     auto arrTy = llvm::cast<ArrayType>(&array->getType());
     assert(arrTy->getIndexType() == index->getType() &&

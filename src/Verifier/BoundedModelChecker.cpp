@@ -42,9 +42,10 @@ namespace
 {
     llvm::cl::opt<bool> NoDomPush("no-dom-push", llvm::cl::Hidden);
     llvm::cl::opt<bool> NoPostDomPush("no-postdom-push", llvm::cl::Hidden);
-}
+} // end anonymous namespace
 
-std::unique_ptr<VerificationResult> BoundedModelChecker::check(AutomataSystem& system, CfaTraceBuilder& traceBuilder)
+auto BoundedModelChecker::check(AutomataSystem& system, CfaTraceBuilder& traceBuilder)
+    -> std::unique_ptr<VerificationResult>
 {
     std::unique_ptr<ExprBuilder> builder;
 
@@ -98,7 +99,7 @@ void BoundedModelCheckerImpl::createTopologicalSorts()
     }
 }
 
-bool BoundedModelCheckerImpl::initializeErrorField()
+auto BoundedModelCheckerImpl::initializeErrorField() -> bool
 {
     // Set the verification goal - a single error location.
     llvm::SmallVector<Location*, 1> errors;
@@ -175,7 +176,7 @@ void BoundedModelCheckerImpl::removeIrrelevantLocations()
     mRoot->clearDisconnectedElements();
 }
 
-std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
+auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
 {
     // Initialize error field
     bool hasErrorLocation = this->initializeErrorField();
@@ -412,7 +413,9 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
                     mStats.NumEndLocals = mRoot->getNumLocals();
 
                     return VerificationResult::CreateSuccess();
-                } else if (bound == mSettings.maxBound) {
+                }
+                
+                if (bound == mSettings.maxBound) {
                     // The maximum bound was reached.
                     llvm::outs() << "Maximum bound is reached.\n";
                     
@@ -420,19 +423,19 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::check()
                     mStats.NumEndLocals = mRoot->getNumLocals();
 
                     return VerificationResult::CreateBoundReached();
-                } else {
-                    // Try with an increased bound.
-                    llvm::outs() << "    Open call sites still present. Increasing bound.\n";
-                    this->pop();
-                    top = lca.first;
-                    bottom = lca.second;
-
-                    // Skip redundant under-approximation step - all calls in the system are
-                    // under-approximated with 'False', which will not change when we jump
-                    // back to the under-approximation step.
-                    skipUnderApprox = true;
-                    break;
                 }
+
+                // Try with an increased bound.
+                llvm::outs() << "    Open call sites still present. Increasing bound.\n";
+                this->pop();
+                top = lca.first;
+                bottom = lca.second;
+
+                // Skip redundant under-approximation step - all calls in the system are
+                // under-approximated with 'False', which will not change when we jump
+                // back to the under-approximation step.
+                skipUnderApprox = true;
+                break;
             } else {
                 llvm_unreachable("Unknown solver status.");
             }
@@ -559,14 +562,6 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
         rewrite[&output] = newOutput->getRefExpr();
     }
 
-//    for (size_t i = 0; i < callee->getNumOutputs(); ++i) {
-//        Variable* output = callee->getOutput(i);
-//        auto newOutput = call->getOutputArgument(i).getVariable();
-//        oldVarToNew[output] = newOutput;
-//        vmap[newOutput] = output;
-//        rewrite[output] = call->getOutputArgument(i).getVariable()->getRefExpr();
-//    }
-
     // Insert the locations
     for (auto& origLoc : callee->nodes()) {
         auto newLoc = mRoot->createLocation();
@@ -660,21 +655,8 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     Location* before = call->getSource();
     Location* after  = call->getTarget();
 
-    std::vector<VariableAssignment> inputAssigns;
-    // for (auto& input : call->inputs()) {
-    //     VariableAssignment inputAssignment(oldVarToNew[input.getVariable()], input.getValue());
-    //     LLVM_DEBUG(llvm::dbgs() << "Added input assignment " << inputAssignment
-    //          << " for variable " << *input.getVariable() << "n");
-    //     inputAssigns.push_back(inputAssignment);
-    // }
-
-    mRoot->createAssignTransition(
-        before, locToLocMap[callee->getEntry()], call->getGuard(), inputAssigns
-    );
-
-    mRoot->createAssignTransition(
-        locToLocMap[callee->getExit()], after , mExprBuilder.True()
-    );
+    mRoot->createAssignTransition(before, locToLocMap[callee->getEntry()], call->getGuard());
+    mRoot->createAssignTransition(locToLocMap[callee->getExit()], after , mExprBuilder.True());
 
     // Add the new locations to the topological sort.
     // As every inlined location should come between the source and target of the original call transition,
@@ -700,7 +682,7 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     mRoot->disconnectEdge(call);
 }
 
-Solver::SolverStatus BoundedModelCheckerImpl::runSolver()
+auto BoundedModelCheckerImpl::runSolver() -> Solver::SolverStatus
 {
     llvm::outs() << "    Running solver...\n";
     mTimer.start();

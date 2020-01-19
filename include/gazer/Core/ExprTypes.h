@@ -75,11 +75,11 @@ private:
 
 public:
     unsigned getExtendedWidth() const {
-        return llvm::dyn_cast<BvType>(&getType())->getWidth();
+        return llvm::cast<BvType>(&getType())->getWidth();
     }
 
     unsigned getWidthDiff() const {
-        auto opType = llvm::dyn_cast<BvType>(&getOperand(0)->getType());
+        auto opType = llvm::cast<BvType>(&getOperand(0)->getType());
         return getExtendedWidth() - opType->getWidth();
     }
 
@@ -114,7 +114,7 @@ protected:
 
 public:
     unsigned getExtractedWidth() const {
-        return llvm::dyn_cast<BvType>(&getType())->getWidth();
+        return llvm::cast<BvType>(&getType())->getWidth();
     }
 
     unsigned getOffset() const { return mOffset; }
@@ -398,7 +398,7 @@ class ArrayReadExpr final : public NonNullaryExpr
 protected:
     using NonNullaryExpr::NonNullaryExpr;
 public:
-    static ExprRef<ArrayReadExpr> Create(ExprPtr array, ExprPtr index);
+    static ExprRef<ArrayReadExpr> Create(const ExprPtr& array, const ExprPtr& index);
 
     ExprRef<VarRefExpr> getArrayRef() const {
         return llvm::cast<VarRefExpr>(getOperand(0));
@@ -423,7 +423,7 @@ class ArrayWriteExpr final : public NonNullaryExpr
 protected:
     using NonNullaryExpr::NonNullaryExpr;
 public:
-    static ExprRef<ArrayWriteExpr> Create(ExprPtr array, ExprPtr index, ExprPtr value);
+    static ExprRef<ArrayWriteExpr> Create(const ExprPtr& array, const ExprPtr& index, const ExprPtr& value);
 
     ExprPtr getIndex() const { return getOperand(1); }
     ExprPtr getElementValue() const { return getOperand(2); }

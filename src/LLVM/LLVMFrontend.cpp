@@ -97,8 +97,7 @@ char RunVerificationBackendPass::ID;
 LLVMFrontend::LLVMFrontend(
     std::unique_ptr<llvm::Module> module,
     GazerContext& context,
-    LLVMFrontendSettings settings
-)
+    LLVMFrontendSettings& settings)
     : mContext(context),
     mModule(std::move(module)),
     mChecks(mModule->getContext()),
@@ -352,7 +351,7 @@ auto LLVMFrontend::FromInputFile(
     llvm::StringRef input,
     GazerContext& context,
     llvm::LLVMContext& llvmContext,
-    LLVMFrontendSettings settings
+    LLVMFrontendSettings& settings
 ) -> std::unique_ptr<LLVMFrontend>
 {
     llvm::SMDiagnostic err;

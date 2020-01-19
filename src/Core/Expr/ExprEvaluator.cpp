@@ -216,7 +216,7 @@ ExprRef<LiteralExpr> ExprEvaluatorBase::visitBvXor(const ExprRef<BvXorExpr>& exp
 
 ExprRef<LiteralExpr> ExprEvaluatorBase::visitNot(const ExprRef<NotExpr>& expr)
 {
-    auto boolLit = dyn_cast<BoolLiteralExpr>(getOperand(0).get());
+    auto boolLit = cast<BoolLiteralExpr>(getOperand(0).get());
     return BoolLiteralExpr::Get(cast<BoolType>(expr->getType()), !boolLit->getValue());
 }
 

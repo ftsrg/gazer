@@ -17,6 +17,7 @@
 //===----------------------------------------------------------------------===//
 #include "gazer/LLVM/LLVMFrontend.h"
 #include "gazer/LLVM/Instrumentation/DefaultChecks.h"
+#include "gazer/Support/Warnings.h"
 
 #include <llvm/IR/Module.h>
 #include <llvm/ADT/StringExtras.h>
@@ -40,7 +41,7 @@ FrontendConfig::FrontendConfig()
 
 void FrontendConfig::registerCheck(llvm::StringRef name, CheckFactory factory)
 {
-    mFactories[name] = factory;
+    mFactories.emplace(name, factory);
 }
 
 auto FrontendConfig::buildFrontend(
@@ -49,8 +50,7 @@ auto FrontendConfig::buildFrontend(
     llvm::LLVMContext& llvmContext
 ) -> std::unique_ptr<LLVMFrontend>
 {
-    // FIXME: if something fails below this code, the checks will leak.
-    std::vector<Check*> checks;
+    std::vector<std::unique_ptr<Check>> checks;
     createChecks(checks);
 
     auto module = ClangCompileAndLink(inputs, llvmContext, mClangSettings);
@@ -60,14 +60,15 @@ auto FrontendConfig::buildFrontend(
 
     auto frontend = std::make_unique<LLVMFrontend>(std::move(module), context, mSettings);
 
-    for (Check* check : checks) {
-        frontend->getChecks().add(check);
+    for (auto& check : checks) {
+        // Release the unique pointer and add it to the check registry
+        frontend->getChecks().add(check.release());
     }
 
     return frontend;
 }
 
-void FrontendConfig::createChecks(std::vector<Check*>& checks)
+void FrontendConfig::createChecks(std::vector<std::unique_ptr<Check>>& checks)
 {
     std::string filter = llvm::StringRef{mSettings.checks}.lower();
     llvm::SmallVector<llvm::StringRef, 8> fragments;
@@ -87,8 +88,14 @@ void FrontendConfig::createChecks(std::vector<Check*>& checks)
     }
 
     for (llvm::StringRef name : fragments) {
-        CheckFactory factory = mFactories[name];
-        checks.push_back(factory(mClangSettings));
+        auto it = mFactories.find(name);
+        if (it == mFactories.end()) {
+            emit_warning("unknown check '%s', parameter ignored", name.data());
+            continue;
+        }
+
+        CheckFactory factory = it->second;
+        checks.emplace_back(factory(mClangSettings));
     }
 }
 

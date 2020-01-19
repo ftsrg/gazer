@@ -185,9 +185,9 @@ public:
         AutomataSystem& system,
         MemoryModel& memoryModel,
         LoopInfoMapTy loopInfos,
-        LLVMFrontendSettings settings
+        LLVMFrontendSettings& settings
     ) : mSystem(system), mMemoryModel(memoryModel),
-        mLoopInfos(loopInfos), mSettings(settings)
+        mLoopInfos(std::move(loopInfos)), mSettings(settings)
     {}
 
     GenerationContext(const GenerationContext&) = delete;
@@ -216,7 +216,7 @@ public:
     void addExprValueIfTraceEnabled(Cfa* cfa, ValueOrMemoryObject value, ExprPtr expr)
     {
         if (mSettings.trace) {
-            mTraceInfo.mValueMaps[cfa].values[value] = expr;
+            mTraceInfo.mValueMaps[cfa].values[value] = std::move(expr);
         }
     }
 
@@ -254,7 +254,7 @@ private:
     AutomataSystem& mSystem;
     MemoryModel& mMemoryModel;
     LoopInfoMapTy mLoopInfos;
-    LLVMFrontendSettings mSettings;
+    LLVMFrontendSettings& mSettings;
     std::unordered_map<VariantT, CfaGenInfo> mProcedures;
     CfaToLLVMTrace mTraceInfo;
     unsigned mTmp = 0;
@@ -271,12 +271,12 @@ public:
         GenerationContext::LoopInfoMapTy& loops,
         GazerContext& context,
         MemoryModel& memoryModel,
-        LLVMFrontendSettings settings
+        LLVMFrontendSettings& settings
     );
 
     std::unique_ptr<AutomataSystem> generate(
         llvm::DenseMap<llvm::Value*, Variable*>& variables,
-        CfaToLLVMTrace& cfa2llvm
+        CfaToLLVMTrace& cfaToLlvmTrace
     );
 
 protected:
@@ -287,7 +287,7 @@ private:
 
     GazerContext& mContext;
     MemoryModel& mMemoryModel;
-    LLVMFrontendSettings mSettings;
+    LLVMFrontendSettings& mSettings;
 
     std::unique_ptr<AutomataSystem> mSystem;
     GenerationContext mGenCtx;
@@ -296,8 +296,6 @@ private:
     // Generation helpers
     std::unordered_map<llvm::Function*, Cfa*> mFunctionMap;
     std::unordered_map<llvm::Loop*, Cfa*> mLoopMap;
-
-    unsigned mValueCount = 0;
 };
 
 class BlocksToCfa : public InstToExpr
@@ -312,7 +310,7 @@ protected:
         {}
 
         ExprPtr getAsOperand(ValueOrMemoryObject val) override;
-        bool tryToEliminate(ValueOrMemoryObject val, Variable* variable, ExprPtr expr) override;
+        bool tryToEliminate(ValueOrMemoryObject val, Variable* variable, const ExprPtr& expr) override;
         void insertAssignment(Variable* variable, ExprPtr value) override;
 
     private:
@@ -336,7 +334,7 @@ private:
     GazerContext& getContext() const { return mGenCtx.getSystem().getContext(); }
 
 private:
-    bool tryToEliminate(ValueOrMemoryObject val, Variable* variable, ExprPtr expr);
+    bool tryToEliminate(ValueOrMemoryObject val, Variable* variable, const ExprPtr& expr);
 
     void insertOutputAssignments(CfaGenInfo& callee, std::vector<VariableAssignment>& outputArgs);
     void insertPhiAssignments(const llvm::BasicBlock* source, const llvm::BasicBlock* target, std::vector<VariableAssignment>& phiAssignments);

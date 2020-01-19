@@ -66,6 +66,7 @@ namespace
 
 namespace gazer
 {
+    extern cl::OptionCategory ClangFrontendCategory;
     extern cl::OptionCategory LLVMFrontendCategory;
     extern cl::OptionCategory IrToCfaCategory;
     extern cl::OptionCategory TraceCategory;
@@ -77,7 +78,7 @@ static BmcSettings initBmcSettingsFromCommandLine();
 int main(int argc, char* argv[])
 {
     cl::HideUnrelatedOptions({
-        &LLVMFrontendCategory, &IrToCfaCategory,
+        &ClangFrontendCategory, &LLVMFrontendCategory, &IrToCfaCategory,
         &TraceCategory, &ChecksCategory, &BmcAlgorithmCategory
     });
 
@@ -93,6 +94,9 @@ int main(int argc, char* argv[])
     // Create the frontend object
     FrontendConfigWrapper config;
     auto frontend = config.buildFrontend(InputFilenames);
+    if (frontend == nullptr) {
+        return 1;
+    }
 
     Z3SolverFactory solverFactory;
 

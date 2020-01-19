@@ -127,6 +127,7 @@ void CheckRegistry::registerPasses(llvm::legacy::PassManager& pm)
     for (Check* check : mChecks) {
         pm.add(check);
     }
+    mRegisterPassesCalled = true;
 }
 
 std::string CheckRegistry::messageForCode(unsigned ec) const
@@ -158,4 +159,14 @@ std::string CheckRegistry::messageForCode(unsigned ec) const
     rso << ".";
 
     return rso.str();
+}
+
+CheckRegistry::~CheckRegistry()
+{
+    // If registerPasses() was not called, this object still owns all added checks.
+    if (!mRegisterPassesCalled) {
+        for (Check* check : mChecks) {
+            delete check;
+        }
+    }
 }
