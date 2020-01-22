@@ -251,6 +251,9 @@ public:
         return mKind == Extract || this->isFpArithmetic();
     }
 
+    static bool isCommutative(ExprKind kind);
+    static bool isAssociative(ExprKind kind);
+
     /// Calculates a hash code for this expression.
     std::size_t getHashCode() const;
 

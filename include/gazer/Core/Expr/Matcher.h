@@ -192,6 +192,28 @@ inline apint_match m_Bv(llvm::APInt* const result) {
     return apint_match(result);
 }
 
+struct int_match
+{
+    IntLiteralExpr::ValueTy* const result;
+
+    int_match(IntLiteralExpr::ValueTy* const result) : result(result) {}
+
+    template<typename InputTy>
+    bool match(const ExprRef<InputTy>& expr)
+    {
+        if (auto intLit = llvm::dyn_cast<IntLiteralExpr>(expr)) {
+            *result = intLit->getValue();
+            return true;
+        }
+
+        return false;
+    }
+};
+
+inline int_match m_Int(IntLiteralExpr::ValueTy* const result) {
+    return int_match(result);
+}
+
 struct specific_match
 {
     const ExprPtr& storedExpr;

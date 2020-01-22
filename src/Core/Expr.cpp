@@ -399,6 +399,38 @@ llvm::StringRef Expr::getKindName(ExprKind kind)
     llvm_unreachable("Invalid expression kind.");
 }
 
+bool Expr::isCommutative(ExprKind kind)
+{
+    switch (kind) {
+        case Add:
+        case Mul:
+        case BvAnd:
+        case BvOr:
+        case BvXor:
+        case Eq:
+        case NotEq:
+        case FAdd:
+        case FMul:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool Expr::isAssociative(ExprKind kind)
+{
+    switch (kind) {
+        case Add:
+        case Mul:
+        case BvAnd:
+        case BvOr:
+        case BvXor:
+            return true;
+        default:
+            return false;
+    }
+}
+
 void NonNullaryExpr::print(llvm::raw_ostream& os) const
 {
     size_t i = 0;

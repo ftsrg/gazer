@@ -15,17 +15,26 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
+///
+/// \file This file defines the FoldingExprBuilder class, an implementation of
+/// the expression builder interface. It aims to fold constant expressions and
+/// perform some basic formula simplification.
+///
+//===----------------------------------------------------------------------===//
 #include "gazer/Core/Expr/ExprBuilder.h"
 #include "gazer/Core/ExprTypes.h"
 #include "gazer/Core/LiteralExpr.h"
 #include "gazer/Core/Expr/Matcher.h"
-#include "gazer/Core/Expr/ConstantFolder.h"
 
 #include <llvm/ADT/DenseMap.h>
+
+#include <variant>
 
 using namespace gazer;
 using namespace gazer::PatternMatch;
 
+using llvm::isa;
+using llvm::cast;
 using llvm::dyn_cast;
 
 namespace
@@ -38,141 +47,87 @@ public:
         : ExprBuilder(context)
     {}
 
+private:
+    ExprPtr foldBinaryExpr(Expr::ExprKind kind, const ExprPtr& left, const ExprPtr& right);
+    ExprPtr foldBinaryCompare(Expr::ExprKind kind, const ExprPtr& left, const ExprPtr& right);
+    ExprPtr simplifyLtEq(const ExprPtr& left, const ExprPtr& right);
+
+public:
     ExprPtr Not(const ExprPtr& op) override
     {
-        // Not(Not(X)) --> X
-        if (op->getKind() == Expr::Not) {
-            return llvm::cast<NotExpr>(op.get())->getOperand();
+        if (auto boolLit = dyn_cast<BoolLiteralExpr>(op.get())) {
+            return BoolLiteralExpr::Get(op->getContext(), !boolLit->getValue());
         }
 
-        ExprPtr e1 = nullptr, e2 = nullptr;
-
-        // Not(Eq(E1, E2)) --> NotEq(E1, E2)
-        if (match(op, m_Eq(m_Expr(e1), m_Expr(e2)))) {
-            return ConstantFolder::NotEq(e1, e2);
-        }
-
-        // Not(NotEq(E1, E2)) --> Eq(E1, E2)
-        if (match(op, m_NotEq(m_Expr(e1), m_Expr(e2)))) {
-            return ConstantFolder::Eq(e1, e2);
-        }
-        
-        return ConstantFolder::Not(op);
+        return NotExpr::Create(op);
     }
 
-    ExprPtr ZExt(const ExprPtr& op, BvType& type) override {
-        return ConstantFolder::ZExt(op, type);
+    ExprPtr ZExt(const ExprPtr& op, BvType& type) override
+    {
+        if (auto bvLit = dyn_cast<BvLiteralExpr>(op.get())) {
+            return BvLiteralExpr::Get(type, bvLit->getValue().zext(type.getWidth()));
+        }
+
+        return ZExtExpr::Create(op, type);
     }
     
-    ExprPtr SExt(const ExprPtr& op, BvType& type) override {
-        return ConstantFolder::SExt(op, type);
-    }
+    ExprPtr SExt(const ExprPtr& op, BvType& type) override
+    {
+        if (auto bvLit = dyn_cast<BvLiteralExpr>(op.get())) {
+            return BvLiteralExpr::Get(type, bvLit->getValue().sext(type.getWidth()));
+        }
 
-    ExprPtr Trunc(const ExprPtr& op, BvType& type) override {
-        return this->Extract(op, 0, type.getWidth());
+        return SExtExpr::Create(op, type);
     }
 
     ExprPtr Extract(const ExprPtr& op, unsigned offset, unsigned width) override
     {
-        ExprRef<> x1, x2;
-
-        if (offset == 0) {
-            // Extract(SRem(SExt(X1), SExt(X2)), 0, w) --> SRem(X1, X2) if width(X1) == width(X2) == w
-            if (match(op, m_BvSRem(m_SExt(m_Expr(x1)), m_SExt(m_Expr(x2))))) {
-                assert(x1->getType().isBvType() && x2->getType().isBvType());
-                auto& bvTy = *llvm::cast<BvType>(&x1->getType());
-
-                if (bvTy.getWidth() == width) {
-                    return ConstantFolder::BvSRem(x1, x2);
-                }
-            }
+        if (auto bvLit = dyn_cast<BvLiteralExpr>(op)) {
+            return BvLiteralExpr::Get(
+                BvType::Get(op->getContext(), width),
+                bvLit->getValue().extractBits(width, offset)
+            );
         }
 
-        return ConstantFolder::Extract(op, offset, width);
+        return ExtractExpr::Create(op, offset, width);
     }
 
-    ExprPtr Add(const ExprPtr& left, const ExprPtr& right) override
-    {
-        return ConstantFolder::Add(left, right);
+    #define FOLD_BINARY_ARITHMETIC(KIND)                                    \
+    ExprPtr KIND(const ExprPtr& left, const ExprPtr& right) override {      \
+        ExprPtr folded = this->foldBinaryExpr(Expr::KIND, left, right);   \
+        if (folded != nullptr) { return folded; }                           \
+        return KIND##Expr::Create(left, right);                             \
     }
 
-    ExprPtr Sub(const ExprPtr& left, const ExprPtr& right) override
-    {
-        return ConstantFolder::Sub(left, right);
-    }
+    FOLD_BINARY_ARITHMETIC(Add)
+    FOLD_BINARY_ARITHMETIC(Sub)
+    FOLD_BINARY_ARITHMETIC(Mul)
+    FOLD_BINARY_ARITHMETIC(BvSDiv)
+    FOLD_BINARY_ARITHMETIC(BvUDiv)
+    FOLD_BINARY_ARITHMETIC(BvSRem)
+    FOLD_BINARY_ARITHMETIC(BvURem)
+    FOLD_BINARY_ARITHMETIC(Shl)
+    FOLD_BINARY_ARITHMETIC(LShr)
+    FOLD_BINARY_ARITHMETIC(AShr)
+    FOLD_BINARY_ARITHMETIC(BvAnd)
+    FOLD_BINARY_ARITHMETIC(BvOr)
+    FOLD_BINARY_ARITHMETIC(BvXor)
 
-    ExprPtr Mul(const ExprPtr& left, const ExprPtr& right) override
-    {
-        return ConstantFolder::Mul(left, right);
-    }
-
-    ExprPtr BvSDiv(const ExprPtr& left, const ExprPtr& right) override
-    {
-        return ConstantFolder::BvSDiv(left, right);
-    }
-
-    ExprPtr BvUDiv(const ExprPtr& left, const ExprPtr& right) override
-    {
-        return ConstantFolder::BvUDiv(left, right);
-    }
-
-    ExprPtr BvSRem(const ExprPtr& left, const ExprPtr& right) override
-    {
-        return ConstantFolder::BvSRem(left, right);
-    }
-
-    ExprPtr BvURem(const ExprPtr& left, const ExprPtr& right) override
-    {
-        return ConstantFolder::BvURem(left, right);
-    }
-
-    ExprPtr Shl(const ExprPtr& left, const ExprPtr& right) override
-    {
-        return ConstantFolder::Shl(left, right);
-    }
-
-    ExprPtr LShr(const ExprPtr& left, const ExprPtr& right) override
-    {
-        return ConstantFolder::LShr(left, right);
-    }
-
-    ExprPtr AShr(const ExprPtr& left, const ExprPtr& right) override
-    {
-        return ConstantFolder::AShr(left, right);
-    }
-
-    ExprPtr BvAnd(const ExprPtr& left, const ExprPtr& right) override
-    {
-        return ConstantFolder::BvAnd(left, right);
-    }
-
-    ExprPtr BvOr(const ExprPtr& left, const ExprPtr& right) override
-    {
-        return ConstantFolder::BvOr(left, right);
-    }
-
-    ExprPtr BvXor(const ExprPtr& left, const ExprPtr& right) override
-    {
-        return ConstantFolder::BvXor(left, right);
-    }
+    #undef FOLD_BINARY_ARITHMETIC
 
     ExprPtr And(const ExprVector& vector) override
     {
         ExprVector newOps;
 
         for (const ExprPtr& op : vector) {
-            if (op->getKind() == Expr::Literal) {
-                auto lit = llvm::dyn_cast<BoolLiteralExpr>(op.get());
-
-                assert(lit != nullptr && "Operands for ANDs should be booleans!");
-                if (lit->getValue() == false) { //NOLINT
+            if (auto lit = dyn_cast<BoolLiteralExpr>(op)) {
+                if (lit->isFalse()) {
                     return this->False();
                 } else {
                     // We are not adding unnecessary true literals
                 }
-            } else if (op->getKind() == Expr::And) {
+            } else if (auto andExpr = dyn_cast<AndExpr>(op)) {
                 // For AndExpr operands, we flatten the expression
-                auto andExpr = llvm::dyn_cast<AndExpr>(op.get());    
                 newOps.insert(newOps.end(), andExpr->op_begin(), andExpr->op_end());
             } else {
                 newOps.push_back(op);
@@ -186,30 +141,6 @@ public:
             return *newOps.begin();
         }
 
-        ExprRef<> x1;
-        ExprRef<> e1, e2, e3;
-
-        // And(Eq(E1, E2), NotEq(E1, E2)) --> False
-        if (unord_match(newOps, m_Eq(m_Expr(e1), m_Expr(e2)), m_NotEq(m_Specific(e1), m_Specific(e2)))) {
-            return this->False();
-        }
-
-        if (newOps.size() == 2) {
-            ExprPtr lhs = newOps[0];
-            ExprPtr rhs = newOps[1];
-
-            // And(Not(X), X) --> False
-            if (unord_match(lhs, rhs, m_Not(m_Expr(e1)), m_Specific(e1))) {
-                return this->False();
-            }
-
-            // And(Or(E1, E2), Or(E1, E3)) --> And(E1, Or(E2, E3))
-            if (unord_match(lhs, rhs, m_Or(m_Expr(e1), m_Expr(e2)), m_Or(m_Specific(e1), m_Expr(e3)))) {
-                newOps[0] = e1;
-                newOps[1] = this->Or({e2, e3});
-            }
-        }
-
         return AndExpr::Create(newOps);
     }
 
@@ -218,16 +149,14 @@ public:
         ExprVector newOps;
 
         for (const ExprPtr& op : vector) {
-            if (op->getKind() == Expr::Literal) {
-                auto lit = llvm::dyn_cast<BoolLiteralExpr>(op.get());
-                if (lit->getValue() == true) {
+            if (auto lit = dyn_cast<BoolLiteralExpr>(op)) {
+                if (lit->isTrue()) {
                     return this->True();
                 } else {
                     // We are not adding unnecessary false literals
                 }
-            } else if (op->getKind() == Expr::Or) {
+            } else if (auto orExpr = dyn_cast<OrExpr>(op)) {
                 // For OrExpr operands, we try to flatten the expression
-                auto orExpr = llvm::dyn_cast<OrExpr>(op.get());    
                 newOps.insert(newOps.end(), orExpr->op_begin(), orExpr->op_end());
             } else {
                 newOps.push_back(op);
@@ -239,26 +168,6 @@ public:
             return this->False();
         } else if (newOps.size() == 1) {
             return *newOps.begin();
-        }
-
-        ExprRef<VarRefExpr> x1;
-        ExprRef<> e1, e2, e3;
-
-        // Try some optimizations for the binary case
-        if (newOps.size() == 2) {
-            ExprPtr lhs = newOps[0];
-            ExprPtr rhs = newOps[1];
-
-            // Or(Not(X), X) --> True
-            if (unord_match(lhs, rhs, m_Not(m_Expr(e1)), m_Specific(e1))) {
-                return this->True();
-            }
-
-            // Or(And(E1, E2), And(E1, E3)) --> And(E1, Or(E2, E3))
-            if (unord_match(lhs, rhs, m_And(m_Expr(e1), m_Expr(e2)), m_And(m_Specific(e1), m_Expr(e3)))) {
-                newOps[0] = e1;
-                newOps[1] = this->Or({e2, e3});
-            }
         }
 
         return OrExpr::Create(newOps);
@@ -292,19 +201,17 @@ public:
             return this->True();
         }
 
+        if (isa<LiteralExpr>(left) && isa<LiteralExpr>(right) && left != right) {
+            return this->False();
+        }
+
+        if (ExprPtr folded = this->foldBinaryCompare(Expr::Eq, left, right)) {
+            return folded;
+        }
+
         ExprRef<BoolLiteralExpr> b1 = nullptr;
         ExprPtr c1 = nullptr;
         ExprPtr e1 = nullptr, e2 = nullptr;
-
-        // Eq(True, X) --> X
-        // Eq(False, X) --> Not(X)
-        if (unord_match(left, right, m_BoolLit(b1), m_Expr(e1))) {
-            if (b1->isTrue()) {
-                return e1;
-            }
-
-            return this->Not(e1);
-        }
 
         // Eq(Select(C1, E1, E2), E1) --> C1
         if (unord_match(left, right, m_Select(m_Expr(c1), m_Expr(e1), m_Expr(e2)), m_Specific(e1))) {
@@ -316,161 +223,109 @@ public:
             return this->Not(c1);
         }
 
-        llvm::APInt i1, i2;
-
-        // Eq(ZExt.W(E1), C1) --> Eq(E1, C1) if width(E1) >= width(c1)
-        if (unord_match(left, right, m_ZExt(m_Expr(e1)), m_Bv(&i1))) {
-            auto& bvTy = llvm::cast<BvType>(e1->getType());
-
-            if (i1.getActiveBits() <= bvTy.getWidth()) {
-                return ConstantFolder::Eq(e1, this->BvLit(i1.zextOrTrunc(bvTy.getWidth())));
-            }
-        }
-
-        return ConstantFolder::Eq(left, right);
+        return EqExpr::Create(left, right);
     }
 
     ExprPtr NotEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        if (left == right) {
-            return this->False();
-        }
-
-        ExprRef<BoolLiteralExpr> b1 = nullptr;
-        ExprPtr e1 = nullptr, e2 = nullptr, e3 = nullptr;
-
-        // NotEq(True, X) --> Not(X)
-        // NotEq(False, X) --> X
-        if (unord_match(left, right, m_BoolLit(b1), m_Expr(e1))) {
-            if (b1->isTrue()) {
-                return this->Not(e1);
-            }
-
-            return e1;
-        }
-
-        ExprRef<> x1 = nullptr, x2 = nullptr;
-
-        // NotEq(Select(NotEq(X1, X2), E1, E2), E1) --> Eq(X)
-        // NotEq(Select(NotEq(X1, X2), E1, E2), E2) --> NotEq(X)
-        if (unord_match(left, right,
-            m_Select(
-                m_NotEq(m_Expr(x1), m_Expr(x2)),
-                m_Expr(e1),
-                m_Expr(e2)
-            ),
-            m_Expr(e3))
-        ) {
-            if (e3 == e1) {
-                return ConstantFolder::Eq(x1, x2);
-            } else if (e3 == e2) {
-                return ConstantFolder::NotEq(x1, x2);
-            }
-        }
-
-        llvm::APInt l1;
-
-        // NotEq(ZExt(X1), 0) --> NotEq(X1, 0)
-        if (unord_match(left, right, m_ZExt(m_Expr(x1)), m_Bv(&l1)) && l1 == 0) {
-            auto& bvTy = *llvm::cast<BvType>(&x1->getType());
-            return ConstantFolder::NotEq(x1, this->BvLit(0, bvTy.getWidth()));
-        }
-
-        return ConstantFolder::NotEq(left, right);
+        return this->Not(this->Eq(left, right));
     }
+
+    // Comparison operators
+    //===------------------------------------------------------------------===//
+    // Apart from folding, we shall also normalize everything here
+    // into a LtEq expression.
 
     ExprPtr Lt(const ExprPtr& left, const ExprPtr& right) override
     {
-        return ConstantFolder::Lt(left, right);
+        // Lt(X, Y) --> Not(LtEq(Y, X))
+        return this->Not(this->LtEq(right, left));
     }
 
     ExprPtr LtEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        return ConstantFolder::LtEq(left, right);
+        if (ExprPtr folded = this->foldBinaryCompare(Expr::LtEq, left, right)) {
+            return folded;
+        }
+
+        return this->simplifyLtEq(left, right);
     }
 
     ExprPtr Gt(const ExprPtr& left, const ExprPtr& right) override
     {
-        return ConstantFolder::Gt(left, right);
+        // Gt(X, Y) --> Not(LtEq(X, Y))
+        return this->Not(this->LtEq(left, right));
     }
 
     ExprPtr GtEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        return ConstantFolder::GtEq(left, right);
+        // GtEq(X, Y) --> LtEq(Y, X)
+        return this->LtEq(right, left);
     }
-
-    // Define a little helper for comparison operators.
-    // Note that this simplification does not work for unsigned bitvector operations.
-    // As an example, a + b u> c --> a u> a - b is not a valid transformation
-    // if (a - b) underflows.
-    #define COMPARE_ARITHMETIC_SIMPLIFY(OPCODE)                                     \
-        ExprRef<> x;                                                                \
-        llvm::APInt c1, c2;                                                         \
-                                                                                    \
-        /* CMP(Add(X, C1), C2) --> CMP(X, C2 - C1) */                               \
-        if (unord_match(left, right, m_Add(m_Bv(&c1), m_Expr(x)), m_Bv(&c2))) {     \
-            return ConstantFolder::OPCODE(x, this->BvLit(c2 - c1));                 \
-        }                                                                           \
 
     ExprPtr BvSLt(const ExprPtr& left, const ExprPtr& right) override
     {
-        COMPARE_ARITHMETIC_SIMPLIFY(BvSLt)
-
-        return ConstantFolder::BvSLt(left, right);
+        return BvSLtExpr::Create(left, right);
     }
 
     ExprPtr BvSLtEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        COMPARE_ARITHMETIC_SIMPLIFY(BvSLtEq)
-
-        return ConstantFolder::BvSLtEq(left, right);
+        return BvSLtEqExpr::Create(left, right);
     }
 
     ExprPtr BvSGt(const ExprPtr& left, const ExprPtr& right) override
     {
-        COMPARE_ARITHMETIC_SIMPLIFY(BvSGt)
-    
-        return ConstantFolder::BvSGt(left, right);
+        return BvSGtExpr::Create(left, right);
     }
 
     ExprPtr BvSGtEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        COMPARE_ARITHMETIC_SIMPLIFY(BvSGtEq)
-
-        return ConstantFolder::BvSGtEq(left, right);
+        return BvSGtEqExpr::Create(left, right);
     }
 
     ExprPtr BvULt(const ExprPtr& left, const ExprPtr& right) override
     {
-        return ConstantFolder::BvULt(left, right);
+        return BvULtExpr::Create(left, right);
     }
 
     ExprPtr BvULtEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        return ConstantFolder::BvULtEq(left, right);
+        return BvULtEqExpr::Create(left, right);
     }
 
     ExprPtr BvUGt(const ExprPtr& left, const ExprPtr& right) override
     {
-        return ConstantFolder::BvUGt(left, right);
+        return BvUGtExpr::Create(left, right);
     }
 
     ExprPtr BvUGtEq(const ExprPtr& left, const ExprPtr& right) override
     {
-        return ConstantFolder::BvUGtEq(left, right);
+        return BvUGtEqExpr::Create(left, right);
     }
 
-    #undef COMPARE_ARITHMETIC_SIMPLIFY
+    // Floating-point
+    //===------------------------------------------------------------------===//
 
-    ExprPtr FIsNan(const ExprPtr& op) override {
-        return ConstantFolder::FIsNan(op);
+    ExprPtr FIsNan(const ExprPtr& op) override
+    {
+        if (auto fpLit = dyn_cast<FloatLiteralExpr>(op)) {
+            return this->BoolLit(fpLit->getValue().isNaN());
+        }
+
+        return FIsInfExpr::Create(op);
     }
 
-    ExprPtr FIsInf(const ExprPtr& op) override {
-        return ConstantFolder::FIsInf(op);
+    ExprPtr FIsInf(const ExprPtr& op) override
+    {
+        if (auto fpLit = dyn_cast<FloatLiteralExpr>(op)) {
+            return this->BoolLit(fpLit->getValue().isInfinity());
+        }
+
+        return FIsInfExpr::Create(op);
     }
     
-    ExprPtr FCast(const ExprPtr& op, FloatType& type, llvm::APFloat::roundingMode rm) override {
+    ExprPtr FCast(const ExprPtr& op, FloatType& type, llvm::APFloat::roundingMode rm) override
+    {
         return FCastExpr::Create(op, type, rm);
     }
 
@@ -490,43 +345,52 @@ public:
         return FpToUnsignedExpr::Create(op, type, rm);
     }
     
-    ExprPtr FAdd(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) override {
-        return ConstantFolder::FAdd(left, right, rm);
+    ExprPtr FAdd(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) override
+    {
+        return FAddExpr::Create(left, right, rm);
     }
     
-    ExprPtr FSub(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) override {
-        return ConstantFolder::FSub(left, right, rm);
+    ExprPtr FSub(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) override
+    {
+        return FSubExpr::Create(left, right, rm);
     }
 
-    ExprPtr FMul(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) override {
-        return ConstantFolder::FMul(left, right, rm);
+    ExprPtr FMul(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) override
+    {
+        return FMulExpr::Create(left, right, rm);
     }
 
-    ExprPtr FDiv(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) override {
-        return ConstantFolder::FDiv(left, right, rm);
+    ExprPtr FDiv(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) override
+    {
+        return FDivExpr::Create(left, right, rm);
     }
     
-    ExprPtr FEq(const ExprPtr& left, const ExprPtr& right) override {
-        return ConstantFolder::FEq(left, right);
+    ExprPtr FEq(const ExprPtr& left, const ExprPtr& right) override
+    {
+        return FEqExpr::Create(left, right);
     }
-    ExprPtr FGt(const ExprPtr& left, const ExprPtr& right) override {
-        return ConstantFolder::FGt(left, right);
+    ExprPtr FGt(const ExprPtr& left, const ExprPtr& right) override
+    {
+        return FGtExpr::Create(left, right);
     }
-    ExprPtr FGtEq(const ExprPtr& left, const ExprPtr& right) override {
-        return ConstantFolder::FGtEq(left, right);
+    ExprPtr FGtEq(const ExprPtr& left, const ExprPtr& right) override
+    {
+        return FGtEqExpr::Create(left, right);
     }
-    ExprPtr FLt(const ExprPtr& left, const ExprPtr& right) override {
-        return ConstantFolder::FLt(left, right);
+    ExprPtr FLt(const ExprPtr& left, const ExprPtr& right) override
+    {
+        return FLtExpr::Create(left, right);
     }
-    ExprPtr FLtEq(const ExprPtr& left, const ExprPtr& right) override {
-        return ConstantFolder::FLtEq(left, right);
+    ExprPtr FLtEq(const ExprPtr& left, const ExprPtr& right) override
+    {
+        return FLtEqExpr::Create(left, right);
     }
 
     ExprPtr Select(const ExprPtr& condition, const ExprPtr& then, const ExprPtr& elze) override
     {
         // Select(True, E1, E2) --> E1
         // Select(False, E1, E2) --> E2
-        if (auto condLit = llvm::dyn_cast<BoolLiteralExpr>(condition.get())) {
+        if (auto condLit = dyn_cast<BoolLiteralExpr>(condition.get())) {
             return condLit->isTrue() ? then : elze;
         }
 
@@ -560,39 +424,266 @@ public:
 
         // Select(not C, E1, E2) --> Select(C, E2, E1)
         if (match(condition, then, elze, m_Not(m_Expr(c1)), m_Expr(e1), m_Expr(e2))) {
-            return ConstantFolder::Select(condition, elze, then);
+            return SelectExpr::Create(condition, elze, then);
         }
 
         // Select(C1, Select(C1, E1, E'), E2) --> Select(C1, E1, E2)
         if (match(condition, then, elze, m_Expr(c1), m_Select(m_Specific(c1), m_Expr(e1), m_Expr()), m_Expr(e2))) {
-            return ConstantFolder::Select(c1, e1, e2);
+            return SelectExpr::Create(c1, e1, e2);
         }
 
         // Select(C1, E1, Select(C1, E', E2)) --> Select(C1, E1, E2)
         if (match(condition, then, elze, m_Expr(c1), m_Expr(e1), m_Select(m_Specific(c1), m_Expr(), m_Expr(e2)))) {
-            return ConstantFolder::Select(c1, e1, e2);
+            return SelectExpr::Create(c1, e1, e2);
         }
 
         // Select(C1, Select(C2, E1, E2), E1) --> Select(C1 and not C2, E2, E1)
         if (match(condition, then, elze, m_Expr(c1), m_Select(m_Expr(c2), m_Expr(e1), m_Expr(e2)), m_Specific(e1))) {
-            return ConstantFolder::Select(this->And({c1, this->Not(c2)}), e1, e2);
+            return SelectExpr::Create(this->And({c1, this->Not(c2)}), e1, e2);
         }
     
         // Select(C1, Select(C2, E1, E2), E2) --> Select(C1 and C2, E1, E2)
         if (match(condition, then, elze, m_Expr(c1), m_Select(m_Expr(c2), m_Expr(e1), m_Expr(e2)), m_Specific(e2))) {
-            return ConstantFolder::Select(ConstantFolder::And({c1, c2}), e1, e2);
+            return SelectExpr::Create(AndExpr::Create({c1, c2}), e1, e2);
         }
 
         // Select(C1, E1, Select(C2, E1, E2)) --> Select(C1 or C2, E1, E2)
         if (match(condition, then, elze, m_Expr(c1), m_Expr(e1), m_Select(m_Expr(c2), m_Specific(e1), m_Expr(e2)))) {
-            return ConstantFolder::Select(ConstantFolder::Or({c1, c2}), e1, e2);
+            return SelectExpr::Create(OrExpr::Create({c1, c2}), e1, e2);
         }
 
-        return ConstantFolder::Select(condition, then, elze);
+        return SelectExpr::Create(condition, then, elze);
     }
 };
 
 } // end anonymous namespace
+
+ExprPtr FoldingExprBuilder::foldBinaryExpr(Expr::ExprKind kind, const ExprPtr& left, const ExprPtr& right)
+{
+    if (auto rhs = dyn_cast<IntLiteralExpr>(right)) {
+        // If the right side is an integer literal
+        switch (kind) {
+            case Expr::Add:
+            case Expr::Sub:
+                if (rhs->isZero()) { return left; }
+                break;
+            case Expr::Mul:
+                if (rhs->isZero()) { return right; }
+                if (rhs->isOne()) { return left; }
+                break;
+            case Expr::Div:
+                if (rhs->isOne()) { return left; }
+                break;
+            case Expr::Mod:
+            case Expr::Rem:
+                if (rhs->isOne()) { return this->IntLit(0); }
+                break;
+            default:
+                break;
+        }
+    } else if (auto rhs = dyn_cast<BvLiteralExpr>(right)) {
+        // Alternatively, it can be a bit-vector literal
+        switch (kind) {
+            case Expr::Add:
+            case Expr::Sub:
+                if (rhs->isZero()) { return left; }
+                break;
+            case Expr::Mul:
+                if (rhs->isZero()) { return right; }
+                if (rhs->isOne())  { return left; }
+                break;
+            case Expr::BvUDiv:
+            case Expr::BvSDiv:
+                if (rhs->isOne()) { return left; }                          // X div 1 == X
+                break;
+            case Expr::BvURem:
+            case Expr::BvSRem:
+                if (rhs->isOne()) { return BvLiteralExpr::Get(rhs->getType(), 0); }   // X rem 1 == 0
+                break;
+            case Expr::BvAnd:
+                if (rhs->isZero()) { return rhs; }                          // X and 0 == 0
+                if (rhs->isAllOnes()) { return left; }                      // X and 1..1 == X
+                break;
+            case Expr::BvOr:
+                if (rhs->isZero()) { return left; }                         // X or 0 == X
+                if (rhs->isAllOnes()) { return rhs; }                       // X and 1..1 == 1..1 
+            case Expr::BvXor:
+                if (rhs->isZero()) { return left; }                         // X xor 0 == X
+                break;
+            default:
+                break;
+        }
+    } else if (llvm::isa<LiteralExpr>(left) && Expr::isCommutative(kind)) {
+        // If LHS is constant while RHS is not, retry with swapped operands
+        return foldBinaryExpr(kind, right, left);
+    }
+
+    // See if both of them are literals
+    if (auto lhs = dyn_cast<IntLiteralExpr>(left)) {
+        if (auto rhs = dyn_cast<IntLiteralExpr>(right)) {
+            auto l = lhs->getValue();
+            auto r = rhs->getValue();
+
+            switch (kind) {
+                case Expr::Add: return this->IntLit(l + r);
+                case Expr::Sub: return this->IntLit(l - r);
+                case Expr::Mul: return this->IntLit(l * r);
+                case Expr::Div: return this->IntLit(l / r);
+                case Expr::Mod:
+                case Expr::Rem:
+                // FIXME
+                default:
+                    break;
+            }
+        }
+    } else if (auto lhs = dyn_cast<BvLiteralExpr>(left)) {
+        if (auto rhs = dyn_cast<BvLiteralExpr>(right)) {
+            auto l = lhs->getValue();
+            auto r = rhs->getValue();
+
+            switch (kind) {
+                case Expr::Add: return this->BvLit(l + r);
+                case Expr::Sub: return this->BvLit(l - r);
+                case Expr::Mul: return this->BvLit(l * r);
+                case Expr::BvUDiv: return this->BvLit(l.udiv(r));
+                case Expr::BvSDiv: return this->BvLit(l.sdiv(r));
+                case Expr::BvURem: return this->BvLit(l.urem(r));
+                case Expr::BvSRem: return this->BvLit(l.srem(r));
+                case Expr::BvAnd: return this->BvLit(l & r);
+                case Expr::BvOr: return this->BvLit(l | r);
+                case Expr::BvXor: return this->BvLit(l ^ r);
+                // FIXME: This is problematic if shift width exceeds the size
+                case Expr::Shl: return this->BvLit(l.shl(r));
+                case Expr::LShr: return this->BvLit(l.lshr(r));
+                case Expr::AShr: return this->BvLit(l.ashr(r));
+                default:
+                    llvm_unreachable("Unknown binary BV expression!");
+            }
+        }
+
+        switch (kind) {
+            case Expr::BvSDiv:
+            case Expr::BvUDiv:
+            case Expr::BvSRem:
+            case Expr::BvURem:
+            case Expr::LShr:
+            case Expr::AShr:
+            case Expr::Shl:
+                if (lhs->isZero()) { return lhs; }
+                break;
+            default:
+                break;
+        }
+    }
+
+    // Give up, cannot fold.
+    return nullptr;
+}
+
+ExprPtr FoldingExprBuilder::foldBinaryCompare(Expr::ExprKind kind, const ExprPtr& left, const ExprPtr& right)
+{
+    if (isa<BoolLiteralExpr>(right)) {
+        switch (kind) {
+            case Expr::Eq:
+                // Eq(X, True) --> X
+                // Eq(X, False) --> Not(X)
+                if (auto blit = dyn_cast<BoolLiteralExpr>(right)) {
+                    if (blit->isTrue()) {
+                        return left;
+                    }
+
+                    return this->Not(left);
+                }
+                break;
+            case Expr::NotEq:
+                // NotEq(X, True) --> Not(X)
+                // NotEq(X, False) --> X
+                if (auto blit = dyn_cast<BoolLiteralExpr>(right)) {
+                    if (blit->isTrue()) {
+                        return this->Not(left);
+                    }
+
+                    return left;
+                }
+                break;
+            default:
+                break;
+        }
+    } else if (isa<BoolLiteralExpr>(left)) {
+        // If LHS is a literal, swap the operands around and check through the other way
+        return foldBinaryCompare(kind, right, left);
+    }
+
+    if (isa<BvLiteralExpr>(left) && isa<BvLiteralExpr>(right)) {
+        auto lv = cast<BvLiteralExpr>(left)->getValue();
+        auto rv = cast<BvLiteralExpr>(right)->getValue();
+
+        switch (kind) {
+            case Expr::BvSLt:   return this->BoolLit(lv.slt(rv));
+            case Expr::BvSLtEq: return this->BoolLit(lv.sle(rv));
+            case Expr::BvSGt:   return this->BoolLit(lv.sgt(rv));
+            case Expr::BvSGtEq: return this->BoolLit(lv.sge(rv));
+            case Expr::BvULt:   return this->BoolLit(lv.ult(rv));
+            case Expr::BvULtEq: return this->BoolLit(lv.ule(rv));
+            case Expr::BvUGt:   return this->BoolLit(lv.ugt(rv));
+            case Expr::BvUGtEq: return this->BoolLit(lv.uge(rv));
+            case Expr::Eq:      return this->BoolLit(lv == rv);
+            case Expr::NotEq:   return this->BoolLit(lv != rv);
+            default:
+                llvm_unreachable("Unknown bit-vector comparison!");
+        }
+    } else if (isa<IntLiteralExpr>(left) && isa<IntLiteralExpr>(right)) {
+        auto lv = cast<IntLiteralExpr>(left)->getValue();
+        auto rv = cast<IntLiteralExpr>(right)->getValue();
+
+        switch (kind) {
+            case Expr::Eq:      return this->BoolLit(lv == rv);
+            case Expr::NotEq:   return this->BoolLit(lv != rv);
+            case Expr::Lt:      return this->BoolLit(lv < rv);
+            case Expr::LtEq:    return this->BoolLit(lv <= rv);
+            case Expr::Gt:      return this->BoolLit(lv > rv);
+            case Expr::GtEq:    return this->BoolLit(lv >= rv);
+            default:
+                llvm_unreachable("Unknown integer comparison!");
+        }
+    }
+
+    return nullptr;
+}
+
+ExprPtr FoldingExprBuilder::simplifyLtEq(const ExprPtr& left, const ExprPtr& right)
+{
+    ExprPtr x, other;
+    IntLiteralExpr::ValueTy c1;
+    IntLiteralExpr::ValueTy c2;
+
+    if (auto rhs = dyn_cast<IntLiteralExpr>(right)) {
+        c2 = rhs->getValue();
+        other = left;
+    } else if (auto lhs = dyn_cast<IntLiteralExpr>(left)) {
+        c2 = lhs->getValue();
+        other = right;
+    } else {
+        return LtEqExpr::Create(left, right);
+    }
+
+    #define CREATE_RESULT(VAR, LIT)                                                         \
+        (other == left ? LtEqExpr::Create((VAR), (LIT)) : LtEqExpr::Create((LIT), (VAR)))
+
+    // X + C1 <= C2 --> X <= C2 - C1
+    // C2 <= X + C1 --> C2 - C1 <= X
+    if (match(other, m_Add(m_Int(&c1), m_Expr(x)))) {
+        return CREATE_RESULT(x, this->IntLit(c2 - c1));
+    }
+
+    // X - C1 <= C2 --> X <= C1 + C2
+    // C2 <= X - C1 --> C2 + C1 <= X
+    if (match(other, m_Sub(m_Expr(x), m_Int(&c1)))) {
+        return CREATE_RESULT(x, this->IntLit(c2 + c1));
+    }
+
+    return LtEqExpr::Create(left, right);
+}
 
 std::unique_ptr<ExprBuilder> gazer::CreateFoldingExprBuilder(GazerContext& context) {
     return std::unique_ptr<ExprBuilder>(new FoldingExprBuilder(context));

@@ -95,6 +95,8 @@ private:
 class IntLiteralExpr final : public LiteralExpr
 {
     friend class ExprStorage;
+public:
+    using ValueTy = int64_t;
 private:
     IntLiteralExpr(IntType& type, long long int value)
         : LiteralExpr(type), mValue(value)
@@ -110,6 +112,9 @@ public:
     void print(llvm::raw_ostream& os) const override;
 
     int64_t getValue() const { return mValue; }
+
+    bool isZero() const { return mValue == 0; }
+    bool isOne() const { return mValue == 1; }
 
     IntType& getType() const { return static_cast<IntType&>(mType); }
 
@@ -180,6 +185,7 @@ public:
 
     bool isOne() const { return mValue.isOneValue(); }
     bool isZero() const { return mValue.isNullValue(); }
+    bool isAllOnes() const { return mValue.isAllOnesValue(); }
 
     BvType& getType() const { return static_cast<BvType&>(mType); }
 

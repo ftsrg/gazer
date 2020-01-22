@@ -47,7 +47,7 @@ procedure main() -> (main/RET_VAL : Bv32)
     };
 
     transition $5 -> $8
-        assume main/.0<>0bv32
+        assume not (main/.0=0bv32)
     {
     };
 

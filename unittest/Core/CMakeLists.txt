@@ -6,6 +6,7 @@ SET(TEST_SOURCES
     Expr/ExprPrinterTest.cpp
     Expr/ExprEvaluatorTest.cpp
     Expr/ExprWalkerTest.cpp
+    Expr/FoldingExprBuilderTest.cpp
 )
 
 add_test(GazerCoreTest GazerCoreTest)
