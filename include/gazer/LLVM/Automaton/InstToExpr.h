@@ -98,6 +98,8 @@ private:
 
     ExprPtr handleOverflowPredicate(const llvm::CallInst& call);
 
+    ExprPtr tryToRepresentBitOperator(const llvm::BinaryOperator& binOp, const ExprPtr& left, const ExprPtr& right);
+
 protected:
     llvm::Function& mFunction;
     ExprBuilder& mExprBuilder;

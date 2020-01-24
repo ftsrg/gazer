@@ -180,13 +180,10 @@ ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop)
             case Instruction::And:
             case Instruction::Or:
             case Instruction::Xor:
-                // TODO: Some magic could be applied here to transform operations on
-                // certain bit-patterns, e.g. all-ones, single-one, all-zero, single-zero, etc.
-                return mExprBuilder.Undef(variable->getType());
+                return this->tryToRepresentBitOperator(binop, intLHS, intRHS);
             default:
                 llvm_unreachable("Unsupported binary operator!");
         }
-
     }
 
     llvm_unreachable("Invalid binary operation kind");
@@ -475,6 +472,78 @@ ExprPtr InstToExpr::visitCastInst(const llvm::CastInst& cast)
     }
 
     llvm_unreachable("Unsupported cast operation");
+}
+
+ExprPtr InstToExpr::tryToRepresentBitOperator(const llvm::BinaryOperator& binOp, const ExprPtr& left, const ExprPtr& right)
+{
+    assert(binOp.isBitwiseLogicOp() || llvm::BinaryOperator::isShift(binOp.getOpcode()));
+    unsigned width = binOp.getType()->getIntegerBitWidth();
+
+    if (auto rhs = llvm::dyn_cast<IntLiteralExpr>(right)) {
+        llvm::APInt rightBv(width, static_cast<uint64_t>(rhs->getValue()));
+
+        if (auto lhs = llvm::dyn_cast<IntLiteralExpr>(left)) {
+            // If both operands are constants, calculate their value and represent them as arithmetic ints.
+            llvm::APInt leftBv(width, static_cast<uint64_t>(lhs->getValue()));
+
+            switch (binOp.getOpcode()) {
+                case Instruction::Shl:  return mExprBuilder.IntLit(leftBv.shl(rightBv).getSExtValue());
+                case Instruction::LShr: return mExprBuilder.IntLit(leftBv.lshr(rightBv).getSExtValue());
+                case Instruction::AShr: return mExprBuilder.IntLit(leftBv.ashr(rightBv).getSExtValue());
+                case Instruction::And:  return mExprBuilder.IntLit((leftBv & rightBv).getSExtValue());
+                case Instruction::Or:   return mExprBuilder.IntLit((leftBv | rightBv).getSExtValue());
+                case Instruction::Xor:  return mExprBuilder.IntLit((leftBv ^ rightBv).getSExtValue());
+            }
+
+            llvm_unreachable("Unknown bitwise binary operator!");
+        } else if (rhs->isZero()) {
+            switch (binOp.getOpcode()) {
+                case Instruction::Shl:
+                case Instruction::LShr:
+                case Instruction::AShr:
+                    // X << 0, X >> 0, X >>u 0 --> X
+                    return left;
+                case Instruction::Or:
+                    // X or 0 --> X
+                    return left;
+                case Instruction::And:
+                    // X and 0 --> 0
+                    return right;
+                default:
+                    break;
+            }
+        }
+
+        // FIXME: Some additional magic may be applied here to handle certain AND, OR and shift values,
+        //  such as a single one/zero in the bit mask, etc.
+    } else if (auto lhs = llvm::dyn_cast<IntLiteralExpr>(left)) {
+        llvm::APInt leftBv(width, static_cast<uint64_t>(lhs->getValue()));
+        if (lhs->isZero()) {
+            switch (binOp.getOpcode()) {
+                case Instruction::Or:
+                    // 0..0 or X  --> X
+                    return right;
+                case Instruction::And:
+                    // 0..0 and X --> 0
+                    return lhs;
+                default:
+                    break;
+            }
+        } else if (leftBv.isAllOnesValue()) {
+            switch (binOp.getOpcode()) {
+                case Instruction::Or:
+                    // 1..1 or X  --> 1..1
+                    return lhs;
+                case Instruction::And:
+                    // 1..1 and X --> X
+                    return right;
+                default:
+                    break;
+            }
+        }
+    }
+
+    return mExprBuilder.Undef(left->getType());
 }
 
 ExprPtr InstToExpr::integerCast(const llvm::CastInst& cast, const ExprPtr& operand, unsigned width)
