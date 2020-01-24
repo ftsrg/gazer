@@ -199,7 +199,9 @@ public:
     ReturnT visitUndef(const ExprRef<UndefExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitExpr(expr);
     }
-    ReturnT visitLiteral(const ExprRef<LiteralExpr>& expr) {
+
+    ReturnT visitLiteral(const ExprRef<LiteralExpr>& expr)
+    {
         // Disambiguate here for each literal type
         #define EXPR_LITERAL_CASE(TYPE)                                         \
             case Type::TYPE##TypeID:                                            \
@@ -213,12 +215,17 @@ public:
             EXPR_LITERAL_CASE(Bv)
             EXPR_LITERAL_CASE(Float)
             EXPR_LITERAL_CASE(Array)
+            case Type::TupleTypeID:
+            case Type::FunctionTypeID:
+                llvm_unreachable("Invalid literal expression type!");
+                break;
         }
 
         #undef EXPR_LITERAL_CASE
 
         llvm_unreachable("Unknown literal expression kind!");
     }
+
     ReturnT visitVarRef(const ExprRef<VarRefExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitExpr(expr);
     }

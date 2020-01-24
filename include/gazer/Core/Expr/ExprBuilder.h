@@ -41,7 +41,8 @@ public:
 public:
     virtual ~ExprBuilder() = default;
 
-    //--- Literals ---//
+    // Literals and non-virtual convenience methods
+    //===------------------------------------------------------------------===//
     ExprRef<BvLiteralExpr> BvLit(uint64_t value, unsigned bits) {
         return BvLiteralExpr::Get(BvType::Get(mContext, bits), llvm::APInt(bits, value));
     }
@@ -70,6 +71,12 @@ public:
         return FloatLiteralExpr::Get(type, value);
     }
 
+    ExprPtr Trunc(const ExprPtr& op, BvType& type) {
+        return this->Extract(op, 0, type.getWidth());
+    }
+
+    // Virtual methods
+    //===------------------------------------------------------------------===//
     virtual ExprPtr Not(const ExprPtr& op) {
         return NotExpr::Create(op);
     }
@@ -82,10 +89,6 @@ public:
         return SExtExpr::Create(op, type);
     }
     
-    virtual ExprPtr Trunc(const ExprPtr& op, BvType& type) {
-        return ExtractExpr::Create(op, 0, type.getWidth());
-    }
-
     virtual ExprPtr Extract(const ExprPtr& op, unsigned offset, unsigned width) {
         return ExtractExpr::Create(op, offset, width);
     }
@@ -297,7 +300,14 @@ private:
     GazerContext& mContext;
 };
 
+// Expression builder implementations
+//===----------------------------------------------------------------------===//
+
+/// Instantiates the default expression builder.
 std::unique_ptr<ExprBuilder> CreateExprBuilder(GazerContext& context);
+
+/// Instantiates an expression builder which provides constant folding and
+/// some basic simplifications.
 std::unique_ptr<ExprBuilder> CreateFoldingExprBuilder(GazerContext& context);
 
 }
