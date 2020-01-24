@@ -27,9 +27,26 @@ namespace gazer
 template<class... Ts>
 void emit_warning(const char* fmt, Ts... params)
 {
-    llvm::errs().changeColor(llvm::raw_ostream::Colors::YELLOW, /*bold=*/true, /*bg=*/false);
+    if (llvm::errs().has_colors()) {
+        llvm::errs().changeColor(llvm::raw_ostream::Colors::YELLOW, /*bold=*/true, /*bg=*/false);
+    }
     llvm::errs() << "warning: ";
-    llvm::errs().resetColor();
+    if (llvm::errs().has_colors()) {
+        llvm::errs().resetColor();
+    }
+    llvm::errs() << llvm::format(fmt, params...) << "\n";
+}
+
+template<class... Ts>
+void emit_error(const char* fmt, Ts... params)
+{
+    if (llvm::errs().has_colors()) {
+        llvm::errs().changeColor(llvm::raw_ostream::Colors::RED, /*bold=*/true, /*bg=*/false);
+    }
+    llvm::errs() << "error: ";
+    if (llvm::errs().has_colors()) {
+        llvm::errs().resetColor();
+    }
     llvm::errs() << llvm::format(fmt, params...) << "\n";
 }
 

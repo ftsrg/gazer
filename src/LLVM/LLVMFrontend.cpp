@@ -24,6 +24,7 @@
 #include "gazer/Trace/TraceWriter.h"
 #include "gazer/LLVM/Trace/TestHarnessGenerator.h"
 #include "gazer/LLVM/Transform/BackwardSlicer.h"
+#include "gazer/Support/Warnings.h"
 
 #include <llvm/Analysis/ScopedNoAliasAA.h>
 #include <llvm/Analysis/TypeBasedAliasAnalysis.h>
@@ -39,6 +40,7 @@
 #include <llvm/Support/CommandLine.h>
 #include <llvm/InitializePasses.h>
 
+#include <llvm/IR/IRPrintingPasses.h>
 #include <llvm/Analysis/CFGPrinter.h>
 #include <llvm/AsmParser/Parser.h>
 #include <llvm/IRReader/IRReader.h>
@@ -58,6 +60,12 @@ namespace
 {
     cl::opt<bool> ShowFinalCFG(
         "show-final-cfg", cl::desc("Display the final CFG"), cl::cat(LLVMFrontendCategory));
+    cl::opt<std::string> PrintFinalModule(
+        "print-final-module", cl::desc("Output final module into file"), cl::cat(LLVMFrontendCategory)
+    );
+    cl::opt<bool> StructurizeCFG(
+        "structurize", cl::desc("Try to remove irreducible controlf flow"), cl::cat(LLVMFrontendCategory)
+    );
 
     class RunVerificationBackendPass : public llvm::ModulePass
     {
@@ -113,6 +121,16 @@ LLVMFrontend::LLVMFrontend(
         llvm::errs() << "-math-int mode forces havoc memory model, analysis may be unsound\n";
         mSettings.memoryModel = MemoryModelSetting::Havoc;
     }
+
+    if (!PrintFinalModule.empty()) {
+        std::error_code ec;
+        mModuleOutput.reset(new llvm::ToolOutputFile(PrintFinalModule, ec, llvm::sys::fs::F_None));
+
+        if (ec) {
+            emit_error("could not open '%s': %s", PrintFinalModule.c_str(), ec.message().c_str());
+            mModuleOutput = nullptr;
+        }
+    }
 }
 
 void LLVMFrontend::registerVerificationPipeline()
@@ -158,6 +176,11 @@ void LLVMFrontend::registerVerificationPipeline()
     // Display the final LLVM CFG now.
     if (ShowFinalCFG) {
         mPassManager.add(llvm::createCFGPrinterLegacyPassPass());
+    }
+
+    if (!PrintFinalModule.empty() && mModuleOutput != nullptr) {
+        mPassManager.add(llvm::createPrintModulePass(mModuleOutput->os()));
+        mModuleOutput->keep();
     }
 
     // Perform module-to-automata translation.
@@ -287,9 +310,6 @@ void LLVMFrontend::registerEarlyOptimizations()
         return;
     }
 
-    // Try to remove irreducible control flow
-    mPassManager.add(llvm::createStructurizeCFGPass());
-
     // Start with some metadata-based typed AA
     mPassManager.add(llvm::createTypeBasedAAWrapperPass());
     mPassManager.add(llvm::createScopedNoAliasAAWrapperPass());
@@ -315,16 +335,19 @@ void LLVMFrontend::registerEarlyOptimizations()
     mPassManager.add(llvm::createAggressiveInstCombinerPass());
     mPassManager.add(llvm::createInstructionCombiningPass());
 
-//    mPassManager.add(llvm::createLICMPass());
+    // Try to remove irreducible control flow
+    if (StructurizeCFG) {
+        mPassManager.add(llvm::createStructurizeCFGPass());
+    }
     
     // Optimize loops
     //mPassManager.add(llvm::createLoopInstSimplifyPass());
     //mPassManager.add(llvm::createLoopSimplifyCFGPass());
-    // mPassManager.add(llvm::createLoopRotatePass());
+    //mPassManager.add(llvm::createLoopRotatePass());
     //mPassManager.add(llvm::createLICMPass());
 
-    // mPassManager.add(llvm::createCFGSimplificationPass());
-    // mPassManager.add(llvm::createInstructionCombiningPass());
+    //mPassManager.add(llvm::createCFGSimplificationPass());
+    //mPassManager.add(llvm::createInstructionCombiningPass());
     mPassManager.add(llvm::createIndVarSimplifyPass());
     mPassManager.add(llvm::createLoopDeletionPass());
 

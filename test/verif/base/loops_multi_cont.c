@@ -1,4 +1,4 @@
-// RUN: %bmc -bound 10 "%s" | FileCheck "%s"
+// RUN: %bmc -structurize -bound 10 "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED
 #include <assert.h>

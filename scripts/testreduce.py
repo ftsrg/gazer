@@ -86,7 +86,7 @@ class FalseCexReducer(Reducer):
 
     def create_script(self) -> str:
         output = self.verif.call_str() + " &> t.log\n"
-        output += 'cat t.log | grep {0}\n'.format(self.verif.fail_pattern)
+        output += 'cat t.log | grep {0}\n'.format(self.verif.fail_pattern())
         output += 'RESULT=$?\n'
         output += 'if [ $RESULT -ne 0 ]; then\n'
         output += '    exit 1\n'
@@ -94,7 +94,7 @@ class FalseCexReducer(Reducer):
         output += '! {0} {1} {2} {3} | grep "executed"\n'.format(
             self.check_cex,
             self.errors,
-            self.verif.file,
+            self.verif.file.name,
             "harness.bc"
         )
 
@@ -202,7 +202,7 @@ if __name__ == "__main__":
     reducer = None
     if args.target == 'false-cex':
         tool.args.extend(['-trace', '-test-harness', 'harness.bc'])
-        reducer = FalseCexReducer(tool, pathlib.Path(args.gazer_dir).absolute())
+        reducer = FalseCexReducer(tool, pathlib.Path(os.getcwd()).absolute())
     elif args.target == 'invalid-fail':
         reducer = InvalidFailReducer(tool, safe_tool)
     elif args.target == 'invalid-success':

@@ -25,6 +25,7 @@
 
 #include <llvm/Pass.h>
 #include <llvm/IR/LegacyPassManager.h>
+#include <llvm/Support/ToolOutputFile.h>
 
 namespace gazer
 {
@@ -159,6 +160,8 @@ private:
 
     LLVMFrontendSettings& mSettings;
     std::unique_ptr<VerificationAlgorithm> mBackendAlgorithm = nullptr; 
+
+    std::unique_ptr<llvm::ToolOutputFile> mModuleOutput = nullptr;
 };
 
 }
