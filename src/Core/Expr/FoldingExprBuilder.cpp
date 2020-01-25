@@ -173,23 +173,6 @@ public:
         return OrExpr::Create(newOps);
     }
 
-    ExprPtr Xor(const ExprPtr& left, const ExprPtr& right) override
-    {
-        // Xor(True, E1) --> Not(E1)
-        // Xor(False, E1) --> E1
-        if (left == this->True()) {
-            return this->Not(right);
-        } else if (right == this->True()) {
-            return this->Not(left);
-        } else if (left == this->False()) {
-            return right;
-        } else if (right == this->False()) {
-            return left;
-        }
-
-        return XorExpr::Create(left, right);
-    }
-
     ExprPtr Imply(const ExprPtr& left, const ExprPtr& right) override
     {
         return ImplyExpr::Create(left, right);

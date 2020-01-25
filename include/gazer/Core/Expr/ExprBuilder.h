@@ -175,9 +175,12 @@ public:
         return this->Or(ExprVector(begin, end));
     }
 
-    virtual ExprPtr Xor(const ExprPtr& left, const ExprPtr& right) {
-        return XorExpr::Create(left, right);
+    ExprPtr Xor(const ExprPtr& left, const ExprPtr& right)
+    {
+        assert(left->getType().isBoolType() && right->getType().isBoolType());
+        return this->NotEq(left, right);
     }
+
     virtual ExprPtr Imply(const ExprPtr& left, const ExprPtr& right) {
         return ImplyExpr::Create(left, right);
     }

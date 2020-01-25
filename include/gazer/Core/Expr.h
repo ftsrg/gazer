@@ -91,7 +91,7 @@ public:
 
     // Logic and compare
     static constexpr int FirstLogic = And;
-    static constexpr int LastLogic = Xor;
+    static constexpr int LastLogic = Imply;
     static constexpr int FirstCompare = Eq;
     static constexpr int LastCompare = BvUGtEq;
 

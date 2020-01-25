@@ -240,13 +240,6 @@ ExprRef<LiteralExpr> ExprEvaluatorBase::visitOr(const ExprRef<OrExpr>& expr)
     return BoolLiteralExpr::Get(cast<BoolType>(expr->getType()), result);
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitXor(const ExprRef<XorExpr>& expr) {
-    auto left = cast<BoolLiteralExpr>(getOperand(0))->getValue();
-    auto right = cast<BoolLiteralExpr>(getOperand(1))->getValue();
-
-    return BoolLiteralExpr::Get(cast<BoolType>(expr->getType()), left != right);
-}
-
 ExprRef<LiteralExpr> ExprEvaluatorBase::visitImply(const ExprRef<ImplyExpr>& expr) {
     auto left = cast<BoolLiteralExpr>(getOperand(0))->getValue();
     auto right = cast<BoolLiteralExpr>(getOperand(1))->getValue();

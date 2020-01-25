@@ -255,7 +255,6 @@ public:
     static bool classof(const Expr& expr) { return expr.getKind() == Kind; }
 };
 
-using XorExpr = BinaryLogicExpr<Expr::Xor>;
 using ImplyExpr = BinaryLogicExpr<Expr::Imply>;
 
 // Floating-point

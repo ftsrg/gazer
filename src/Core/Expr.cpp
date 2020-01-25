@@ -34,7 +34,7 @@ std::size_t gazer::expr_kind_prime(Expr::ExprKind kind)
         290623u, 241291u, 579499u, 384287u, 125287u, 920273u, 485833u, 326449u,
         972683u, 485167u, 882599u, 535727u, 383651u, 159833u, 796001u, 218479u,
         163993u, 622561u, 938881u, 692467u, 851971u, 478427u, 653969u, 650329u,
-        645187u, 830827u, 431729u, 497663u, 392351u, 715237u, 689891u
+        645187u, 830827u, 431729u, 497663u, 392351u, 715237u
     };
 
     static_assert(
@@ -360,7 +360,6 @@ template class CompareExpr<Expr::BvUGtEq>;
 
 template class MultiaryLogicExpr<Expr::And>;
 template class MultiaryLogicExpr<Expr::Or>;
-template class BinaryLogicExpr<Expr::Xor>;
 template class BinaryLogicExpr<Expr::Imply>;
 
 template class FpQueryExpr<Expr::FIsNan>;

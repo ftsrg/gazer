@@ -68,7 +68,6 @@ private:
     // Logic
     ExprRef<LiteralExpr> visitAnd(const ExprRef<AndExpr>& expr);
     ExprRef<LiteralExpr> visitOr(const ExprRef<OrExpr>& expr);
-    ExprRef<LiteralExpr> visitXor(const ExprRef<XorExpr>& expr);
     ExprRef<LiteralExpr> visitImply(const ExprRef<ImplyExpr>& expr);
 
     // Compare

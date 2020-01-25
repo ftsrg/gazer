@@ -326,9 +326,6 @@ public:
     ReturnT visitOr(const ExprRef<OrExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitNonNullary(expr);
     }
-    ReturnT visitXor(const ExprRef<XorExpr>& expr) {
-        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
-    }
     ReturnT visitImply(const ExprRef<ImplyExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitNonNullary(expr);
     }

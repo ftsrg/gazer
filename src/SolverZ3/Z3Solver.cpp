@@ -363,14 +363,6 @@ private:
         return createHandle(Z3_mk_or(mZ3Context, expr->getNumOperands(), ops.ptr()));
     }
 
-    Z3AstHandle visitXor(const ExprRef<XorExpr>& expr)
-    {
-        assert(expr->getType().isBoolType() && "Can only handle boolean XORs");
-
-        std::array<Z3_ast, 2> ops = { getOperand(0), getOperand(1) };
-        return createHandle(Z3_mk_distinct(mZ3Context, 2, ops.data()));
-    }
-
     Z3AstHandle visitImply(const ExprRef<ImplyExpr>& expr)
     {
         assert(expr->getType().isBoolType() && "Can only handle boolean implications");

@@ -59,7 +59,6 @@ GAZER_EXPR_KIND(BvConcat)   // Bit-vector concatenation
 // Binary logic
 GAZER_EXPR_KIND(And)        // Multiary AND operator for booleans
 GAZER_EXPR_KIND(Or)         // Multiary OR operator for booleans
-GAZER_EXPR_KIND(Xor)        // Binary XOR operator for booleans
 GAZER_EXPR_KIND(Imply)      // Binary implication for booleans
 
 // Compare

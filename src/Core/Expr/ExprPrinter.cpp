@@ -159,7 +159,6 @@ private:
                      + ", " + Twine(expr->getWidth()) + ")").str();
     }
 
-
     PRINT_BINARY_INFIX(Add,     " + ")
     PRINT_BINARY_INFIX(Sub,     " - ")
     PRINT_BINARY_INFIX(Mul,     " * ")
@@ -177,7 +176,6 @@ private:
     PRINT_BINARY_PREFIX(BvXor,  "bv.xor")
 
     // Logic
-    PRINT_BINARY_INFIX(Xor,     "xor")
     PRINT_BINARY_INFIX(Imply,   "imply")
 
     std::string visitAnd(const ExprRef<AndExpr>& expr)

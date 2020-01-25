@@ -133,10 +133,6 @@ public:
         return rso.str();
     }
 
-    std::string visitXor(const ExprRef<XorExpr>& expr) {
-        return "(" + getOperand(0) + " /= " + getOperand(1) + ")";
-    }
-
     std::string visitImply(const ExprRef<ImplyExpr>& expr) {
         return "(" + getOperand(0) + " imply " + getOperand(1) + ")";
     }
