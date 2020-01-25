@@ -24,6 +24,8 @@
 #include <llvm/ADT/iterator.h>
 #include <llvm/ADT/ArrayRef.h>
 
+#include <boost/iterator/indirect_iterator.hpp>
+
 #include <vector>
 #include <string>
 #include <memory>
@@ -282,11 +284,15 @@ class TupleType final : public Type
         assert(mSubtypeList.size() >= 2);
     }
 public:
-    Type& getTypeAtIndex(unsigned idx) const;
+    Type& getTypeAtIndex(unsigned idx) const { return *mSubtypeList[idx]; }
     unsigned getNumSubtypes() const { return mSubtypeList.size(); }
 
+    using subtype_iterator = boost::indirect_iterator<std::vector<Type*>::const_iterator>;
+    subtype_iterator subtype_begin() const { return boost::make_indirect_iterator(mSubtypeList.begin()); }
+    subtype_iterator subtype_end() const { return boost::make_indirect_iterator(mSubtypeList.end()); }
+
     template<class... Tys>
-    static typename std::enable_if<std::is_base_of_v<Type, Tys...>, TupleType&>::type
+    static typename std::enable_if<(std::is_base_of_v<Type, Tys> && ...), TupleType&>::type
     Get(Type& first, Tys&... tail)
     {
         std::vector<Type*> subtypeList({ &first, &tail... });

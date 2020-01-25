@@ -17,14 +17,13 @@
 //===----------------------------------------------------------------------===//
 #include "GazerContextImpl.h"
 
-#include "gazer/Core/Type.h"
+#include "gazer/ADT/StringUtils.h"
 
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/ADT/APFloat.h>
 #include <llvm/Support/FormatVariadic.h>
 
 #include <algorithm>
-#include <gazer/Core/GazerContext.h>
 
 using namespace gazer;
 
@@ -56,6 +55,18 @@ std::string Type::getName() const
                 arrayType->getIndexType(), arrayType->getElementType()
             );
         }
+        case TupleTypeID: {
+            auto tupTy = llvm::cast<TupleType>(this);
+            std::string buffer;
+            llvm::raw_string_ostream rso(buffer);
+
+            rso << "(";
+            join_print(rso, tupTy->subtype_begin(), tupTy->subtype_end(), ", ");
+            rso << ")";
+            rso.flush();
+
+            return rso.str();
+        }
         /*
         case FunctionTypeID: {
             auto funcType = llvm::cast<FunctionType>(this);
@@ -83,26 +94,27 @@ bool Type::equals(const Type* other) const
         return false;
     }
     
-    if (getTypeID() == BvTypeID) {
-        auto left = llvm::cast<BvType>(this);
+    if (auto bvTy = llvm::dyn_cast<BvType>(this)) {
         auto right = llvm::cast<BvType>(other);
-
-        return left->getWidth() == right->getWidth();
+        return bvTy->getWidth() == right->getWidth();
     }
     
-    if (getTypeID() == FloatTypeID) {
-        auto left = llvm::cast<FloatType>(this);
+    if (auto fltTy = llvm::dyn_cast<FloatType>(this)) {
         auto right = llvm::cast<FloatType>(other);
-
-        return left->getPrecision() == right->getPrecision();
+        return fltTy->getPrecision() == right->getPrecision();
     }
     
-    if (getTypeID() == ArrayTypeID) {
-        auto left = llvm::cast<ArrayType>(this);
+    if (auto arrTy = llvm::dyn_cast<ArrayType>(this)) {
         auto right = llvm::cast<ArrayType>(other);
+        return arrTy->getIndexType() == right->getIndexType()
+            && arrTy->getElementType() == right->getElementType();
+    }
 
-        return left->getIndexType() == right->getIndexType()
-            && left->getElementType() == right->getElementType();
+    if (auto tupTy = llvm::dyn_cast<TupleType>(this)) {
+        auto right = llvm::cast<TupleType>(other);
+        return std::equal(
+            tupTy->subtype_begin(), tupTy->subtype_end(),
+            right->subtype_begin(), right->subtype_end());
     }
 
     return true;

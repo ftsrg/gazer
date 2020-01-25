@@ -302,14 +302,14 @@ ExprRef<ArrayWriteExpr> ArrayWriteExpr::Create(const ExprPtr& array, const ExprP
     return context.pImpl->Exprs.create<ArrayWriteExpr>(*arrTy, { array, index, value });
 }
 
-ExprRef<TupleSelectExpr> TupleSelectExpr::Create(ExprPtr tuple, unsigned index)
+ExprRef<TupleSelectExpr> TupleSelectExpr::Create(const ExprPtr& tuple, unsigned index)
 {
     assert(tuple->getType().isTupleType() && "TupleSelect only works on tuples!");
     auto tupTy = llvm::cast<TupleType>(&tuple->getType());
     assert(tupTy->getNumSubtypes() > index && "Invalid tuple index!");
 
     auto& context = tupTy->getContext();
-    return context.pImpl->Exprs.create<TupleSelectExpr>(*tupTy, { tuple }, index);
+    return context.pImpl->Exprs.create<TupleSelectExpr>(tupTy->getTypeAtIndex(index), { tuple }, index);
 }
 
 

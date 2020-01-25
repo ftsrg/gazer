@@ -21,11 +21,28 @@
 #include "gazer/Automaton/Cfa.h"
 
 #include <llvm/ADT/DenseSet.h>
+#include <llvm/ADT/PostOrderIterator.h>
 
 namespace gazer
 {
 
 class ExprBuilder;
+
+template<class Seq = std::vector<Location*>, class Map = llvm::DenseMap<Location*, size_t>>
+void createTopologicalSort(Cfa& cfa, Seq& topoVec, Map* locNumbers = nullptr)
+{
+    auto poBegin = llvm::po_begin(cfa.getEntry());
+    auto poEnd = llvm::po_end(cfa.getEntry());
+
+    topoVec.insert(topoVec.end(), poBegin, poEnd);
+    std::reverse(topoVec.begin(), topoVec.end());
+
+    if (locNumbers != nullptr) {
+        for (size_t i = 0; i < topoVec.size(); ++i) {
+            (*locNumbers)[topoVec[i]] = i;
+        }
+    }
+}
 
 /// Class for calculating verification path conditions.
 class PathConditionCalculator

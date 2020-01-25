@@ -449,7 +449,7 @@ protected:
     {}
 
 public:
-    static ExprRef<TupleSelectExpr> Create(ExprPtr tuple, unsigned index);
+    static ExprRef<TupleSelectExpr> Create(const ExprPtr& tuple, unsigned index);
 
     unsigned getIndex() const { return mIndex; }
 

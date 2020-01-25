@@ -83,12 +83,8 @@ BoundedModelCheckerImpl::BoundedModelCheckerImpl(
 void BoundedModelCheckerImpl::createTopologicalSorts()
 {
     for (Cfa& cfa : mSystem) {
-        auto poBegin = llvm::po_begin(cfa.getEntry());
-        auto poEnd = llvm::po_end(cfa.getEntry());
-
         auto& topoVec = mTopoSortMap[&cfa];
-        topoVec.insert(mTopo.end(), poBegin, poEnd);
-        std::reverse(topoVec.begin(), topoVec.end());
+        createTopologicalSort(cfa, topoVec);
     }
 
     auto& mainTopo = mTopoSortMap[mRoot];
@@ -325,10 +321,7 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
             llvm::outs() << "  Over-approximating.\n";
 
             mOpenCalls.clear();
-            for (auto& callPair : mCalls) {
-                CallTransition* call = callPair.first;
-                CallInfo& info = callPair.second;
-
+            for (auto& [call, info] : mCalls) {
                 if (info.getCost() > bound) {
                     LLVM_DEBUG(
                         llvm::dbgs() << "  Skipping " << *call

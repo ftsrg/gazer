@@ -50,6 +50,12 @@ TEST(TypeTest, PrintType)
 
     RealType& realTy = RealType::Get(context);
     EXPECT_EQ(realTy.getName(), "Real");
+
+    TupleType& intPairTy = TupleType::Get(intTy, intTy);
+    EXPECT_EQ(intPairTy.getName(), "(Int, Int)");
+
+    TupleType& intBoolRealTy = TupleType::Get(intTy, boolTy, realTy);
+    EXPECT_EQ(intBoolRealTy.getName(), "(Int, Bool, Real)");
 }
 
 TEST(TypeTest, TypeEquals)
@@ -98,4 +104,24 @@ TEST(TypeTest, BvPrecision)
     EXPECT_EQ(bvTy1.getWidth(), 1);
     EXPECT_EQ(bvTy32.getWidth(), 32);
     EXPECT_EQ(bvTy57.getWidth(), 57);
+}
+
+TEST(TypeTest, Tuples)
+{
+    GazerContext context;
+
+    BoolType& boolTy = BoolType::Get(context);
+    IntType& intTy = IntType::Get(context);
+    RealType& realTy = RealType::Get(context);
+
+    TupleType& intPairTy = TupleType::Get(intTy, intTy);
+    EXPECT_EQ(intPairTy.getName(), "(Int, Int)");
+
+    TupleType& intPair2 = TupleType::Get(intTy, intTy);
+    EXPECT_TRUE(intPairTy == intPair2);
+
+    TupleType& intBoolRealTy = TupleType::Get(intTy, boolTy, realTy);
+    EXPECT_EQ(intBoolRealTy.getName(), "(Int, Bool, Real)");
+
+    EXPECT_FALSE(intBoolRealTy == intPairTy);
 }
