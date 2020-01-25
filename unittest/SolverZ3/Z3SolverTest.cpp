@@ -47,7 +47,7 @@ TEST(SolverZ3Test, SmokeTest1)
     ASSERT_EQ(model.eval(a->getRefExpr()), BoolLiteralExpr::True(ctx));
 }
 
-TEST(SolverZ3Test, TestFpaWithRoundingMode)
+TEST(SolverZ3Test, FpaWithRoundingMode)
 {
     GazerContext ctx;
     Z3SolverFactory factory;
@@ -70,7 +70,7 @@ TEST(SolverZ3Test, TestFpaWithRoundingMode)
     );
 }
 
-TEST(SolverZ3Test, TestArrays)
+TEST(SolverZ3Test, Arrays)
 {
     GazerContext ctx;
     Z3SolverFactory factory;
@@ -103,7 +103,7 @@ TEST(SolverZ3Test, TestArrays)
     ASSERT_EQ(result, Solver::UNSAT);
 }
 
-TEST(SolverZ3Test, TestArrayLiterals)
+TEST(SolverZ3Test, ArrayLiterals)
 {
     GazerContext ctx;
     Z3SolverFactory factory;
@@ -131,4 +131,36 @@ TEST(SolverZ3Test, TestArrayLiterals)
     solver->add(EqExpr::Create(a1, a2));
     auto result = solver->run();
     ASSERT_EQ(result, Solver::SAT);
+}
+
+TEST(SolverZ3Test, Tuples)
+{
+    GazerContext ctx;
+    Z3SolverFactory factory;
+    auto solver = factory.createSolver(ctx);
+
+    // Example from the Z3 tutorial:
+    //  (declare-const p1 (Pair Int Int))
+    //  (declare-const p2 (Pair Int Int))
+    //  (assert (= p1 p2))
+    //  (assert (> (second p1) 20))
+    //  (check-sat)
+    //  (assert (not (= (first p1) (first p2))))
+    //  (check-sat)
+    auto& intTy = IntType::Get(ctx);
+    auto& tupTy = TupleType::Get(intTy, intTy);
+
+    auto p1 = ctx.createVariable("p1", tupTy)->getRefExpr();
+    auto p2 = ctx.createVariable("p2", tupTy)->getRefExpr();
+
+    solver->add(EqExpr::Create(p1, p2));
+    solver->add(GtExpr::Create(TupleSelectExpr::Create(p1, 1), IntLiteralExpr::Get(ctx, 20)));
+
+    auto status = solver->run();
+    EXPECT_EQ(status, Solver::SAT);
+
+    solver->add(NotEqExpr::Create(TupleSelectExpr::Create(p1, 0), TupleSelectExpr::Create(p2, 0)));
+
+    status = solver->run();
+    EXPECT_EQ(status, Solver::UNSAT);
 }
