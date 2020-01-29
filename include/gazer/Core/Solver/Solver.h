@@ -19,10 +19,11 @@
 #define GAZER_CORE_SOLVER_SOLVER_H
 
 #include "gazer/Core/Expr.h"
-#include "gazer/Core/Valuation.h"
 
 namespace gazer
 {
+
+class Model;
 
 /// Base interface for all solvers.
 class Solver
@@ -58,7 +59,7 @@ public:
     virtual void dump(llvm::raw_ostream& os) = 0;
 
     virtual SolverStatus run() = 0;
-    virtual Valuation getModel() = 0;
+    virtual std::unique_ptr<Model> getModel() = 0;
 
     virtual void reset() = 0;
 

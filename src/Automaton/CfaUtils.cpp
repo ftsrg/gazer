@@ -30,9 +30,27 @@ PathConditionCalculator::PathConditionCalculator(
     ExprBuilder& builder,
     std::function<size_t(Location*)> index,
     std::function<ExprPtr(CallTransition*)> calls,
-    std::function<void(Location*, Variable*, ExprPtr)> preds
+    std::function<void(Location*, ExprPtr)> preds
 ) : mTopo(topo), mExprBuilder(builder), mIndex(index), mCalls(calls), mPredecessors(preds)
 {}
+
+namespace
+{
+
+struct PathPredecessor
+{
+    Transition* edge;
+    size_t idx;
+    ExprPtr expr;
+
+    PathPredecessor() = default;
+
+    PathPredecessor(Transition* edge, size_t idx, ExprPtr expr)
+        : edge(edge), idx(idx), expr(expr)
+    {}
+};
+
+} // end anonymous namespace
 
 ExprPtr PathConditionCalculator::encode(Location* source, Location* target)
 {
@@ -58,7 +76,7 @@ ExprPtr PathConditionCalculator::encode(Location* source, Location* target)
         Location* loc = mTopo[i + startIdx];
         ExprVector exprs;
 
-        llvm::SmallVector<std::pair<Transition*, size_t>, 16> preds;
+        llvm::SmallVector<PathPredecessor, 16> preds;
         for (Transition* edge : loc->incoming()) {
             size_t predIdx = mIndex(edge->getSource());
             assert(predIdx < i + startIdx
@@ -67,93 +85,78 @@ ExprPtr PathConditionCalculator::encode(Location* source, Location* target)
 
             if (predIdx >= startIdx) {
                 // We are skipping the predecessors which are outside the region we are interested in.
-                preds.push_back({edge, predIdx});
-            }
-        }
+                ExprPtr formula = mExprBuilder.And({
+                    dp[predIdx - startIdx],
+                    edge->getGuard()
+                });
 
-        Variable* predVar = nullptr;
+                if (auto assignEdge = llvm::dyn_cast<AssignTransition>(edge)) {
+                    ExprVector assigns;
 
-        if (mPredecessors != nullptr) {
-            // Add predecessor identifications, if requested.
-            ExprPtr predExpr = nullptr;
-
-            if (preds.empty()) {
-                predExpr = nullptr;
-                predVar = nullptr;
-            } else if (preds.size() == 1) {
-                predExpr = mExprBuilder.IntLit(preds[0].first->getSource()->getId());
-                mPredecessors(loc, predVar, predExpr);
-            } else if (preds.size() == 2) {
-                predVar = ctx.createVariable(
-                    "__gazer_pred_" + std::to_string(mPredIdx++),
-                    BoolType::Get(ctx)
-                );
-
-                unsigned first =  preds[0].first->getSource()->getId();
-                unsigned second = preds[1].first->getSource()->getId();
-                
-                predExpr = mExprBuilder.Select(
-                    predVar->getRefExpr(), mExprBuilder.IntLit(first), mExprBuilder.IntLit(second)
-                );
-                mPredecessors(loc, predVar, predExpr);
-            } else {
-                predVar = ctx.createVariable(
-                    "__gazer_pred_" + std::to_string(mPredIdx++),
-                    IntType::Get(ctx)
-                );
-                predExpr = predVar->getRefExpr();
-                mPredecessors(loc, predVar, predExpr);
-            }
-        }
-        
-        for (size_t j = 0; j < preds.size(); ++j) {
-            Transition* edge = preds[j].first;
-            size_t predIdx = preds[j].second;
-
-            ExprPtr predIdentification;
-            if (predVar == nullptr) {
-                predIdentification = mExprBuilder.True();
-            } else if (predVar->getType().isBoolType()) {
-                predIdentification =
-                    (j == 0 ? predVar->getRefExpr() : mExprBuilder.Not(predVar->getRefExpr()));
-            } else {
-                predIdentification = mExprBuilder.Eq(
-                    predVar->getRefExpr(),
-                    mExprBuilder.IntLit(preds[j].first->getSource()->getId())
-                );
-            }
-
-            ExprPtr formula = mExprBuilder.And({
-                dp[predIdx - startIdx],
-                predIdentification,
-                edge->getGuard()
-            });
-
-            if (auto assignEdge = llvm::dyn_cast<AssignTransition>(edge)) {
-                ExprVector assigns;
-
-                for (auto& assignment : *assignEdge) {
-                    // As we are dealing with an SSA-formed CFA, we can just omit undef assignments.
-                    if (assignment.getValue()->getKind() != Expr::Undef) {
-                        auto eqExpr = mExprBuilder.Eq(assignment.getVariable()->getRefExpr(), assignment.getValue());
-                        assigns.push_back(eqExpr);
+                    for (auto& assignment : *assignEdge) {
+                        // As we are dealing with an SSA-formed CFA, we can just omit undef assignments.
+                        if (assignment.getValue()->getKind() != Expr::Undef) {
+                            auto eqExpr = mExprBuilder.Eq(assignment.getVariable()->getRefExpr(), assignment.getValue());
+                            assigns.push_back(eqExpr);
+                        }
                     }
-                }
 
-                if (!assigns.empty()) {
-                    formula = mExprBuilder.And(formula, mExprBuilder.And(assigns));
+                    if (!assigns.empty()) {
+                        formula = mExprBuilder.And(formula, mExprBuilder.And(assigns));
+                    }
+                } else if (auto callEdge = llvm::dyn_cast<CallTransition>(edge)) {
+                    formula = mExprBuilder.And(formula, mCalls(callEdge));
                 }
-            } else if (auto callEdge = llvm::dyn_cast<CallTransition>(edge)) {
-                formula = mExprBuilder.And(formula, mCalls(callEdge));
+                
+                preds.emplace_back(edge, predIdx, formula);
             }
-
-            exprs.push_back(formula);
         }
 
-        if (!exprs.empty()) {
-            dp[i] = mExprBuilder.Or(exprs);
-        } else {
+        if (LLVM_UNLIKELY(preds.empty())) {
             dp[i] = mExprBuilder.False();
+        } else if (preds.size() == 1) {
+            mPredecessors(loc, mExprBuilder.IntLit(preds[0].edge->getSource()->getId()));
+            dp[i] = preds[0].expr;
+        } else if (preds.size() == 2) {
+            Variable* predDisc = ctx.createVariable(
+                "__gazer_pred_" + std::to_string(mPredIdx++), BoolType::Get(ctx)
+            );
+
+            unsigned first  = preds[0].edge->getSource()->getId();
+            unsigned second = preds[1].edge->getSource()->getId();
+
+            mPredecessors(loc, mExprBuilder.Select(
+                predDisc->getRefExpr(), mExprBuilder.IntLit(first), mExprBuilder.IntLit(second)
+            ));
+
+            dp[i] = mExprBuilder.Or(
+                mExprBuilder.And(preds[0].expr, predDisc->getRefExpr()),
+                mExprBuilder.And(preds[1].expr, mExprBuilder.Not(predDisc->getRefExpr()))
+            );
+        } else {
+            Variable* predDisc = ctx.createVariable(
+                "__gazer_pred_" + std::to_string(mPredIdx++), IntType::Get(ctx)
+            );
+            mPredecessors(loc, predDisc->getRefExpr());
+
+            for (size_t j = 0; j < preds.size(); ++j) {
+                Transition* edge = preds[j].edge;
+                size_t predIdx = preds[j].idx;
+
+                ExprPtr predIdentification = mExprBuilder.Eq(
+                    predDisc->getRefExpr(),
+                    mExprBuilder.IntLit(preds[j].edge->getSource()->getId())
+                );
+
+                ExprPtr formula = mExprBuilder.And({
+                    preds[j].expr,
+                    predIdentification
+                });
+
+                exprs.push_back(formula);
+            }
+
+            dp[i] = mExprBuilder.Or(exprs);
         }
     }
 

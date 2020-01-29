@@ -207,8 +207,8 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
         [this](CallTransition* call) -> ExprPtr {
             return mCalls[call].overApprox;
         },
-        [this](Location* l, Variable* v, ExprPtr e) {
-            mPredecessors.insert(l, {v, e});
+        [this](Location* l, ExprPtr e) {
+            mPredecessors.insert(l, e);
         }
     );
 
@@ -362,7 +362,7 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
                 auto model = mSolver->getModel();
 
                 llvm::SmallVector<CallTransition*, 16> callsToInline;
-                this->findOpenCallsInCex(model, callsToInline);
+                this->findOpenCallsInCex(*model, callsToInline);
 
                 llvm::outs() << "    Inlining calls...\n";
                 while (!callsToInline.empty()) {
@@ -477,9 +477,9 @@ auto BoundedModelCheckerImpl::findCommonCallAncestor(Location* fwd, Location* bw
     return { dom, pdom };
 }
 
-void BoundedModelCheckerImpl::findOpenCallsInCex(Valuation& model, llvm::SmallVectorImpl<CallTransition*>& callsInCex)
+void BoundedModelCheckerImpl::findOpenCallsInCex(Model& model, llvm::SmallVectorImpl<CallTransition*>& callsInCex)
 {
-    ExprEvaluator eval{model};
+    ExprModelEvaluator eval{model};
     auto cex = bmc::BmcCex{mError, *mRoot, eval, mPredecessors};
 
     for (auto state : cex) {

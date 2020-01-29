@@ -256,7 +256,7 @@ public:
         return *mSubTypes[idx];
     }
 
-private:
+protected:
     std::vector<Type*> mSubTypes;
 };
 

@@ -193,7 +193,7 @@ template<> struct expr_hasher<VarRefExpr> {
 };
 
 template<class ExprTy>
-struct expr_hasher<ExprTy, std::enable_if_t<std::is_base_of<detail::FpExprWithRoundingMode, ExprTy>::value>>
+struct expr_hasher<ExprTy, std::enable_if_t<std::is_base_of_v<detail::FpExprWithRoundingMode, ExprTy>>>
 {
     template<class InputIterator>
     static std::size_t hash_value(Expr::ExprKind kind, Type& type, InputIterator begin, InputIterator end, llvm::APFloat::roundingMode rm) {
@@ -231,8 +231,8 @@ template<> struct expr_hasher<ExtractExpr>
     template<class InputIterator>
     static bool equals(
         const Expr* other, Expr::ExprKind kind, Type& type,
-        InputIterator begin, InputIterator end, unsigned offset, unsigned width
-    ) {
+        InputIterator begin, InputIterator end, unsigned offset, unsigned width)
+    {
         if (!expr_hasher<NonNullaryExpr>::equals(other, kind, type, begin, end)) {
             return false;
         }

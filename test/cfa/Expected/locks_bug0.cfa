@@ -30,12 +30,12 @@ procedure main() -> (main/RET_VAL : Bv32)
         call main/while.cond(main/while.cond/call := main/call, main/__output_selector0 <= main/while.cond/__output_selector);
 
     transition $8 -> $4
-        assume main/__output_selector0=0bv8
+        assume main/__output_selector0 = 0bv8
     {
     };
 
     transition $8 -> $6
-        assume main/__output_selector0=1bv8
+        assume main/__output_selector0 = 1bv8
     {
     };
 
@@ -89,7 +89,7 @@ procedure main/while.cond(main/while.cond/call : Bv32) -> (main/while.cond/__out
         assume true
     {
         main/while.cond/call10 := undef;
-        main/while.cond/cmp := main/while.cond/call10=0bv32;
+        main/while.cond/cmp := main/while.cond/call10 = 0bv32;
     };
 
     transition $3 -> $1
@@ -106,10 +106,10 @@ procedure main/while.cond(main/while.cond/call : Bv32) -> (main/while.cond/__out
     transition $4 -> $5
         assume true
     {
-        main/while.cond/cmp11 := not (main/while.cond/call=0bv32);
+        main/while.cond/cmp11 := not (main/while.cond/call = 0bv32);
         main/while.cond/. := if main/while.cond/cmp11 then 1bv32 else 0bv32;
-        main/while.cond/cmp51 := not (main/while.cond/call=0bv32);
-        main/while.cond/cmp53 := not (main/while.cond/.=1bv32);
+        main/while.cond/cmp51 := not (main/while.cond/call = 0bv32);
+        main/while.cond/cmp53 := not (main/while.cond/. = 1bv32);
         main/while.cond/or.cond := main/while.cond/cmp51 and main/while.cond/cmp53;
     };
 

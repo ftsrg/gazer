@@ -53,21 +53,18 @@ public:
         ExprBuilder& builder,
         std::function<size_t(Location*)> index,
         std::function<ExprPtr(CallTransition*)> calls,
-        std::function<void(Location*, Variable*, ExprPtr)> preds = nullptr
+        std::function<void(Location*, ExprPtr)> preds = nullptr
     );
 
 public:
     ExprPtr encode(Location* source, Location* target);
 
 private:
-    void insertPredecessor(Location* location, Variable* variable, ExprPtr expr);
-
-private:
     const std::vector<Location*>& mTopo;
     ExprBuilder& mExprBuilder;
     std::function<size_t(Location*)> mIndex;
     std::function<ExprPtr(CallTransition*)> mCalls;
-    std::function<void(Location*, Variable*, ExprPtr)> mPredecessors;
+    std::function<void(Location*, ExprPtr)> mPredecessors;
     unsigned mPredIdx = 0;
 };
 

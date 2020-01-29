@@ -250,7 +250,7 @@ public:
             : mType(type)
         {}
 
-        void addValue(ExprRef<LiteralExpr> index, ExprRef<LiteralExpr> element);
+        void addValue(const ExprRef<LiteralExpr>& index, ExprRef<LiteralExpr> element);
         void setDefault(const ExprRef<LiteralExpr>& expr);
 
         ExprRef<ArrayLiteralExpr> build();

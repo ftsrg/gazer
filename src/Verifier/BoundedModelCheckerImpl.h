@@ -22,6 +22,7 @@
 #include "gazer/Core/Expr/ExprEvaluator.h"
 #include "gazer/Core/Expr/ExprBuilder.h"
 #include "gazer/Core/Solver/Solver.h"
+#include "gazer/Core/Solver/Model.h"
 #include "gazer/Automaton/Cfa.h"
 #include "gazer/Trace/Trace.h"
 
@@ -39,7 +40,7 @@ namespace gazer
 
 namespace bmc
 {
-    using PredecessorMapT = ScopedCache<Location*, std::pair<Variable*, ExprPtr>>;
+    using PredecessorMapT = ScopedCache<Location*, ExprPtr>;
 
     class CexState
     {
@@ -94,7 +95,7 @@ namespace bmc
     {
         friend class cex_iterator;
     public:
-        BmcCex(Location* start, Cfa& cfa, ExprEvaluator& eval, PredecessorMapT& preds)
+        BmcCex(Location* start, Cfa& cfa, ExprEvaluatorBase& eval, PredecessorMapT& preds)
             : mCfa(cfa), mStart(start), mEval(eval), mPredecessors(preds)
         {
             assert(start != nullptr);
@@ -106,7 +107,7 @@ namespace bmc
     private:
         Cfa& mCfa;
         Location* mStart;
-        ExprEvaluator& mEval;
+        ExprEvaluatorBase& mEval;
         PredecessorMapT& mPredecessors;
     };
 }
@@ -163,7 +164,7 @@ private:
 
     std::function<size_t(Location*)> createLocNumberFunc();
 
-    void findOpenCallsInCex(Valuation& model, llvm::SmallVectorImpl<CallTransition*>& callsInCex);
+    void findOpenCallsInCex(Model& model, llvm::SmallVectorImpl<CallTransition*>& callsInCex);
 
     std::unique_ptr<VerificationResult> createFailResult();
 

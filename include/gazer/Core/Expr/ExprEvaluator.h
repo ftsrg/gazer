@@ -112,7 +112,7 @@ private:
     ExprRef<LiteralExpr> visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr);
 
 protected:
-    virtual ExprRef<LiteralExpr> getVariableValue(const Variable& variable) = 0;
+    virtual ExprRef<LiteralExpr> getVariableValue(Variable& variable) = 0;
 
 };
 
@@ -125,7 +125,7 @@ public:
     {}
 
 protected:
-    ExprRef<LiteralExpr> getVariableValue(const Variable& variable) override {
+    ExprRef<LiteralExpr> getVariableValue(Variable& variable) override {
         return mValuation[variable];
     }
 

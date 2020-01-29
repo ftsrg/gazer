@@ -135,9 +135,9 @@ ExprRef<LiteralExpr> ArrayLiteralExpr::operator[](const ExprRef<LiteralExpr>& ke
     return it->second;
 }
 
-void ArrayLiteralExpr::Builder::addValue(ExprRef<LiteralExpr> index, ExprRef<LiteralExpr> element)
+void ArrayLiteralExpr::Builder::addValue(const ExprRef<LiteralExpr>& index, ExprRef<LiteralExpr> element)
 {
-    mValues[index] = element;
+    mValues[index] = std::move(element);
 }
 
 void ArrayLiteralExpr::Builder::setDefault(const ExprRef<LiteralExpr>& expr)

@@ -31,17 +31,17 @@ procedure main() -> (main/RET_VAL : Bv32)
         call main/loop.header(main/loop.header/i := 0bv32, main/loop.header/sum := 0bv32, main/loop.header/limit := main/limit, main/sum <= main/loop.header/sum_out, main/__output_selector0 <= main/loop.header/__output_selector);
 
     transition $8 -> $4
-        assume main/__output_selector0=0bv8
+        assume main/__output_selector0 = 0bv8
     {
     };
 
     transition $8 -> $6
-        assume main/__output_selector0=1bv8
+        assume main/__output_selector0 = 1bv8
     {
     };
 
     transition $8 -> $4
-        assume main/__output_selector0=0bv8
+        assume main/__output_selector0 = 0bv8
     {
     };
 
@@ -138,7 +138,7 @@ procedure main/loop.header(main/loop.header/i : Bv32, main/loop.header/sum : Bv3
         main/loop.header/i1 := main/loop.header/i + 1bv32;
         main/loop.header/s := main/loop.header/sum + main/loop.header/a;
         main/loop.header/c := undef;
-        main/loop.header/c1 := if (main/loop.header/c=0bv32) then false else true;
+        main/loop.header/c1 := if (main/loop.header/c = 0bv32) then false else true;
     };
 
     transition $7 -> $1

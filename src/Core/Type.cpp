@@ -218,9 +218,9 @@ CompositeType::CompositeType(GazerContext& context, TypeID id, std::vector<Type*
 }
 
 ArrayType::ArrayType(GazerContext& context, std::vector<Type*> types)
-    : CompositeType(context, ArrayTypeID, types)
+    : CompositeType(context, ArrayTypeID, std::move(types))
 {
-    assert(types.size() == 2);
+    assert(mSubTypes.size() == 2);
 }
 
 ArrayType& ArrayType::Get(Type& indexType, Type& elementType)

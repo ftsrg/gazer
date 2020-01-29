@@ -1,5 +1,6 @@
 set(SOURCE_FILES
     Z3Solver.cpp
+    Z3Model.cpp
 )
 
 # Z3

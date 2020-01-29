@@ -207,8 +207,12 @@ private:
     }
 
     // Compare
-    PRINT_BINARY_INFIX(Eq, "=");
-    PRINT_BINARY_INFIX(NotEq, "<>");
+    PRINT_BINARY_INFIX(Eq,            " = ");
+    PRINT_BINARY_INFIX(NotEq,         " <> ");
+    PRINT_BINARY_INFIX(Lt,            " < ");
+    PRINT_BINARY_INFIX(LtEq,          " <= ");
+    PRINT_BINARY_INFIX(Gt,            " > ");
+    PRINT_BINARY_INFIX(GtEq,          " >= ");
 
     PRINT_BINARY_PREFIX(BvSLt,        "slt")
     PRINT_BINARY_PREFIX(BvSLtEq,      "sle")
@@ -224,11 +228,11 @@ private:
     PRINT_UNARY_PREFIX(FIsInf, "fp.is_inf")
 
     // Floating-point casts
-    PRINT_UNARY_CAST(FCast, "fcast")
-    PRINT_UNARY_CAST(SignedToFp, "si_to_fp")
-    PRINT_UNARY_CAST(UnsignedToFp, "ui_to_fp")
-    PRINT_UNARY_CAST(FpToSigned, "fp_to_si")
-    PRINT_UNARY_CAST(FpToUnsigned, "fp_to_ui")
+    PRINT_UNARY_CAST(FCast,         "fcast")
+    PRINT_UNARY_CAST(SignedToFp,    "si_to_fp")
+    PRINT_UNARY_CAST(UnsignedToFp,  "ui_to_fp")
+    PRINT_UNARY_CAST(FpToSigned,    "fp_to_si")
+    PRINT_UNARY_CAST(FpToUnsigned,  "fp_to_ui")
 
     // Floating-point arithmetic
     PRINT_BINARY_PREFIX(FAdd,   "fp.add")

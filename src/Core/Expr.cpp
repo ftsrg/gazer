@@ -167,7 +167,7 @@ template<Expr::ExprKind Kind>
 auto CompareExpr<Kind>::Create(const ExprPtr& left, const ExprPtr& right) -> ExprRef<CompareExpr<Kind>>
 {
     assert(left->getType() == right->getType() && "Compare expresison operand types must match!");
-    if constexpr (is_bv_only_compare(Kind)) {
+    if constexpr (is_bv_only_compare(Kind)) {   // NOLINT
         assert(left->getType().isBvType() && "Bitvector comparisons must have bitvector operands!");
     }
 
@@ -230,7 +230,7 @@ auto BvFpCastExpr<Kind>::Create(const ExprPtr& operand, Type& type, const llvm::
 {
     assert(operand->getType() != type && "Cast source and target operands must differ!");
 
-    if constexpr (is_bv_to_fp(Kind)) {
+    if constexpr (is_bv_to_fp(Kind)) {          // NOLINT
         assert(operand->getType().isBvType() && "Can only do BvToFp cast on bitvector inputs!");
         assert(type.isFloatType() && "Can only do BvToFp casts to floating-point targets!");
     } else if constexpr (is_fp_to_bv(Kind)) {   // NOLINT

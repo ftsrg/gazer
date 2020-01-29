@@ -35,5 +35,5 @@ ExprPtr ExprBuilder::TupSel(const ExprPtr& tuple, unsigned index)
 
 std::unique_ptr<ExprBuilder> gazer::CreateExprBuilder(GazerContext& context)
 {
-    return std::unique_ptr<ExprBuilder>(new ExprBuilder(context));
+    return std::make_unique<ExprBuilder>(context);
 }

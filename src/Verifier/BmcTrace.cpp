@@ -17,6 +17,8 @@
 //===----------------------------------------------------------------------===//
 #include "BoundedModelCheckerImpl.h"
 
+#include "gazer/Core/Solver/Model.h"
+
 #include <llvm/Support/raw_ostream.h>
 
 using namespace gazer;
@@ -31,16 +33,11 @@ void bmc::cex_iterator::advance()
     }
 
     Location* current = mState.getLocation();
-    //auto predLit = llvm::dyn_cast_or_null<BvLiteralExpr>(
-    //    mCex.mEval.walk(pred->second).get()
-    //);
-    auto predLit = llvm::dyn_cast_or_null<IntLiteralExpr>(
-        mCex.mEval.walk(pred->second).get()
-    );
-                            
-    assert((predLit != nullptr) && "Pred values should be evaluatable as integer literals!");
-    
-    size_t predId = predLit->getValue();//.getLimitedValue();
+    ExprRef<LiteralExpr> lit = mCex.mEval.walk(*pred);
+    assert(lit != nullptr && "Predecessor values must be evaluatable!");
+    assert(lit->getType().isIntType() && "Predecessor values must be of integer type!");
+
+    size_t predId = llvm::cast<IntLiteralExpr>(lit)->getValue();
     Location* source = mCex.mCfa.findLocationById(predId);
 
     assert(source != nullptr && "Locations should be findable by their id!");
@@ -61,10 +58,10 @@ void bmc::cex_iterator::advance()
 std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::createFailResult()
 {               
     auto model = mSolver->getModel();
-    ExprEvaluator eval{model};
+    ExprModelEvaluator eval{*model};
 
     if (mSettings.dumpSolverModel) {
-        model.print(llvm::errs());
+        model->dump(llvm::errs());
     }
 
     std::unique_ptr<Trace> trace;
@@ -98,10 +95,10 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::createFailResult()
                 }
 
                 ExprRef<AtomicExpr> value;
-                if (model.find(assignment.getVariable()) == model.end()) {
-                    value = UndefExpr::Get(variable->getType());
+                if (auto lit = model->eval(*assignment.getVariable())) {
+                    value = lit;
                 } else {
-                    value = eval.walk(assignment.getVariable()->getRefExpr());
+                    value = UndefExpr::Get(variable->getType());
                 }
 
                 traceAction.emplace_back(origVariable, value);
