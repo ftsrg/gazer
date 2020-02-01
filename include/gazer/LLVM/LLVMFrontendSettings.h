@@ -18,6 +18,8 @@
 #ifndef GAZER_LLVM_LLVMFRONTENDSETTINGS_H
 #define GAZER_LLVM_LLVMFRONTENDSETTINGS_H
 
+#include "gazer/ADT/EnumSet.h"
+
 #include <string>
 
 namespace gazer
@@ -60,20 +62,19 @@ enum class MemoryModelSetting
 /// functions.
 enum class ExternFuncGlobalBehavior
 {
-    /// Assume that all external functions are pure and never
-    /// modify global variables.
-    NeverModifies = 0,
-    /// Assume that external functions modify global variables
-    /// if they receive a pointer operand which may alias with
-    /// a global variable.
-    PointerArgModifies = 1,
+    /// Assume that external functions modify memory through
+    /// pointer operands which may alias with a memory object.
+    PointerArgModifies,
     /// Assume that functions which take no input parameters
     /// modify global variables.
-    NoParamModifies = 2,
+    NoParamModifiesGlobals,
     /// Assume that external functions which return void modify
     /// global variables.
-    RetVoidModifies = 4,
+    RetVoidModifiesGlobals,
 };
+
+template<>
+inline constexpr bool enable_enum_flags_v<ExternFuncGlobalBehavior> = true;
 
 class LLVMFrontendSettings
 {
@@ -102,7 +103,7 @@ public:
     // Memory models
     bool debugDumpMemorySSA = false;
     MemoryModelSetting memoryModel = MemoryModelSetting::Flat;
-    ExternFuncGlobalBehavior externFuncGlobals = ExternFuncGlobalBehavior::PointerArgModifies;
+    EnumSet<ExternFuncGlobalBehavior> externFuncGlobals = ExternFuncGlobalBehavior::PointerArgModifies;
 
 public:
     bool isElimVarsOff() const { return elimVars == ElimVarsLevel::Off; }

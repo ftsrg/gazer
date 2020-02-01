@@ -1,6 +1,7 @@
 SET(TEST_SOURCES
     CfaTest.cpp
     CfaPrinterTest.cpp
+    PathConditionTest.cpp
 )
 
 add_executable(GazerAutomatonTest ${TEST_SOURCES})

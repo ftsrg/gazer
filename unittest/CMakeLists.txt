@@ -34,6 +34,7 @@ add_subdirectory(${GOOGLETEST_SOURCE_DIR}
 )
 
 # Add tests
+add_subdirectory(ADT)
 add_subdirectory(Core)
 add_subdirectory(Automaton)
 add_subdirectory(LLVM)
@@ -50,6 +51,7 @@ add_custom_target(check-unit
 )
 
 add_dependencies(check-unit
+    GazerAdtTest
     GazerCoreTest
     GazerLLVMTest
     GazerAutomatonTest
