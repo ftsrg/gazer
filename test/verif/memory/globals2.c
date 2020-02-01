@@ -1,6 +1,4 @@
-// XFAIL: memory
-// RUN: %bmc -bound 1 "%s" | FileCheck "%s"
-// RUN: %bmc -bound 1 -math-int "%s" | FileCheck "%s"
+// RUN: %bmc -bound 1 -no-inline-globals "%s" | FileCheck "%s"
 
 // CHECK: Verification {{(SUCCESSFUL|BOUND REACHED)}}
 #include <limits.h>

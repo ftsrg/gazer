@@ -68,13 +68,15 @@ Location* Cfa::findLocationById(unsigned id)
 AssignTransition *Cfa::createAssignTransition(
     Location *source, Location *target,
     ExprPtr guard,
-    std::vector<VariableAssignment> assignments
+    llvm::ArrayRef<VariableAssignment> assignments
 ) {
     if (guard == nullptr) {
         guard = BoolLiteralExpr::True(mContext);
     }
 
-    auto edge = new AssignTransition(source, target, std::move(guard), std::move(assignments));
+    std::vector<VariableAssignment> edgeAssigns(assignments.begin(), assignments.end());
+
+    auto edge = new AssignTransition(source, target, std::move(guard), std::move(edgeAssigns));
     mTransitions.emplace_back(edge);
     source->addOutgoing(edge);
     target->addIncoming(edge);
@@ -83,12 +85,15 @@ AssignTransition *Cfa::createAssignTransition(
 }
 
 CallTransition *Cfa::createCallTransition(Location *source, Location *target, const ExprPtr& guard,
-    Cfa *callee, std::vector<VariableAssignment> inputArgs, std::vector<VariableAssignment> outputArgs)
+    Cfa *callee, llvm::ArrayRef<VariableAssignment> inputArgs, llvm::ArrayRef<VariableAssignment> outputArgs)
 {
     assert(source != nullptr);
     assert(target != nullptr);
 
-    auto call = new CallTransition(source, target, guard, callee, std::move(inputArgs), std::move(outputArgs));
+    std::vector<VariableAssignment> inputs(inputArgs.begin(), inputArgs.end());
+    std::vector<VariableAssignment> outputs(outputArgs.begin(), outputArgs.end());
+
+    auto call = new CallTransition(source, target, guard, callee, std::move(inputs), std::move(outputs));
     mTransitions.emplace_back(call);
     source->addOutgoing(call);
     target->addIncoming(call);
@@ -100,8 +105,8 @@ CallTransition *Cfa::createCallTransition(
     Location *source,
     Location *target,
     Cfa *callee,
-    std::vector<VariableAssignment> inputArgs,
-    std::vector<VariableAssignment> outputArgs)
+    llvm::ArrayRef<VariableAssignment> inputArgs,
+    llvm::ArrayRef<VariableAssignment> outputArgs)
 {
     return createCallTransition(
         source,

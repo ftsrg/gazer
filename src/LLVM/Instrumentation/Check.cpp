@@ -110,9 +110,13 @@ llvm::IntegerType* CheckRegistry::GetErrorCodeType(llvm::LLVMContext& context)
 
 llvm::FunctionCallee CheckRegistry::GetErrorFunction(llvm::Module& module)
 {
+    llvm::AttrBuilder ab;
+    ab.addAttribute(llvm::Attribute::NoReturn);
+
     return module.getOrInsertFunction(
         ErrorFunctionName,
-        GetErrorFunctionType(module.getContext())
+        GetErrorFunctionType(module.getContext()),
+        llvm::AttributeList::get(module.getContext(), AttributeList::FunctionIndex, ab)
     );
 }
 

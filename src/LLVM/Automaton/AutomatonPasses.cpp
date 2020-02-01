@@ -38,7 +38,8 @@ std::unique_ptr<AutomataSystem> gazer::translateModuleToAutomata(
     llvm::DenseMap<llvm::Value*, Variable*>& variables,
     CfaToLLVMTrace& blockEntries
 ) {
-    ModuleToCfa transformer(module, loopInfos, context, memoryModel, settings);
+    LLVMTypeTranslator types(memoryModel.getMemoryTypeTranslator(), settings);
+    ModuleToCfa transformer(module, loopInfos, context, memoryModel, types, settings);
     return transformer.generate(variables, blockEntries);
 }
 
@@ -71,26 +72,22 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
     std::unique_ptr<MemoryModel> memoryModel;
     switch (mSettings.memoryModel) {
         case MemoryModelSetting::Havoc:
-            memoryModel = CreateHavocMemoryModel(mContext, mSettings, module.getDataLayout());
-            break;
-        case MemoryModelSetting::Flat:
-            memoryModel = CreateFlatMemoryModel(mContext, mSettings, module.getDataLayout());
+        default:
+            memoryModel = CreateHavocMemoryModel(mContext);
             break;
     }
     assert(memoryModel != nullptr && "Unknown memory model setting!");
-    
-    memoryModel->initialize(module);
 
-    if (mSettings.debugDumpMemorySSA) {
-        for (auto& function : module.functions()) {
-            if (function.isDeclaration()) {
-                continue;
-            }
+    // if (mSettings.debugDumpMemorySSA) {
+    //     for (auto& function : module.functions()) {
+    //         if (function.isDeclaration()) {
+    //             continue;
+    //         }
 
-            auto memSSA = memoryModel->getFunctionMemorySSA(function);
-            memSSA->print(llvm::errs());
-        }
-    }
+    //         auto memSSA = memoryModel->getFunctionMemorySSA(function);
+    //         memSSA->print(llvm::errs());
+    //     }
+    // }
 
     mSystem = translateModuleToAutomata(
         module, mSettings, loopInfoMap, mContext, *memoryModel, mVariables, mTraceInfo

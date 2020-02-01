@@ -22,16 +22,12 @@
 
 using namespace gazer;
 
-LLVMTypeTranslator::LLVMTypeTranslator(MemoryModel& memoryModel, IntRepresentation intRepresentation)
-    : mMemoryModel(memoryModel), mInts(intRepresentation)
-{}
-
 gazer::Type& LLVMTypeTranslator::get(const llvm::Type* type)
 {
     assert(type != nullptr && "Cannot translate NULL types!");
     assert(type->isFirstClassType() && "Can only translate first class types!");
 
-    auto& ctx = mMemoryModel.getContext();
+    auto& ctx = mMemoryTypes.getContext();
 
     switch (type->getTypeID()) {
         case llvm::Type::IntegerTyID: {
@@ -40,7 +36,7 @@ gazer::Type& LLVMTypeTranslator::get(const llvm::Type* type)
                 return BoolType::Get(ctx);
             }
 
-            if (mInts == IntRepresentation::BitVectors) {
+            if (mSettings.ints == IntRepresentation::BitVectors) {
                 return BvType::Get(ctx, width);
             }
 
@@ -55,9 +51,9 @@ gazer::Type& LLVMTypeTranslator::get(const llvm::Type* type)
         case llvm::Type::FP128TyID:
             return FloatType::Get(ctx, FloatType::Quad);
         case llvm::Type::PointerTyID:
-            return mMemoryModel.handlePointerType(llvm::cast<llvm::PointerType>(type));
+            return mMemoryTypes.handlePointerType(llvm::cast<llvm::PointerType>(type));
         case llvm::Type::ArrayTyID:
-            return mMemoryModel.handleArrayType(llvm::cast<llvm::ArrayType>(type));
+            return mMemoryTypes.handleArrayType(llvm::cast<llvm::ArrayType>(type));
         default:
             llvm::errs() << "Unsupported LLVM Type: " << *type << "\n";
             llvm_unreachable("Unsupported LLVM type.");

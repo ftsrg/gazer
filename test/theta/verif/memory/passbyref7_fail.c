@@ -1,4 +1,4 @@
-// XFAIL: memory.burstall
+// REQUIRES: memory.burstall
 // RUN: %theta "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED

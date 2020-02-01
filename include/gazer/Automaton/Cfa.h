@@ -236,23 +236,23 @@ public:
     Location* createErrorLocation();
 
     AssignTransition* createAssignTransition(
-        Location* source, Location* target, ExprPtr guard = nullptr, std::vector<VariableAssignment> assignments = {}
+        Location* source, Location* target, ExprPtr guard = nullptr, llvm::ArrayRef<VariableAssignment> assignments = {}
     );
 
     AssignTransition* createAssignTransition(
-        Location* source, Location* target, std::vector<VariableAssignment> assignments
+        Location* source, Location* target, llvm::ArrayRef<VariableAssignment> assignments
     ) {
         return createAssignTransition(source, target, nullptr, assignments);
     }
 
     CallTransition* createCallTransition(
         Location* source, Location* target, const ExprPtr& guard,
-        Cfa* callee, std::vector<VariableAssignment> inputArgs, std::vector<VariableAssignment> outputArgs
+        Cfa* callee, llvm::ArrayRef<VariableAssignment> inputArgs, llvm::ArrayRef<VariableAssignment> outputArgs
     );
 
     CallTransition* createCallTransition(
         Location* source, Location* target,
-        Cfa* callee, std::vector<VariableAssignment> inputArgs, std::vector<VariableAssignment> outputArgs
+        Cfa* callee, llvm::ArrayRef<VariableAssignment> inputArgs, llvm::ArrayRef<VariableAssignment> outputArgs
     );
 
     //===----------------------------------------------------------------------===//

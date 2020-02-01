@@ -173,14 +173,17 @@ void LLVMFrontend::registerVerificationPipeline()
     // Do an instruction namer pass.
     mPassManager.add(llvm::createInstructionNamerPass());
 
-    // Display the final LLVM CFG now.
-    if (ShowFinalCFG) {
-        mPassManager.add(llvm::createCFGPrinterLegacyPassPass());
-    }
-
     if (!PrintFinalModule.empty() && mModuleOutput != nullptr) {
         mPassManager.add(llvm::createPrintModulePass(mModuleOutput->os()));
         mModuleOutput->keep();
+    }
+
+    // Unify exit nodes again
+    mPassManager.add(llvm::createUnifyFunctionExitNodesPass());
+    
+    // Display the final LLVM CFG now.
+    if (ShowFinalCFG) {
+        mPassManager.add(llvm::createCFGPrinterLegacyPassPass());
     }
 
     // Perform module-to-automata translation.

@@ -21,6 +21,9 @@
 #include "gazer/Core/Expr.h"
 #include "gazer/Core/Expr/ExprBuilder.h"
 #include "gazer/LLVM/Memory/ValueOrMemoryObject.h"
+#include "gazer/LLVM/Memory/MemoryInstructionHandler.h"
+#include "gazer/LLVM/TypeTranslator.h"
+
 #include "gazer/LLVM/LLVMFrontendSettings.h"
 
 #include <llvm/IR/Operator.h>
@@ -39,12 +42,14 @@ public:
     InstToExpr(
         llvm::Function& function,
         ExprBuilder& builder,
-        MemoryModel& memoryModel,
-        LLVMFrontendSettings settings
+        LLVMTypeTranslator& types,
+        MemoryInstructionHandler& memoryInstHandler,
+        const LLVMFrontendSettings& settings
     ) : mFunction(function),
         mExprBuilder(builder),
+        mTypes(types),
         mContext(builder.getContext()),
-        mMemoryModel(memoryModel),
+        mMemoryInstHandler(memoryInstHandler),
         mSettings(settings)
     {}
 
@@ -103,9 +108,10 @@ private:
 protected:
     llvm::Function& mFunction;
     ExprBuilder& mExprBuilder;
+    LLVMTypeTranslator& mTypes;
     GazerContext& mContext;
-    MemoryModel& mMemoryModel;
-    LLVMFrontendSettings mSettings;
+    MemoryInstructionHandler& mMemoryInstHandler;
+    const LLVMFrontendSettings& mSettings;
 };
 
 } // end namespace gazer

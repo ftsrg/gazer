@@ -53,7 +53,6 @@ private:
     {}
 
 public:
-
     void print(llvm::raw_ostream& os);
 
     // Def-use queries
@@ -91,7 +90,6 @@ private:
     static void memoryAccessOfKindImpl(Range&& range, llvm::SmallVectorImpl<AccessKind*>& vec)
     {
         static_assert(std::is_base_of_v<MemoryAccess, AccessKind>, "AccessKind must be a subclass of MemoryAccess!");
-
         for (auto& access : range) {
             if (auto casted = llvm::dyn_cast<AccessKind>(&access)) {
                 vec.push_back(casted);
@@ -171,6 +169,24 @@ private:
     MemorySSA::ValueToUseSetMap mValueUses;
 
     unsigned mVersionNumber = 0;
+};
+
+/// A wrapper for passes which want to construct memory SSA.
+/// Clients can register required analyses
+class MemorySSABuilderPass : public llvm::ModulePass
+{
+public:
+    explicit MemorySSABuilderPass(char& ID)
+        : ModulePass(ID)
+    {}
+
+    void getAnalysisUsage(llvm::AnalysisUsage& au) const final;
+    bool runOnModule(llvm::Module& module) final;
+
+    virtual void addRequiredAnalyses(llvm::AnalysisUsage& au) const {}
+    virtual void initializeFunction(llvm::Function& function, MemorySSABuilder& builder) = 0;
+private:
+    llvm::DenseMap<llvm::Function*, std::unique_ptr<MemorySSA>> mFunctions;
 };
 
 }

@@ -147,7 +147,7 @@ class OutputPatternReducer(Reducer):
         self.pattern = pattern
 
     def create_script(self) -> str:
-        output = "{0} >& t.log\ngrep '{1}' t.log\n".format(self.verif.call_str(), self.pattern)
+        output = "{0} &> t.log\ngrep '{1}' t.log\n".format(self.verif.call_str(), self.pattern)
 
         return output
 
@@ -186,7 +186,6 @@ if __name__ == "__main__":
     else:
         raise ValueError("Unknown gazer tool!")
 
-
     safe_tool_path = None
     if args.safe_tool != "":
         safe_tool_path = find_tool(args.safe_tool, args.safe_tool_path)
@@ -196,7 +195,7 @@ if __name__ == "__main__":
         safe_tool = GazerVerifier(safe_tool_path, file_copy, args.safe_tool_args.split(' '))
     elif args.safe_tool == 'cpa':
         safe_tool = CpaVerifier(safe_tool_path, file_copy, args.safe_tool_args.split(' '))
-    else:
+    elif args.safe_tool is not None:
         raise ValueError("Unknown safe tool!")
 
     reducer = None

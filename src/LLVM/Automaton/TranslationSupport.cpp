@@ -15,35 +15,17 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
-#ifndef GAZER_LLVM_TYPETRANSLATOR_H
-#define GAZER_LLVM_TYPETRANSLATOR_H
+///
+/// \file This file defines some utilities to help the translation process.
+///
+//===----------------------------------------------------------------------===//
+#include "FunctionToCfa.h"
 
-#include "gazer/Core/Type.h"
-#include "gazer/LLVM/LLVMFrontendSettings.h"
+using namespace gazer::llvm2cfa;
 
-#include <llvm/IR/Type.h>
-#include "llvm/IR/DerivedTypes.h"
-
-namespace gazer
+auto CfaGenInfo::getMemoryInstructionHandler() const
+    -> MemoryInstructionHandler&
 {
-
-class MemoryTypeTranslator;
-
-class LLVMTypeTranslator final
-{
-public:
-    LLVMTypeTranslator(
-        MemoryTypeTranslator& memoryTypes, const LLVMFrontendSettings& settings)
-        : mMemoryTypes(memoryTypes), mSettings(settings)
-    {}
-
-    gazer::Type& get(const llvm::Type* type);
-
-protected:
-    MemoryTypeTranslator& mMemoryTypes;
-    const LLVMFrontendSettings& mSettings;
-};
-
-} // end namespace gazer
-
-#endif
+    llvm::Function* sourceFunction = getEntryBlock()->getParent();
+    return Context.getMemoryModel().getMemoryInstructionHandler(*sourceFunction);
+}

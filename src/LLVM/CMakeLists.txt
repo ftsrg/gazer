@@ -13,6 +13,7 @@ set(SOURCE_FILES
     Trace/TestHarnessGenerator.cpp
     Automaton/ModuleToAutomata.cpp
     Automaton/InstToExpr.cpp
+    Automaton/TranslationSupport.cpp
     LLVMTraceBuilder.cpp
     TypeTranslator.cpp
     LLVMFrontendSettings.cpp
@@ -20,11 +21,13 @@ set(SOURCE_FILES
     ClangFrontend.cpp
     FrontendConfig.cpp
     Memory/MemoryObject.cpp
-    Memory/FlatMemoryModel.cpp
-    Memory/DummyMemoryModel.cpp
+    #Memory/Flat/FlatMemoryModel.cpp
+    #Memory/DummyMemoryModel.cpp
+    Memory/HavocMemoryModel.cpp
     Memory/MemoryModel.cpp
     Memory/MemorySSA.cpp
     Memory/MemoryUtils.cpp
+    Memory/MemoryInstructionHandler.cpp
     Automaton/AutomatonPasses.cpp
     Automaton/ExtensionPoints.cpp
     Automaton/ValueOrMemoryObject.cpp

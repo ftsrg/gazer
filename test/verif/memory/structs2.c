@@ -1,7 +1,8 @@
-// XFAIL: memory.structs
-// RUN: %bmc -bound 1 -memory=flat "%s" | FileCheck "%s"
+// RUN: %bmc -bound 1 -memory=flat "%s" | FileCheck "%s" --check-prefix=MODIFY
 
 // CHECK: Verification {{(SUCCESSFUL|BOUND REACHED)}}
+
+// MODIFY: Verification FAILED
 
 int __VERIFIER_nondet_int(void);
 void __VERIFIER_error(void) __attribute__((__noreturn__));

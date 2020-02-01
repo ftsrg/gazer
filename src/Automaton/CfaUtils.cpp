@@ -115,38 +115,55 @@ ExprPtr PathConditionCalculator::encode(Location* source, Location* target)
         if (LLVM_UNLIKELY(preds.empty())) {
             dp[i] = mExprBuilder.False();
         } else if (preds.size() == 1) {
-            mPredecessors(loc, mExprBuilder.IntLit(preds[0].edge->getSource()->getId()));
+            if (mPredecessors != nullptr) {
+                mPredecessors(loc, mExprBuilder.IntLit(preds[0].edge->getSource()->getId()));
+            }
             dp[i] = preds[0].expr;
         } else if (preds.size() == 2) {
-            Variable* predDisc = ctx.createVariable(
-                "__gazer_pred_" + std::to_string(mPredIdx++), BoolType::Get(ctx)
-            );
+            ExprPtr p1 = mExprBuilder.True();
+            ExprPtr p2 = mExprBuilder.True();
 
-            unsigned first  = preds[0].edge->getSource()->getId();
-            unsigned second = preds[1].edge->getSource()->getId();
+            if (mPredecessors != nullptr) {
+                Variable* predDisc = ctx.createVariable(
+                    "__gazer_pred_" + std::to_string(mPredIdx++), BoolType::Get(ctx)
+                );
 
-            mPredecessors(loc, mExprBuilder.Select(
-                predDisc->getRefExpr(), mExprBuilder.IntLit(first), mExprBuilder.IntLit(second)
-            ));
+                unsigned first  = preds[0].edge->getSource()->getId();
+                unsigned second = preds[1].edge->getSource()->getId();
+
+                mPredecessors(loc, mExprBuilder.Select(
+                    predDisc->getRefExpr(), mExprBuilder.IntLit(first), mExprBuilder.IntLit(second)
+                ));
+
+                p1 = predDisc->getRefExpr();
+                p2 = mExprBuilder.Not(predDisc->getRefExpr());
+            }
 
             dp[i] = mExprBuilder.Or(
-                mExprBuilder.And(preds[0].expr, predDisc->getRefExpr()),
-                mExprBuilder.And(preds[1].expr, mExprBuilder.Not(predDisc->getRefExpr()))
+                mExprBuilder.And(preds[0].expr, p1),
+                mExprBuilder.And(preds[1].expr, p2)
             );
         } else {
-            Variable* predDisc = ctx.createVariable(
-                "__gazer_pred_" + std::to_string(mPredIdx++), IntType::Get(ctx)
-            );
-            mPredecessors(loc, predDisc->getRefExpr());
+            Variable* predDisc = nullptr;
+            if (mPredecessors != nullptr) {
+                predDisc = ctx.createVariable(
+                    "__gazer_pred_" + std::to_string(mPredIdx++), IntType::Get(ctx)
+                );
+                mPredecessors(loc, predDisc->getRefExpr());
+            }
 
             for (size_t j = 0; j < preds.size(); ++j) {
                 Transition* edge = preds[j].edge;
                 size_t predIdx = preds[j].idx;
 
-                ExprPtr predIdentification = mExprBuilder.Eq(
-                    predDisc->getRefExpr(),
-                    mExprBuilder.IntLit(preds[j].edge->getSource()->getId())
-                );
+                ExprPtr predIdentification = mExprBuilder.True();
+
+                if (predDisc != nullptr) {
+                    predIdentification = mExprBuilder.Eq(
+                        predDisc->getRefExpr(),
+                        mExprBuilder.IntLit(preds[j].edge->getSource()->getId())
+                    );
+                }
 
                 ExprPtr formula = mExprBuilder.And({
                     preds[j].expr,

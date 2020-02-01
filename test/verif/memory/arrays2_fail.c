@@ -1,5 +1,4 @@
-// XFAIL: memory.arrays
-// RUN: %bmc -bound 10 -math-int "%s" | FileCheck "%s"
+// RUN: %bmc -bound 10 "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED
 int __VERIFIER_nondet_int(void);

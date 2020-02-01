@@ -24,6 +24,7 @@
 #include "gazer/Automaton/Cfa.h"
 
 #include "gazer/LLVM/Memory/MemoryObject.h"
+#include "gazer/LLVM/Memory/MemoryModel.h"
 #include "gazer/LLVM/Automaton/InstToExpr.h"
 #include "gazer/LLVM/LLVMTraceBuilder.h"
 
@@ -167,6 +168,8 @@ public:
     bool hasInput(llvm::Value* value) { return Inputs.count(value) != 0; }
     bool hasLocal(const llvm::Value* value) { return Locals.count(value) != 0; }
 
+    MemoryInstructionHandler& getMemoryInstructionHandler() const;
+
 private:
     void addVariableToContext(ValueOrMemoryObject value, Variable* variable);
 };
@@ -184,9 +187,10 @@ public:
     GenerationContext(
         AutomataSystem& system,
         MemoryModel& memoryModel,
+        LLVMTypeTranslator& types,
         LoopInfoMapTy loopInfos,
         LLVMFrontendSettings& settings
-    ) : mSystem(system), mMemoryModel(memoryModel),
+    ) : mSystem(system), mMemoryModel(memoryModel), mTypes(types),
         mLoopInfos(std::move(loopInfos)), mSettings(settings)
     {}
 
@@ -237,6 +241,7 @@ public:
 
     AutomataSystem& getSystem() const { return mSystem; }
     MemoryModel& getMemoryModel() const { return mMemoryModel; }
+    LLVMTypeTranslator& getTypes() const { return mTypes; }
     LLVMFrontendSettings& getSettings() { return mSettings; }
     CfaToLLVMTrace& getTraceInfo() { return mTraceInfo; }
 
@@ -253,6 +258,7 @@ private:
 private:
     AutomataSystem& mSystem;
     MemoryModel& mMemoryModel;
+    LLVMTypeTranslator& mTypes;
     LoopInfoMapTy mLoopInfos;
     LLVMFrontendSettings& mSettings;
     std::unordered_map<VariantT, CfaGenInfo> mProcedures;
@@ -271,6 +277,7 @@ public:
         GenerationContext::LoopInfoMapTy& loops,
         GazerContext& context,
         MemoryModel& memoryModel,
+        LLVMTypeTranslator& types,
         LLVMFrontendSettings& settings
     );
 
@@ -363,7 +370,6 @@ private:
     llvm::DenseMap<ValueOrMemoryObject, ExprPtr> mInlinedVars;
     llvm::DenseSet<Variable*> mEliminatedVarsSet;
     llvm::BasicBlock* mEntryBlock;
-    memory::MemorySSA* mMemorySSA;
 };
 
 } // end namespace llvm2cfa

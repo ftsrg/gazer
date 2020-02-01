@@ -43,12 +43,13 @@ namespace gazer::llvm2cfa
 namespace gazer
 {
 
+class MemoryModel;
+
 // Extension points
 //==------------------------------------------------------------------------==//
 // If a client (such as a memory model) wishes to hook into the CFA generation
-// process, it may do so through extension points.
-// Each hook will receive one of these extension point objects at the time
-// they are called.
+// process, it may do so through extension points. Each hook will receive one
+// of these extension point objects at the time they are called.
 
 namespace llvm2cfa
 {
@@ -73,28 +74,10 @@ public:
 
     llvm::Function* getParent() const;
 
+    bool isEntryProcedure() const;
+
 protected:
     CfaGenInfo& mGenInfo;
-};
-
-/// This extension can be used to insert additional variables into the CFA at the
-/// beginning of the generation process.
-class VariableDeclExtensionPoint : public ExtensionPoint
-{
-public:
-    VariableDeclExtensionPoint(CfaGenInfo& genInfo)
-        : ExtensionPoint(genInfo)
-    {}
-
-    Variable* createInput(ValueOrMemoryObject val, Type& type, const std::string& suffix = "");
-    Variable* createLocal(ValueOrMemoryObject val, Type& type, const std::string& suffix = "");
-
-    /// \brief Creates an input variable which will be handled according to the
-    /// transformation rules used for PHI nodes.
-    Variable* createPhiInput(ValueOrMemoryObject val, Type& type, const std::string& suffix = "");
-
-    /// Marks an already declared variable as output.
-    void markOutput(ValueOrMemoryObject val, Variable* variable);
 };
 
 /// An extension point which may only query variables from the target automaton.
@@ -110,11 +93,46 @@ public:
     Variable* getOutputVariableFor(ValueOrMemoryObject val);
 };
 
+/// This extension can be used to insert additional variables into the CFA at the
+/// beginning of the generation process.
+class VariableDeclExtensionPoint : public AutomatonInterfaceExtensionPoint
+{
+public:
+    VariableDeclExtensionPoint(CfaGenInfo& genInfo)
+        : AutomatonInterfaceExtensionPoint(genInfo)
+    {}
+
+    Variable* createInput(ValueOrMemoryObject val, Type& type, const std::string& suffix = "");
+    Variable* createLocal(ValueOrMemoryObject val, Type& type, const std::string& suffix = "");
+
+    /// \brief Creates an input variable which will be handled according to the
+    /// transformation rules used for PHI nodes.
+    Variable* createPhiInput(ValueOrMemoryObject val, Type& type, const std::string& suffix = "");
+
+    /// Marks an already declared variable as output.
+    void markOutput(ValueOrMemoryObject val, Variable* variable);
+};
+
+/// Variable declaration extension point for loops.
+class LoopVarDeclExtensionPoint : public VariableDeclExtensionPoint
+{
+public:
+    using VariableDeclExtensionPoint::VariableDeclExtensionPoint;
+
+    /// Marks an already declared variable as a loop output, and creates an auxiliary
+    /// variable to hold the output value.
+    void createLoopOutput(
+        ValueOrMemoryObject val, Variable* output, const llvm::Twine& suffix = "_out");
+};
+
+/// An extension point which can access the representations of already-translated instructions
+/// and insert assignments in the current transformation step.
 class GenerationStepExtensionPoint : public AutomatonInterfaceExtensionPoint
 {
 public:
     using AutomatonInterfaceExtensionPoint::AutomatonInterfaceExtensionPoint;
 
+    /// Creates a new local variable into the current automaton.
     Variable* createAuxiliaryVariable(const std::string& name, Type& type);
 
     virtual ExprPtr getAsOperand(ValueOrMemoryObject val) = 0;

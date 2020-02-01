@@ -19,8 +19,7 @@
 #define GAZER_MEMORY_MEMORYMODEL_H
 
 #include "gazer/LLVM/Memory/MemorySSA.h"
-
-#include <llvm/Analysis/PtrUseVisitor.h>
+#include "gazer/LLVM/Memory/MemoryInstructionHandler.h"
 
 namespace llvm
 {
@@ -32,198 +31,57 @@ namespace gazer
 
 class Cfa;
 
-namespace llvm2cfa
-{
-
-class VariableDeclExtensionPoint;
-class GenerationStepExtensionPoint;
-class AutomatonInterfaceExtensionPoint;
-
-} // end namespace llvm2cfa
-
-/// An interface for memory models.
+/// Memory models are responsible for representing memory-related types and instructions.
 class MemoryModel
 {
 public:
-    struct CallParam
-    {
-        CallParam(MemoryObjectDef* formal, MemoryObjectDef* actual)
-            : formal(formal), actual(actual)
-        {}
-
-        MemoryObjectDef* formal;
-        MemoryObjectDef* actual;
-    };
-
-public:
-    MemoryModel(
-        GazerContext& context,
-        LLVMFrontendSettings settings,
-        const llvm::DataLayout& dl
-    )
-        : mContext(context),
-        mTypes(*this, settings.ints),
-        mSettings(settings),
-        mDataLayout(dl)
-    {}
+    MemoryModel() = default;
 
     MemoryModel(const MemoryModel&) = delete;
     MemoryModel& operator=(const MemoryModel&) = delete;
 
-    /// Initializes this memory model for a specific module.
-    /// \param module The LLVM module to initialize this memory model for.
-    /// \param getDomTree A callable which returns the dominator tree for each function.
-    void initialize(llvm::Module& module);
+    /// Returns the memory instruction translator of this memory model.
+    virtual MemoryInstructionHandler& getMemoryInstructionHandler(llvm::Function& function) = 0;
 
-    /// Declares all input/output/local variables that should be inserted into the CFA.
-    virtual void declareProcedureVariables(llvm2cfa::VariableDeclExtensionPoint& extensionPoint) = 0;
+    /// Returns the type translator of this memory model.
+    virtual MemoryTypeTranslator& getMemoryTypeTranslator() = 0;
 
-    virtual ExprPtr handlePointerCast(const llvm::CastInst& cast, ExprPtr origPtr) = 0;
-
-    /// Handles an arbitrary pointer value.
-    /// The second operand allows function-specific lookups.
-    virtual ExprPtr handlePointerValue(const llvm::Value* value, llvm::Function& parent) = 0;
-
-    /// Translates a given memory object definition into an assignment.
-    //virtual std::optional<VariableAssignment> handleMemoryObjectDef(const MemoryObjectDef* def) = 0;
-    //virtual std::optional<VariableAssignment> handleMemoryObjectUse(const MemoryObjectUse* use) = 0;
-
-    virtual ExprPtr handleLiveOnEntry(
-        memory::LiveOnEntryDef* def,
-        llvm2cfa::GenerationStepExtensionPoint& ep
-    );
-
-    virtual ExprPtr handleGlobalInitializer(
-        memory::GlobalInitializerDef* def,
-        ExprPtr pointer,
-        llvm2cfa::GenerationStepExtensionPoint& ep
-    ) = 0;
-    
-    /// Translates the given LoadInst into an assignable expression.
-    virtual ExprPtr handleLoad(
-        const llvm::LoadInst& load,
-        ExprPtr pointer,
-        llvm2cfa::GenerationStepExtensionPoint& ep
-    ) = 0;
-
-    /// Translates an alloca instruction into an assignable expression.
-    virtual ExprPtr handleAlloca(
-        const llvm::AllocaInst& alloc,
-        llvm2cfa::GenerationStepExtensionPoint& ep
-    ) = 0;
-
-    virtual void handleCall(
-        llvm::ImmutableCallSite call,
-        llvm2cfa::GenerationStepExtensionPoint& callerEp,
-        llvm2cfa::AutomatonInterfaceExtensionPoint& calleeEp,
-        std::vector<VariableAssignment>& inputAssignments,
-        std::vector<VariableAssignment>& outputAssignments,
-        std::vector<VariableAssignment>& additionalAssignments
-    ) = 0;
-
-    virtual ExprPtr handleGetElementPtr(
-        const llvm::GetElementPtrInst& gep,
-        llvm::ArrayRef<ExprPtr> ops
-    ) = 0;
-
-    virtual void handleStore(
-        const llvm::StoreInst& store,
-        ExprPtr pointer,
-        ExprPtr value,
-        llvm2cfa::GenerationStepExtensionPoint& ep
-    ) = 0;
-
-    virtual void handleBlock(
-        const llvm::BasicBlock& bb,
-        llvm2cfa::GenerationStepExtensionPoint& ep
-    ) = 0;
-
-    virtual gazer::Type& handlePointerType(const llvm::PointerType* type) = 0;
-
-    /// Translates type for constant arrays and initializers.
-    virtual gazer::Type& handleArrayType(const llvm::ArrayType* type) = 0;
-
-    virtual ExprPtr handleConstantDataArray(
-        const llvm::ConstantDataArray* cda,
-        llvm::ArrayRef<ExprRef<LiteralExpr>> elements
-    ) = 0;
-
-    GazerContext& getContext() { return mContext; }
-    const llvm::DataLayout& getDataLayout() const { return mDataLayout; }
-
-    gazer::Type& translateType(const llvm::Type* type) { return mTypes.get(type); }
-    memory::MemorySSA* getFunctionMemorySSA(const llvm::Function& function) {
-        return mFunctions[&function].get();
-    }
-
-    virtual void dump() const {};
-
-    virtual ~MemoryModel() {}
-
-protected:
-    /// Fills \p builder with all memory objects, their (possible) definitons and uses.
-    virtual void initializeFunction(llvm::Function& function, memory::MemorySSABuilder& builder) = 0;
-
-protected:
-    GazerContext& mContext;
-    LLVMTypeTranslator mTypes;
-    LLVMFrontendSettings mSettings;
-    const llvm::DataLayout& mDataLayout;
-
-private:
-    std::unordered_map<const llvm::Function*, std::unique_ptr<memory::MemorySSA>> mFunctions;
+    virtual ~MemoryModel() = default;
 };
 
-class CollectMemoryDefsUsesVisitor : public llvm::PtrUseVisitor<CollectMemoryDefsUsesVisitor>
+//==------------------------------------------------------------------------==//
+/// HavocMemoryModel - A havoc memory model which does not create any memory
+/// objects. Load operations return an unknown value and store instructions
+/// have no effect. No MemoryObjectPhi's are inserted.
+std::unique_ptr<MemoryModel> CreateHavocMemoryModel(GazerContext& context);
+
+//==-----------------------------------------------------------------------==//
+// FlatMemoryModel - a memory model which represents all memory as a single
+// array, where loads and stores are reads and writes in said array.
+class FlatMemoryModelWrapperPass : public llvm::ModulePass
 {
-    friend class llvm::PtrUseVisitor<CollectMemoryDefsUsesVisitor>;
-    friend class llvm::InstVisitor<CollectMemoryDefsUsesVisitor>;
 public:
-    explicit CollectMemoryDefsUsesVisitor(const llvm::DataLayout& dl, MemoryObject* obj, memory::MemorySSABuilder& builder)
-        : PtrUseVisitor(dl), mObject(obj), mBuilder(builder)
+    char ID;
+
+    FlatMemoryModelWrapperPass(const LLVMFrontendSettings& settings)
+        : ModulePass(ID), mSettings(settings)
     {}
 
-private:
-    void visitStoreInst(llvm::StoreInst& store);
-    void visitLoadInst(llvm::LoadInst& load);
+    void getAnalysisUsage(llvm::AnalysisUsage& au) const override;
+    bool runOnModule(llvm::Module& module) override;
 
-    void visitCallInst(llvm::CallInst& call);
-    void visitPHINode(llvm::PHINode& phi);
-    void visitSelectInst(llvm::SelectInst& select);
-    void visitInstruction(llvm::Instruction& inst);
+    MemoryModel& getMemoryModel() const { return *mMemoryModel; }
 
 private:
-    MemoryObject* mObject;
-    memory::MemorySSABuilder& mBuilder;
+    const LLVMFrontendSettings& mSettings;
+    std::unique_ptr<MemoryModel> mMemoryModel;
 };
 
-//==-----------------------------------------------------------------------==//
-/// DummyMemoryModel - A havoc memory model which does not create any memory
-/// objects. oad operations return an unknown value and store instructions
-/// have no effect. No MemoryObjectPhis are inserted.
-std::unique_ptr<MemoryModel> CreateHavocMemoryModel(
-    GazerContext& context,
-    LLVMFrontendSettings& settings,
-    const llvm::DataLayout& dl
-);
-
-//==-----------------------------------------------------------------------==//
-// BasicMemoryModel - a simple memory model which handles local arrays,
-// structs, and globals which do not have their address taken. This memory
-// model returns undef for all heap operations.
-std::unique_ptr<MemoryModel> CreateBasicMemoryModel(
-    GazerContext& context,
-    const LLVMFrontendSettings& settings,
-    const llvm::DataLayout& dl
-);
-
-//==-----------------------------------------------------------------------==//
-// FlatMemoryModel
 std::unique_ptr<MemoryModel> CreateFlatMemoryModel(
     GazerContext& context,
     const LLVMFrontendSettings& settings,
     const llvm::DataLayout& dl
 );
 
-}
+} // namespace gazer
 #endif //GAZER_MEMORY_MEMORYMODEL_H

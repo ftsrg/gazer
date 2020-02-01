@@ -1,4 +1,3 @@
-// XFAIL: memory
 // RUN: %bmc -bound 10 "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED

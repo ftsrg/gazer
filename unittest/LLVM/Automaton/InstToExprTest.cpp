@@ -36,6 +36,7 @@ public:
     LLVMFrontendSettings settings;
     std::unique_ptr<ExprBuilder> builder;
     std::unique_ptr<MemoryModel> memoryModel;
+    std::unique_ptr<LLVMTypeTranslator> types;
 
     std::unique_ptr<llvm::Module> module;
     llvm::Function* function;
@@ -51,7 +52,9 @@ public:
     void SetUp() override
     {
         module.reset(new llvm::Module("InstToExprModule", llvmContext));
-        memoryModel = CreateHavocMemoryModel(context, settings, module->getDataLayout());
+        memoryModel = CreateHavocMemoryModel(context);
+
+        types.reset(new LLVMTypeTranslator(memoryModel->getMemoryTypeTranslator(), settings));
 
         auto funcTy = llvm::FunctionType::get(
             llvm::Type::getVoidTy(llvmContext),
@@ -95,10 +98,11 @@ public:
         InstToExprImpl(
             llvm::Function& func,
             ExprBuilder& builder,
-            MemoryModel& memoryModel,
-            LLVMFrontendSettings settings,
+            LLVMTypeTranslator& types,
+            MemoryInstructionHandler& memoryInstHandler,
+            const LLVMFrontendSettings& settings,
             llvm::DenseMap<llvm::Value*, Variable*> vars
-        ) : InstToExpr(func, builder, memoryModel, settings), mVars(std::move(vars))
+        ) : InstToExpr(func, builder, types, memoryInstHandler, settings), mVars(std::move(vars))
         {}
 
         Variable* getVariable(ValueOrMemoryObject value) override {
@@ -111,12 +115,21 @@ public:
 
     std::unique_ptr<InstToExprImpl> createImpl(llvm::DenseMap<llvm::Value*, Variable*> vars)
     {
-        return std::make_unique<InstToExprImpl>(*function, *builder, *memoryModel, settings, std::move(vars));
+        return std::make_unique<InstToExprImpl>(
+            *function,
+            *builder,
+            *types,
+            memoryModel->getMemoryInstructionHandler(*function),
+            settings,
+            std::move(vars)
+        );
     }
 };
 
 TEST_F(InstToExprTest, TransformBinaryArithmeticOperator)
 {
+    settings.ints = IntRepresentation::BitVectors;
+
     auto loadGv1 = ir->CreateLoad(gv1->getValueType(), gv1);
     auto add = ir->CreateAdd(loadGv1, ir->getInt32(128));
     auto sub = ir->CreateSub(add, ir->getInt32(1));
@@ -153,6 +166,8 @@ TEST_F(InstToExprTest, TransformBinaryArithmeticOperator)
 
 TEST_F(InstToExprTest, TransformBinaryLogicOperator)
 {
+    settings.ints = IntRepresentation::BitVectors;
+
     auto loadB1 = ir->CreateLoad(b1->getValueType(), b1);
     auto loadB2 = ir->CreateLoad(b2->getValueType(), b2);
     auto loadB3 = ir->CreateLoad(b3->getValueType(), b3);
@@ -177,6 +192,8 @@ TEST_F(InstToExprTest, TransformBinaryLogicOperator)
 
 TEST_F(InstToExprTest, TransformBvCast)
 {
+    settings.ints = IntRepresentation::BitVectors;
+
     auto loadGv1 = ir->CreateLoad(gv1->getValueType(), gv1);
     auto loadGv2 = ir->CreateLoad(gv2->getValueType(), gv2);
     auto loadGv3 = ir->CreateLoad(gv3->getValueType(), gv3);
@@ -222,6 +239,8 @@ TEST_F(InstToExprTest, TransformBvCast)
 
 TEST_F(InstToExprTest, TransformBvCmp)
 {
+    settings.ints = IntRepresentation::BitVectors;
+
     auto loadGv1 = ir->CreateLoad(gv1->getValueType(), gv1);
     auto loadGv2 = ir->CreateLoad(gv2->getValueType(), gv2);
 

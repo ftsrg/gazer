@@ -1,5 +1,4 @@
-// XFAIL: memory
-// RUN: %bmc -bound 10 "%s" | FileCheck "%s"
+// RUN: %bmc -bound 10 -no-inline-globals "%s" | FileCheck "%s"
 
 // CHECK: Verification {{(SUCCESSFUL|BOUND REACHED)}}
 

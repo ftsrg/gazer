@@ -26,6 +26,7 @@
 using namespace gazer;
 using gazer::memory::MemorySSA;
 using gazer::memory::MemorySSABuilder;
+using gazer::memory::MemorySSABuilderPass;
 
 auto MemorySSA::definitionAnnotationsFor(const llvm::Value* value) -> llvm::iterator_range<def_iterator>
 {
@@ -43,6 +44,34 @@ auto MemorySSA::useAnnotationsFor(const llvm::Value* value) -> llvm::iterator_ra
     use_iterator end = boost::make_indirect_iterator(range.end());
 
     return llvm::make_range(begin, end);
+}
+
+// Pass implementation
+//==------------------------------------------------------------------------==//
+void MemorySSABuilderPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
+{
+    au.setPreservesAll();
+    au.addRequired<llvm::DominatorTreeWrapperPass>();
+    this->addRequiredAnalyses(au);
+}
+
+auto MemorySSABuilderPass::runOnModule(llvm::Module& module) -> bool
+{
+    for (llvm::Function& function : module) {
+        if (function.isDeclaration()) {
+            continue;
+        }
+
+        auto& dt = getAnalysis<llvm::DominatorTreeWrapperPass>(function).getDomTree();
+        MemorySSABuilder builder(function, module.getDataLayout(), dt);
+
+        this->initializeFunction(function, builder);
+
+        auto memSSA = builder.build();
+        mFunctions.try_emplace(&function, std::move(memSSA));
+    }
+
+    return false;
 }
 
 // Builder

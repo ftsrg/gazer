@@ -1,4 +1,4 @@
-// XFAIL: memory.structs
+// REQUIRES: memory.structs
 // RUN: %theta "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED

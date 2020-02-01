@@ -37,7 +37,7 @@ ExprPtr InstToExpr::transform(const llvm::Instruction& inst)
         return visitCastInst(*cast);
     }
 
-#define HANDLE_INST(OPCODE, NAME)                                       \
+    #define HANDLE_INST(OPCODE, NAME)                                   \
         if (inst.getOpcode() == (OPCODE)) {                             \
             return visit##NAME(*llvm::cast<llvm::NAME>(&inst));         \
         }                                                               \
@@ -47,7 +47,7 @@ ExprPtr InstToExpr::transform(const llvm::Instruction& inst)
     HANDLE_INST(Instruction::FCmp,      FCmpInst)
     HANDLE_INST(Instruction::Select,    SelectInst)
 
-#undef HANDLE_INST
+    #undef HANDLE_INST
 
     if (auto gep = llvm::dyn_cast<llvm::GetElementPtrInst>(&inst)) {
         std::vector<ExprPtr> ops;
@@ -57,11 +57,11 @@ ExprPtr InstToExpr::transform(const llvm::Instruction& inst)
             ops.push_back(this->operand(gep->getOperand(i)));
         }
 
-        return mMemoryModel.handleGetElementPtr(*gep, ops);
+        return mMemoryInstHandler.handleGetElementPtr(*gep, ops);
     }
 
     llvm::errs() << inst << "\n";
-    llvm_unreachable("Unsupported instruction kind");
+    llvm_unreachable("Unsupported instruction kind!");
 }
 
 // Transformation functions
@@ -407,7 +407,7 @@ ExprPtr InstToExpr::visitCastInst(const llvm::CastInst& cast)
     
     if (cast.getType()->isPointerTy()) {
         auto origPtr = operand(cast.getOperand(0));
-        return mMemoryModel.handlePointerCast(cast, origPtr);
+        return mMemoryInstHandler.handlePointerCast(cast, origPtr);
     }
 
     if (castOp->getType().isBoolType()) {
@@ -493,9 +493,9 @@ ExprPtr InstToExpr::tryToRepresentBitOperator(const llvm::BinaryOperator& binOp,
                 case Instruction::And:  return mExprBuilder.IntLit((leftBv & rightBv).getSExtValue());
                 case Instruction::Or:   return mExprBuilder.IntLit((leftBv | rightBv).getSExtValue());
                 case Instruction::Xor:  return mExprBuilder.IntLit((leftBv ^ rightBv).getSExtValue());
+                default:
+                    llvm_unreachable("Unknown bitwise binary operator!");
             }
-
-            llvm_unreachable("Unknown bitwise binary operator!");
         } else if (rhs->isZero()) {
             switch (binOp.getOpcode()) {
                 case Instruction::Shl:
@@ -825,14 +825,14 @@ ExprPtr InstToExpr::operandValue(const llvm::Value* value)
             elements.push_back(expr_cast<LiteralExpr>(constantExpr));
         }
 
-        return mMemoryModel.handleConstantDataArray(ca, elements);
+        return mMemoryInstHandler.handleConstantDataArray(ca, elements);
     }
 
     // Non-instruction pointer values should be resolved using the memory model
     if (value->getType()->isPointerTy()
         && !llvm::isa<llvm::Instruction>(value)
         && !llvm::isa<llvm::Argument>(value)) {
-        return mMemoryModel.handlePointerValue(value, mFunction);
+        return mMemoryInstHandler.handlePointerValue(value);
     }
     
     if (isNonConstValue(value)) {
@@ -947,5 +947,5 @@ ExprPtr InstToExpr::castResult(const ExprPtr& expr, const Type& type)
 
 gazer::Type& InstToExpr::translateType(const llvm::Type* type)
 {
-    return mMemoryModel.translateType(type);
+    return mTypes.get(type);
 }

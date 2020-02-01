@@ -87,6 +87,12 @@ llvm::Function* ExtensionPoint::getParent() const
     llvm_unreachable("Invalid automaton source!");
 }
 
+bool ExtensionPoint::isEntryProcedure() const
+{
+    // FIXME: Remove hard-coded main
+    return getParent()->getName() == "main";
+}
+
 Variable* VariableDeclExtensionPoint::createInput(ValueOrMemoryObject val, Type& type, const std::string& suffix)
 {
     Cfa* cfa = mGenInfo.Automaton;
@@ -139,6 +145,15 @@ Variable* AutomatonInterfaceExtensionPoint::getOutputVariableFor(ValueOrMemoryOb
 Variable* AutomatonInterfaceExtensionPoint::getVariableFor(ValueOrMemoryObject val)
 {
     return mGenInfo.findVariable(val);
+}
+
+void LoopVarDeclExtensionPoint::createLoopOutput(ValueOrMemoryObject val, Variable* output, const llvm::Twine& suffix)
+{
+    std::string name = (val.getName() + suffix).str();
+    auto copyOfVar = mGenInfo.Automaton->createLocal(name, output->getType());
+
+    this->markOutput(val, copyOfVar);
+    mGenInfo.LoopOutputs[val] = VariableAssignment(copyOfVar, output->getRefExpr());
 }
 
 // Genaration step extension point
