@@ -55,6 +55,12 @@ auto FrontendConfig::buildFrontend(
 
     auto module = ClangCompileAndLink(inputs, llvmContext, mClangSettings);
     if (module == nullptr) {
+        llvm::errs() << "Failed to build input module.\n";
+        return nullptr;
+    }
+
+    if (!mSettings.validate(*module, llvm::errs())) {
+        llvm::errs() << "Settings could not be applied to the input module.\n";
         return nullptr;
     }
 

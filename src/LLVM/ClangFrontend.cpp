@@ -155,7 +155,7 @@ auto gazer::ClangCompileAndLink(
 -> std::unique_ptr<llvm::Module>
 {
 #define CHECK_ERROR(ERRORCODE, MSG) if (ERRORCODE) {                            \
-    llvm::errs() << (MSG) << "\n";                                                \
+    llvm::errs() << (MSG) << "\n";                                              \
     llvm::errs() << (ERRORCODE).message() << "\n";                              \
     return nullptr;                                                             \
 }

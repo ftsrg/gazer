@@ -46,6 +46,46 @@ auto MemorySSA::useAnnotationsFor(const llvm::Value* value) -> llvm::iterator_ra
     return llvm::make_range(begin, end);
 }
 
+auto MemorySSA::getUniqueDefinitionFor(const llvm::Value* value, const MemoryObject* object)
+    -> MemoryObjectDef*
+{
+    auto range = this->definitionAnnotationsFor(value);
+    MemoryObjectDef* result = nullptr;
+
+    for (MemoryObjectDef& def : range) {
+        if (def.getObject() == object) {
+            if (result != nullptr) {
+                // We have already found a proper object, thus there is no unique definition.
+                return nullptr;
+            }
+
+            result = &def;
+        }
+    }
+
+    return result;
+}
+
+auto MemorySSA::getUniqueUseFor(const llvm::Value* value, const MemoryObject* object)
+    -> MemoryObjectUse*
+{
+    auto range = this->useAnnotationsFor(value);
+    MemoryObjectUse* result = nullptr;
+
+    for (MemoryObjectUse& use : range) {
+        if (use.getObject() == object) {
+            if (result != nullptr) {
+                // We have already found a proper object, thus there is no unique definition.
+                return nullptr;
+            }
+
+            result = &use;
+        }
+    }
+
+    return result;
+}
+
 // Pass implementation
 //==------------------------------------------------------------------------==//
 void MemorySSABuilderPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
@@ -79,7 +119,7 @@ auto MemorySSABuilderPass::runOnModule(llvm::Module& module) -> bool
 
 MemoryObject* MemorySSABuilder::createMemoryObject(
     unsigned id,
-    gazer::Type& objectType,
+    MemoryObjectType objectType,
     MemoryObject::MemoryObjectSize size,
     llvm::Type* valueType,
     llvm::StringRef name
@@ -98,7 +138,10 @@ memory::LiveOnEntryDef* MemorySSABuilder::createLiveOnEntryDef(gazer::MemoryObje
     llvm::BasicBlock* entryBlock = &mFunction.getEntryBlock();
     auto def = new memory::LiveOnEntryDef(object, mVersionNumber++, entryBlock);
     mObjectInfo[object].defBlocks.insert(entryBlock);
-    mValueDefs[&mFunction.getEntryBlock()].push_back(def);
+
+    mValueDefs[&mFunction.getEntryBlock()].emplace_back(def);
+
+
     object->addDefinition(def);
     object->setEntryDef(def);
 
@@ -111,7 +154,9 @@ memory::GlobalInitializerDef* MemorySSABuilder::createGlobalInitializerDef(
     llvm::BasicBlock* entryBlock = &mFunction.getEntryBlock();
     auto def = new memory::GlobalInitializerDef(object, mVersionNumber++, entryBlock, gv);
     mObjectInfo[object].defBlocks.insert(entryBlock);
-    mValueDefs[&mFunction.getEntryBlock()].push_back(def);
+
+    mValueDefs[&mFunction.getEntryBlock()].emplace_back(def);
+    
     object->addDefinition(def);
 
     return def;
@@ -184,10 +229,7 @@ auto MemorySSABuilder::build() -> std::unique_ptr<MemorySSA>
     this->renamePass();
 
     return std::unique_ptr<MemorySSA>(new MemorySSA(
-        mFunction, mDataLayout, mDominatorTree,
-        std::move(mObjectStorage),
-        std::move(mValueDefs),
-        std::move(mValueUses)
+        mFunction, std::move(mObjectStorage), std::move(mValueDefs), std::move(mValueUses)
     ));
 }
 

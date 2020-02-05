@@ -224,7 +224,7 @@ ModuleToCfa::ModuleToCfa(
     GazerContext& context,
     MemoryModel& memoryModel,
     LLVMTypeTranslator& types,
-    LLVMFrontendSettings& settings
+    const LLVMFrontendSettings& settings
 ) : mModule(module),
     mContext(context),
     mMemoryModel(memoryModel),
@@ -267,14 +267,12 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
     }
 
     // If there is a procedure called 'main', set it as the entry automaton.
-    Cfa* main = mSystem->getAutomatonByName("main");
-    if (main != nullptr) {
-        mSystem->setMainAutomaton(main);
-    } else {
-        llvm::errs() << "Warning: could not find a main automaton.\n";
-    }
+    Cfa* main = mSystem->getAutomatonByName(mSettings.function);
+    assert(main != nullptr && "The main automaton must exist!");
+    mSystem->setMainAutomaton(main);
 
     cfaToLlvmTrace = std::move(mGenCtx.getTraceInfo());
+
     return std::move(mSystem);
 }
 
@@ -584,7 +582,10 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
         auto callerEP = this->createExtensionPoint(previousAssignments);
         AutomatonInterfaceExtensionPoint calleeEP(calledAutomatonInfo);
 
-        mMemoryInstHandler.handleCall(call, callerEP, calleeEP, inputs, outputs);
+        // FIXME: This const_cast is needed because the memory model interface must
+        // take a mutable call site as ImmutableCallSite objects cannot be put into
+        // a map properly. This should be removed as soon as something about that changes.
+        mMemoryInstHandler.handleCall(const_cast<llvm::CallInst*>(call), callerEP, calleeEP, inputs, outputs);
 
         if (!callee->getReturnType()->isVoidTy()) {
             Variable* variable = getVariable(call);
@@ -904,17 +905,6 @@ void BlocksToCfa::insertPhiAssignments(
     const BasicBlock* target,
     std::vector<VariableAssignment>& phiAssignments)
 {
-    // Start with possible memory object PHI's.
-    // for (auto& def : mMemorySSA->definitionAnnotationsFor(target)) {
-    //     if (auto phi = llvm::dyn_cast<memory::PhiDef>(&def)) {
-    //         MemoryObjectDef* incoming = phi->getIncomingDefForBlock(source);
-    //         Variable* variable = getVariable(phi);
-
-    //         ExprPtr expr = operand(incoming);
-    //         phiAssignments.emplace_back(variable, expr);
-    //     }
-    // }
-
     // Handle regular LLVM PHI values.
     auto it = target->begin();
     while (llvm::isa<PHINode>(it)) {

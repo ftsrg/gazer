@@ -23,6 +23,7 @@
 #include "gazer/Core/GazerContext.h"
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
 #include "gazer/LLVM/ClangFrontend.h"
+#include "gazer/LLVM/Memory/MemoryModel.h"
 
 #include <llvm/IR/Module.h>
 
@@ -60,6 +61,7 @@ int main(int argc, char* argv[])
     if (RunPipeline) {
         frontend->registerVerificationPipeline();
     } else {
+        frontend->registerPass(new gazer::MemoryModelWrapperPass(config.context, frontend->getSettings()));
         frontend->registerPass(new gazer::ModuleToAutomataPass(config.context, frontend->getSettings()));
         frontend->registerPass(gazer::createCfaPrinterPass());
     }

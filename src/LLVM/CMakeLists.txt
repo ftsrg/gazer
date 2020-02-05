@@ -21,8 +21,7 @@ set(SOURCE_FILES
     ClangFrontend.cpp
     FrontendConfig.cpp
     Memory/MemoryObject.cpp
-    #Memory/Flat/FlatMemoryModel.cpp
-    #Memory/DummyMemoryModel.cpp
+    Memory/FlatMemoryModel.cpp
     Memory/HavocMemoryModel.cpp
     Memory/MemoryModel.cpp
     Memory/MemorySSA.cpp

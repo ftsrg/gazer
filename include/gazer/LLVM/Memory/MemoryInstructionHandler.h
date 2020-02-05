@@ -128,7 +128,7 @@ public:
     /// The parameters \p inputAssignments and \p outputAssignments will be placed
     /// on the resulting automaton call _after_ the regular input/output assignments.
     virtual void handleCall(
-        llvm::ImmutableCallSite call,
+        llvm::CallSite call,
         llvm2cfa::GenerationStepExtensionPoint& callerEp,
         llvm2cfa::AutomatonInterfaceExtensionPoint& calleeEp,
         llvm::SmallVectorImpl<VariableAssignment>& inputAssignments,
@@ -141,8 +141,7 @@ public:
     /// function, the translation process already generates a havoc assignment for
     /// it _before_ calling this function.
     virtual void handleExternalCall(
-        llvm::ImmutableCallSite call, llvm2cfa::GenerationStepExtensionPoint& ep) {}
-
+        llvm::CallSite call, llvm2cfa::GenerationStepExtensionPoint& ep) {}
 
     // Memory safety predicates
     //==--------------------------------------------------------------------==//
@@ -163,8 +162,8 @@ class MemorySSA;
 class MemorySSABasedInstructionHandler : public MemoryInstructionHandler
 {
 public:
-    explicit MemorySSABasedInstructionHandler(memory::MemorySSA& memorySSA)
-        : mMemorySSA(memorySSA)
+    MemorySSABasedInstructionHandler(memory::MemorySSA& memorySSA, LLVMTypeTranslator& types)
+        : mMemorySSA(memorySSA), mTypes(types)
     {}
 
     void declareFunctionVariables(llvm2cfa::VariableDeclExtensionPoint& ep) override;    
@@ -177,7 +176,11 @@ public:
         llvm2cfa::GenerationStepExtensionPoint& ep) override;
 
 protected:
+    virtual gazer::Type& getMemoryObjectType(MemoryObject* object);
+
+protected:
     memory::MemorySSA& mMemorySSA;
+    LLVMTypeTranslator& mTypes;
 };
 
 } // namespace gazer

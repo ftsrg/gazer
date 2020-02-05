@@ -38,8 +38,14 @@ void MemoryObject::print(llvm::raw_ostream& os) const
 {
     os
         << "(" << mId << (mName.empty() ? "" : ", \"" + mName + "\"")
-        << ", objectType=" << mObjectType
-        << ", size=";
+        << ", objectType=";
+    switch (mObjectType) {
+        case MemoryObjectType::Unknown: os << "Unknown"; break;
+        case MemoryObjectType::Scalar:  os << "Scalar";  break;
+        case MemoryObjectType::Array:   os << "Array";   break;
+        case MemoryObjectType::Struct:  os << "Struct";  break;
+    }
+    os << ", size=";
     if (mSize == UnknownSize) {
         os << "Unknown";
     } else {

@@ -112,7 +112,7 @@ class InvalidFailReducer(Reducer):
         output += 'if [ $RES1 -ne 0 ]; then\n'
         output += '    exit 1\n'
         output += 'fi\n'
-        output += '{0} | grep {1}\n'.format(self.safe.call_str(), self.verif.success_pattern())
+        output += '{0} | grep {1}\n'.format(self.safe.call_str(), self.safe.success_pattern())
         output += 'RES2=$?\n'
         output += 'if [ $RES2 -ne 0 ]; then\n'
         output += '    exit 1\n'

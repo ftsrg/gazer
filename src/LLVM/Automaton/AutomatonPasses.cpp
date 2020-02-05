@@ -31,7 +31,7 @@ using namespace gazer::llvm2cfa;
 
 std::unique_ptr<AutomataSystem> gazer::translateModuleToAutomata(
     llvm::Module& module,
-    LLVMFrontendSettings settings,
+    const LLVMFrontendSettings& settings,
     llvm::DenseMap<llvm::Function*, llvm::LoopInfo*>& loopInfos,
     GazerContext& context,
     MemoryModel& memoryModel,
@@ -50,47 +50,25 @@ char ModuleToAutomataPass::ID;
 
 void ModuleToAutomataPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
 {
-    au.addRequired<llvm::DominatorTreeWrapperPass>();
+    au.addRequired<llvm::LoopInfoWrapperPass>();
+    au.addRequired<MemoryModelWrapperPass>();
     au.setPreservesAll();
 }
 
 bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
 {
     GenerationContext::LoopInfoMapTy loopInfoMap;
-    std::vector<std::unique_ptr<llvm::DominatorTree>> dominators;
-    std::vector<std::unique_ptr<llvm::LoopInfo>> loops;
 
     for (llvm::Function& function : module) {
         if (!function.isDeclaration()) {
-            auto& dt = dominators.emplace_back(std::make_unique<llvm::DominatorTree>(function));
-            auto& loop = loops.emplace_back(std::make_unique<llvm::LoopInfo>(*dt));
-
-            loopInfoMap[&function] = loop.get();
+            loopInfoMap[&function] = &getAnalysis<llvm::LoopInfoWrapperPass>(function).getLoopInfo();
         }
     }
 
-    std::unique_ptr<MemoryModel> memoryModel;
-    switch (mSettings.memoryModel) {
-        case MemoryModelSetting::Havoc:
-        default:
-            memoryModel = CreateHavocMemoryModel(mContext);
-            break;
-    }
-    assert(memoryModel != nullptr && "Unknown memory model setting!");
-
-    // if (mSettings.debugDumpMemorySSA) {
-    //     for (auto& function : module.functions()) {
-    //         if (function.isDeclaration()) {
-    //             continue;
-    //         }
-
-    //         auto memSSA = memoryModel->getFunctionMemorySSA(function);
-    //         memSSA->print(llvm::errs());
-    //     }
-    // }
+    MemoryModel& memoryModel = getAnalysis<MemoryModelWrapperPass>().getMemoryModel();
 
     mSystem = translateModuleToAutomata(
-        module, mSettings, loopInfoMap, mContext, *memoryModel, mVariables, mTraceInfo
+        module, mSettings, loopInfoMap, mContext, memoryModel, mVariables, mTraceInfo
     );
 
     if (mSettings.loops == LoopRepresentation::Cycle) {

@@ -206,6 +206,12 @@ inline ExprRef<T> make_expr_ref(T* expr) {
 
 template<class ToT, class FromT>
 inline ExprRef<ToT> expr_cast(const ExprRef<FromT>& value) {
+    assert(llvm::isa<ToT>(value));
+    return boost::static_pointer_cast<ToT>(value);
+}
+
+template<class ToT, class FromT>
+inline ExprRef<ToT> dyn_expr_cast(const ExprRef<FromT>& value) {
     return llvm::isa<ToT>(value.get()) ? boost::static_pointer_cast<ToT>(value) : nullptr;
 }
 

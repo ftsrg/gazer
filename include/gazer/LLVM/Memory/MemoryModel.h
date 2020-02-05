@@ -58,13 +58,20 @@ std::unique_ptr<MemoryModel> CreateHavocMemoryModel(GazerContext& context);
 //==-----------------------------------------------------------------------==//
 // FlatMemoryModel - a memory model which represents all memory as a single
 // array, where loads and stores are reads and writes in said array.
-class FlatMemoryModelWrapperPass : public llvm::ModulePass
+std::unique_ptr<MemoryModel> CreateFlatMemoryModel(
+    GazerContext& context,
+    const LLVMFrontendSettings& settings,
+    llvm::Module& module,
+    std::function<llvm::DominatorTree&(llvm::Function&)> dominators
+);
+
+class MemoryModelWrapperPass : public llvm::ModulePass
 {
 public:
-    char ID;
+    static char ID;
 
-    FlatMemoryModelWrapperPass(const LLVMFrontendSettings& settings)
-        : ModulePass(ID), mSettings(settings)
+    MemoryModelWrapperPass(GazerContext& context, const LLVMFrontendSettings& settings)
+        : ModulePass(ID), mContext(context), mSettings(settings)
     {}
 
     void getAnalysisUsage(llvm::AnalysisUsage& au) const override;
@@ -73,15 +80,11 @@ public:
     MemoryModel& getMemoryModel() const { return *mMemoryModel; }
 
 private:
+    GazerContext& mContext;
     const LLVMFrontendSettings& mSettings;
     std::unique_ptr<MemoryModel> mMemoryModel;
 };
 
-std::unique_ptr<MemoryModel> CreateFlatMemoryModel(
-    GazerContext& context,
-    const LLVMFrontendSettings& settings,
-    const llvm::DataLayout& dl
-);
 
 } // namespace gazer
 #endif //GAZER_MEMORY_MEMORYMODEL_H

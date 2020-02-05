@@ -142,6 +142,16 @@ private:
     Kind mKind;
 };
 
+/// Describes the type of a memory object. This information will be used by
+/// later translation passes to represent the memory object as an SMT formula.
+enum class MemoryObjectType
+{
+    Unknown,
+    Scalar,
+    Array,
+    Struct
+};
+
 /// Represents an abstract memory object, a continuous place in memory
 /// which does not overlap with other memory objects.
 class MemoryObject
@@ -151,18 +161,10 @@ public:
     using MemoryObjectSize = uint64_t;
     static constexpr MemoryObjectSize UnknownSize = ~uint64_t(0);
 
-    enum ObjectKind
-    {
-        Kind_Unknown = 0,
-        Kind_Scalar,         ///< a primitive scalar type
-        Kind_Array,          ///< an array of some known type
-        Kind_Struct          ///< a struct
-    };
-
 public:
     MemoryObject(
         unsigned id,
-        gazer::Type& objectType,
+        MemoryObjectType objectType,
         MemoryObjectSize size,
         llvm::Type* valueType = nullptr,
         llvm::StringRef name = ""
@@ -173,8 +175,14 @@ public:
 
     void print(llvm::raw_ostream& os) const;
 
-    gazer::Type& getObjectType() const { return mObjectType; }
-    ObjectKind getKind() const { return mKind; }
+    /// Sets a type hint for this memory object, indicating that it should be represented
+    /// as the given type.
+    void setTypeHint(gazer::Type& type) { mTypeHint = &type; }
+
+    /// Returns the type hint if it is set, false otherwise.
+    gazer::Type* getTypeHint() const { return mTypeHint; }
+
+    MemoryObjectType getObjectType() const { return mObjectType; }
 
     llvm::Type* getValueType() const { return mValueType; }
     llvm::StringRef getName() const { return mName; }
@@ -209,9 +217,10 @@ private:
 
 private:
     unsigned mId;
-    gazer::Type& mObjectType;
-    ObjectKind mKind;
+    MemoryObjectType mObjectType;
     MemoryObjectSize mSize;
+
+    gazer::Type* mTypeHint;
 
     llvm::Type* mValueType;
     std::string mName;

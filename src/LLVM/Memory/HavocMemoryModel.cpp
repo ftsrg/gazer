@@ -88,7 +88,7 @@ public:
     }
 
     void handleCall(
-        llvm::ImmutableCallSite call,
+        llvm::CallSite call,
         llvm2cfa::GenerationStepExtensionPoint& callerEp,
         llvm2cfa::AutomatonInterfaceExtensionPoint& calleeEp,
         llvm::SmallVectorImpl<VariableAssignment>& inputAssignments,

@@ -20,7 +20,48 @@
 #include "gazer/LLVM/Memory/MemorySSA.h"
 #include "gazer/LLVM/Memory/MemoryModel.h"
 
+#include <llvm/Transforms/Utils/UnifyFunctionExitNodes.h>
+
 using namespace gazer;
 
-using gazer::memory::MemorySSA;
-using gazer::memory::MemorySSABuilder;
+// LLVM pass implementation
+//===----------------------------------------------------------------------===//
+
+char MemoryModelWrapperPass::ID;
+
+void MemoryModelWrapperPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
+{
+    switch (mSettings.memoryModel) {
+        case MemoryModelSetting::Flat:
+            au.addRequired<llvm::DominatorTreeWrapperPass>();
+            //au.addRequired<llvm::UnifyFunctionExitNodes>();
+        case MemoryModelSetting::Havoc:
+            break;
+        default:
+            llvm_unreachable("Unknown memory model setting!");
+    }
+
+    au.setPreservesAll();
+}
+
+bool MemoryModelWrapperPass::runOnModule(llvm::Module& module)
+{
+    switch (mSettings.memoryModel) {
+        case MemoryModelSetting::Flat: {
+            auto dominators = [this](llvm::Function& function) -> llvm::DominatorTree& {
+                return getAnalysis<llvm::DominatorTreeWrapperPass>(function).getDomTree();
+            };
+
+            mMemoryModel = CreateFlatMemoryModel(mContext, mSettings, module, dominators);
+            break;
+        }
+        case MemoryModelSetting::Havoc: {
+            mMemoryModel = CreateHavocMemoryModel(mContext);
+            break;
+        }
+    }
+
+    assert(mMemoryModel != nullptr && "Unknown memory model setting!");
+
+    return true;
+}

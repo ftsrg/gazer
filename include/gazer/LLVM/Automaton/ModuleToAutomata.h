@@ -213,7 +213,7 @@ private:
 
 std::unique_ptr<AutomataSystem> translateModuleToAutomata(
     llvm::Module& module,
-    LLVMFrontendSettings settings,
+    const LLVMFrontendSettings& settings,
     llvm::DenseMap<llvm::Function*, llvm::LoopInfo*>& loopInfos,
     GazerContext& context,
     MemoryModel& memoryModel,

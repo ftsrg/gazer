@@ -22,6 +22,15 @@
 
 #include <string>
 
+namespace llvm
+{
+
+class raw_ostream;
+class Module;
+class Function;
+
+} // namespace llvm
+
 namespace gazer
 {
 
@@ -79,6 +88,15 @@ inline constexpr bool enable_enum_flags_v<ExternFuncGlobalBehavior> = true;
 class LLVMFrontendSettings
 {
 public:
+    LLVMFrontendSettings() = default;
+
+    LLVMFrontendSettings(const LLVMFrontendSettings&) = delete;
+    LLVMFrontendSettings& operator=(const LLVMFrontendSettings&) = delete;
+
+    LLVMFrontendSettings(LLVMFrontendSettings&&) = default;
+    LLVMFrontendSettings& operator=(LLVMFrontendSettings&&) = default;
+
+public:
     // Traceability
     bool trace = false;
     std::string testHarnessFile;
@@ -100,12 +118,19 @@ public:
     FloatRepresentation floats = FloatRepresentation::Fpa;
     bool simplifyExpr = true;
 
+    std::string function = "main";
+
     // Memory models
     bool debugDumpMemorySSA = false;
     MemoryModelSetting memoryModel = MemoryModelSetting::Flat;
     EnumSet<ExternFuncGlobalBehavior> externFuncGlobals = ExternFuncGlobalBehavior::PointerArgModifies;
 
 public:
+    /// Returns true if the current settings can be applied to the given module.
+    bool validate(const llvm::Module& module, llvm::raw_ostream& os) const;
+
+    llvm::Function* getEntryFunction(const llvm::Module& module) const;
+
     bool isElimVarsOff() const { return elimVars == ElimVarsLevel::Off; }
     bool isElimVarsNormal() const { return elimVars == ElimVarsLevel::Normal; }
     bool isElimVarsAggressive() const { return elimVars == ElimVarsLevel::Aggressive; }

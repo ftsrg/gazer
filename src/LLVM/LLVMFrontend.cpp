@@ -21,6 +21,7 @@
 #include "gazer/LLVM/Transform/Passes.h"
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
 #include "gazer/LLVM/Transform/UndefToNondet.h"
+#include "gazer/LLVM/Memory/MemoryModel.h"
 #include "gazer/Trace/TraceWriter.h"
 #include "gazer/LLVM/Trace/TestHarnessGenerator.h"
 #include "gazer/LLVM/Transform/BackwardSlicer.h"
@@ -187,6 +188,7 @@ void LLVMFrontend::registerVerificationPipeline()
     }
 
     // Perform module-to-automata translation.
+    mPassManager.add(new gazer::MemoryModelWrapperPass(mContext, mSettings));
     mPassManager.add(new gazer::ModuleToAutomataPass(mContext, mSettings));
 
     // Execute the verifier backend if there is one.

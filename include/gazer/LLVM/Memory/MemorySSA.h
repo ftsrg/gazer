@@ -38,15 +38,10 @@ class MemorySSA
 private:
     MemorySSA(
         llvm::Function& function,
-        const llvm::DataLayout& dl,
-        llvm::DominatorTree& dominatorTree,
         std::vector<std::unique_ptr<MemoryObject>> objects,
         ValueToDefSetMap valueDefAnnotations,
         ValueToUseSetMap valueUseAnnotations
-    )
-        : mFunction(function),
-        mDataLayout(dl),
-        mDominatorTree(dominatorTree),
+    ) : mFunction(function),
         mObjects(std::move(objects)),
         mValueDefs(std::move(valueDefAnnotations)),
         mValueUses(std::move(valueUseAnnotations))
@@ -77,6 +72,12 @@ public:
         return this->memoryAccessOfKindImpl(this->useAnnotationsFor(value), vec);
     }
 
+    /// If \p value is annotated with a single definition for \p object, returns
+    /// said definition. In any other case, returns nullptr.
+    MemoryObjectDef* getUniqueDefinitionFor(const llvm::Value* value, const MemoryObject* object);
+
+    MemoryObjectUse* getUniqueUseFor(const llvm::Value* value, const MemoryObject* object);
+
     // Iterator support
     //==--------------------------------------------------------------------==//
     using object_iterator = boost::indirect_iterator<std::vector<std::unique_ptr<MemoryObject>>::iterator>;
@@ -99,8 +100,6 @@ private:
 
 private:
     llvm::Function& mFunction;
-    const llvm::DataLayout& mDataLayout;
-    llvm::DominatorTree& mDominatorTree;
     std::vector<std::unique_ptr<MemoryObject>> mObjects;
 
     // MemorySSA annotations
@@ -133,7 +132,7 @@ public:
 
     MemoryObject* createMemoryObject(
         unsigned id,
-        gazer::Type& objectType,
+        MemoryObjectType objectType,
         MemoryObject::MemoryObjectSize size,
         llvm::Type* valueType,
         llvm::StringRef name = ""

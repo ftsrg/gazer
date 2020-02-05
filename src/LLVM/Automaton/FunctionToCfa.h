@@ -189,7 +189,7 @@ public:
         MemoryModel& memoryModel,
         LLVMTypeTranslator& types,
         LoopInfoMapTy loopInfos,
-        LLVMFrontendSettings& settings
+        const LLVMFrontendSettings& settings
     ) : mSystem(system), mMemoryModel(memoryModel), mTypes(types),
         mLoopInfos(std::move(loopInfos)), mSettings(settings)
     {}
@@ -242,7 +242,7 @@ public:
     AutomataSystem& getSystem() const { return mSystem; }
     MemoryModel& getMemoryModel() const { return mMemoryModel; }
     LLVMTypeTranslator& getTypes() const { return mTypes; }
-    LLVMFrontendSettings& getSettings() { return mSettings; }
+    const LLVMFrontendSettings& getSettings() { return mSettings; }
     CfaToLLVMTrace& getTraceInfo() { return mTraceInfo; }
 
 private:
@@ -253,14 +253,13 @@ private:
 
         return it->second;
     }
-    
 
 private:
     AutomataSystem& mSystem;
     MemoryModel& mMemoryModel;
     LLVMTypeTranslator& mTypes;
     LoopInfoMapTy mLoopInfos;
-    LLVMFrontendSettings& mSettings;
+    const LLVMFrontendSettings& mSettings;
     std::unordered_map<VariantT, CfaGenInfo> mProcedures;
     CfaToLLVMTrace mTraceInfo;
     unsigned mTmp = 0;
@@ -278,7 +277,7 @@ public:
         GazerContext& context,
         MemoryModel& memoryModel,
         LLVMTypeTranslator& types,
-        LLVMFrontendSettings& settings
+        const LLVMFrontendSettings& settings
     );
 
     std::unique_ptr<AutomataSystem> generate(
@@ -294,7 +293,7 @@ private:
 
     GazerContext& mContext;
     MemoryModel& mMemoryModel;
-    LLVMFrontendSettings& mSettings;
+    const LLVMFrontendSettings& mSettings;
 
     std::unique_ptr<AutomataSystem> mSystem;
     GenerationContext mGenCtx;

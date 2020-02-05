@@ -18,6 +18,7 @@
 #include "gazer/LLVM/LLVMFrontendSettings.h"
 #include "gazer/LLVM/Instrumentation/Check.h"
 
+#include <llvm/IR/Module.h>
 #include <llvm/Support/CommandLine.h>
 
 using namespace gazer;
@@ -66,6 +67,8 @@ namespace
         "no-simplify-expr", cl::desc("Do not simplify expressions"),
         cl::cat(IrToCfaCategory)
     );
+    cl::opt<std::string> EntryFunctionName(
+        "function", cl::desc("Main function name"), cl::cat(IrToCfaCategory), cl::init("main"));
 
     // Memory models
     cl::opt<bool> DebugDumpMemorySSA(
@@ -96,6 +99,24 @@ namespace
     );
 } // end anonymous namespace
 
+bool LLVMFrontendSettings::validate(const llvm::Module& module, llvm::raw_ostream& os) const
+{
+    if (module.getFunction(this->function) == nullptr) {
+        os << "The entry function '" << this->function << "' does not exist!\n";
+        return false;
+    }
+
+    return true;
+}
+
+llvm::Function* LLVMFrontendSettings::getEntryFunction(const llvm::Module& module) const
+{
+    llvm::Function* result = module.getFunction(this->function);
+    assert(result != nullptr && "The entry function must exist!");
+
+    return result;
+}
+
 LLVMFrontendSettings LLVMFrontendSettings::initFromCommandLine()
 {
     LLVMFrontendSettings settings;
@@ -112,6 +133,8 @@ LLVMFrontendSettings LLVMFrontendSettings::initFromCommandLine()
     settings.memoryModel = MemoryModelOpt;
 
     settings.checks = EnabledChecks;
+
+    settings.function = EntryFunctionName;
 
     if (ArithInts) {
         settings.ints = IntRepresentation::Integers;

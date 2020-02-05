@@ -50,12 +50,12 @@ void MemorySSABasedInstructionHandler::declareFunctionVariables(
         for (MemoryObjectDef& def : object.defs()) {
             if (auto liveOnEntry = llvm::dyn_cast<memory::LiveOnEntryDef>(&def)) {
                 if (ep.isEntryProcedure()) {
-                    ep.createLocal(&def, object.getObjectType(), "_mem");
+                    ep.createLocal(&def, this->getMemoryObjectType(def.getObject()), "_mem");
                 } else {
-                    ep.createInput(&def, object.getObjectType(), "_mem");
+                    ep.createInput(&def, this->getMemoryObjectType(def.getObject()), "_mem");
                 }
             } else {
-                ep.createLocal(&def, object.getObjectType(), "_mem");
+                ep.createLocal(&def, this->getMemoryObjectType(def.getObject()), "_mem");
             }
         }
 
@@ -77,17 +77,21 @@ void MemorySSABasedInstructionHandler::declareFunctionVariables(
 void MemorySSABasedInstructionHandler::declareLoopProcedureVariables(
     llvm::Loop* loop, llvm2cfa::LoopVarDeclExtensionPoint& ep)
 {
-    llvm::ArrayRef<llvm::BasicBlock*> loopBlocks;
+    llvm::ArrayRef<llvm::BasicBlock*> loopBlocks = loop->getBlocks();
 
     for (MemoryObject& object : mMemorySSA.objects()) {
         for (MemoryObjectDef& def : object.defs()) {
             llvm::BasicBlock* bb = def.getParentBlock();
 
+            if (llvm::find(loopBlocks, bb) == loopBlocks.end()) {
+                continue;
+            }
+
             Variable* memVar;
             if (bb == loop->getHeader() && def.getKind() == MemoryObjectDef::PHI) {
-                memVar = ep.createPhiInput(&def, def.getObject()->getObjectType());
+                memVar = ep.createPhiInput(&def, this->getMemoryObjectType(def.getObject()));
             } else {
-                memVar = ep.createLocal(&def, def.getObject()->getObjectType());
+                memVar = ep.createLocal(&def, this->getMemoryObjectType(def.getObject()));
             }
 
             // If the definition has uses outside of the loop it should be marked as output
@@ -97,13 +101,29 @@ void MemorySSABasedInstructionHandler::declareLoopProcedureVariables(
         }
 
         for (MemoryObjectUse& use : object.uses()) {
-            // If we have a use with its reaching def outisde of the loop, it is an input
-            llvm::BasicBlock* bb = use.getReachingDef()->getParentBlock();
-            if (std::find(loopBlocks.begin(), loopBlocks.end(), bb) == loopBlocks.end()) {
-                ep.createInput(use.getReachingDef(), use.getObject()->getObjectType());
+            // If we have a use with its reaching def outside of the loop, it is an input
+            MemoryObjectDef* def = use.getReachingDef();
+            llvm::BasicBlock* bb = def->getParentBlock();
+            if (!llvm::isa<memory::PhiDef>(def) && llvm::find(loopBlocks, bb) == loopBlocks.end()) {
+                ep.createInput(def, this->getMemoryObjectType(use.getObject()));
             }
         }
     }
+}
+
+auto MemorySSABasedInstructionHandler::getMemoryObjectType(MemoryObject* object)
+    -> gazer::Type& 
+{
+    if (gazer::Type* hintedType = object->getTypeHint()) {
+        return *hintedType;
+    }
+
+    // Scalars are translated according to their set value type.
+    if (object->getObjectType() == MemoryObjectType::Scalar) {
+        return mTypes.get(object->getValueType());
+    }
+
+    llvm_unreachable("The memory object must be a scalar or have a hinted type!");
 }
 
 void MemorySSABasedInstructionHandler::handleBasicBlockEdge(
@@ -111,5 +131,16 @@ void MemorySSABasedInstructionHandler::handleBasicBlockEdge(
     const llvm::BasicBlock& target,
     llvm2cfa::GenerationStepExtensionPoint& ep)
 {
+    // Insert possible memory PHI assignments
+    for (auto& def : mMemorySSA.definitionAnnotationsFor(&target)) {
+        if (auto phi = llvm::dyn_cast<memory::PhiDef>(&def)) {
+            MemoryObjectDef* incoming = phi->getIncomingDefForBlock(&source);
+            Variable* variable = ep.getVariableFor(phi);
+            assert(variable != nullptr
+                && "Variable for the memory phi node should have been inserted earlier!");
 
+            ExprPtr expr = ep.getAsOperand(incoming);
+            ep.insertAssignment(variable, expr);
+        }
+    }
 }
