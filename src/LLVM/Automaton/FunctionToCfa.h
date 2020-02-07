@@ -180,7 +180,6 @@ class GenerationContext;
 class GenerationContext
 {
 public:
-    using LoopInfoMapTy = llvm::DenseMap<llvm::Function*, llvm::LoopInfo*>;
     using VariantT = std::variant<llvm::Function*, llvm::Loop*>;
 
 public:
@@ -188,10 +187,10 @@ public:
         AutomataSystem& system,
         MemoryModel& memoryModel,
         LLVMTypeTranslator& types,
-        LoopInfoMapTy loopInfos,
+        LoopInfoFuncTy loopInfos,
         const LLVMFrontendSettings& settings
     ) : mSystem(system), mMemoryModel(memoryModel), mTypes(types),
-        mLoopInfos(std::move(loopInfos)), mSettings(settings)
+        mLoopInfos(loopInfos), mSettings(settings)
     {}
 
     GenerationContext(const GenerationContext&) = delete;
@@ -234,7 +233,7 @@ public:
 
     llvm::LoopInfo* getLoopInfoFor(const llvm::Function* function)
     {
-        return mLoopInfos.lookup(function);
+        return mLoopInfos(function);
     }
 
     std::string uniqueName(const llvm::Twine& base = "");
@@ -258,7 +257,7 @@ private:
     AutomataSystem& mSystem;
     MemoryModel& mMemoryModel;
     LLVMTypeTranslator& mTypes;
-    LoopInfoMapTy mLoopInfos;
+    LoopInfoFuncTy mLoopInfos;
     const LLVMFrontendSettings& mSettings;
     std::unordered_map<VariantT, CfaGenInfo> mProcedures;
     CfaToLLVMTrace mTraceInfo;
@@ -273,7 +272,7 @@ public:
 
     ModuleToCfa(
         llvm::Module& module,
-        GenerationContext::LoopInfoMapTy& loops,
+        LoopInfoFuncTy loops,
         GazerContext& context,
         MemoryModel& memoryModel,
         LLVMTypeTranslator& types,

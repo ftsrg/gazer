@@ -46,9 +46,16 @@ namespace
 
 int main(int argc, char* argv[])
 {
+    cl::SetVersionPrinter(&FrontendConfigWrapper::PrintVersion);
     cl::ParseCommandLineOptions(argc, argv);
-    FrontendConfigWrapper config;
-    
+
+    #ifndef NDEBUG
+    llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
+    llvm::PrettyStackTraceProgram(argc, argv);
+    llvm::EnableDebugBuffering = true;
+    #endif
+
+    FrontendConfigWrapper config;    
     auto frontend = config.buildFrontend(InputFilenames);
     if (frontend == nullptr) {
         return 1;

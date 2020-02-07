@@ -1,5 +1,6 @@
-// RUN: %bmc -bound 1 -memory=flat "%s" | FileCheck "%s" --check-prefix=MODIFY
+// RUN: %bmc -bound 1 -memory=flat "%s" | FileCheck "%s"
 
+// By default we assume that unknown external functions do not clobber memory objects.
 // CHECK: Verification {{(SUCCESSFUL|BOUND REACHED)}}
 
 // MODIFY: Verification FAILED

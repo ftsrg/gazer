@@ -74,11 +74,15 @@ auto Z3Solver::getModel() -> std::unique_ptr<Model>
 auto Z3Model::eval(Variable& variable) -> ExprRef<LiteralExpr>
 {
     auto declOpt = mDecls.get(&variable);
-    assert(declOpt && "The model can only evaluate variables which were added to the solver!");
+
+    // It is possible that a value was never used, therefore it is not present in the solver.
+    // Treat it as if it didn't have an interpretation, thus as a don't care.
+    if (!declOpt) {
+        return nullptr;
+    }
 
     auto decl = *declOpt;
     if (!Z3_model_has_interp(mZ3Context, mModel, decl)) {
-        llvm::errs() << "NO INTERP " << variable << "\n";
         // There is no interpretation, the value is a don't care.
         return nullptr;
     }

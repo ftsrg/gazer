@@ -54,6 +54,8 @@ class MemoryModel;
 namespace llvm2cfa
 {
 
+using LoopInfoFuncTy = std::function<llvm::LoopInfo*(const llvm::Function*)>;
+
 class CfaGenInfo;
 
 class ExtensionPoint
@@ -214,7 +216,7 @@ private:
 std::unique_ptr<AutomataSystem> translateModuleToAutomata(
     llvm::Module& module,
     const LLVMFrontendSettings& settings,
-    llvm::DenseMap<llvm::Function*, llvm::LoopInfo*>& loopInfos,
+    llvm2cfa::LoopInfoFuncTy loopInfos,
     GazerContext& context,
     MemoryModel& memoryModel,
     llvm::DenseMap<llvm::Value*, Variable*>& variables,

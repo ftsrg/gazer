@@ -121,6 +121,8 @@ public:
         return mFunctions[function];
     }
 
+    const LLVMFrontendSettings& getSettings() const { return mSettings; }
+
 private:
     const LLVMFrontendSettings& mSettings;
     const llvm::DataLayout& mDataLayout;
@@ -336,6 +338,11 @@ public:
     ExprPtr isValidAccess(llvm::Value* ptr, const ExprPtr& expr) override;
 
 private:
+    ExprPtr handleGlobalInitializer(
+        memory::GlobalInitializerDef* def,
+        const ExprPtr& pointer,
+        llvm2cfa::GenerationStepExtensionPoint& ep);
+
     ExprPtr pointerOffset(const ExprPtr& pointer, unsigned offset) {
         return mExprBuilder.Add(pointer, BvLiteralExpr::Get(mMemoryModel.ptrType(), offset));
     }
@@ -512,6 +519,37 @@ ExprPtr FlatMemoryModelInstTranslator::handleConstantDataArray(
 
 void FlatMemoryModelInstTranslator::handleBlock(const llvm::BasicBlock& bb, llvm2cfa::GenerationStepExtensionPoint& ep)
 {
+    // We only consider the entry block of 'main' 
+    if (mMemoryModel.getSettings().getEntryFunction(*bb.getModule()) != bb.getParent()) {
+        return;
+    }
+
+    if (&bb != &bb.getParent()->getEntryBlock()) {
+        return;
+    }
+
+    for (MemoryObjectDef& def : mMemorySSA.definitionAnnotationsFor(&bb)) {
+        Variable* defVariable = ep.getVariableFor(&def);
+        if (auto globalInit = llvm::dyn_cast<memory::GlobalInitializerDef>(&def)) {
+            ExprPtr pointer = ep.getAsOperand(globalInit->getGlobalVariable());
+            ExprPtr globalValue = this->handleGlobalInitializer(globalInit, pointer, ep);
+            if (!ep.tryToEliminate(&def, defVariable, globalValue)) {
+                ep.insertAssignment(defVariable, globalValue);
+            }
+        } else if (auto liveOnEntry = llvm::dyn_cast<memory::LiveOnEntryDef>(&def)) {
+            ExprPtr initVal;
+            if (def.getObject() == mInfo.stackPointer || def.getObject() == mInfo.framePointer) {
+                // TODO: 64 bit
+                initVal = mMemoryModel.ptrConstant(FlatMemoryModel::StackBegin32);
+            } else {
+                initVal = mExprBuilder.Undef(defVariable->getType());
+            }
+
+            if (!ep.tryToEliminate(&def, defVariable, initVal)) {
+                ep.insertAssignment(defVariable, initVal);
+            }
+        }
+    }
 
 }
 
@@ -594,6 +632,37 @@ void FlatMemoryModelInstTranslator::handleCall(
 ExprPtr FlatMemoryModelInstTranslator::isValidAccess(llvm::Value* ptr, const ExprPtr& expr)
 {
     return mExprBuilder.True();
+}
+
+auto FlatMemoryModelInstTranslator::handleGlobalInitializer(
+    memory::GlobalInitializerDef* def,
+    const ExprPtr& pointer,
+    llvm2cfa::GenerationStepExtensionPoint& ep) -> ExprPtr
+{        
+    llvm::GlobalVariable* gv = def->getGlobalVariable();
+
+    assert(def->getReachingDef() != nullptr
+        && "GlobalInitializerDef's should have a reachable LiveOnEntry!");
+    
+    ExprPtr array = ep.getAsOperand(def->getReachingDef());
+    unsigned size = mDataLayout.getTypeAllocSize(gv->getType()->getPointerElementType());
+
+    if (!gv->hasInitializer()) {
+        for (unsigned i = 0; i < size; ++i) {
+            array = mExprBuilder.Write(
+                array,
+                this->pointerOffset(pointer, i),
+                mExprBuilder.Undef(BvType::Get(mExprBuilder.getContext(), 8))
+            );
+        }
+
+        return array;
+    }
+
+    llvm::Value* initializer = gv->getInitializer();
+    ExprPtr val = ep.getAsOperand(initializer);
+
+    return this->buildMemoryWrite(array, val, pointer, size);
 }
 
 auto FlatMemoryModelInstTranslator::buildMemoryRead(

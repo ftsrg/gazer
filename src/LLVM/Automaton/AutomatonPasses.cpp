@@ -32,7 +32,7 @@ using namespace gazer::llvm2cfa;
 std::unique_ptr<AutomataSystem> gazer::translateModuleToAutomata(
     llvm::Module& module,
     const LLVMFrontendSettings& settings,
-    llvm::DenseMap<llvm::Function*, llvm::LoopInfo*>& loopInfos,
+    LoopInfoFuncTy loopInfos,
     GazerContext& context,
     MemoryModel& memoryModel,
     llvm::DenseMap<llvm::Value*, Variable*>& variables,
@@ -57,18 +57,16 @@ void ModuleToAutomataPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
 
 bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
 {
-    GenerationContext::LoopInfoMapTy loopInfoMap;
-
-    for (llvm::Function& function : module) {
-        if (!function.isDeclaration()) {
-            loopInfoMap[&function] = &getAnalysis<llvm::LoopInfoWrapperPass>(function).getLoopInfo();
-        }
-    }
+    auto loops = [this](const llvm::Function* function) -> llvm::LoopInfo* {
+        // The const_cast is needed here as getAnalysis expects a non-const function.
+        // However, it should be safe as LoopInfo does not modify the function.
+        return &getAnalysis<llvm::LoopInfoWrapperPass>(*const_cast<llvm::Function*>(function)).getLoopInfo();
+    };
 
     MemoryModel& memoryModel = getAnalysis<MemoryModelWrapperPass>().getMemoryModel();
 
     mSystem = translateModuleToAutomata(
-        module, mSettings, loopInfoMap, mContext, memoryModel, mVariables, mTraceInfo
+        module, mSettings, loops, mContext, memoryModel, mVariables, mTraceInfo
     );
 
     if (mSettings.loops == LoopRepresentation::Cycle) {

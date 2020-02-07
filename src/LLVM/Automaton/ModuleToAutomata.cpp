@@ -220,7 +220,7 @@ static std::string getLoopName(llvm::Loop* loop, unsigned& loopCount, llvm::Stri
 
 ModuleToCfa::ModuleToCfa(
     llvm::Module& module,
-    GenerationContext::LoopInfoMapTy& loops,
+    LoopInfoFuncTy loops,
     GazerContext& context,
     MemoryModel& memoryModel,
     LLVMTypeTranslator& types,
@@ -332,10 +332,11 @@ void ModuleToCfa::createAutomata()
                 for (Instruction& inst : *bb) {
                     Variable* variable = nullptr;
 
+                    LLVM_DEBUG(llvm::dbgs() << " Visiting instruction " << inst << "\n");
                     if (inst.getOpcode() == Instruction::PHI && bb == loop->getHeader()) {
                         // PHI nodes of the entry block should be inputs.
                         variable = loopVarDecl.createPhiInput(&inst, mGenCtx.getTypes().get(inst.getType()));
-                        LLVM_DEBUG(llvm::dbgs() << "  Added PHI input variable " << *variable << "\n");
+                        LLVM_DEBUG(llvm::dbgs() << "    Added PHI input variable " << *variable << "\n");
                     } else {
                         // Add operands which were defined in the caller as inputs
                         for (auto oi = inst.op_begin(), oe = inst.op_end(); oi != oe; ++oi) {
@@ -344,7 +345,7 @@ void ModuleToCfa::createAutomata()
                                 auto argVariable = loopVarDecl.createInput(
                                     value, mGenCtx.getTypes().get(value->getType())
                                 );
-                                LLVM_DEBUG(llvm::dbgs() << "  Added input variable " << *argVariable << "\n");
+                                LLVM_DEBUG(llvm::dbgs() << "    Added input variable " << *argVariable << ", instruction " << inst << "\n");
                             }
                         }
 
@@ -357,7 +358,7 @@ void ModuleToCfa::createAutomata()
                         // a subloop rather than this loop.
                         if (visitedBlocks.count(bb) == 0 || hasUsesInBlockRange(&inst, loopOnlyBlocks)) {
                             variable = loopVarDecl.createLocal(&inst, mGenCtx.getTypes().get(inst.getType()));
-                            LLVM_DEBUG(llvm::dbgs() << "  Added local variable " << *variable << "\n");
+                            LLVM_DEBUG(llvm::dbgs() << "    Added local variable " << *variable << "\n");
                         }
                     }
 
@@ -435,7 +436,7 @@ void ModuleToCfa::createAutomata()
                     // If the variable is an output of a loop, add it here as a local variable
                     Variable* output = mGenCtx.getLoopCfa(loop).findOutput(&inst);
                     if (output == nullptr && !hasUsesInBlockRange(&inst, functionBlocks)) {
-                        LLVM_DEBUG(llvm::dbgs() << "Skipped " << inst << "\n");
+                        LLVM_DEBUG(llvm::dbgs() << "Not adding " << inst << "\n");
                         continue;
                     }
                 }
