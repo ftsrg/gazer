@@ -32,13 +32,13 @@ namespace
 class Z3Model : public Model
 {
 public:
-    Z3Model(GazerContext& context, Z3_context& z3Context, Z3_model model, Z3DeclMapTy& decls)
-        : mContext(context), mZ3Context(z3Context), mModel(model), mDecls(decls)
+    Z3Model(GazerContext& context, Z3_context& z3Context, Z3_model model, Z3DeclMapTy& decls, Z3ExprTransformer& exprs)
+        : mContext(context), mZ3Context(z3Context), mModel(model), mDecls(decls), mExprTransformer(exprs)
     {
         Z3_model_inc_ref(mZ3Context, mModel);
     }
 
-    ExprRef<LiteralExpr> eval(Variable& variable) override;
+    ExprRef<LiteralExpr> evaluate(const ExprPtr& expr) override;
 
     void dump(llvm::raw_ostream& os) override {
         os << Z3_model_to_string(mZ3Context, mModel);
@@ -53,14 +53,17 @@ private:
     ExprRef<BvLiteralExpr> evalBv(Z3AstHandle ast, unsigned width);
     ExprRef<FloatLiteralExpr> evalFloat(Z3AstHandle ast, FloatType::FloatPrecision prec);
     ExprRef<IntLiteralExpr> evalInt(Z3AstHandle ast);
+    ExprRef<LiteralExpr> evalConstantArray(Z3AstHandle ast, ArrayType& type);
 
     FloatType::FloatPrecision getFloatPrecision(Z3Handle<Z3_sort> sort);
+    Type& sortToType(Z3Handle<Z3_sort> sort);
 
 private:
     GazerContext& mContext;
     Z3_context& mZ3Context;
     Z3_model mModel;
     Z3DeclMapTy& mDecls;
+    Z3ExprTransformer& mExprTransformer;
 };
 
 } // end anonymous namespace
@@ -68,41 +71,40 @@ private:
 auto Z3Solver::getModel() -> std::unique_ptr<Model>
 {
     return std::make_unique<Z3Model>(
-        mContext, mZ3Context, Z3_solver_get_model(mZ3Context, mSolver), mDecls);
+        mContext, mZ3Context, Z3_solver_get_model(mZ3Context, mSolver), mDecls, mTransformer);
 }
 
-auto Z3Model::eval(Variable& variable) -> ExprRef<LiteralExpr>
+auto Z3Model::evaluate(const ExprPtr& expr) -> ExprRef<LiteralExpr>
 {
-    auto declOpt = mDecls.get(&variable);
+    auto ast = mExprTransformer.walk(expr);
+    Z3_ast resultAst;
 
-    // It is possible that a value was never used, therefore it is not present in the solver.
-    // Treat it as if it didn't have an interpretation, thus as a don't care.
-    if (!declOpt) {
+    bool success = Z3_model_eval(mZ3Context, mModel, ast, false, &resultAst);
+    assert(success);
+
+    if (!Z3_is_numeral_ast(mZ3Context, ast) && ast == resultAst) {
+        // The expression could not have been evaluated, return nullptr.
         return nullptr;
     }
 
-    auto decl = *declOpt;
-    if (!Z3_model_has_interp(mZ3Context, mModel, decl)) {
-        // There is no interpretation, the value is a don't care.
-        return nullptr;
-    }
-
-    auto ast = Z3AstHandle(mZ3Context, Z3_model_get_const_interp(mZ3Context, mModel, decl));
-    auto sort = Z3Handle<Z3_sort>(mZ3Context, Z3_get_sort(mZ3Context, ast));
-
+    Z3AstHandle result(mZ3Context, resultAst);
+    auto sort = Z3Handle<Z3_sort>(mZ3Context, Z3_get_sort(mZ3Context, result));
     Z3_sort_kind kind = Z3_get_sort_kind(mZ3Context, sort);
 
     switch (kind) {
         case Z3_BOOL_SORT:
-            return this->evalBoolean(ast);
+            return this->evalBoolean(result);
         case Z3_INT_SORT:
-            return this->evalInt(ast);
+            return this->evalInt(result);
         case Z3_BV_SORT:
-            return this->evalBv(ast, Z3_get_bv_sort_size(mZ3Context, sort));
+            return this->evalBv(result, Z3_get_bv_sort_size(mZ3Context, sort));
         case Z3_FLOATING_POINT_SORT:
-            return this->evalFloat(ast, this->getFloatPrecision(sort));
+            return this->evalFloat(result, this->getFloatPrecision(sort));
+        case Z3_ARRAY_SORT:
+            return this->evalConstantArray(result, llvm::cast<ArrayType>(this->sortToType(sort)));
     }
 
+    llvm::errs() << *expr << "\n";
     llvm_unreachable("Unknown Z3 sort!");
 }
 
@@ -155,6 +157,13 @@ auto Z3Model::evalFloat(Z3AstHandle ast, FloatType::FloatPrecision prec)
     return FloatLiteralExpr::Get(fltTy, result);
 }
 
+auto Z3Model::evalConstantArray(Z3AstHandle ast, ArrayType& type) -> ExprRef<LiteralExpr>
+{
+    ArrayLiteralExpr::Builder builder(type);
+
+    return nullptr;
+}
+
 auto Z3Model::getFloatPrecision(Z3Handle<Z3_sort> sort) -> FloatType::FloatPrecision
 {
     assert(Z3_get_sort_kind(mZ3Context, sort) == Z3_sort_kind::Z3_FLOATING_POINT_SORT);
@@ -173,4 +182,32 @@ auto Z3Model::getFloatPrecision(Z3Handle<Z3_sort> sort) -> FloatType::FloatPreci
         default:
             llvm_unreachable("Unknown floating-point size!");
     }
+}
+
+auto Z3Model::sortToType(Z3Handle<Z3_sort> sort) -> Type&
+{
+    Z3_sort_kind kind = Z3_get_sort_kind(mZ3Context, sort);
+
+    switch (kind) {
+        case Z3_BOOL_SORT:
+            return BoolType::Get(mContext);
+        case Z3_INT_SORT:
+            return IntType::Get(mContext);
+        case Z3_BV_SORT: {
+            unsigned size = Z3_get_bv_sort_size(mZ3Context, sort);
+            return BvType::Get(mContext, size);
+        }
+        case Z3_FLOATING_POINT_SORT: {
+            auto precision = this->getFloatPrecision(sort);
+            return FloatType::Get(mContext, precision);
+        }
+        case Z3_ARRAY_SORT: {
+            auto domain = Z3Handle<Z3_sort>(mZ3Context, Z3_get_array_sort_domain(mZ3Context, sort));
+            auto range = Z3Handle<Z3_sort>(mZ3Context, Z3_get_array_sort_range(mZ3Context, sort));
+
+            return ArrayType::Get(sortToType(domain), sortToType(range));
+        }
+    }
+
+    llvm_unreachable("Unknown Z3 sort!");
 }

@@ -23,7 +23,6 @@
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/Debug.h>
 
-
 #define DEBUG_TYPE "Z3Solver"
 
 using namespace gazer;
@@ -32,6 +31,7 @@ namespace
 {
     llvm::cl::opt<bool> Z3SolveParallel("z3-solve-parallel", llvm::cl::desc("Enable Z3's parallel solver"));
     llvm::cl::opt<int>  Z3ThreadsMax("z3-threads-max", llvm::cl::desc("Maximum number of threads"), llvm::cl::init(0));
+    llvm::cl::opt<bool> Z3DumpModel("z3-dump-model", llvm::cl::desc("Dump Z3 model"));
 } // end anonymous namespace
 
 
@@ -72,7 +72,11 @@ Solver::SolverStatus Z3Solver::run()
 
     switch (result) {
         case Z3_L_FALSE: return SolverStatus::UNSAT;
-        case Z3_L_TRUE:  return SolverStatus::SAT;
+        case Z3_L_TRUE:
+            if (Z3DumpModel) {
+                llvm::errs() << Z3_model_to_string(mZ3Context, Z3_solver_get_model(mZ3Context, mSolver)) << "\n";
+            }
+            return SolverStatus::SAT;
         case Z3_L_UNDEF: return SolverStatus::UNKNOWN;
     }
 

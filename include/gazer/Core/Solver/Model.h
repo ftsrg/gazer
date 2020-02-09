@@ -25,33 +25,15 @@ namespace gazer
 
 class LiteralExpr;
 
-class Model
+class Model : public ExprEvaluator
 {
 public:
-    /// Returns the value of a given variable declaration.
-    virtual ExprRef<LiteralExpr> eval(Variable& variable) = 0;
-    ExprRef<LiteralExpr> eval(Variable* variable) {
-        return this->eval(*variable);
-    }
+    // Inherited from ExprEvaluator:
+    //  ExprRef<LiteralExpr> evaluate(const ExprPtr& expr);
 
     virtual ~Model() = default;
 
     virtual void dump(llvm::raw_ostream& os) = 0;
-};
-
-/// Evaluates expressions using a solver model.
-class ExprModelEvaluator : public ExprEvaluatorBase
-{
-public:
-    ExprModelEvaluator(Model& model)
-        : mModel(model)
-    {}
-
-    ExprRef<LiteralExpr> getVariableValue(Variable& variable) override {
-        return mModel.eval(variable);
-    }
-private:
-    Model& mModel;
 };
 
 }

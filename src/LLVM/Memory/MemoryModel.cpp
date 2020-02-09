@@ -33,8 +33,8 @@ void MemoryModelWrapperPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
 {
     switch (mSettings.memoryModel) {
         case MemoryModelSetting::Flat:
+            au.addRequired<llvm::UnifyFunctionExitNodes>();
             au.addRequired<llvm::DominatorTreeWrapperPass>();
-            //au.addRequired<llvm::UnifyFunctionExitNodes>();
         case MemoryModelSetting::Havoc:
             break;
         default:

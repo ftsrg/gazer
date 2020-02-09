@@ -25,12 +25,27 @@
 namespace gazer
 {
 
+/// Interface for evaluating expressions.
+class ExprEvaluator
+{
+public:
+    virtual ExprRef<LiteralExpr> evaluate(const ExprPtr& expr) = 0;
+};
+
 /// Base class for expression evaluation implementations.
 /// This abstract class provides all methods to evaluate an expression, except for
 /// the means of acquiring the value of a variable.
-class ExprEvaluatorBase : public ExprWalker<ExprEvaluatorBase, ExprRef<LiteralExpr>>
+class ExprEvaluatorBase : public ExprEvaluator, private ExprWalker<ExprEvaluatorBase, ExprRef<LiteralExpr>>
 {
     friend class ExprWalker<ExprEvaluatorBase, ExprRef<LiteralExpr>>;
+public:
+    ExprRef<LiteralExpr> evaluate(const ExprPtr& expr) override {
+        return this->walk(expr);
+    }
+
+protected:
+    virtual ExprRef<LiteralExpr> getVariableValue(Variable& variable) = 0;
+
 private:
     ExprRef<LiteralExpr> visitExpr(const ExprPtr& expr);
 
@@ -110,17 +125,13 @@ private:
     // Arrays
     ExprRef<LiteralExpr> visitArrayRead(const ExprRef<ArrayReadExpr>& expr);
     ExprRef<LiteralExpr> visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr);
-
-protected:
-    virtual ExprRef<LiteralExpr> getVariableValue(Variable& variable) = 0;
-
 };
 
 /// Evaluates expressions based on a Valuation object
-class ExprEvaluator : public ExprEvaluatorBase
+class ValuationExprEvaluator : public ExprEvaluatorBase
 {
 public:
-    explicit ExprEvaluator(Valuation valuation)
+    explicit ValuationExprEvaluator(Valuation valuation)
         : mValuation(std::move(valuation))
     {}
 

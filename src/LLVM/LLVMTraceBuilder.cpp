@@ -147,8 +147,8 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
         const BasicBlock* bb = entry.block;
 
         for (const llvm::Instruction& inst : *bb) {
-            // Passing through this instruction means that it's possible not undefined anymore.
-            // Remove from the undefined set, and place it back again if it turns out to be undef.
+            // Passing through this instruction means that it's possibly not undefined anymore.
+            // Remove it from the undefined set, and place it back again if it turns out to be undef.
             undefs.erase(&inst);
 
             // See if we have reads on undefined values.
@@ -358,11 +358,11 @@ ExprRef<AtomicExpr> LLVMTraceBuilder::getLiteralFromValue(
         return this->getLiteralFromLLVMConst(cd, preferredType);
     }
 
-    ExprEvaluator eval(model);
+    ValuationExprEvaluator eval(model);
 
     auto expr = mCfaToLlvmTrace.getExpressionForValue(cfa, value);
     if (expr != nullptr) {
-        auto ret = eval.walk(expr);
+        auto ret = eval.evaluate(expr);
         if (ret != nullptr) {
             return ret;
         }

@@ -33,7 +33,7 @@ void bmc::cex_iterator::advance()
     }
 
     Location* current = mState.getLocation();
-    ExprRef<LiteralExpr> lit = mCex.mEval.walk(*pred);
+    ExprRef<LiteralExpr> lit = mCex.mEval.evaluate(*pred);
     assert(lit != nullptr && "Predecessor values must be evaluatable!");
     assert(lit->getType().isIntType() && "Predecessor values must be of integer type!");
 
@@ -58,7 +58,6 @@ void bmc::cex_iterator::advance()
 std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::createFailResult()
 {               
     auto model = mSolver->getModel();
-    ExprModelEvaluator eval{*model};
 
     if (mSettings.dumpSolverModel) {
         model->dump(llvm::errs());
@@ -69,7 +68,7 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::createFailResult()
         std::vector<Location*> states;
         std::vector<std::vector<VariableAssignment>> actions;
 
-        bmc::BmcCex cex{mError, *mRoot, eval, mPredecessors};
+        bmc::BmcCex cex{mError, *mRoot, *model, mPredecessors};
         for (auto state : cex) {
             Location* loc = state.getLocation();
             Transition* edge = state.getOutgoingTransition();
@@ -95,7 +94,7 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::createFailResult()
                 }
 
                 ExprRef<AtomicExpr> value;
-                if (auto lit = model->eval(*assignment.getVariable())) {
+                if (auto lit = model->evaluate(assignment.getVariable()->getRefExpr())) {
                     value = lit;
                 } else {
                     value = UndefExpr::Get(variable->getType());
@@ -115,7 +114,7 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::createFailResult()
         trace = std::make_unique<Trace>(std::vector<std::unique_ptr<TraceEvent>>());
     }
 
-    ExprRef<LiteralExpr> errorExpr = eval.walk(mErrorFieldVariable->getRefExpr());
+    ExprRef<LiteralExpr> errorExpr = model->evaluate(mErrorFieldVariable->getRefExpr());
     assert(errorExpr != nullptr && "The error field must be present in the model as a literal expression!");
 
     switch (errorExpr->getType().getTypeID()) {

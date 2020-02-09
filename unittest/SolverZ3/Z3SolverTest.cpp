@@ -44,8 +44,8 @@ TEST(SolverZ3Test, SmokeTest1)
     ASSERT_EQ(result, Solver::SAT);
     auto model = solver->getModel();
 
-    ASSERT_EQ(model->eval(a), BoolLiteralExpr::True(ctx));
-    ASSERT_EQ(model->eval(b), BoolLiteralExpr::True(ctx));
+    ASSERT_EQ(model->evaluate(a->getRefExpr()), BoolLiteralExpr::True(ctx));
+    ASSERT_EQ(model->evaluate(b->getRefExpr()), BoolLiteralExpr::True(ctx));
 }
 
 TEST(SolverZ3Test, FpaWithRoundingMode)
@@ -66,7 +66,7 @@ TEST(SolverZ3Test, FpaWithRoundingMode)
     auto model = solver->getModel();
 
     ASSERT_EQ(
-        model->eval(tmp),
+        model->evaluate(tmp->getRefExpr()),
         FloatLiteralExpr::Get(FloatType::Get(ctx, FloatType::Single), llvm::APFloat(0.0f))
     );
 }

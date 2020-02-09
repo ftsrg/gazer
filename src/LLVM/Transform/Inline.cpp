@@ -30,6 +30,8 @@
 #include <llvm/Analysis/CallGraph.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 
+#define DEBUG_TYPE "SimplifiedInliner"
+
 using namespace gazer;
 
 namespace
@@ -89,6 +91,7 @@ bool InlinePass::runOnModule(llvm::Module& module)
 
     for (auto& [call, target] : *entryCG) {
         if (this->shouldInlineFunction(target, 1)) {
+            LLVM_DEBUG(llvm::dbgs() << "Decided to inline call " << *call << " to target " << target->getFunction()->getName() << "\n");
             wl.emplace_back(call);
         }
     }

@@ -183,6 +183,11 @@ bool LiftErrorCalls::run()
             // Find possibly failing calls to other infos.
             for (auto& callRecord : *cgNode) {
                 llvm::Function* callee = callRecord.second->getFunction();
+                if (callee == nullptr) {
+                    // TODO: Indirect function calls are unsupported at the moment.
+                    continue;
+                }
+
                 if (callee->isDeclaration() || !mInfos[callee].canFail()) {
                     continue;
                 }
