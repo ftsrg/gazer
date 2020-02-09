@@ -25,8 +25,10 @@
 #include "gazer/Core/ExprTypes.h"
 #include "gazer/Core/LiteralExpr.h"
 #include "gazer/Core/Expr/Matcher.h"
+#include "gazer/ADT/Algorithm.h"
 
 #include <llvm/ADT/DenseMap.h>
+#include <llvm/ADT/DenseSet.h>
 
 #include <variant>
 
@@ -57,6 +59,13 @@ public:
     {
         if (auto boolLit = dyn_cast<BoolLiteralExpr>(op.get())) {
             return BoolLiteralExpr::Get(op->getContext(), !boolLit->getValue());
+        }
+
+        ExprPtr x, y;
+
+        // Not(Or(Not(X), Y)) --> And(X, Not(Y))
+        if (match(op, m_Or(m_Not(m_Expr(x)), m_Expr(y)))) {
+            return this->And({x, this->Not(y)});
         }
 
         return NotExpr::Create(op);
@@ -121,11 +130,10 @@ public:
 
         for (const ExprPtr& op : vector) {
             if (auto lit = dyn_cast<BoolLiteralExpr>(op)) {
+                // We are not adding unnecessary true literals
                 if (lit->isFalse()) {
                     return this->False();
-                } else {
-                    // We are not adding unnecessary true literals
-                }
+                }                
             } else if (auto andExpr = dyn_cast<AndExpr>(op)) {
                 // For AndExpr operands, we flatten the expression
                 newOps.insert(newOps.end(), andExpr->op_begin(), andExpr->op_end());
@@ -134,10 +142,12 @@ public:
             }
         }
 
-        if (newOps.size() == 0) {
+        if (newOps.empty()) {
             // If we eliminated all operands
             return this->True();
-        } else if (newOps.size() == 1) {
+        }
+        
+        if (newOps.size() == 1) {
             return *newOps.begin();
         }
 
@@ -163,18 +173,107 @@ public:
             }
         }
 
-        if (newOps.size() == 0) {
+        if (newOps.empty()) {
             // If we eliminated all operands
             return this->False();
-        } else if (newOps.size() == 1) {
+        }
+        
+        if (newOps.size() == 1) {
             return *newOps.begin();
         }
 
-        return OrExpr::Create(newOps);
+        // Move AND expressions to the beginning
+        auto andEnd = std::partition(newOps.begin(), newOps.end(), [](const ExprPtr& e) {
+            return llvm::isa<AndExpr>(e);
+        });
+
+        // Try to factorize some terms out
+        if (std::distance(newOps.begin(), andEnd) < 2) {
+            return OrExpr::Create(newOps);
+        }
+
+        ExprVector intersection;
+        intersection.insert(intersection.end(), newOps.begin(), andEnd);
+
+        for (auto it = std::next(newOps.begin()); it != andEnd; ++it) {
+            // We know that all these expressions are And instances.
+            ExprRef<AndExpr> andExpr = expr_cast<AndExpr>(*it);
+            intersection.erase(llvm::remove_if(intersection, [&andExpr](auto& p) {
+                return llvm::find(andExpr->operands(), p) == andExpr->op_end();
+            }), intersection.end());
+        }
+
+        if (intersection.empty()) {
+            return OrExpr::Create(newOps);
+        }
+
+        ExprVector terms; 
+        ExprPtr common = this->And(intersection);
+
+        for (auto it = newOps.begin(); it != andEnd; ++it) {
+            ExprRef<AndExpr> andExpr = expr_cast<AndExpr>(*it);
+            ExprVector difference;
+            llvm::copy_if(andExpr->operands(), std::back_inserter(difference), [&intersection](auto& p) {
+                return llvm::find(intersection, p) == intersection.end();
+            });
+            terms.emplace_back(this->And(difference));
+        }
+
+        return this->And({common, OrExpr::Create(terms)});
+/*
+        if (newOps.size() == 2) {
+            // Try some optimizations for the binary case.
+            if (auto left = llvm::dyn_cast<AndExpr>(newOps[0])) {
+                if (auto right = llvm::dyn_cast<AndExpr>(newOps[1])) {
+                    // Or(And(E1, ..., Ek, X1, ..., Xn), And(E1, ..., Ek, ..., Y1, ..., Ym))
+                    //  --> And(E1, ..., Ek, Or(And(X1, ..., Xn), And(Y1, ..., Ym)))
+                    ExprVector top; // also serves as the intersection
+                    ExprVector leftMinusRight;
+                    ExprVector rightMinusLeft;
+                    
+                    intersection_difference(
+                        left->operands(), right->operands(),
+                        std::back_inserter(top),
+                        std::back_inserter(leftMinusRight),
+                        std::back_inserter(rightMinusLeft)
+                    );
+
+                    if (!top.empty()) {
+                        top.push_back(
+                            OrExpr::Create(this->And(leftMinusRight), this->And(rightMinusLeft))
+                        );
+
+                        return AndExpr::Create(top);
+                    }
+                }
+            }
+        }
+
+        return OrExpr::Create(newOps); */
     }
 
     ExprPtr Imply(const ExprPtr& left, const ExprPtr& right) override
     {
+        // True  => X --> X
+        // False => X --> True
+        if (auto bl = llvm::dyn_cast<BoolLiteralExpr>(left)) {
+            if (bl->isTrue()) {
+                return right;
+            }
+
+            return this->True();
+        }
+
+        // X => True  --> True
+        // X => False --> not X
+        if (auto br = llvm::dyn_cast<BoolLiteralExpr>(right)) {
+            if (br->isTrue()) {
+                return this->True();
+            }
+
+            return this->Not(left);
+        }
+
         return ImplyExpr::Create(left, right);
     }
 
@@ -194,15 +293,15 @@ public:
 
         ExprRef<BoolLiteralExpr> b1 = nullptr;
         ExprPtr c1 = nullptr;
-        ExprPtr e1 = nullptr, e2 = nullptr;
+        ExprRef<LiteralExpr> l1 = nullptr, l2 = nullptr;
 
-        // Eq(Select(C1, E1, E2), E1) --> C1
-        if (unord_match(left, right, m_Select(m_Expr(c1), m_Expr(e1), m_Expr(e2)), m_Specific(e1))) {
+        // Eq(Select(C1, L1, L2), L1) --> C1
+        if (unord_match(left, right, m_Select(m_Expr(c1), m_Literal(l1), m_Literal(l2)), m_Specific(l1))) {
             return c1;
         }
 
-        // Eq(Select(C1, E1, E2), E2) --> Not(C1)
-        if (unord_match(left, right, m_Select(m_Expr(c1), m_Expr(e1), m_Expr(e2)), m_Specific(e2))) {
+        // Eq(Select(C1, L1, L2), L2) --> Not(C1)
+        if (unord_match(left, right, m_Select(m_Expr(c1), m_Literal(l1), m_Literal(l2)), m_Specific(l2))) {
             return this->Not(c1);
         }
 
@@ -236,6 +335,17 @@ public:
 
     ExprPtr Gt(const ExprPtr& left, const ExprPtr& right) override
     {
+        if (ExprPtr folded = this->foldBinaryCompare(Expr::Gt, left, right)) {
+            return folded;
+        }
+
+        // Gt(C, X) --> LtEq(X, C - 1) if C is Int
+        IntLiteralExpr::ValueTy intVal;
+        ExprPtr x;
+        if (match(left, right, m_Int(&intVal), m_Expr(x))) {
+            return LtEqExpr::Create(x, this->IntLit(intVal - 1));
+        }
+
         // Gt(X, Y) --> Not(LtEq(X, Y))
         return this->Not(this->LtEq(left, right));
     }
@@ -407,7 +517,7 @@ public:
 
         // Select(not C, E1, E2) --> Select(C, E2, E1)
         if (match(condition, then, elze, m_Not(m_Expr(c1)), m_Expr(e1), m_Expr(e2))) {
-            return SelectExpr::Create(condition, elze, then);
+            return SelectExpr::Create(c1, elze, then);
         }
 
         // Select(C1, Select(C1, E1, E'), E2) --> Select(C1, E1, E2)

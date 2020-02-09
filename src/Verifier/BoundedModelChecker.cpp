@@ -40,8 +40,8 @@ using namespace gazer;
 
 namespace
 {
-    llvm::cl::opt<bool> NoDomPush("no-dom-push", llvm::cl::Hidden);
-    llvm::cl::opt<bool> NoPostDomPush("no-postdom-push", llvm::cl::Hidden);
+    llvm::cl::opt<bool> NoDomPush("bmc-no-dom-push", llvm::cl::Hidden);
+    llvm::cl::opt<bool> NoPostDomPush("bmc-no-postdom-push", llvm::cl::Hidden);
 } // end anonymous namespace
 
 auto BoundedModelChecker::check(AutomataSystem& system, CfaTraceBuilder& traceBuilder)
@@ -109,7 +109,6 @@ auto BoundedModelCheckerImpl::initializeErrorField() -> bool
 
     if (errorFieldType == nullptr) {
         // Try to find the error field type from using another CFA.
-        // Try to find a suitable error field type.
         for (Cfa& cfa : mSystem) {
             for (auto& err : cfa.errors()) {
                 errorFieldType = &err.second->getType();
@@ -479,8 +478,7 @@ auto BoundedModelCheckerImpl::findCommonCallAncestor(Location* fwd, Location* bw
 
 void BoundedModelCheckerImpl::findOpenCallsInCex(Model& model, llvm::SmallVectorImpl<CallTransition*>& callsInCex)
 {
-    ExprModelEvaluator eval{model};
-    auto cex = bmc::BmcCex{mError, *mRoot, eval, mPredecessors};
+    auto cex = bmc::BmcCex{mError, *mRoot, model, mPredecessors};
 
     for (auto state : cex) {
         auto call = llvm::dyn_cast_or_null<CallTransition>(state.getOutgoingTransition());
@@ -648,7 +646,15 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     Location* before = call->getSource();
     Location* after  = call->getTarget();
 
-    mRoot->createAssignTransition(before, locToLocMap[callee->getEntry()], call->getGuard());
+    std::vector<VariableAssignment> inputAssigns;
+    for (auto& input : call->inputs()) {
+        VariableAssignment inputAssignment(oldVarToNew[input.getVariable()], input.getValue());
+        LLVM_DEBUG(llvm::dbgs() << "Added input assignment " << inputAssignment <<
+            " for variable " << *input.getVariable() << "n");
+        inputAssigns.push_back(inputAssignment);
+    }
+
+    mRoot->createAssignTransition(before, locToLocMap[callee->getEntry()], call->getGuard(), inputAssigns);
     mRoot->createAssignTransition(locToLocMap[callee->getExit()], after , mExprBuilder.True());
 
     // Add the new locations to the topological sort.

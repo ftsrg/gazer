@@ -95,7 +95,7 @@ namespace bmc
     {
         friend class cex_iterator;
     public:
-        BmcCex(Location* start, Cfa& cfa, ExprEvaluatorBase& eval, PredecessorMapT& preds)
+        BmcCex(Location* start, Cfa& cfa, ExprEvaluator& eval, PredecessorMapT& preds)
             : mCfa(cfa), mStart(start), mEval(eval), mPredecessors(preds)
         {
             assert(start != nullptr);
@@ -107,7 +107,7 @@ namespace bmc
     private:
         Cfa& mCfa;
         Location* mStart;
-        ExprEvaluatorBase& mEval;
+        ExprEvaluator& mEval;
         PredecessorMapT& mPredecessors;
     };
 }

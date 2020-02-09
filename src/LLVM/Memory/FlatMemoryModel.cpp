@@ -38,6 +38,8 @@ using namespace gazer;
 namespace
 {
 
+llvm::cl::opt<bool> FlatMemoryDumpMemSSA("flat-memory-dump-memssa");
+
 class FlatMemoryModelInstTranslator;
 
 struct CallInfo
@@ -239,6 +241,10 @@ FlatMemoryModel::FlatMemoryModel(
 
         // All definitions and uses were added, build the memory SSA
         info.memorySSA = builder.build();
+
+        if (FlatMemoryDumpMemSSA) {
+            info.memorySSA->print(llvm::errs());
+        }
     }
 }
 
@@ -600,7 +606,6 @@ void FlatMemoryModelInstTranslator::handleCall(
     llvm::SmallVectorImpl<VariableAssignment>& outputAssignments)
 {
     LLVM_DEBUG(llvm::dbgs() << "Handling call instruction " << *call.getInstruction() << "\n");
-    llvm::errs() << "Handling call instruction " << *call.getInstruction() << "\n";
 
     const llvm::Function* callee = call.getCalledFunction();
     assert(callee != nullptr);
@@ -608,15 +613,20 @@ void FlatMemoryModelInstTranslator::handleCall(
     auto& calleeInfo = mMemoryModel.getInfoFor(callee);
     auto& callInstInfo = mInfo.calls[call];
 
-    // Map memory call definitions to return uses.
+    // Map the memory call definition to its return use.
     // We only define memory, as the stack pointer should be back to its
     // "original" position when the call returns.
-    outputAssignments.emplace_back(
-        parentEp.getVariableFor(callInstInfo.defs[mInfo.memory]),
-        calleeEp.getOutputVariableFor(calleeInfo.memory->getExitUse()->getReachingDef())->getRefExpr()
-    );
+    MemoryObjectUse* use = calleeInfo.memory->getExitUse();
+    if (use != nullptr) {
+        // It is possible that the return use is ommited if the function
+        // does not return.
+        outputAssignments.emplace_back(
+            parentEp.getVariableFor(callInstInfo.defs[mInfo.memory]),
+            calleeEp.getOutputVariableFor(use->getReachingDef())->getRefExpr()
+        );
+    }
 
-    // Map the memory, stack pointer and frame pointer.
+    // Map the memory, stack pointer and frame pointer to the inputs.
     for (auto [actual, formal] : std::initializer_list<std::pair<MemoryObject*, MemoryObject*>>{ 
         { mInfo.memory, calleeInfo.memory },
         { mInfo.stackPointer, calleeInfo.stackPointer },
