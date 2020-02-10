@@ -7,21 +7,29 @@ Checks are managed through the `CheckRegistry` class, which defines an error cod
 
 ### Registering checks
 
-`CheckRegistry` is used to register new checks into the verification workflow, and used in conjunction with LLVM's `PassManager`. To register a check, simply add it to a `CheckRegistry` instance:
+`CheckRegistry` is used to register new checks into the verification workflow, and used in conjunction with LLVM's `PassManager`.
+To register a check, simply add its factory to a `FrontendConfig` instance:
 
 ```cpp
-gazer::CheckRegistry checks;
+FrontendConfig& config = /*... */;
 
-// Create a check for assertion fails
-checks.add(gazer::checks::CreateAssertionFailCheck());
-
-// Or use a custom check class
-checks.add(new MyOwnCheckClass());
+// Create a check a custom check class
+config.registerCheck("my-check-name", [](ClangOptions& options) {
+    return std::make_unique<MyOwnCheckClass>();
+});
 ```
 
-After adding the checks, the LLVM passes defined by each check must be registered into a pass manager:
+The factory function receives a `ClangOptions` instance where it can set certain Clang flags for the frontend compilation stage.
+
+Checks may be enabled through the command line, using the check names set in the `registerCheck` function.
+As an example, the command line option `-checks="div-by-zero,my-check-name"` enables the check registered above along with the default division-by-zero check.
+
+If you are using `LLVMFrontend`, the `registerVerificationPipeline` function runs all requested checks on the input module.
+
+If not, you must register and enable the passes manually through the `registerPassess` function of `CheckRegistry`:
 
 ```cpp
+CheckRegistry& checks = /* ... */;
 std::unique_ptr<llvm::legacy::PassManager> pm = /* ... */;
 checks.registerPasses(*pm);
 // If you add other passes to the pass manager, they will be executed after check instrumentation
@@ -46,14 +54,12 @@ public:
     {}
 
     virtual bool mark(llvm::Function&) override;
-    virtual llvm::StringRef getCheckName() const override;
     virtual llvm::StringRef getErrorDescription() const override;
 };
 ```
 
 The virtual function `mark` is used to insert the error calls into a function, while `getErrorDescription` should return a short,
 user-friendly error message if the check is violated (such as "Assertion failure", "Division by zero", etc.).
-The function `getCheckName` is used to identify checks through the command line.
 
 Error calls are represented with Gazer's `gazer.error_code` function.
 It requires a single operand, which is an error code unique for the given check.
@@ -69,9 +75,6 @@ With the error code, you can implement your check and place the pre- or postcond
 ```cpp
 char DivisionByZeroCheck::ID;
 
-llvm::StringRef DivisionByZeroCheck::getCheckName() const {
-    return "div-by-zero";
-}
 llvm::StringRef DivisionByZeroCheck::getErrorDescription() const {
     return "Divison by zero";
 }
