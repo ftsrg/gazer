@@ -33,8 +33,9 @@ void bmc::cex_iterator::advance()
     }
 
     Location* current = mState.getLocation();
-    ExprRef<LiteralExpr> lit = mCex.mEval.evaluate(*pred);
-    assert(lit != nullptr && "Predecessor values must be evaluatable!");
+    ExprRef<AtomicExpr> lit = mCex.mEval.evaluate(*pred);
+
+    assert(!lit->isUndef() && "Predecessor values must be evaluatable!");
     assert(lit->getType().isIntType() && "Predecessor values must be of integer type!");
 
     size_t predId = llvm::cast<IntLiteralExpr>(lit)->getValue();
@@ -114,8 +115,8 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::createFailResult()
         trace = std::make_unique<Trace>(std::vector<std::unique_ptr<TraceEvent>>());
     }
 
-    ExprRef<LiteralExpr> errorExpr = model->evaluate(mErrorFieldVariable->getRefExpr());
-    assert(errorExpr != nullptr && "The error field must be present in the model as a literal expression!");
+    ExprRef<AtomicExpr> errorExpr = model->evaluate(mErrorFieldVariable->getRefExpr());
+    assert(!errorExpr->isUndef() && "The error field must be present in the model as a literal expression!");
 
     switch (errorExpr->getType().getTypeID()) {
         case Type::BvTypeID:

@@ -38,7 +38,7 @@ public:
         Z3_model_inc_ref(mZ3Context, mModel);
     }
 
-    ExprRef<LiteralExpr> evaluate(const ExprPtr& expr) override;
+    ExprRef<AtomicExpr> evaluate(const ExprPtr& expr) override;
 
     void dump(llvm::raw_ostream& os) override {
         os << Z3_model_to_string(mZ3Context, mModel);
@@ -74,18 +74,13 @@ auto Z3Solver::getModel() -> std::unique_ptr<Model>
         mContext, mZ3Context, Z3_solver_get_model(mZ3Context, mSolver), mDecls, mTransformer);
 }
 
-auto Z3Model::evaluate(const ExprPtr& expr) -> ExprRef<LiteralExpr>
+auto Z3Model::evaluate(const ExprPtr& expr) -> ExprRef<AtomicExpr>
 {
     auto ast = mExprTransformer.walk(expr);
     Z3_ast resultAst;
 
-    bool success = Z3_model_eval(mZ3Context, mModel, ast, false, &resultAst);
+    bool success = Z3_model_eval(mZ3Context, mModel, ast, true, &resultAst);
     assert(success);
-
-    if (!Z3_is_numeral_ast(mZ3Context, ast) && ast == resultAst) {
-        // The expression could not have been evaluated, return nullptr.
-        return nullptr;
-    }
 
     Z3AstHandle result(mZ3Context, resultAst);
     auto sort = Z3Handle<Z3_sort>(mZ3Context, Z3_get_sort(mZ3Context, result));

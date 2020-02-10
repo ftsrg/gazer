@@ -274,14 +274,14 @@ void LLVMFrontend::registerEnabledChecks()
 
 void LLVMFrontend::registerInlining()
 {
-    if (mSettings.inlineFunctions) {
-        mPassManager.add(llvm::createInternalizePass([](auto& gv) {
+    if (mSettings.inlineLevel != InlineLevel::Off) {
+        mPassManager.add(llvm::createInternalizePass([this](auto& gv) {
             if (auto fun = llvm::dyn_cast<llvm::Function>(&gv)) {
-                return fun->getName() == "main";
+                return mSettings.getEntryFunction(*gv.getParent()) == fun;
             }
             return false;
         }));
-        mPassManager.add(gazer::createSimpleInlinerPass(mModule->getFunction("main")));
+        mPassManager.add(gazer::createSimpleInlinerPass(mSettings.getEntryFunction(*mModule), mSettings.inlineLevel));
 
         // Remove dead functions
         mPassManager.add(llvm::createGlobalDCEPass());

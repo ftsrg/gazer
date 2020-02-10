@@ -21,6 +21,19 @@
 
 using namespace gazer;
 
+static std::string getOverloadedFunctionName(llvm::StringRef prefix, llvm::Type* type)
+{
+    assert(type != nullptr);
+
+    std::string nameBuffer;
+    llvm::raw_string_ostream rso(nameBuffer);
+    rso << prefix;
+    type->print(rso, false, true);
+    rso.flush();
+
+    return rso.str();
+}
+
 llvm::FunctionCallee GazerIntrinsic::GetOrInsertFunctionEntry(llvm::Module& module, llvm::ArrayRef<llvm::Type*> args)
 {
     std::vector<llvm::Type*> funArgs;
@@ -65,28 +78,21 @@ llvm::FunctionCallee GazerIntrinsic::GetOrInsertFunctionCallReturned(llvm::Modul
 
 llvm::FunctionCallee GazerIntrinsic::GetOrInsertFunctionReturnValue(llvm::Module& module, llvm::Type* type)
 {
-    assert(type != nullptr);
-
-    std::string nameBuffer;
-    llvm::raw_string_ostream rso(nameBuffer);
-    type->print(rso, false, true);
-    rso.flush();
-
     // Insert a new function for this mark type
     return module.getOrInsertFunction(
-        FunctionReturnValuePrefix + rso.str(),
+        getOverloadedFunctionName(FunctionReturnValuePrefix, type),
         llvm::Type::getVoidTy(module.getContext()),
         llvm::Type::getMetadataTy(module.getContext()),
         type
     );
 }
 
-llvm::FunctionCallee GazerIntrinsic::GetOrInsertInlinedGlobalWrite(llvm::Module& module)
+llvm::FunctionCallee GazerIntrinsic::GetOrInsertInlinedGlobalWrite(llvm::Module& module, llvm::Type* type)
 {
     return module.getOrInsertFunction(
-        InlinedGlobalWriteName,
+        getOverloadedFunctionName(InlinedGlobalWritePrefix, type),
         llvm::Type::getVoidTy(module.getContext()),
-        llvm::Type::getMetadataTy(module.getContext()),
+        type,
         llvm::Type::getMetadataTy(module.getContext())
     );
 }

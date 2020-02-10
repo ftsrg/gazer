@@ -37,8 +37,16 @@ namespace
     cl::opt<std::string> EnabledChecks("checks", cl::desc("List of enabled checks"), cl::cat(ChecksCategory));
 
     // LLVM frontend and transformation options
-    cl::opt<bool> NoInlineFunctions(
-        "no-inline", cl::desc("Do not inline function calls"), cl::cat(LLVMFrontendCategory));
+    // LLVM IR to CFA translation options
+    cl::opt<InlineLevel> InlineLevelOpt("inline", cl::desc("Level for variable elimination:"),
+        cl::values(
+            clEnumValN(InlineLevel::Off, "off", "Do not eliminate variables"),
+            clEnumValN(InlineLevel::Default, "default", "Eliminate variables having only one use"),
+            clEnumValN(InlineLevel::All, "all", "Eliminate all eligible variables")
+        ),
+        cl::init(InlineLevel::Default),
+        cl::cat(LLVMFrontendCategory)
+    );
     cl::opt<bool> NoInlineGlobals(
         "no-inline-globals", cl::desc("Do not inline eligible global variables"), cl::cat(LLVMFrontendCategory));
     cl::opt<bool> NoOptimize(
@@ -122,13 +130,13 @@ LLVMFrontendSettings LLVMFrontendSettings::initFromCommandLine()
     LLVMFrontendSettings settings;
 
     // opt-out settings
-    settings.inlineFunctions = !NoInlineFunctions;
     settings.inlineGlobals = !NoInlineGlobals;
     settings.optimize = !NoOptimize;
     settings.liftAsserts = !NoAssertLift;
     settings.slicing =!NoSlice;
     settings.simplifyExpr = !NoSimplifyExpr;
 
+    settings.inlineLevel = InlineLevelOpt;
     settings.elimVars = ElimVarsLevelOpt;
     settings.memoryModel = MemoryModelOpt;
 

@@ -42,12 +42,6 @@ public:
 
     bool runOnModule(llvm::Module& module) final;
 
-    /// Returns this check's name. This name will be used to identify
-    /// the check through the command-line, thus this should be short,
-    /// descriptive and must not contain whitespaces,
-    /// e.g.: "assert-fail", "div-by-zero", "int-overflow"
-    virtual llvm::StringRef getCheckName() const = 0;
-
     /// Returns a user-friendly error description on why this particular
     /// check failed. Such descriptions should be short and simple, e.g.
     /// "Assertion failure", "Division by zero", or "Signed integer overflow".

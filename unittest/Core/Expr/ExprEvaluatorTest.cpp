@@ -53,7 +53,8 @@ void checkBoolEval(
     const ExprPtr& expr,
     const ExprRef<LiteralExpr>& expected)
 {
-    ValuationExprEvaluator eval{vb.build()};
+    auto valuation = vb.build();
+    ValuationExprEvaluator eval(valuation);
     auto actual = eval.evaluate(expr);
 
     EXPECT_TRUE(llvm::isa<BoolLiteralExpr>(actual));
@@ -62,7 +63,8 @@ void checkBoolEval(
 
 void checkBv(Valuation::Builder& vb, const ExprPtr& expr, llvm::APInt expected)
 {
-    ValuationExprEvaluator eval{vb.build()};
+    auto valuation = vb.build();
+    ValuationExprEvaluator eval(valuation);
     auto lit = eval.evaluate(expr);
 
     ASSERT_TRUE(llvm::isa<BvLiteralExpr>(lit));
@@ -76,8 +78,8 @@ void checkBv(Valuation::Builder& vb, const ExprPtr& expr, uint64_t expected)
 
 TEST_F(ExprEvalTest, TestLiterals)
 {
-    auto vb = Valuation::CreateBuilder();
-    ValuationExprEvaluator eval{vb.build()};
+    Valuation valuation = Valuation::CreateBuilder().build();
+    ValuationExprEvaluator eval{valuation};
 
     EXPECT_EQ(eval.evaluate(builder->True()), builder->True());
     EXPECT_EQ(eval.evaluate(builder->False()), builder->False());

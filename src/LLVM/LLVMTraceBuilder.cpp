@@ -101,9 +101,9 @@ ExprRef<AtomicExpr> LLVMTraceBuilder::getLiteralFromLLVMConst(
     return UndefExpr::Get(BvType::Get(mContext, 1));
 }
 
-std::unique_ptr<Trace> LLVMTraceBuilder::build(
+auto LLVMTraceBuilder::build(
     std::vector<Location*>& states,
-    std::vector<std::vector<VariableAssignment>>& actions)
+    std::vector<std::vector<VariableAssignment>>& actions) -> std::unique_ptr<Trace>
 {
     assert(states.size() == actions.size() + 1);
     assert(states.front() == states.front()->getAutomaton()->getEntry());
@@ -112,6 +112,7 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
     llvm::DenseSet<const llvm::Value*> undefs;
 
     Valuation currentVals;
+    ValuationExprEvaluator evaluator(currentVals);
 
     auto shouldProcessEntry = [](CfaToLLVMTrace::BlockToLocationInfo info) -> bool {
         return info.block != nullptr && info.kind == CfaToLLVMTrace::Location_Entry;
@@ -170,7 +171,7 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
                             // The condition is undefined, this UB
                             auto expr = mCfaToLlvmTrace.getExpressionForValue(loc->getAutomaton(), &inst);
                             events.push_back(std::make_unique<UndefinedBehaviorEvent>(
-                                currentVals.eval(expr)
+                                evaluator.evaluate(expr)
                                 // TODO: Add location
                             ));
                         } else {
@@ -189,7 +190,7 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
                     } else if (!llvm::isa<IntrinsicInst>(inst)) {
                         auto expr = mCfaToLlvmTrace.getExpressionForValue(loc->getAutomaton(), operand);
                         events.push_back(std::make_unique<UndefinedBehaviorEvent>(
-                            currentVals.eval(expr)
+                            evaluator.evaluate(expr)
                             // TODO: Add location
                         ));
                     }
@@ -204,10 +205,8 @@ std::unique_ptr<Trace> LLVMTraceBuilder::build(
             llvm::Function* callee = call->getCalledFunction();
             if (auto dvi = llvm::dyn_cast<llvm::DbgValueInst>(&inst)) {
                 this->handleDbgValueInst(loc, dvi, events, currentVals);
-            } else if (callee->getName() == GazerIntrinsic::InlinedGlobalWriteName) {
-                auto mdValue = cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata();
-                auto value = cast<ValueAsMetadata>(mdValue)->getValue();
-
+            } else if (callee->getName().startswith(GazerIntrinsic::InlinedGlobalWritePrefix)) {
+                auto value = call->getArgOperand(0);
                 auto mdGlobal = cast<DIGlobalVariable>(
                     cast<MetadataAsValue>(call->getArgOperand(1))->getMetadata()
                 );

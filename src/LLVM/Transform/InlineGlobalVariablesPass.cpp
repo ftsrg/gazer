@@ -93,9 +93,6 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
 
     llvm::CallGraph& cg = getAnalysis<llvm::CallGraphWrapperPass>().getCallGraph();
 
-    auto mark = GazerIntrinsic::GetOrInsertInlinedGlobalWrite(module);
-    cg.getOrInsertFunction(llvm::cast<llvm::Function>(mark.getCallee()));
-
     // Create a dbg declaration if it does not exist yet.
     Intrinsic::getDeclaration(&module, Intrinsic::dbg_declare);
 
@@ -129,8 +126,10 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
         // store if the ExternFuncGlobalBehavior setting requires this.
 
         // Add some metadata stuff
-        // FIXME: There should be a more intelligent way for finding
-        //  the DIGlobalVariable
+        auto mark = GazerIntrinsic::GetOrInsertInlinedGlobalWrite(module, gv.getType()->getPointerElementType());
+        cg.getOrInsertFunction(llvm::cast<llvm::Function>(mark.getCallee()));
+
+        // FIXME: There should be a more intelligent way for finding the DIGlobalVariable
         llvm::SmallVector<std::pair<unsigned, MDNode*>, 2> md;
         gv.getAllMetadata(md);
 
@@ -146,10 +145,10 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
             for (llvm::Value* user : gv.users()) {
                 if (auto inst = llvm::dyn_cast<StoreInst>(user)) {
                     llvm::Value* value = inst->getOperand(0);
+
                     CallInst* call = CallInst::Create(
                         mark.getFunctionType(), mark.getCallee(), {
-                            MetadataAsValue::get(module.getContext(), ValueAsMetadata::get(value)),
-                            MetadataAsValue::get(module.getContext(), diGlobalVariable)
+                            value, MetadataAsValue::get(module.getContext(), diGlobalVariable)
                         }
                     );
 

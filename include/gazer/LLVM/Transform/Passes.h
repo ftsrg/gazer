@@ -18,6 +18,8 @@
 #ifndef GAZER_CORE_TRANSFORM_PASSES_H
 #define GAZER_CORE_TRANSFORM_PASSES_H
 
+#include "gazer/LLVM/LLVMFrontendSettings.h"
+
 #include <llvm/Pass.h>
 
 namespace gazer
@@ -35,7 +37,7 @@ llvm::Pass* createLiftErrorCallsPass();
 llvm::Pass* createNormalizeVerifierCallsPass();
 
 /// A simpler (and more restricted) inlining pass.
-llvm::Pass* createSimpleInlinerPass(llvm::Function* entry);
+llvm::Pass* createSimpleInlinerPass(llvm::Function* entry, InlineLevel level);
 
 }
 

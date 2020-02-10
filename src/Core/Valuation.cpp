@@ -36,16 +36,3 @@ ExprRef<LiteralExpr>& Valuation::operator[](const Variable& variable)
     return mMap[&variable];
 }
 
-ExprRef<AtomicExpr> Valuation::eval(const ExprPtr& expr)
-{
-    if (auto varRef = llvm::dyn_cast<VarRefExpr>(expr.get())) {
-        auto lit = this->operator[](varRef->getVariable());
-        return lit != nullptr ? boost::static_pointer_cast<AtomicExpr>(lit) : UndefExpr::Get(expr->getType());
-    }
-    
-    if (expr->getKind() == Expr::Literal) {
-        return llvm::cast<LiteralExpr>(expr);
-    }
-
-    return UndefExpr::Get(expr->getType());
-}

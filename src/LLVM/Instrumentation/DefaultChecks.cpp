@@ -86,7 +86,6 @@ public:
         return true;
     }
 
-    llvm::StringRef getCheckName() const override { return "assert"; }
     llvm::StringRef getErrorDescription() const override { return "Assertion failure"; }
 };
 
@@ -149,7 +148,6 @@ public:
         return true;
     }
 
-    llvm::StringRef getCheckName() const override { return "integer-divide-by-zero"; }
     llvm::StringRef getErrorDescription() const override { return "Divison by zero"; }
 };
 
@@ -166,7 +164,6 @@ public:
     
     bool mark(llvm::Function& function) override;
 
-    llvm::StringRef getCheckName() const override { return "signed-integer-overflow"; }
     llvm::StringRef getErrorDescription() const override { return "Signed integer overflow"; }
 private:
     bool isOverflowIntrinsic(llvm::Function* callee, GazerIntrinsic::Overflow* ovrKind);

@@ -29,119 +29,117 @@ namespace gazer
 class ExprEvaluator
 {
 public:
-    virtual ExprRef<LiteralExpr> evaluate(const ExprPtr& expr) = 0;
+    virtual ExprRef<AtomicExpr> evaluate(const ExprPtr& expr) = 0;
 };
 
 /// Base class for expression evaluation implementations.
 /// This abstract class provides all methods to evaluate an expression, except for
 /// the means of acquiring the value of a variable.
-class ExprEvaluatorBase : public ExprEvaluator, private ExprWalker<ExprEvaluatorBase, ExprRef<LiteralExpr>>
+class ExprEvaluatorBase : public ExprEvaluator, private ExprWalker<ExprEvaluatorBase, ExprRef<AtomicExpr>>
 {
-    friend class ExprWalker<ExprEvaluatorBase, ExprRef<LiteralExpr>>;
+    friend class ExprWalker<ExprEvaluatorBase, ExprRef<AtomicExpr>>;
 public:
-    ExprRef<LiteralExpr> evaluate(const ExprPtr& expr) override {
+    ExprRef<AtomicExpr> evaluate(const ExprPtr& expr) override {
         return this->walk(expr);
     }
 
 protected:
-    virtual ExprRef<LiteralExpr> getVariableValue(Variable& variable) = 0;
+    virtual ExprRef<AtomicExpr> getVariableValue(Variable& variable) = 0;
 
 private:
-    ExprRef<LiteralExpr> visitExpr(const ExprPtr& expr);
+    ExprRef<AtomicExpr> visitExpr(const ExprPtr& expr);
 
     // Nullary
-    ExprRef<LiteralExpr> visitUndef(const ExprRef<UndefExpr>& expr);
-    ExprRef<LiteralExpr> visitLiteral(const ExprRef<LiteralExpr>& expr);
-    ExprRef<LiteralExpr> visitVarRef(const ExprRef<VarRefExpr>& expr);
+    ExprRef<AtomicExpr> visitUndef(const ExprRef<UndefExpr>& expr);
+    ExprRef<AtomicExpr> visitLiteral(const ExprRef<AtomicExpr>& expr);
+    ExprRef<AtomicExpr> visitVarRef(const ExprRef<VarRefExpr>& expr);
 
     // Unary
-    ExprRef<LiteralExpr> visitNot(const ExprRef<NotExpr>& expr);
-    ExprRef<LiteralExpr> visitZExt(const ExprRef<ZExtExpr>& expr);
-    ExprRef<LiteralExpr> visitSExt(const ExprRef<SExtExpr>& expr);
-    ExprRef<LiteralExpr> visitExtract(const ExprRef<ExtractExpr>& expr);
+    ExprRef<AtomicExpr> visitNot(const ExprRef<NotExpr>& expr);
+    ExprRef<AtomicExpr> visitZExt(const ExprRef<ZExtExpr>& expr);
+    ExprRef<AtomicExpr> visitSExt(const ExprRef<SExtExpr>& expr);
+    ExprRef<AtomicExpr> visitExtract(const ExprRef<ExtractExpr>& expr);
 
     // Binary
-    ExprRef<LiteralExpr> visitAdd(const ExprRef<AddExpr>& expr);
-    ExprRef<LiteralExpr> visitSub(const ExprRef<SubExpr>& expr);
-    ExprRef<LiteralExpr> visitMul(const ExprRef<MulExpr>& expr);
-    ExprRef<LiteralExpr> visitDiv(const ExprRef<DivExpr>& expr);
-    ExprRef<LiteralExpr> visitMod(const ExprRef<ModExpr>& expr);
-    ExprRef<LiteralExpr> visitRem(const ExprRef<RemExpr>& expr);
+    ExprRef<AtomicExpr> visitAdd(const ExprRef<AddExpr>& expr);
+    ExprRef<AtomicExpr> visitSub(const ExprRef<SubExpr>& expr);
+    ExprRef<AtomicExpr> visitMul(const ExprRef<MulExpr>& expr);
+    ExprRef<AtomicExpr> visitDiv(const ExprRef<DivExpr>& expr);
+    ExprRef<AtomicExpr> visitMod(const ExprRef<ModExpr>& expr);
+    ExprRef<AtomicExpr> visitRem(const ExprRef<RemExpr>& expr);
 
-    ExprRef<LiteralExpr> visitBvSDiv(const ExprRef<BvSDivExpr>& expr);
-    ExprRef<LiteralExpr> visitBvUDiv(const ExprRef<BvUDivExpr>& expr);
-    ExprRef<LiteralExpr> visitBvSRem(const ExprRef<BvSRemExpr>& expr);
-    ExprRef<LiteralExpr> visitBvURem(const ExprRef<BvURemExpr>& expr);
+    ExprRef<AtomicExpr> visitBvSDiv(const ExprRef<BvSDivExpr>& expr);
+    ExprRef<AtomicExpr> visitBvUDiv(const ExprRef<BvUDivExpr>& expr);
+    ExprRef<AtomicExpr> visitBvSRem(const ExprRef<BvSRemExpr>& expr);
+    ExprRef<AtomicExpr> visitBvURem(const ExprRef<BvURemExpr>& expr);
 
-    ExprRef<LiteralExpr> visitShl(const ExprRef<ShlExpr>& expr);
-    ExprRef<LiteralExpr> visitLShr(const ExprRef<LShrExpr>& expr);
-    ExprRef<LiteralExpr> visitAShr(const ExprRef<AShrExpr>& expr);
-    ExprRef<LiteralExpr> visitBvAnd(const ExprRef<BvAndExpr>& expr);
-    ExprRef<LiteralExpr> visitBvOr(const ExprRef<BvOrExpr>& expr);
-    ExprRef<LiteralExpr> visitBvXor(const ExprRef<BvXorExpr>& expr);
+    ExprRef<AtomicExpr> visitShl(const ExprRef<ShlExpr>& expr);
+    ExprRef<AtomicExpr> visitLShr(const ExprRef<LShrExpr>& expr);
+    ExprRef<AtomicExpr> visitAShr(const ExprRef<AShrExpr>& expr);
+    ExprRef<AtomicExpr> visitBvAnd(const ExprRef<BvAndExpr>& expr);
+    ExprRef<AtomicExpr> visitBvOr(const ExprRef<BvOrExpr>& expr);
+    ExprRef<AtomicExpr> visitBvXor(const ExprRef<BvXorExpr>& expr);
 
     // Logic
-    ExprRef<LiteralExpr> visitAnd(const ExprRef<AndExpr>& expr);
-    ExprRef<LiteralExpr> visitOr(const ExprRef<OrExpr>& expr);
-    ExprRef<LiteralExpr> visitImply(const ExprRef<ImplyExpr>& expr);
+    ExprRef<AtomicExpr> visitAnd(const ExprRef<AndExpr>& expr);
+    ExprRef<AtomicExpr> visitOr(const ExprRef<OrExpr>& expr);
+    ExprRef<AtomicExpr> visitImply(const ExprRef<ImplyExpr>& expr);
 
     // Compare
-    ExprRef<LiteralExpr> visitEq(const ExprRef<EqExpr>& expr);
-    ExprRef<LiteralExpr> visitNotEq(const ExprRef<NotEqExpr>& expr);
+    ExprRef<AtomicExpr> visitEq(const ExprRef<EqExpr>& expr);
+    ExprRef<AtomicExpr> visitNotEq(const ExprRef<NotEqExpr>& expr);
 
-    ExprRef<LiteralExpr> visitLt(const ExprRef<LtExpr>& expr);
-    ExprRef<LiteralExpr> visitLtEq(const ExprRef<LtEqExpr>& expr);
-    ExprRef<LiteralExpr> visitGt(const ExprRef<GtExpr>& expr);
-    ExprRef<LiteralExpr> visitGtEq(const ExprRef<GtEqExpr>& expr);
+    ExprRef<AtomicExpr> visitLt(const ExprRef<LtExpr>& expr);
+    ExprRef<AtomicExpr> visitLtEq(const ExprRef<LtEqExpr>& expr);
+    ExprRef<AtomicExpr> visitGt(const ExprRef<GtExpr>& expr);
+    ExprRef<AtomicExpr> visitGtEq(const ExprRef<GtEqExpr>& expr);
 
-    ExprRef<LiteralExpr> visitBvSLt(const ExprRef<BvSLtExpr>& expr);
-    ExprRef<LiteralExpr> visitBvSLtEq(const ExprRef<BvSLtEqExpr>& expr);
-    ExprRef<LiteralExpr> visitBvSGt(const ExprRef<BvSGtExpr>& expr);
-    ExprRef<LiteralExpr> visitBvSGtEq(const ExprRef<BvSGtEqExpr>& expr);
+    ExprRef<AtomicExpr> visitBvSLt(const ExprRef<BvSLtExpr>& expr);
+    ExprRef<AtomicExpr> visitBvSLtEq(const ExprRef<BvSLtEqExpr>& expr);
+    ExprRef<AtomicExpr> visitBvSGt(const ExprRef<BvSGtExpr>& expr);
+    ExprRef<AtomicExpr> visitBvSGtEq(const ExprRef<BvSGtEqExpr>& expr);
 
-    ExprRef<LiteralExpr> visitBvULt(const ExprRef<BvULtExpr>& expr);
-    ExprRef<LiteralExpr> visitBvULtEq(const ExprRef<BvULtEqExpr>& expr);
-    ExprRef<LiteralExpr> visitBvUGt(const ExprRef<BvUGtExpr>& expr);
-    ExprRef<LiteralExpr> visitBvUGtEq(const ExprRef<BvUGtEqExpr>& expr);
+    ExprRef<AtomicExpr> visitBvULt(const ExprRef<BvULtExpr>& expr);
+    ExprRef<AtomicExpr> visitBvULtEq(const ExprRef<BvULtEqExpr>& expr);
+    ExprRef<AtomicExpr> visitBvUGt(const ExprRef<BvUGtExpr>& expr);
+    ExprRef<AtomicExpr> visitBvUGtEq(const ExprRef<BvUGtEqExpr>& expr);
 
     // Floating-point queries
-    ExprRef<LiteralExpr> visitFIsNan(const ExprRef<FIsNanExpr>& expr);
-    ExprRef<LiteralExpr> visitFIsInf(const ExprRef<FIsInfExpr>& expr);
+    ExprRef<AtomicExpr> visitFIsNan(const ExprRef<FIsNanExpr>& expr);
+    ExprRef<AtomicExpr> visitFIsInf(const ExprRef<FIsInfExpr>& expr);
 
     // Floating-point arithmetic
-    ExprRef<LiteralExpr> visitFAdd(const ExprRef<FAddExpr>& expr);
-    ExprRef<LiteralExpr> visitFSub(const ExprRef<FSubExpr>& expr);
-    ExprRef<LiteralExpr> visitFMul(const ExprRef<FMulExpr>& expr);
-    ExprRef<LiteralExpr> visitFDiv(const ExprRef<FDivExpr>& expr);
+    ExprRef<AtomicExpr> visitFAdd(const ExprRef<FAddExpr>& expr);
+    ExprRef<AtomicExpr> visitFSub(const ExprRef<FSubExpr>& expr);
+    ExprRef<AtomicExpr> visitFMul(const ExprRef<FMulExpr>& expr);
+    ExprRef<AtomicExpr> visitFDiv(const ExprRef<FDivExpr>& expr);
 
     // Floating-point compare
-    ExprRef<LiteralExpr> visitFEq(const ExprRef<FEqExpr>& expr);
-    ExprRef<LiteralExpr> visitFGt(const ExprRef<FGtExpr>& expr);
-    ExprRef<LiteralExpr> visitFGtEq(const ExprRef<FGtEqExpr>& expr);
-    ExprRef<LiteralExpr> visitFLt(const ExprRef<FLtExpr>& expr);
-    ExprRef<LiteralExpr> visitFLtEq(const ExprRef<FLtEqExpr>& expr);
+    ExprRef<AtomicExpr> visitFEq(const ExprRef<FEqExpr>& expr);
+    ExprRef<AtomicExpr> visitFGt(const ExprRef<FGtExpr>& expr);
+    ExprRef<AtomicExpr> visitFGtEq(const ExprRef<FGtEqExpr>& expr);
+    ExprRef<AtomicExpr> visitFLt(const ExprRef<FLtExpr>& expr);
+    ExprRef<AtomicExpr> visitFLtEq(const ExprRef<FLtEqExpr>& expr);
     // Ternary
-    ExprRef<LiteralExpr> visitSelect(const ExprRef<SelectExpr>& expr);
+    ExprRef<AtomicExpr> visitSelect(const ExprRef<SelectExpr>& expr);
     // Arrays
-    ExprRef<LiteralExpr> visitArrayRead(const ExprRef<ArrayReadExpr>& expr);
-    ExprRef<LiteralExpr> visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr);
+    ExprRef<AtomicExpr> visitArrayRead(const ExprRef<ArrayReadExpr>& expr);
+    ExprRef<AtomicExpr> visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr);
 };
 
 /// Evaluates expressions based on a Valuation object
 class ValuationExprEvaluator : public ExprEvaluatorBase
 {
 public:
-    explicit ValuationExprEvaluator(Valuation valuation)
-        : mValuation(std::move(valuation))
+    explicit ValuationExprEvaluator(const Valuation& valuation)
+        : mValuation(valuation)
     {}
 
 protected:
-    ExprRef<LiteralExpr> getVariableValue(Variable& variable) override {
-        return mValuation[variable];
-    }
+    ExprRef<AtomicExpr> getVariableValue(Variable& variable) override;
 
 private:
-    Valuation mValuation;
+    const Valuation& mValuation;
 };
 
 }

@@ -60,11 +60,6 @@ public:
     Valuation& operator=(Valuation&&) = default;
 
 public:
-    /// Evaluates a given expression against the literals stored in this valuation.
-    /// If the value of a required variable was not found, this function returns
-    /// and undefined expression.
-    ExprRef<AtomicExpr> eval(const ExprPtr& expr);
-
     ExprRef<LiteralExpr>& operator[](const Variable& variable);
     ExprRef<LiteralExpr>& operator[](const Variable* variable) {
         return operator[](*variable);

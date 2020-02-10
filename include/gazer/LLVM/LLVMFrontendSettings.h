@@ -34,6 +34,13 @@ class Function;
 namespace gazer
 {
 
+enum class InlineLevel
+{
+    Off,        ///< Do not inline procedures
+    Default,    ///< Inline non-recursive, used-only-once procedures
+    All         ///< Inline all non-recursive procedures
+};
+
 enum class IntRepresentation
 {
     BitVectors, ///< Use bitvectors to represent integer types.
@@ -102,7 +109,7 @@ public:
     std::string testHarnessFile;
 
     // LLVM transformations
-    bool inlineFunctions = false;
+    InlineLevel inlineLevel = InlineLevel::Default;
     bool inlineGlobals = false;
     bool optimize = true;
     bool liftAsserts = true;

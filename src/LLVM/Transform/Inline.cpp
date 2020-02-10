@@ -28,6 +28,7 @@
 #include <llvm/Pass.h>
 #include <llvm/IR/InstIterator.h>
 #include <llvm/Analysis/CallGraph.h>
+#include <llvm/Analysis/InlineCost.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 
 #define DEBUG_TYPE "SimplifiedInliner"
@@ -43,8 +44,8 @@ public:
     static char ID;
 
 public:
-    InlinePass(llvm::Function* entry)
-        : ModulePass(ID), mEntryFunction(entry)
+    InlinePass(llvm::Function* entry, InlineLevel level)
+        : ModulePass(ID), mEntryFunction(entry), mLevel(level)
     {
         assert(mEntryFunction != nullptr);
     }
@@ -64,6 +65,7 @@ private:
     bool shouldInlineFunction(llvm::CallGraphNode* target, unsigned allowedRefs);
 
     llvm::Function* mEntryFunction;
+    InlineLevel mLevel;
 };
 
 } // end anonymous namespace
@@ -72,15 +74,40 @@ char InlinePass::ID;
 
 bool InlinePass::shouldInlineFunction(llvm::CallGraphNode* target, unsigned allowedRefs)
 {
-    // We only want to inline functions which are non-recursive,
-    // used only once and do not have variable argument lists.
-    return target->getNumReferences() <= allowedRefs
-        && !isRecursive(target)
-        && !target->getFunction()->isVarArg();
+    bool viable = llvm::isInlineViable(*target->getFunction());
+    viable |= !isRecursive(target);
+
+    if (!viable) {
+        return false;
+    }
+
+    if (mLevel == InlineLevel::All) {
+        // This setting requires inlining all non-recursive viable calls.
+        return true;
+    }
+
+    // On the default setting we only want to inline functions which are
+    // non-recursive, used only once and do not have variable argument lists.
+    if (target->getFunction()->isVarArg()) {
+        return false;
+    }
+
+    // If the target has fewer references than the threshold, inline it.
+    if (target->getNumReferences() <= allowedRefs) {
+        return true;
+    }
+
+    // Check the function if it is small enough the inline it below the threshold.
+
+    return false;
 }
 
 bool InlinePass::runOnModule(llvm::Module& module)
 {
+    if (mLevel == InlineLevel::Off) {
+        return false;
+    }
+
     bool changed = false;
     llvm::CallGraph& cg = getAnalysis<llvm::CallGraphWrapperPass>().getCallGraph();
 
@@ -118,7 +145,7 @@ bool InlinePass::runOnModule(llvm::Module& module)
     return changed;
 }
 
-llvm::Pass* gazer::createSimpleInlinerPass(llvm::Function* entry)
+llvm::Pass* gazer::createSimpleInlinerPass(llvm::Function* entry, InlineLevel level)
 {
-    return new InlinePass(entry);
+    return new InlinePass(entry, level);
 }

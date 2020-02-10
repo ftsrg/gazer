@@ -21,27 +21,36 @@ using namespace gazer;
 using llvm::cast;
 using llvm::dyn_cast;
 
-/// Checks for undefs among operands.
-
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitUndef(const ExprRef<UndefExpr>& expr)
+auto ValuationExprEvaluator::getVariableValue(Variable& variable)
+    -> ExprRef<AtomicExpr>
 {
-    llvm_unreachable("Invalid undef expression");
+    auto result = mValuation.find(&variable);
+    if (result == mValuation.end()) {
+        return UndefExpr::Get(variable.getType());
+    }
+
+    return result->second;
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitExpr(const ExprPtr& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitUndef(const ExprRef<UndefExpr>& expr)
+{
+    return expr;
+}
+
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitExpr(const ExprPtr& expr)
 {
     llvm_unreachable("Unhandled expression type in ExprEvaluatorBase");
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitLiteral(const ExprRef<LiteralExpr>& expr) {
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitLiteral(const ExprRef<AtomicExpr>& expr) {
     return expr;
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitVarRef(const ExprRef<VarRefExpr>& expr) {
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitVarRef(const ExprRef<VarRefExpr>& expr) {
     return this->getVariableValue(expr->getVariable());
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitZExt(const ExprRef<ZExtExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitZExt(const ExprRef<ZExtExpr>& expr)
 {
     auto bvLit = dyn_cast<BvLiteralExpr>(getOperand(0));
     auto& type = llvm::cast<BvType>(expr->getType());
@@ -49,7 +58,7 @@ ExprRef<LiteralExpr> ExprEvaluatorBase::visitZExt(const ExprRef<ZExtExpr>& expr)
     return BvLiteralExpr::Get(type, bvLit->getValue().zext(expr->getExtendedWidth()));
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitSExt(const ExprRef<SExtExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitSExt(const ExprRef<SExtExpr>& expr)
 {
     auto bvLit = dyn_cast<BvLiteralExpr>(getOperand(0));
     auto& type = llvm::cast<BvType>(expr->getType());
@@ -57,7 +66,7 @@ ExprRef<LiteralExpr> ExprEvaluatorBase::visitSExt(const ExprRef<SExtExpr>& expr)
     return BvLiteralExpr::Get(type, bvLit->getValue().sext(expr->getExtendedWidth()));
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitExtract(const ExprRef<ExtractExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitExtract(const ExprRef<ExtractExpr>& expr)
 {
     auto bvLit = dyn_cast<BvLiteralExpr>(getOperand(0));
 
@@ -67,33 +76,40 @@ ExprRef<LiteralExpr> ExprEvaluatorBase::visitExtract(const ExprRef<ExtractExpr>&
     );
 }
 
-static ExprRef<LiteralExpr> EvalBinaryArithmetic(
+static ExprRef<AtomicExpr> EvalBinaryArithmetic(
     Expr::ExprKind kind,
-    const ExprRef<LiteralExpr>& lhs,
-    const ExprRef<LiteralExpr>& rhs)
+    const ExprRef<AtomicExpr>& lhs,
+    const ExprRef<AtomicExpr>& rhs)
 {
     assert(lhs->getType() == rhs->getType());
 
+    // Handle the undef cases first.
+    // FIXME: We should use some arithmetic rules to eliminate undef's if it is
+    //   possible, e.g. multiplying an undef with zero.
+    if (lhs->isUndef() || rhs->isUndef()) {
+        return UndefExpr::Get(lhs->getType());
+    }
+
     if (lhs->getType().isBvType()) {
-        auto left  = llvm::cast<BvLiteralExpr>(lhs)->getValue();
-        auto right = llvm::cast<BvLiteralExpr>(rhs)->getValue();
+        auto leftBv  = llvm::cast<BvLiteralExpr>(lhs)->getValue();
+        auto rightBv = llvm::cast<BvLiteralExpr>(rhs)->getValue();
 
         auto& type = llvm::cast<BvType>(lhs->getType());
 
         switch (kind) {
-            case Expr::Add: return BvLiteralExpr::Get(type, left + right);
-            case Expr::Sub: return BvLiteralExpr::Get(type, left - right);
-            case Expr::Mul: return BvLiteralExpr::Get(type, left * right);
-            case Expr::BvSDiv: return BvLiteralExpr::Get(type, left.sdiv(right));
-            case Expr::BvUDiv: return BvLiteralExpr::Get(type, left.udiv(right));
-            case Expr::BvSRem: return BvLiteralExpr::Get(type, left.srem(right));
-            case Expr::BvURem: return BvLiteralExpr::Get(type, left.urem(right));
-            case Expr::Shl: return BvLiteralExpr::Get(type, left.shl(right));
-            case Expr::LShr: return BvLiteralExpr::Get(type, left.lshr(right.getLimitedValue()));
-            case Expr::AShr: return BvLiteralExpr::Get(type, left.ashr(right.getLimitedValue()));
-            case Expr::BvAnd: return BvLiteralExpr::Get(type, left & right);
-            case Expr::BvOr: return BvLiteralExpr::Get(type, left | right);
-            case Expr::BvXor: return BvLiteralExpr::Get(type, left ^ right);
+            case Expr::Add: return BvLiteralExpr::Get(type, leftBv + rightBv);
+            case Expr::Sub: return BvLiteralExpr::Get(type, leftBv - rightBv);
+            case Expr::Mul: return BvLiteralExpr::Get(type, leftBv * rightBv);
+            case Expr::BvSDiv: return BvLiteralExpr::Get(type, leftBv.sdiv(rightBv));
+            case Expr::BvUDiv: return BvLiteralExpr::Get(type, leftBv.udiv(rightBv));
+            case Expr::BvSRem: return BvLiteralExpr::Get(type, leftBv.srem(rightBv));
+            case Expr::BvURem: return BvLiteralExpr::Get(type, leftBv.urem(rightBv));
+            case Expr::Shl: return BvLiteralExpr::Get(type, leftBv.shl(rightBv));
+            case Expr::LShr: return BvLiteralExpr::Get(type, leftBv.lshr(rightBv.getLimitedValue()));
+            case Expr::AShr: return BvLiteralExpr::Get(type, leftBv.ashr(rightBv.getLimitedValue()));
+            case Expr::BvAnd: return BvLiteralExpr::Get(type, leftBv & rightBv);
+            case Expr::BvOr: return BvLiteralExpr::Get(type, leftBv | rightBv);
+            case Expr::BvXor: return BvLiteralExpr::Get(type, leftBv ^ rightBv);
             default:
                 llvm_unreachable("Unknown binary expression kind!");
         }
@@ -131,82 +147,82 @@ static ExprRef<LiteralExpr> EvalBinaryArithmetic(
 }
 
 // Binary
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitAdd(const ExprRef<AddExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitAdd(const ExprRef<AddExpr>& expr)
 {
     return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitSub(const ExprRef<SubExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitSub(const ExprRef<SubExpr>& expr)
 {
     return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitMul(const ExprRef<MulExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitMul(const ExprRef<MulExpr>& expr)
 {
     return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitDiv(const ExprRef<DivExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitDiv(const ExprRef<DivExpr>& expr)
 {
     return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitMod(const ExprRef<ModExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitMod(const ExprRef<ModExpr>& expr)
 {
     return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitRem(const ExprRef<RemExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitRem(const ExprRef<RemExpr>& expr)
 {
     return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitBvSDiv(const ExprRef<BvSDivExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitBvSDiv(const ExprRef<BvSDivExpr>& expr)
 {
     return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitBvUDiv(const ExprRef<BvUDivExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitBvUDiv(const ExprRef<BvUDivExpr>& expr)
 {
     return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitBvSRem(const ExprRef<BvSRemExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitBvSRem(const ExprRef<BvSRemExpr>& expr)
 {
     return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitBvURem(const ExprRef<BvURemExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitBvURem(const ExprRef<BvURemExpr>& expr)
 {
     return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitShl(const ExprRef<ShlExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitShl(const ExprRef<ShlExpr>& expr)
 {
     return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitLShr(const ExprRef<LShrExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitLShr(const ExprRef<LShrExpr>& expr)
 {
     return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitAShr(const ExprRef<AShrExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitAShr(const ExprRef<AShrExpr>& expr)
 {
     return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitBvAnd(const ExprRef<BvAndExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitBvAnd(const ExprRef<BvAndExpr>& expr)
 {
     return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitBvOr(const ExprRef<BvOrExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitBvOr(const ExprRef<BvOrExpr>& expr)
 {
     return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitBvXor(const ExprRef<BvXorExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitBvXor(const ExprRef<BvXorExpr>& expr)
 {
     return EvalBinaryArithmetic(expr->getKind(), getOperand(0), getOperand(1));
 }
@@ -214,43 +230,93 @@ ExprRef<LiteralExpr> ExprEvaluatorBase::visitBvXor(const ExprRef<BvXorExpr>& exp
 // Logic
 //-----------------------------------------------------------------------------
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitNot(const ExprRef<NotExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitNot(const ExprRef<NotExpr>& expr)
 {
     auto boolLit = cast<BoolLiteralExpr>(getOperand(0).get());
     return BoolLiteralExpr::Get(cast<BoolType>(expr->getType()), !boolLit->getValue());
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitAnd(const ExprRef<AndExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitAnd(const ExprRef<AndExpr>& expr)
 {
-    bool result = true;
+    bool isUndef = false;
+
     for (size_t i = 0; i < expr->getNumOperands(); ++i) {
-        result = result && cast<BoolLiteralExpr>(getOperand(i))->getValue();
+        auto operand = getOperand(i);
+        if (operand->isUndef()) {
+            isUndef = true;
+        }
+        
+        bool value = cast<BoolLiteralExpr>(operand)->getValue();
+        if (!value) {
+            return BoolLiteralExpr::False(expr->getContext());
+        }
     }
 
-    return BoolLiteralExpr::Get(cast<BoolType>(expr->getType()), result);
-}
-
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitOr(const ExprRef<OrExpr>& expr)
-{
-    bool result = false;
-    for (size_t i = 0; i < expr->getNumOperands(); ++i) {
-        result = result || cast<BoolLiteralExpr>(getOperand(i))->getValue();
+    if (isUndef) {
+        return UndefExpr::Get(expr->getType());
     }
 
-    return BoolLiteralExpr::Get(cast<BoolType>(expr->getType()), result);
+    return BoolLiteralExpr::True(BoolType::Get(expr->getContext()));
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitImply(const ExprRef<ImplyExpr>& expr) {
-    auto left = cast<BoolLiteralExpr>(getOperand(0))->getValue();
-    auto right = cast<BoolLiteralExpr>(getOperand(1))->getValue();
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitOr(const ExprRef<OrExpr>& expr)
+{
+    bool isUndef = false;
 
-    return BoolLiteralExpr::Get(cast<BoolType>(expr->getType()), !left || right);
+    for (size_t i = 0; i < expr->getNumOperands(); ++i) {
+        auto operand = getOperand(i);
+        if (operand->isUndef()) {
+            isUndef = true;
+        }
+        
+        bool value = cast<BoolLiteralExpr>(operand)->getValue();
+        if (value) {
+            return BoolLiteralExpr::True(expr->getContext());
+        }
+    }
+
+    if (isUndef) {
+        return UndefExpr::Get(expr->getType());
+    }
+
+    return BoolLiteralExpr::False(BoolType::Get(expr->getContext()));
 }
 
-static ExprRef<LiteralExpr> EvalBvCompare(
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitImply(const ExprRef<ImplyExpr>& expr)
+{
+    auto left  = getOperand(0);
+    auto right = getOperand(1);
+
+    ExprRef<BoolLiteralExpr> leftBl, rightBl;
+
+    if (left->isUndef()) {
+        // If the right side is true, then the whole expression is true.
+        if ((rightBl = dyn_cast<BoolLiteralExpr>(right)) && rightBl->isTrue()) {
+            return BoolLiteralExpr::True(expr->getContext());
+        }
+
+        return left;
+    }
+
+    if (right->isUndef()) {
+        // If the right side is false, then the whole expression is true.
+        if ((leftBl = dyn_cast<BoolLiteralExpr>(left)) && leftBl->isFalse()) {
+            return BoolLiteralExpr::True(expr->getContext());
+        }
+
+        return right;
+    }
+
+    leftBl  = cast<BoolLiteralExpr>(getOperand(0));
+    rightBl = cast<BoolLiteralExpr>(getOperand(1));
+
+    return BoolLiteralExpr::Get(cast<BoolType>(expr->getType()), !leftBl->getValue() || rightBl->getValue());
+}
+
+static ExprRef<AtomicExpr> EvalBvCompare(
     Expr::ExprKind kind,
-    const ExprRef<LiteralExpr>& lhs,
-    const ExprRef<LiteralExpr>& rhs)
+    const ExprRef<AtomicExpr>& lhs,
+    const ExprRef<AtomicExpr>& rhs)
 {
     assert(lhs->getType().isBvType());
 
@@ -277,10 +343,10 @@ static ExprRef<LiteralExpr> EvalBvCompare(
     llvm_unreachable("Unknown bit-vector comparison kind.");
 }
 
-static ExprRef<LiteralExpr> EvalIntCompare(
+static ExprRef<AtomicExpr> EvalIntCompare(
     Expr::ExprKind kind,
-    const ExprRef<LiteralExpr>& lhs,
-    const ExprRef<LiteralExpr>& rhs)
+    const ExprRef<AtomicExpr>& lhs,
+    const ExprRef<AtomicExpr>& rhs)
 {
     assert(lhs->getType().isIntType());
     assert(rhs->getType().isIntType());
@@ -304,12 +370,16 @@ static ExprRef<LiteralExpr> EvalIntCompare(
     llvm_unreachable("Unknown integer comparison kind.");
 }
 
-static ExprRef<LiteralExpr> EvalBinaryCompare(
-    Expr::ExprKind kind, const ExprRef<LiteralExpr>& left, const ExprRef<LiteralExpr>& right)
+static ExprRef<AtomicExpr> EvalBinaryCompare(
+    Expr::ExprKind kind, const ExprRef<AtomicExpr>& left, const ExprRef<AtomicExpr>& right)
 {
     Type& opTy = left->getType();
     assert(left->getType() == right->getType());
     assert(!opTy.isFloatType() && "Float types must be compared using FEqExpr!");
+
+    if (left->isUndef() || right->isUndef()) {
+        return UndefExpr::Get(BoolType::Get(left->getContext()));
+    }
 
     switch (opTy.getTypeID()) {
         case Type::BvTypeID:
@@ -332,114 +402,72 @@ static ExprRef<LiteralExpr> EvalBinaryCompare(
     llvm_unreachable("Invalid operand type in a comparison expression!");
 }
 
-// Compare
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitEq(const ExprRef<EqExpr>& expr)
-{
-    return EvalBinaryCompare(Expr::Eq, getOperand(0), getOperand(1));
-}
+#define HANDLE_BINARY_COMPARE(KIND)                                                         \
+    ExprRef<AtomicExpr> ExprEvaluatorBase::visit##KIND(const ExprRef<KIND##Expr>& expr) {   \
+        return EvalBinaryCompare(Expr::KIND, getOperand(0), getOperand(1));                 \
+    }                                                                                       \
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitNotEq(const ExprRef<NotEqExpr>& expr)
-{
-    return EvalBinaryCompare(Expr::NotEq, getOperand(0), getOperand(1));
-}
+HANDLE_BINARY_COMPARE(Eq)
+HANDLE_BINARY_COMPARE(NotEq)
+HANDLE_BINARY_COMPARE(Lt)
+HANDLE_BINARY_COMPARE(LtEq)
+HANDLE_BINARY_COMPARE(Gt)
+HANDLE_BINARY_COMPARE(GtEq)
+HANDLE_BINARY_COMPARE(BvSLt)
+HANDLE_BINARY_COMPARE(BvSLtEq)
+HANDLE_BINARY_COMPARE(BvSGt)
+HANDLE_BINARY_COMPARE(BvSGtEq)
+HANDLE_BINARY_COMPARE(BvULt)
+HANDLE_BINARY_COMPARE(BvULtEq)
+HANDLE_BINARY_COMPARE(BvUGt)
+HANDLE_BINARY_COMPARE(BvUGtEq)
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitLt(const ExprRef<LtExpr>& expr) {
-    return EvalIntCompare(Expr::Lt, getOperand(0), getOperand(1));
-}
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitLtEq(const ExprRef<LtEqExpr>& expr) {
-    return EvalIntCompare(Expr::LtEq, getOperand(0), getOperand(1));
-}
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitGt(const ExprRef<GtExpr>& expr) {
-    return EvalIntCompare(Expr::Gt, getOperand(0), getOperand(1));
-}
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitGtEq(const ExprRef<GtEqExpr>& expr) {
-    return EvalIntCompare(Expr::GtEq, getOperand(0), getOperand(1));
-}
-
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitBvSLt(const ExprRef<BvSLtExpr>& expr)
-{
-    return EvalBvCompare(expr->getKind(), getOperand(0), getOperand(1));
-}
-
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitBvSLtEq(const ExprRef<BvSLtEqExpr>& expr)
-{
-    return EvalBvCompare(expr->getKind(), getOperand(0), getOperand(1));
-}
-
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitBvSGt(const ExprRef<BvSGtExpr>& expr)
-{
-    return EvalBvCompare(expr->getKind(), getOperand(0), getOperand(1));
-}
-
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitBvSGtEq(const ExprRef<BvSGtEqExpr>& expr)
-{
-    return EvalBvCompare(expr->getKind(), getOperand(0), getOperand(1));
-}
-
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitBvULt(const ExprRef<BvULtExpr>& expr)
-{
-    return EvalBvCompare(expr->getKind(), getOperand(0), getOperand(1));
-}
-
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitBvULtEq(const ExprRef<BvULtEqExpr>& expr)
-{
-    return EvalBvCompare(expr->getKind(), getOperand(0), getOperand(1));
-}
-
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitBvUGt(const ExprRef<BvUGtExpr>& expr)
-{
-    return EvalBvCompare(expr->getKind(), getOperand(0), getOperand(1));
-}
-
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitBvUGtEq(const ExprRef<BvUGtEqExpr>& expr)
-{
-    return EvalBvCompare(expr->getKind(), getOperand(0), getOperand(1));
-}
+#undef HANDLE_BINARY_COMPARE
 
 // Floating-point queries
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitFIsNan(const ExprRef<FIsNanExpr>& expr) {
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitFIsNan(const ExprRef<FIsNanExpr>& expr) {
     return this->visitNonNullary(expr);
 }
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitFIsInf(const ExprRef<FIsInfExpr>& expr) {
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitFIsInf(const ExprRef<FIsInfExpr>& expr) {
     return this->visitNonNullary(expr);
 }
 
 // Floating-point arithmetic
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitFAdd(const ExprRef<FAddExpr>& expr) {
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitFAdd(const ExprRef<FAddExpr>& expr) {
     return this->visitNonNullary(expr);
 }
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitFSub(const ExprRef<FSubExpr>& expr) {
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitFSub(const ExprRef<FSubExpr>& expr) {
     return this->visitNonNullary(expr);
 }
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitFMul(const ExprRef<FMulExpr>& expr) {
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitFMul(const ExprRef<FMulExpr>& expr) {
     return this->visitNonNullary(expr);
 }
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitFDiv(const ExprRef<FDivExpr>& expr) {
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitFDiv(const ExprRef<FDivExpr>& expr) {
     return this->visitNonNullary(expr);
 }
 
 // Floating-point compare
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitFEq(const ExprRef<FEqExpr>& expr) {
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitFEq(const ExprRef<FEqExpr>& expr) {
     return this->visitNonNullary(expr);
 }
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitFGt(const ExprRef<FGtExpr>& expr) {
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitFGt(const ExprRef<FGtExpr>& expr) {
     return this->visitNonNullary(expr);
 }
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitFGtEq(const ExprRef<FGtEqExpr>& expr) {
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitFGtEq(const ExprRef<FGtEqExpr>& expr) {
     return this->visitNonNullary(expr);
 }
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitFLt(const ExprRef<FLtExpr>& expr) {
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitFLt(const ExprRef<FLtExpr>& expr) {
     return this->visitNonNullary(expr);
 }
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitFLtEq(const ExprRef<FLtEqExpr>& expr) {
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitFLtEq(const ExprRef<FLtEqExpr>& expr) {
     return this->visitNonNullary(expr);
 }
 
 template<class Type, class ExprTy>
-ExprRef<LiteralExpr> EvalSelect(
+ExprRef<AtomicExpr> EvalSelect(
     const ExprRef<BoolLiteralExpr>& cond,
-    const ExprRef<LiteralExpr>& then,
-    const ExprRef<LiteralExpr>& elze
+    const ExprRef<AtomicExpr>& then,
+    const ExprRef<AtomicExpr>& elze
 ) {
     return ExprTy::Get(
         *cast<Type>(&then->getType()),
@@ -448,7 +476,7 @@ ExprRef<LiteralExpr> EvalSelect(
 }
 
 // Ternary
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitSelect(const ExprRef<SelectExpr>& expr)
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitSelect(const ExprRef<SelectExpr>& expr)
 {
     auto cond = cast<BoolLiteralExpr>(getOperand(0));
     auto then = getOperand(1);
@@ -471,10 +499,10 @@ ExprRef<LiteralExpr> ExprEvaluatorBase::visitSelect(const ExprRef<SelectExpr>& e
 }
 
 // Arrays
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitArrayRead(const ExprRef<ArrayReadExpr>& expr) {
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitArrayRead(const ExprRef<ArrayReadExpr>& expr) {
     return this->visitNonNullary(expr);
 }
 
-ExprRef<LiteralExpr> ExprEvaluatorBase::visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr) {
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr) {
     return this->visitNonNullary(expr);
 }
