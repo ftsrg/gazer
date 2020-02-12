@@ -51,41 +51,84 @@ struct InlineGlobalVariablesPass final : public ModulePass
 
     bool runOnModule(Module& module) override;
 
-    bool shouldInlineGlobal(llvm::CallGraph& cg, llvm::GlobalVariable& gv) const;
+    llvm::Function* shouldInlineGlobal(llvm::CallGraph& cg, llvm::GlobalVariable& gv) const;
 };
 
-bool InlineGlobalVariablesPass::shouldInlineGlobal(llvm::CallGraph& cg, llvm::GlobalVariable& gv) const
+llvm::Function* InlineGlobalVariablesPass::shouldInlineGlobal(llvm::CallGraph& cg, llvm::GlobalVariable& gv) const
 {
     llvm::GlobalStatus status;
 
     if (llvm::GlobalStatus::analyzeGlobal(&gv, status)) {
-        return false;
+        return nullptr;
     }
 
     if (status.HasMultipleAccessingFunctions
         || status.AccessingFunction == nullptr
     ) {
-        return false;
+        return nullptr;
     }
 
     llvm::CallGraphNode* cgNode = cg[status.AccessingFunction];
     if (isRecursive(cgNode)) {
-        return false;
+        return nullptr;
     }
 
-    return true;
+    // Check if we can transform constant users into instructions.
+    // Based on the similar check found in SeaHorn
+    for (llvm::User* user : gv.users()) {
+        if (isa<llvm::Instruction>(user)) {
+            continue;
+        }
+
+        if (!isa<llvm::ConstantExpr>(user)) {
+            // Non instruction, non-constantexpr user; cannot convert this.
+            return nullptr;
+        }
+
+        for (llvm::User* uu : user->users()) {
+            if (!isa<llvm::Instruction>(uu)) {
+                // A ConstantExpr used by another constant - we do not want
+                // recurse further, so we just return false.
+                return nullptr;
+            }
+        }
+    }
+
+    // GlobalStatus::AccessingFunction is somewhy const, however we will have to modify the original function.
+    // This should not cause problems as we will not depend on the GlobalStatus object any further.
+    return const_cast<llvm::Function*>(status.AccessingFunction);
 }
 
 char InlineGlobalVariablesPass::ID = 0;
 
-bool InlineGlobalVariablesPass::runOnModule(Module& module)
+static void transformConstantUsersToInstructions(llvm::Constant& constant)
 {
-    Function* main = module.getFunction("main");
-    if (main == nullptr) {
-        // No main function found or not all functions were inlined.
-        return false;
+    // Based on the similar utility found in SeaHorn
+    llvm::SmallVector<llvm::ConstantExpr*, 4> ceUsers;
+    for (llvm::User* user : constant.users()) {
+        if (auto ce = llvm::dyn_cast<llvm::ConstantExpr>(user)) {
+            ceUsers.emplace_back(ce);
+        }
     }
 
+    for (llvm::ConstantExpr* user : ceUsers) {
+        llvm::SmallVector<llvm::User*, 4> usersOfUser;
+        for (llvm::User* uu : user->users()) {
+            usersOfUser.emplace_back(uu);
+        }
+
+        for (llvm::User* uu : usersOfUser) {
+            auto ui = llvm::cast<llvm::Instruction>(uu); 
+            auto newUser = user->getAsInstruction();
+            newUser->insertBefore(ui);
+            ui->replaceUsesOfWith(user, newUser);
+        }
+        user->dropAllReferences();
+    }
+}
+
+bool InlineGlobalVariablesPass::runOnModule(Module& module)
+{
     if (module.global_begin() == module.global_end()) {
         // No globals to inline
         return false;
@@ -97,30 +140,28 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
     Intrinsic::getDeclaration(&module, Intrinsic::dbg_declare);
 
     IRBuilder<> builder(module.getContext());
-    builder.SetInsertPoint(&main->getEntryBlock(), main->getEntryBlock().begin());
 
     DIBuilder diBuilder(module);
 
     auto gvIt = module.global_begin();
     while (gvIt != module.global_end()) {
         GlobalVariable& gv = *(gvIt++);
-
-        if (gv.isConstant()) {
-            // Do not inline constants.
-            continue;
-        }
-
-        if (!this->shouldInlineGlobal(cg, gv)) {
-            continue;
-        }
-
         auto type = gv.getType()->getElementType();
+
+        if (!gv.hasInitializer()) {
+            continue;
+        }
+
+        llvm::Function* target = this->shouldInlineGlobal(cg, gv);
+        if (target == nullptr) {
+            continue;
+        }
+
+        builder.SetInsertPoint(&target->getEntryBlock(), target->getEntryBlock().begin());
         AllocaInst* alloc = builder.CreateAlloca(type, nullptr, gv.getName());
 
-        // TODO: I'm not entirely sure if this is sound - this undef should probably
-        // be replaced by a nondetermistic call.
-        Value* init = gv.hasInitializer() ? gv.getInitializer() : UndefValue::get(type);
-        builder.CreateStore(init, alloc);
+        Constant* init = gv.getInitializer();
+        builder.CreateAlignedStore(init, alloc, module.getDataLayout().getABITypeAlignment(type));
 
         // TODO: We should check external calls and clobber the alloca with a nondetermistic
         // store if the ExternFuncGlobalBehavior setting requires this.
@@ -158,6 +199,7 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
             }
         }
 
+        transformConstantUsersToInstructions(gv);
         gv.replaceAllUsesWith(alloc);
         gv.eraseFromParent();
     }

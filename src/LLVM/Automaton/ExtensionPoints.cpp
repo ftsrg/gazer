@@ -174,7 +174,7 @@ bool BlocksToCfa::ExtensionPointImpl::tryToEliminate(ValueOrMemoryObject val, Va
     return mBlocksToCfa.tryToEliminate(val, variable, expr);
 }
 
-void BlocksToCfa::ExtensionPointImpl::insertAssignment(Variable* variable, ExprPtr value)
+void BlocksToCfa::ExtensionPointImpl::insertAssignment(Variable* variable, const ExprPtr& value)
 {
     mAssigns.emplace_back(variable, value);
 }

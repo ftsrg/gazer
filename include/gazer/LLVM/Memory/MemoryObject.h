@@ -92,7 +92,6 @@ public:
     unsigned getVersion() const { return mVersion; }
     Kind getKind() const { return mKind; }
     std::string getName() const;
-
     llvm::BasicBlock* getParentBlock() const;
 
     void print(llvm::raw_ostream& os) const;
@@ -133,6 +132,7 @@ protected:
 public:
     Kind getKind() const { return mKind; }
 
+    llvm::BasicBlock* getParentBlock() const;
     virtual llvm::Instruction* getInstruction() const = 0;
     virtual void print(llvm::raw_ostream& os) const = 0;
 

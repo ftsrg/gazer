@@ -101,7 +101,11 @@ void MemorySSABasedInstructionHandler::declareLoopProcedureVariables(
         }
 
         for (MemoryObjectUse& use : object.uses()) {
-            // If we have a use with its reaching def outside of the loop, it is an input
+            // If we have a use within a loop and its reaching def outside of the loop, it is an input
+            if (llvm::find(loopBlocks, use.getParentBlock()) == loopBlocks.end()) {
+                continue;
+            }
+
             MemoryObjectDef* def = use.getReachingDef();
             llvm::BasicBlock* bb = def->getParentBlock();
             if (!llvm::isa<memory::PhiDef>(def) && llvm::find(loopBlocks, bb) == loopBlocks.end()) {

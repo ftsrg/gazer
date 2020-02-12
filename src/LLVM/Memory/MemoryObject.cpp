@@ -31,7 +31,12 @@ llvm::BasicBlock* MemoryObjectDef::getParentBlock() const
         return bbAnnot->getBlock();
     }
 
-    llvm_unreachable("A memory object definition must annotate either an instruction or a block!");
+    llvm_unreachable("A memory object def must annotate either an instruction or a block!");
+}
+
+llvm::BasicBlock* MemoryObjectUse::getParentBlock() const
+{
+    return this->getInstruction()->getParent();
 }
 
 void MemoryObject::print(llvm::raw_ostream& os) const

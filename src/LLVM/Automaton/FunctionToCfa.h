@@ -316,11 +316,18 @@ protected:
 
         ExprPtr getAsOperand(ValueOrMemoryObject val) override;
         bool tryToEliminate(ValueOrMemoryObject val, Variable* variable, const ExprPtr& expr) override;
-        void insertAssignment(Variable* variable, ExprPtr value) override;
+        void insertAssignment(Variable* variable, const ExprPtr& value) override;
+        void addGuardExpression(const ExprPtr& value) override {} // TODO
+
+        using guard_iterator = std::vector<ExprPtr>::const_iterator;
+        llvm::iterator_range<guard_iterator> guards() const {
+            return llvm::make_range(mGuards.begin(), mGuards.end());
+        }
 
     private:
         BlocksToCfa& mBlocksToCfa;
         std::vector<VariableAssignment>& mAssigns;
+        std::vector<ExprPtr> mGuards;
     };
 public:
     BlocksToCfa(

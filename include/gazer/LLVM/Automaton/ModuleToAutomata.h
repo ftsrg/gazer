@@ -142,7 +142,9 @@ public:
     /// Attempts to inline and eliminate a given variable from the CFA.
     virtual bool tryToEliminate(ValueOrMemoryObject val, Variable* variable, const ExprPtr& expr) = 0;
 
-    virtual void insertAssignment(Variable* variable, ExprPtr value) = 0;
+    virtual void insertAssignment(Variable* variable, const ExprPtr& value) = 0;
+
+    virtual void addGuardExpression(const ExprPtr& value) = 0;
 };
 
 } // end namespace llvm2cfa
