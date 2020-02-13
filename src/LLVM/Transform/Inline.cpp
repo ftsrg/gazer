@@ -145,7 +145,7 @@ bool InlinePass::runOnModule(llvm::Module& module)
     return changed;
 }
 
-llvm::Pass* gazer::createSimpleInlinerPass(llvm::Function* entry, InlineLevel level)
+llvm::Pass* gazer::createSimpleInlinerPass(llvm::Function& entry, InlineLevel level)
 {
-    return new InlinePass(entry, level);
+    return new InlinePass(&entry, level);
 }

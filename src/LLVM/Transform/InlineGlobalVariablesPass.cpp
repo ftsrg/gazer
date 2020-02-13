@@ -181,7 +181,7 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
             }
         });
 
-        if (diGlobalExpr) {
+        if (diGlobalExpr != nullptr) {
             auto diGlobalVariable = diGlobalExpr->getVariable();
             for (llvm::Value* user : gv.users()) {
                 if (auto inst = llvm::dyn_cast<StoreInst>(user)) {

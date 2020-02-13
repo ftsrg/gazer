@@ -61,9 +61,8 @@ public:
     };
 
 public:
-    LiftErrorCalls(llvm::Module& module, llvm::CallGraph& cg)
-        : mModule(module),
-        mCallGraph(cg), mBuilder(module.getContext())
+    LiftErrorCalls(llvm::Module& module, llvm::CallGraph& cg, llvm::Function& entryFunction)
+        : mModule(module), mCallGraph(cg), mEntryFunction(&entryFunction), mBuilder(module.getContext())
     {}
 
     bool run();
@@ -95,16 +94,19 @@ private:
 private:
     llvm::Module& mModule;
     llvm::CallGraph& mCallGraph;
+    llvm::Function* mEntryFunction;
     llvm::IRBuilder<> mBuilder;
     llvm::DenseMap<llvm::Function*, FunctionInfo> mInfos;
 };
 
-struct LiftErrorCallsPass : public llvm::ModulePass
+class LiftErrorCallsPass : public llvm::ModulePass
 {
+public:
     static char ID;
 
-    LiftErrorCallsPass()
-        : ModulePass(ID)
+public:
+    LiftErrorCallsPass(llvm::Function* function)
+        : ModulePass(ID), mEntryFunction(function)
     {}
 
     void getAnalysisUsage(AnalysisUsage& au) const override
@@ -116,12 +118,15 @@ struct LiftErrorCallsPass : public llvm::ModulePass
     {
         auto& cg = getAnalysis<CallGraphWrapperPass>();
 
-        LiftErrorCalls impl(module, cg.getCallGraph());
+        LiftErrorCalls impl(module, cg.getCallGraph(), *mEntryFunction);
         return impl.run();
     }
 
     llvm::StringRef getPassName() const override
     { return "Lift error calls into main."; }
+
+private:
+    llvm::Function* mEntryFunction;
 };
 
 } // end anonymous namespace
@@ -155,9 +160,6 @@ void LiftErrorCalls::combineErrorsInFunction(llvm::Function* function, FunctionI
 
 bool LiftErrorCalls::run()
 {
-    llvm::Function* main = mModule.getFunction("main");
-    assert(main != nullptr && "The entry point must exist!");
-
     auto sccIt = llvm::scc_begin(&mCallGraph);
 
     while (!sccIt.isAtEnd()) {
@@ -193,7 +195,7 @@ bool LiftErrorCalls::run()
                 }
 
                 if (auto call = llvm::dyn_cast<CallInst>(callRecord.first)) {
-                    mInfos[function].mayFailCalls.push_back(call);
+                    mInfos[function].mayFailCalls.emplace_back(call);
                 }
             }
         }
@@ -201,7 +203,7 @@ bool LiftErrorCalls::run()
         ++sccIt;
     }
 
-    if (!mInfos[main].canFail()) {
+    if (!mInfos[mEntryFunction].canFail()) {
         // The entry procedure cannot fail, thus the whole program is safe by definition.
         // TODO: This should be changed if we ever start doing modular verification.
         return false;
@@ -217,16 +219,16 @@ bool LiftErrorCalls::run()
     }
 
     // Do the interprocedural transformation.
-    std::vector<llvm::CallSite> mayFailCallsInMain = mInfos[main].mayFailCalls;
+    std::vector<llvm::CallSite> mayFailCallsInMain = mInfos[mEntryFunction].mayFailCalls;
 
     // Copy the bodies of the possibly-failing functions into main.
     for (auto& [function, info] : mInfos) {
-        if (function == main || !info.canFail()) {
+        if (function == mEntryFunction || !info.canFail()) {
             continue;
         }
 
         llvm::BasicBlock* failEntry = llvm::BasicBlock::Create(
-            function->getContext(), function->getName() + "_fail", main
+            function->getContext(), function->getName() + "_fail", mEntryFunction
         );
         info.failCopyEntry = failEntry;
 
@@ -242,7 +244,7 @@ bool LiftErrorCalls::run()
         }
 
         llvm::SmallVector<ReturnInst*, 4> returns;
-        llvm::CloneFunctionInto(main, function, vmap, true, returns);
+        llvm::CloneFunctionInto(mEntryFunction, function, vmap, true, returns);
 
         // The cloned function is in a invalid state, as we do not want the return instructions.
         // Replace all returns with unreachable's.
@@ -263,10 +265,10 @@ bool LiftErrorCalls::run()
 
         llvm::BasicBlock* mappedErrorBlock = mappedErrorCall->getParent();
         llvm::Value* errorCodeOperand = mappedErrorCall->getArgOperand(0);
-        llvm::BasicBlock* errorBlockInMain = mInfos[main].uniqueErrorCall->getParent();
+        llvm::BasicBlock* errorBlockInMain = mInfos[mEntryFunction].uniqueErrorCall->getParent();
 
         llvm::ReplaceInstWithInst(mappedErrorBlock->getTerminator(), BranchInst::Create(errorBlockInMain));
-        mInfos[main].uniqueErrorPhi->addIncoming(errorCodeOperand, mappedErrorBlock);
+        mInfos[mEntryFunction].uniqueErrorPhi->addIncoming(errorCodeOperand, mappedErrorBlock);
 
         mappedErrorCall->dropAllReferences();
         mappedErrorCall->eraseFromParent();
@@ -274,7 +276,7 @@ bool LiftErrorCalls::run()
         // Add all possible calls into main
         mayFailCallsInMain.reserve(mayFailCallsInMain.size() + info.mayFailCalls.size());
         for (auto cs : info.mayFailCalls) {
-            mayFailCallsInMain.push_back(CallSite(vmap[cs.getInstruction()]));
+            mayFailCallsInMain.emplace_back(vmap[cs.getInstruction()]);
         }
 
         // Remove the error call from the original function
@@ -283,7 +285,7 @@ bool LiftErrorCalls::run()
         info.uniqueErrorPhi->dropAllReferences();
         info.uniqueErrorPhi->eraseFromParent();
 
-        BasicBlock* clonedEntry = cast<llvm::BasicBlock>(vmap[&function->getEntryBlock()]);
+        auto clonedEntry = cast<llvm::BasicBlock>(vmap[&function->getEntryBlock()]);
         mBuilder.SetInsertPoint(failEntry);
         mBuilder.CreateBr(clonedEntry);
     }
@@ -295,7 +297,7 @@ bool LiftErrorCalls::run()
         // Split the block for each call, create a nondet branch.
         llvm::BasicBlock* origBlock = call->getParent();
         llvm::BasicBlock* successBlock = llvm::SplitBlock(origBlock, call.getInstruction());
-        llvm::BasicBlock* errorBlock = llvm::BasicBlock::Create(mModule.getContext(), "", main);
+        llvm::BasicBlock* errorBlock = llvm::BasicBlock::Create(mModule.getContext(), "", mEntryFunction);
 
         // Create the nondetermistic branch between the success and error.
         origBlock->getTerminator()->eraseFromParent();
@@ -316,7 +318,7 @@ bool LiftErrorCalls::run()
     return true;
 }
 
-llvm::Pass* gazer::createLiftErrorCallsPass()
+llvm::Pass* gazer::createLiftErrorCallsPass(llvm::Function& entry)
 {
-    return new LiftErrorCallsPass();
+    return new LiftErrorCallsPass(&entry);
 }
