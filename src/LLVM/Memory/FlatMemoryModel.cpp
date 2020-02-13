@@ -427,7 +427,16 @@ ExprPtr FlatMemoryModelInstTranslator::handlePointerCast(
     const llvm::CastInst& cast,
     const ExprPtr& origPtr)
 {
-    return origPtr;
+    switch (cast.getOpcode()) {
+        case llvm::Instruction::BitCast:
+        case llvm::Instruction::PtrToInt:
+        case llvm::Instruction::IntToPtr:
+            return origPtr;
+        default:
+            break;
+    }
+
+    llvm_unreachable("Unknown pointer cast instruction!");
 }
 
 ExprPtr FlatMemoryModelInstTranslator::handleGetElementPtr(

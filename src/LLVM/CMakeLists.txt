@@ -14,6 +14,7 @@ set(SOURCE_FILES
     Automaton/ModuleToAutomata.cpp
     Automaton/InstToExpr.cpp
     Automaton/TranslationSupport.cpp
+    Automaton/SpecialFunctions.cpp
     LLVMTraceBuilder.cpp
     TypeTranslator.cpp
     LLVMFrontendSettings.cpp

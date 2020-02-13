@@ -89,8 +89,9 @@ llvm::Function* ExtensionPoint::getParent() const
 
 bool ExtensionPoint::isEntryProcedure() const
 {
-    // FIXME: Remove hard-coded main
-    return getParent()->getName() == "main";
+    llvm::Function* function = getParent();
+    llvm::Module* module = function->getParent();
+    return mGenInfo.Context.getSettings().getEntryFunction(*module) == function;
 }
 
 Variable* VariableDeclExtensionPoint::createInput(ValueOrMemoryObject val, Type& type, const std::string& suffix)
@@ -159,7 +160,8 @@ void LoopVarDeclExtensionPoint::createLoopOutput(ValueOrMemoryObject val, Variab
 // Genaration step extension point
 //===----------------------------------------------------------------------===//
 
-Variable* GenerationStepExtensionPoint::createAuxiliaryVariable(const std::string& name, Type& type)
+auto GenerationStepExtensionPoint::createAuxiliaryVariable(const std::string& name, Type& type)
+    -> Variable*
 {
     return mGenInfo.Automaton->createLocal(name, type);
 }
@@ -179,7 +181,19 @@ void BlocksToCfa::ExtensionPointImpl::insertAssignment(Variable* variable, const
     mAssigns.emplace_back(variable, value);
 }
 
-auto BlocksToCfa::createExtensionPoint(std::vector<VariableAssignment>& assignments) -> ExtensionPointImpl
+auto BlocksToCfa::createExtensionPoint(
+    std::vector<VariableAssignment>& assignments, Location** entry, Location** exit)
+    -> ExtensionPointImpl
 {
-    return ExtensionPointImpl(*this, assignments);
+    return ExtensionPointImpl(*this, assignments, entry, exit);
+}
+
+void BlocksToCfa::ExtensionPointImpl::splitCurrentTransition(const ExprPtr& guard)
+{
+    Location* aux = mGenInfo.Automaton->createLocation();
+
+    mGenInfo.Automaton->createAssignTransition(*mEntry, aux, guard, mAssigns);
+    mAssigns.clear();
+
+    *mEntry = aux;
 }

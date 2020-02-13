@@ -224,13 +224,14 @@ ModuleToCfa::ModuleToCfa(
     GazerContext& context,
     MemoryModel& memoryModel,
     LLVMTypeTranslator& types,
+    const SpecialFunctions& specialFunctions,
     const LLVMFrontendSettings& settings
 ) : mModule(module),
     mContext(context),
     mMemoryModel(memoryModel),
     mSettings(settings),
     mSystem(new AutomataSystem(context)),
-    mGenCtx(*mSystem, mMemoryModel, types, loops, settings)
+    mGenCtx(*mSystem, mMemoryModel, types, loops, specialFunctions, settings)
 {
     if (mSettings.simplifyExpr) {
         mExprBuilder = CreateFoldingExprBuilder(mContext);
@@ -487,7 +488,7 @@ void BlocksToCfa::encode()
 
         std::vector<VariableAssignment> assignments;
 
-        auto ep = this->createExtensionPoint(assignments);
+        auto ep = this->createExtensionPoint(assignments, &entry, &exit);
 
         // Handle block-level memory annotations first
         mMemoryInstHandler.handleBlock(*bb, ep);
@@ -521,8 +522,8 @@ void BlocksToCfa::encode()
                 expr = this->transform(inst);
             }
 
-            if (!tryToEliminate(&inst, variable, expr)) {
-                assignments.emplace_back(variable, expr);
+            if (!ep.tryToEliminate(&inst, variable, expr)) {
+                ep.insertAssignment(variable, expr);
             }
         }
 
@@ -548,10 +549,12 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
         return false;
     }
     
+    // Create an extension point to handle the call
+    auto callerEP = this->createExtensionPoint(previousAssignments, entry, &exit);
+
     if (!callee->isDeclaration()) {
         CfaGenInfo& calledAutomatonInfo = mGenCtx.getFunctionCfa(callee);
         Cfa* calledCfa = calledAutomatonInfo.Automaton;
-
         assert(calledCfa != nullptr && "The callee automaton must exist in a function call!");
         
         // Split the current transition here and create a call.
@@ -580,7 +583,6 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
         }
 
         // Insert arguments coming from the memory model.
-        auto callerEP = this->createExtensionPoint(previousAssignments);
         AutomatonInterfaceExtensionPoint calleeEP(calledAutomatonInfo);
 
         // FIXME: This const_cast is needed because the memory model interface must
@@ -609,26 +611,13 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
     
     if (callee->getName() == CheckRegistry::ErrorFunctionName) {
         assert(exit->isError() && "The target location of a 'gazer.error_code' call must be an error location!");
+        
         llvm::Value* arg = call->getArgOperand(0);
-
         ExprPtr errorCodeExpr = operand(arg);
-
         mCfa->addErrorCode(exit, errorCodeExpr);
-    } else if (callee->getName() == "llvm.assume" || callee->getName() == "verifier.assume") {
-        // Assumptions will split the current transition and insert a new assign transition,
-        // with the guard being the assumption.
-        llvm::Value* arg = call->getArgOperand(0);
-        ExprPtr assumeExpr = operand(arg);
-
-        // Create the new locations
-        Location* assumeBegin = mCfa->createLocation();
-        Location* assumeEnd = mCfa->createLocation();
-
-        mCfa->createAssignTransition(*entry, assumeBegin, previousAssignments);
-        previousAssignments.clear();
-
-        mCfa->createAssignTransition(assumeBegin, assumeEnd, /*guard=*/assumeExpr);
-        *entry = assumeEnd;
+    } else {
+        // Try to handle this value as a special function.
+        mGenCtx.getSpecialFunctions().handle(call, callerEP);
     }
 
     return true;
@@ -808,7 +797,7 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
         std::vector<VariableAssignment> phiAssignments;
         insertPhiAssignments(parent, succ, phiAssignments);
 
-        auto phiEp = this->createExtensionPoint(phiAssignments);
+        auto phiEp = this->createExtensionPoint(phiAssignments, &exit, &to);
         mMemoryInstHandler.handleBasicBlockEdge(*parent, *succ, phiEp);
 
         mCfa->createAssignTransition(exit, to, succCondition, phiAssignments);
@@ -819,6 +808,7 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
 
         std::vector<VariableAssignment> loopArgs;
         for (auto& [valueOrMemObj, variable] : nestedLoopInfo.PhiInputs) {
+            LLVM_DEBUG(llvm::dbgs() << " Translating loop argument " << *variable << " " << valueOrMemObj << "\n");
             if (valueOrMemObj.isValue()) {
                 auto incoming = cast<PHINode>(valueOrMemObj.asValue())->getIncomingValueForBlock(parent);
                 loopArgs.emplace_back(variable, operand(incoming));

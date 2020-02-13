@@ -144,7 +144,7 @@ public:
 
     virtual void insertAssignment(Variable* variable, const ExprPtr& value) = 0;
 
-    virtual void addGuardExpression(const ExprPtr& value) = 0;
+    virtual void splitCurrentTransition(const ExprPtr& guard) = 0;
 };
 
 } // end namespace llvm2cfa
@@ -215,6 +215,8 @@ private:
     LLVMFrontendSettings& mSettings;
 };
 
+class SpecialFunctions;
+
 std::unique_ptr<AutomataSystem> translateModuleToAutomata(
     llvm::Module& module,
     const LLVMFrontendSettings& settings,
@@ -222,7 +224,8 @@ std::unique_ptr<AutomataSystem> translateModuleToAutomata(
     GazerContext& context,
     MemoryModel& memoryModel,
     llvm::DenseMap<llvm::Value*, Variable*>& variables,
-    CfaToLLVMTrace& blockEntries
+    CfaToLLVMTrace& blockEntries,
+    const SpecialFunctions* specialFunctions = nullptr
 );
 
 llvm::Pass* createCfaPrinterPass();

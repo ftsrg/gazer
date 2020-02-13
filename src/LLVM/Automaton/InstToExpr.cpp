@@ -502,7 +502,6 @@ ExprPtr InstToExpr::tryToRepresentBitOperator(const llvm::BinaryOperator& binOp,
                 case Instruction::LShr:
                 case Instruction::AShr:
                     // X << 0, X >> 0, X >>u 0 --> X
-                    return left;
                 case Instruction::Or:
                     // X or 0 --> X
                     return left;
@@ -560,7 +559,10 @@ ExprPtr InstToExpr::integerCast(const llvm::CastInst& cast, const ExprPtr& opera
                 return mExprBuilder.SExt(intOp, *bvTy);
             case Instruction::Trunc:
                 return mExprBuilder.Trunc(intOp, *bvTy);
+            case Instruction::PtrToInt:
+                return mMemoryInstHandler.handlePointerCast(cast, operand);
             default:
+                llvm::errs() << cast << "\n";
                 llvm_unreachable("Unhandled integer cast operation");
         }
     }

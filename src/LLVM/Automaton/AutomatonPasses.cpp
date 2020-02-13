@@ -23,6 +23,7 @@
 #include "FunctionToCfa.h"
 
 #include "gazer/Automaton/CfaTransforms.h"
+#include "gazer/LLVM/Automaton/SpecialFunctions.h"
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
 #include "gazer/LLVM/Memory/MemoryModel.h"
 
@@ -36,10 +37,15 @@ std::unique_ptr<AutomataSystem> gazer::translateModuleToAutomata(
     GazerContext& context,
     MemoryModel& memoryModel,
     llvm::DenseMap<llvm::Value*, Variable*>& variables,
-    CfaToLLVMTrace& blockEntries
+    CfaToLLVMTrace& blockEntries,
+    const SpecialFunctions* specialFunctions
 ) {
+    if (specialFunctions == nullptr) {
+        specialFunctions = &SpecialFunctions::empty();
+    }
+
     LLVMTypeTranslator types(memoryModel.getMemoryTypeTranslator(), settings);
-    ModuleToCfa transformer(module, loopInfos, context, memoryModel, types, settings);
+    ModuleToCfa transformer(module, loopInfos, context, memoryModel, types, *specialFunctions, settings);
     return transformer.generate(variables, blockEntries);
 }
 
@@ -50,23 +56,38 @@ char ModuleToAutomataPass::ID;
 
 void ModuleToAutomataPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
 {
-    au.addRequired<llvm::LoopInfoWrapperPass>();
+    au.addRequired<llvm::DominatorTreeWrapperPass>();
     au.addRequired<MemoryModelWrapperPass>();
     au.setPreservesAll();
 }
 
 bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
 {
-    auto loops = [this](const llvm::Function* function) -> llvm::LoopInfo* {
-        // The const_cast is needed here as getAnalysis expects a non-const function.
-        // However, it should be safe as LoopInfo does not modify the function.
-        return &getAnalysis<llvm::LoopInfoWrapperPass>(*const_cast<llvm::Function*>(function)).getLoopInfo();
+    // We need to save loop information here as a on-the-fly LoopInfo pass would delete
+    // the acquired loop information when the lambda function exits.
+    llvm::DenseMap<const llvm::Function*, std::unique_ptr<llvm::LoopInfo>> loopInfos;
+    for (const llvm::Function& function : module) {
+        if (!function.isDeclaration()) {
+            // The const_cast is needed here as getAnalysis expects a non-const function.
+            // However, it should be safe as DominatorTreeWrapper does not modify the function.
+            auto& dt = getAnalysis<llvm::DominatorTreeWrapperPass>(*const_cast<llvm::Function*>(&function)).getDomTree();
+            loopInfos.try_emplace(&function, std::make_unique<llvm::LoopInfo>(dt));
+        }
+    }
+
+    auto loops = [&loopInfos](const llvm::Function* function) -> llvm::LoopInfo* {
+        auto& result = loopInfos[function];
+        assert(result != nullptr);
+        return result.get();
     };
 
     MemoryModel& memoryModel = getAnalysis<MemoryModelWrapperPass>().getMemoryModel();
+    auto specialFunctions = SpecialFunctions::get();
 
     mSystem = translateModuleToAutomata(
-        module, mSettings, loops, mContext, memoryModel, mVariables, mTraceInfo
+        module, mSettings, loops, mContext, memoryModel,
+        mVariables, mTraceInfo,
+        specialFunctions.get()
     );
 
     if (mSettings.loops == LoopRepresentation::Cycle) {

@@ -158,7 +158,7 @@ void LLVMFrontend::registerVerificationPipeline()
     // Run assertion lifting.
     if (mSettings.liftAsserts) {
         mPassManager.add(new llvm::CallGraphWrapperPass());
-        mPassManager.add(gazer::createLiftErrorCallsPass());
+        mPassManager.add(gazer::createLiftErrorCallsPass(*mSettings.getEntryFunction(*mModule)));
 
         // Assertion lifting creates a lot of dead code. Run a lightweight DCE pass 
         // and a subsequent CFG simplification to clean up.
@@ -281,7 +281,7 @@ void LLVMFrontend::registerInlining()
             }
             return false;
         }));
-        mPassManager.add(gazer::createSimpleInlinerPass(mSettings.getEntryFunction(*mModule), mSettings.inlineLevel));
+        mPassManager.add(gazer::createSimpleInlinerPass(*mSettings.getEntryFunction(*mModule), mSettings.inlineLevel));
 
         // Remove dead functions
         mPassManager.add(llvm::createGlobalDCEPass());

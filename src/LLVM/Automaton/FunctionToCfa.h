@@ -19,6 +19,7 @@
 #define GAZER_SRC_FUNCTIONTOAUTOMATA_H
 
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
+#include "gazer/LLVM/Automaton/SpecialFunctions.h"
 #include "gazer/Core/GazerContext.h"
 #include "gazer/Core/Expr/ExprBuilder.h"
 #include "gazer/Automaton/Cfa.h"
@@ -188,9 +189,10 @@ public:
         MemoryModel& memoryModel,
         LLVMTypeTranslator& types,
         LoopInfoFuncTy loopInfos,
+        const SpecialFunctions& specialFunctions,
         const LLVMFrontendSettings& settings
     ) : mSystem(system), mMemoryModel(memoryModel), mTypes(types),
-        mLoopInfos(loopInfos), mSettings(settings)
+        mLoopInfos(loopInfos), mSpecialFunctions(specialFunctions), mSettings(settings)
     {}
 
     GenerationContext(const GenerationContext&) = delete;
@@ -243,6 +245,7 @@ public:
     LLVMTypeTranslator& getTypes() const { return mTypes; }
     const LLVMFrontendSettings& getSettings() { return mSettings; }
     CfaToLLVMTrace& getTraceInfo() { return mTraceInfo; }
+    const SpecialFunctions& getSpecialFunctions() const { return mSpecialFunctions; }
 
 private:
     CfaGenInfo& getInfoFor(VariantT key)
@@ -258,6 +261,7 @@ private:
     MemoryModel& mMemoryModel;
     LLVMTypeTranslator& mTypes;
     LoopInfoFuncTy mLoopInfos;
+    const SpecialFunctions& mSpecialFunctions;
     const LLVMFrontendSettings& mSettings;
     std::unordered_map<VariantT, CfaGenInfo> mProcedures;
     CfaToLLVMTrace mTraceInfo;
@@ -276,6 +280,7 @@ public:
         GazerContext& context,
         MemoryModel& memoryModel,
         LLVMTypeTranslator& types,
+        const SpecialFunctions& specialFunctions,
         const LLVMFrontendSettings& settings
     );
 
@@ -309,15 +314,20 @@ protected:
     class ExtensionPointImpl : public GenerationStepExtensionPoint
     {
     public:
-        ExtensionPointImpl(BlocksToCfa& blocksToCfa, std::vector<VariableAssignment>& assigns)
-            : GenerationStepExtensionPoint(blocksToCfa.mGenInfo),
-            mBlocksToCfa(blocksToCfa), mAssigns(assigns)
+        ExtensionPointImpl(
+            BlocksToCfa& blocksToCfa,
+            std::vector<VariableAssignment>& assigns,
+            Location** entry,
+            Location** exit
+        ) : GenerationStepExtensionPoint(blocksToCfa.mGenInfo),
+            mBlocksToCfa(blocksToCfa), mAssigns(assigns), mEntry(entry), mExit(exit)
         {}
 
         ExprPtr getAsOperand(ValueOrMemoryObject val) override;
         bool tryToEliminate(ValueOrMemoryObject val, Variable* variable, const ExprPtr& expr) override;
         void insertAssignment(Variable* variable, const ExprPtr& value) override;
-        void addGuardExpression(const ExprPtr& value) override {} // TODO
+
+        void splitCurrentTransition(const ExprPtr& guard) override;
 
         using guard_iterator = std::vector<ExprPtr>::const_iterator;
         llvm::iterator_range<guard_iterator> guards() const {
@@ -328,6 +338,8 @@ protected:
         BlocksToCfa& mBlocksToCfa;
         std::vector<VariableAssignment>& mAssigns;
         std::vector<ExprPtr> mGuards;
+        Location** mEntry;
+        Location** mExit;
     };
 public:
     BlocksToCfa(
@@ -365,7 +377,8 @@ private:
 
     size_t getNumUsesInBlocks(const llvm::Instruction* inst) const;
 
-    ExtensionPointImpl createExtensionPoint(std::vector<VariableAssignment>& assignments);
+    ExtensionPointImpl createExtensionPoint(
+        std::vector<VariableAssignment>& assignments, Location** entry, Location** exit);
 
 private:
     GenerationContext& mGenCtx;

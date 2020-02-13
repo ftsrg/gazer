@@ -372,7 +372,7 @@ private:
     MemorySSA* mMemorySSA;
 };
 
-}
+} // namespace
 
 void MemorySSA::print(llvm::raw_ostream& os)
 {
