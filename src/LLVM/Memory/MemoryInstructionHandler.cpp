@@ -107,6 +107,11 @@ void MemorySSABasedInstructionHandler::declareLoopProcedureVariables(
             }
 
             MemoryObjectDef* def = use.getReachingDef();
+            if (ep.getInputVariableFor(def) != nullptr) {
+                // If we already have a variable for this definition, skip adding it.
+                continue;
+            }
+
             llvm::BasicBlock* bb = def->getParentBlock();
             if (!llvm::isa<memory::PhiDef>(def) && llvm::find(loopBlocks, bb) == loopBlocks.end()) {
                 ep.createInput(def, this->getMemoryObjectType(use.getObject()));

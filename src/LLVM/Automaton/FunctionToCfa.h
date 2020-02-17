@@ -372,9 +372,13 @@ private:
         const llvm::BasicBlock* parent,
         Location* exit
     );
-    void createExitTransition(const llvm::BasicBlock* target, Location* pred, const ExprPtr& succCondition);
-    ExprPtr getExitCondition(const llvm::BasicBlock* target, Variable* exitSelector, CfaGenInfo& nestedInfo);
 
+    void createExitTransition(const llvm::BasicBlock* target, Location* pred, const ExprPtr& succCondition);
+    void createCallToLoop(
+        llvm::Loop* loop, const llvm::BasicBlock* source, const llvm::BasicBlock* target,
+        const ExprPtr& condition, Location* exit);
+
+    ExprPtr getExitCondition(const llvm::BasicBlock* target, Variable* exitSelector, CfaGenInfo& nestedInfo);
     size_t getNumUsesInBlocks(const llvm::Instruction* inst) const;
 
     ExtensionPointImpl createExtensionPoint(

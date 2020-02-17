@@ -79,6 +79,10 @@ public:
 
     MemoryModel& getMemoryModel() const { return *mMemoryModel; }
 
+    llvm::StringRef getPassName() const override {
+        return "Memory model wrapper pass";
+    }
+
 private:
     GazerContext& mContext;
     const LLVMFrontendSettings& mSettings;

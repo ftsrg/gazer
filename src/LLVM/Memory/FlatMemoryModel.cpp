@@ -556,6 +556,8 @@ void FlatMemoryModelInstTranslator::handleBlock(const llvm::BasicBlock& bb, llvm
             if (def.getObject() == mInfo.stackPointer || def.getObject() == mInfo.framePointer) {
                 // TODO: 64 bit
                 initVal = mMemoryModel.ptrConstant(FlatMemoryModel::StackBegin32);
+            } else if (defVariable->getType().isArrayType()) {
+                initVal = ArrayLiteralExpr::GetEmpty(llvm::cast<ArrayType>(defVariable->getType()));
             } else {
                 initVal = mExprBuilder.Undef(defVariable->getType());
             }

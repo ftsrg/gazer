@@ -7,4 +7,6 @@ do
 done
 
 llvm-link "$TEMP_DIR"/*.bc -o - | lli
+RESULT=$?
 rm -r "$TEMP_DIR"
+exit $RESULT

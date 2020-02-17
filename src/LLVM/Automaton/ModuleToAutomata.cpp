@@ -387,11 +387,13 @@ void ModuleToCfa::createAutomata()
             // If the loop has multiple exits, add a selector output to disambiguate between these.
             llvm::SmallVector<llvm::BasicBlock*, 4> exitBlocks;
             loop->getUniqueExitBlocks(exitBlocks);
+
             if (exitBlocks.size() != 1) {
                 Type& selectorTy = getExitSelectorType(mSettings.ints, mContext);
                 loopGenInfo.ExitVariable = nested->createLocal(LoopOutputSelectorName, selectorTy);
                 nested->addOutput(loopGenInfo.ExitVariable);
                 for (size_t i = 0; i < exitBlocks.size(); ++i) {
+                    LLVM_DEBUG(llvm::dbgs() << " Registering exit block " << exitBlocks[i]->getName() << "\n");
                     loopGenInfo.ExitBlocks[exitBlocks[i]] = selectorTy.isBvType() 
                         ? expr_cast<LiteralExpr>(mExprBuilder->BvLit(i, 8))
                         : mExprBuilder->IntLit(i);
@@ -723,9 +725,10 @@ bool BlocksToCfa::tryToEliminate(ValueOrMemoryObject val, Variable* variable, co
 
 void BlocksToCfa::createExitTransition(const BasicBlock* target, Location* pred, const ExprPtr& succCondition)
 {
+    LLVM_DEBUG(llvm::dbgs() << "  Building exit transition for block " << target->getName() << "\n");
+
     // If the target is outside of our region, create a simple edge to the exit.
     std::vector<VariableAssignment> exitAssigns;
-
     if (mGenInfo.ExitVariable != nullptr) {
         // If there are multiple exits, create an assignment to indicate which one to take.
         ExprPtr exitVal = mGenInfo.ExitBlocks[target];
@@ -758,6 +761,7 @@ ExprPtr BlocksToCfa::getExitCondition(const llvm::BasicBlock* target, Variable* 
 void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCondition, const BasicBlock* parent,
     Location* exit)
 {
+    LLVM_DEBUG(llvm::dbgs() << "Translating CFG edge " << parent->getName() << " " << succ->getName() << "\n");
     if (succ == mEntryBlock) {
         // If the target is the loop header (entry block), create a call to this same automaton.    
         auto loc = mCfa->createLocation();
@@ -802,67 +806,82 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
 
         mCfa->createAssignTransition(exit, to, succCondition, phiAssignments);
     } else if (auto loop = getNestedLoopOf(mGenCtx, mGenInfo, succ)) {
-        // If this is a nested loop, create a call to the corresponding automaton.
-        CfaGenInfo& nestedLoopInfo = mGenCtx.getLoopCfa(loop);
-        auto nestedCfa = nestedLoopInfo.Automaton;
-
-        std::vector<VariableAssignment> loopArgs;
-        for (auto& [valueOrMemObj, variable] : nestedLoopInfo.PhiInputs) {
-            LLVM_DEBUG(llvm::dbgs() << " Translating loop argument " << *variable << " " << valueOrMemObj << "\n");
-            if (valueOrMemObj.isValue()) {
-                auto incoming = cast<PHINode>(valueOrMemObj.asValue())->getIncomingValueForBlock(parent);
-                loopArgs.emplace_back(variable, operand(incoming));
-            } else {
-                auto incoming = cast<memory::PhiDef>(valueOrMemObj.asMemoryObjectDef())->getIncomingDefForBlock(parent);
-                loopArgs.emplace_back(variable, operand(incoming));
-            }
-        }
-
-        for (auto& [valueOrMemObj, variable] : nestedLoopInfo.Inputs) {
-            ExprPtr argExpr = operand(valueOrMemObj);
-            loopArgs.emplace_back(variable, argExpr);
-        }
-
-        std::vector<VariableAssignment> outputArgs;
-        insertOutputAssignments(nestedLoopInfo, outputArgs);
-
-        Variable* exitSelector = nullptr;
-        if (nestedLoopInfo.ExitVariable != nullptr) {
-            Type& selectorTy = getExitSelectorType(mSettings.ints, mContext);
-
-            exitSelector = mCfa->createLocal(
-                Twine(ModuleToCfa::LoopOutputSelectorName).concat(Twine(mCounter++)).str(),
-                selectorTy
-            );
-            outputArgs.emplace_back(exitSelector, nestedLoopInfo.ExitVariable->getRefExpr());
-        }
-
-        auto loc = mCfa->createLocation();
-        mCfa->createCallTransition(exit, loc, succCondition, nestedCfa, loopArgs, outputArgs);
-
-        llvm::SmallVector<llvm::Loop::Edge, 4> exitEdges;
-        loop->getExitEdges(exitEdges);
-
-        for (llvm::Loop::Edge& exitEdge : exitEdges) {
-            const llvm::BasicBlock* inBlock = exitEdge.first;
-            const llvm::BasicBlock* exitBlock = exitEdge.second;
-
-            std::vector<VariableAssignment> phiAssignments;
-            insertPhiAssignments(inBlock, exitBlock, phiAssignments);
-
-            auto result = mGenInfo.Blocks.find(exitBlock);
-            if (result != mGenInfo.Blocks.end()) {
-                mCfa->createAssignTransition(
-                    loc, result->second.first,
-                    getExitCondition(exitBlock, exitSelector, nestedLoopInfo),
-                    phiAssignments
-                );
-            } else {
-                createExitTransition(succ, exit, succCondition);
-            }
-        }
+        this->createCallToLoop(loop, parent, succ, succCondition, exit);
     } else {
         createExitTransition(succ, exit, succCondition);
+    }
+}
+
+void BlocksToCfa::createCallToLoop(
+    llvm::Loop* loop, const llvm::BasicBlock* source, const llvm::BasicBlock* target,
+    const ExprPtr& condition, Location* exit)
+{
+    LLVM_DEBUG(llvm::dbgs() << " Building call for loop " << loop->getName() << "\n");
+    // If this is a nested loop, create a call to the corresponding automaton.
+    CfaGenInfo& nestedLoopInfo = mGenCtx.getLoopCfa(loop);
+    auto nestedCfa = nestedLoopInfo.Automaton;
+
+    LLVM_DEBUG(nestedCfa->printDeclaration(llvm::dbgs()));
+
+    std::vector<VariableAssignment> loopArgs;
+    for (auto& [valueOrMemObj, variable] : nestedLoopInfo.PhiInputs) {
+        LLVM_DEBUG(llvm::dbgs() << "  Translating loop PHI argument " << *variable << " " << valueOrMemObj << "\n");
+        if (valueOrMemObj.isValue()) {
+            auto incoming = cast<PHINode>(valueOrMemObj.asValue())->getIncomingValueForBlock(source);
+            loopArgs.emplace_back(variable, operand(incoming));
+        } else {
+            auto incoming = cast<memory::PhiDef>(valueOrMemObj.asMemoryObjectDef())->getIncomingDefForBlock(source);
+            loopArgs.emplace_back(variable, operand(incoming));
+        }
+    }
+
+    for (auto& [valueOrMemObj, variable] : nestedLoopInfo.Inputs) {            
+        LLVM_DEBUG(llvm::dbgs() << "  Translating loop input argument " << *variable << " " << valueOrMemObj << "\n");
+        ExprPtr argExpr = operand(valueOrMemObj);
+        loopArgs.emplace_back(variable, argExpr);
+    }
+
+    std::vector<VariableAssignment> outputArgs;
+    insertOutputAssignments(nestedLoopInfo, outputArgs);
+
+    Variable* exitSelector = nullptr;
+    if (nestedLoopInfo.ExitVariable != nullptr) {
+        Type& selectorTy = getExitSelectorType(mSettings.ints, mContext);
+
+        exitSelector = mCfa->createLocal(
+            Twine(ModuleToCfa::LoopOutputSelectorName).concat(Twine(mCounter++)).str(),
+            selectorTy
+        );
+        outputArgs.emplace_back(exitSelector, nestedLoopInfo.ExitVariable->getRefExpr());
+    }
+
+    auto loc = mCfa->createLocation();
+    mCfa->createCallTransition(exit, loc, condition, nestedCfa, loopArgs, outputArgs);
+
+    // Handle the possible exiting edges of the inner loop
+    llvm::SmallVector<llvm::Loop::Edge, 4> exitEdges;
+    loop->getExitEdges(exitEdges);
+
+    for (llvm::Loop::Edge& exitEdge : exitEdges) {
+        LLVM_DEBUG(llvm::dbgs() << "  Handling exit edge " << exitEdge.first->getName()
+            << " to " << exitEdge.second->getName() << "\n"); 
+        const llvm::BasicBlock* inBlock = exitEdge.first;
+        const llvm::BasicBlock* exitBlock = exitEdge.second;
+        std::vector<VariableAssignment> phiAssignments;
+        insertPhiAssignments(inBlock, exitBlock, phiAssignments);
+
+        auto result = mGenInfo.Blocks.find(exitBlock);
+        if (result != mGenInfo.Blocks.end()) {
+            // The exit edge is within the block range of the current automaton,
+            // simply create an assign transition to represent the exit jump.
+            mCfa->createAssignTransition(
+                loc, result->second.first,
+                getExitCondition(exitBlock, exitSelector, nestedLoopInfo),
+                phiAssignments
+            );
+        } else {
+            createExitTransition(exitBlock, exit, condition);
+        }
     }
 }
 
