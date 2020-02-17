@@ -274,7 +274,14 @@ public:
         const ExprRef<LiteralExpr>& elze = nullptr
     );
 
-    ExprRef<LiteralExpr> operator[](const ExprRef<LiteralExpr>& key) const;
+    static ExprRef<ArrayLiteralExpr> GetEmpty(
+        ArrayType& type,
+        const ExprRef<LiteralExpr>& elze = nullptr) {
+        MappingT map;
+        return Get(type, map, elze);
+    }
+
+    ExprRef<AtomicExpr> getValue(const ExprRef<LiteralExpr>& key) const;
 
     const MappingT& getMap() const { return mMap; }
 

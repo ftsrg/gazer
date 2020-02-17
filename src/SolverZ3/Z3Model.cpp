@@ -49,11 +49,14 @@ public:
     }
 
 private:
+    ExprRef<AtomicExpr> evalAst(Z3AstHandle ast);
+private:
     ExprRef<BoolLiteralExpr> evalBoolean(Z3AstHandle ast);
     ExprRef<BvLiteralExpr> evalBv(Z3AstHandle ast, unsigned width);
     ExprRef<FloatLiteralExpr> evalFloat(Z3AstHandle ast, FloatType::FloatPrecision prec);
     ExprRef<IntLiteralExpr> evalInt(Z3AstHandle ast);
-    ExprRef<LiteralExpr> evalConstantArray(Z3AstHandle ast, ArrayType& type);
+
+    ExprRef<AtomicExpr> evalConstantArray(Z3AstHandle ast, ArrayType& type);
 
     FloatType::FloatPrecision getFloatPrecision(Z3Handle<Z3_sort> sort);
     Type& sortToType(Z3Handle<Z3_sort> sort);
@@ -77,6 +80,11 @@ auto Z3Solver::getModel() -> std::unique_ptr<Model>
 auto Z3Model::evaluate(const ExprPtr& expr) -> ExprRef<AtomicExpr>
 {
     auto ast = mExprTransformer.walk(expr);
+    return this->evalAst(ast);
+}
+
+auto Z3Model::evalAst(Z3AstHandle ast) -> ExprRef<AtomicExpr>
+{
     Z3_ast resultAst;
 
     bool success = Z3_model_eval(mZ3Context, mModel, ast, true, &resultAst);
@@ -99,7 +107,6 @@ auto Z3Model::evaluate(const ExprPtr& expr) -> ExprRef<AtomicExpr>
             return this->evalConstantArray(result, llvm::cast<ArrayType>(this->sortToType(sort)));
     }
 
-    llvm::errs() << *expr << "\n";
     llvm_unreachable("Unknown Z3 sort!");
 }
 
@@ -152,9 +159,47 @@ auto Z3Model::evalFloat(Z3AstHandle ast, FloatType::FloatPrecision prec)
     return FloatLiteralExpr::Get(fltTy, result);
 }
 
-auto Z3Model::evalConstantArray(Z3AstHandle ast, ArrayType& type) -> ExprRef<LiteralExpr>
+auto Z3Model::evalConstantArray(Z3AstHandle ast, ArrayType& type) -> ExprRef<AtomicExpr>
 {
-    ArrayLiteralExpr::Builder builder(type);
+    auto kind = Z3_get_ast_kind(mZ3Context, ast);
+    if (kind == Z3_APP_AST) {
+        Z3_app app = Z3_to_app(mZ3Context, ast);
+        Z3Handle<Z3_func_decl> decl(mZ3Context, Z3_get_app_decl(mZ3Context, app));
+
+        auto declKind = Z3_get_decl_kind(mZ3Context, decl);
+        ArrayLiteralExpr::Builder builder(type);
+
+        while (declKind == Z3_OP_STORE) {
+            Z3AstHandle index(mZ3Context, Z3_get_app_arg(mZ3Context, app, 1));
+            Z3AstHandle value(mZ3Context, Z3_get_app_arg(mZ3Context, app, 2));
+
+            ast = Z3AstHandle(mZ3Context, Z3_get_app_arg(mZ3Context, app, 0));
+            app = Z3_to_app(mZ3Context, ast);
+            decl = Z3Handle<Z3_func_decl>(mZ3Context, Z3_get_app_decl(mZ3Context, app));
+            declKind = Z3_get_decl_kind(mZ3Context, decl);
+
+            auto indexExpr = this->evalAst(index);
+            auto valueExpr = this->evalAst(value);
+
+            if (!llvm::isa<LiteralExpr>(indexExpr) || !llvm::isa<LiteralExpr>(valueExpr)) {
+                // Something went wrong here, return an Undef expression
+                UndefExpr::Get(type);
+            }
+
+            builder.addValue(llvm::cast<LiteralExpr>(indexExpr), llvm::cast<LiteralExpr>(valueExpr));
+        }
+        
+        if (declKind == Z3_OP_CONST_ARRAY) {
+            Z3AstHandle defaultValue(mZ3Context, Z3_get_app_arg(mZ3Context, app, 0));
+            auto defaultExpr = this->evalAst(defaultValue);
+            if (auto lit = llvm::dyn_cast<LiteralExpr>(defaultExpr)) {
+                builder.setDefault(lit);
+            }
+        }
+
+        return builder.build();
+    }
+
 
     return nullptr;
 }

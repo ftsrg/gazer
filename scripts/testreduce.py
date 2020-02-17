@@ -59,6 +59,17 @@ class CpaVerifier(VerifierTool):
     def fail_pattern(self):
         return '"Verification result: FALSE"'
 
+class CbmcVerifier(VerifierTool):
+    def __init__(self, toolpath, file, args):
+        super().__init__(toolpath, file, args)
+
+    def success_pattern(self):
+        return '"VERIFICATION SUCCESSFUL"'
+
+    def fail_pattern(self):
+        return '"VERIFICATION FAILED"'
+
+
 class Reducer:
     early_reject = ""
 
@@ -91,12 +102,14 @@ class FalseCexReducer(Reducer):
         output += 'if [ $RESULT -ne 0 ]; then\n'
         output += '    exit 1\n'
         output += 'fi\n'
-        output += '! {0} {1} {2} {3} | grep "executed"\n'.format(
-            self.check_cex,
-            self.errors,
-            self.verif.file.name,
-            "harness.bc"
-        )
+        # We also want the error check process to abort normally
+        output += '{0} {1} {2} {3} &> t.log\n'.format(
+            self.check_cex, self.errors, self.verif.file.name, "harness.bc")
+        output += 'RESULT=$?\n'
+        output += 'if [ $RESULT -ne 0 ]; then\n'
+        output += '    exit 1\n'
+        output += 'fi\n'
+        output += '! cat t.log | grep "executed"\n'
 
         return output
 
@@ -158,6 +171,9 @@ def find_tool(toolname, toolpath) -> pathlib.Path:
     if toolname == "cpa":
         return "cpa"
 
+    if toolname == "cbmc":
+        return "cbmc"
+
     return pathlib.Path(os.getcwd()).joinpath("tools/gazer-{0}/gazer-{0}".format(toolname))
 
 
@@ -169,7 +185,7 @@ if __name__ == "__main__":
     parser.add_argument("--early-reject", default="", help="Reject the generated C file if it does not contain the given grep pattern")
     parser.add_argument('--tool', choices=['bmc', 'theta'], default='bmc', help="The gazer tool to debug")
     parser.add_argument('--tool-args', metavar='<tool arguments>', default="", help="Arguments for the gazer tool, enclosed in quotes")
-    parser.add_argument('--safe-tool', choices=['bmc', 'theta', 'cpa'], help="Safe tool for comparison in case of false positives and false negatives")
+    parser.add_argument('--safe-tool', choices=['bmc', 'theta', 'cpa', 'cbmc'], help="Safe tool for comparison in case of false positives and false negatives")
     parser.add_argument('--safe-tool-args', metavar='<safe tool arguments>', default="", help="Arguments for the safe tool, enclosed in quotes")
     parser.add_argument('--tool-path', default="")
     parser.add_argument('--safe-tool-path', default="")
@@ -195,6 +211,8 @@ if __name__ == "__main__":
         safe_tool = GazerVerifier(safe_tool_path, file_copy, args.safe_tool_args.split(' '))
     elif args.safe_tool == 'cpa':
         safe_tool = CpaVerifier(safe_tool_path, file_copy, args.safe_tool_args.split(' '))
+    elif args.safe_tool == 'cbmc':
+        safe_tool = CbmcVerifier(safe_tool_path, file_copy, args.safe_tool_args.split(' '))
     elif args.safe_tool is not None:
         raise ValueError("Unknown safe tool!")
 

@@ -1,5 +1,6 @@
 SET(TEST_SOURCES
     Z3SolverTest.cpp
+    Z3ModelTest.cpp
 )
 
 add_executable(GazerSolverZ3Test ${TEST_SOURCES})

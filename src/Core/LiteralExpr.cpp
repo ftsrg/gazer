@@ -124,12 +124,12 @@ void ArrayLiteralExpr::print(llvm::raw_ostream& os) const
     os << "]";
 }
 
-ExprRef<LiteralExpr> ArrayLiteralExpr::operator[](const ExprRef<LiteralExpr>& key) const
+ExprRef<AtomicExpr> ArrayLiteralExpr::getValue(const ExprRef<LiteralExpr>& key) const
 {
     assert(key->getType() == this->getType().getIndexType());
     auto it = mMap.find(key);
     if (it == mMap.end()) {
-        return nullptr;
+        return getDefault();
     }
 
     return it->second;

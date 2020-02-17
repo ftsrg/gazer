@@ -98,6 +98,11 @@ public:
             );
         }
 
+        if (op->isUndef()) {
+            // Extracting from and undef results in an undef
+            return UndefExpr::Get(BvType::Get(getContext(), width));
+        }
+
         return ExtractExpr::Create(op, offset, width);
     }
 
@@ -123,6 +128,27 @@ public:
     FOLD_BINARY_ARITHMETIC(BvXor)
 
     #undef FOLD_BINARY_ARITHMETIC
+
+    ExprPtr BvConcat(const ExprPtr& left, const ExprPtr& right) override
+    {
+        unsigned width = cast<BvType>(left->getType()).getWidth() + cast<BvType>(right->getType()).getWidth();
+        
+        if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left)) {
+            if (auto rhsLit = llvm::dyn_cast<BvLiteralExpr>(right)) {
+                llvm::APInt result = lhsLit->getValue().zext(width).shl(rhsLit->getType().getWidth());
+                result = result | rhsLit->getValue().zext(width);
+
+                return this->BvLit(result);
+            }
+        }
+
+        if (left->isUndef() && right->isUndef()) {
+            // We do not want to simplify partially undef cases.
+            return this->Undef(BvType::Get(getContext(), width));
+        }
+
+        return BvConcatExpr::Create(left, right);
+    }
 
     ExprPtr And(const ExprVector& vector) override
     {
@@ -546,6 +572,34 @@ public:
         }
 
         return SelectExpr::Create(condition, then, elze);
+    }
+
+    ExprPtr Write(const ExprPtr& array, const ExprPtr& index, const ExprPtr& value) override
+    {
+        if (auto lit = llvm::dyn_cast<ArrayLiteralExpr>(array)) {
+            if (lit->getMap().empty()) {
+                if ((!lit->hasDefault() && value->isUndef()) || lit->getDefault() == value) {
+                    return lit;
+                }
+            }
+        }
+
+        return ArrayWriteExpr::Create(array, index, value);
+    }
+    
+    ExprPtr Read(const ExprPtr& array, const ExprPtr& index) override
+    {
+        if (auto lit = llvm::dyn_cast<ArrayLiteralExpr>(array)) {
+            if (lit->getMap().empty()) {
+                if (lit->hasDefault()) {
+                    return lit->getDefault();
+                }
+
+                return UndefExpr::Get(lit->getType().getElementType());
+            }
+        }
+
+        return ArrayReadExpr::Create(array, index);
     }
 };
 

@@ -59,6 +59,7 @@ private:
     ExprRef<AtomicExpr> visitZExt(const ExprRef<ZExtExpr>& expr);
     ExprRef<AtomicExpr> visitSExt(const ExprRef<SExtExpr>& expr);
     ExprRef<AtomicExpr> visitExtract(const ExprRef<ExtractExpr>& expr);
+    ExprRef<AtomicExpr> visitBvConcat(const ExprRef<BvConcatExpr>& expr);
 
     // Binary
     ExprRef<AtomicExpr> visitAdd(const ExprRef<AddExpr>& expr);

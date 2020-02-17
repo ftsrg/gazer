@@ -78,8 +78,8 @@ template<class ExprTy, class T = void> struct expr_hasher;
 
 template<class ExprTy>
 struct expr_hasher<ExprTy, std::enable_if_t<
-    std::is_base_of<NonNullaryExpr, ExprTy>::value
-    && !(std::is_base_of<detail::FpExprWithRoundingMode, ExprTy>::value)
+    std::is_base_of_v<NonNullaryExpr, ExprTy>
+    && !(std::is_base_of_v<detail::FpExprWithRoundingMode, ExprTy>)
 >> {
     template<class InputIterator>
     static std::size_t hash_value(Expr::ExprKind kind, Type& type, InputIterator begin, InputIterator end) {

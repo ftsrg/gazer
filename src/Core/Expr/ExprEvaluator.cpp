@@ -17,6 +17,11 @@
 //===----------------------------------------------------------------------===//
 #include "gazer/Core/Expr/ExprEvaluator.h"
 
+#include <llvm/Support/Debug.h>
+#include <llvm/Support/raw_ostream.h>
+
+#define DEBUG_TYPE "ExprEvaluator"
+
 using namespace gazer;
 using llvm::cast;
 using llvm::dyn_cast;
@@ -39,6 +44,7 @@ ExprRef<AtomicExpr> ExprEvaluatorBase::visitUndef(const ExprRef<UndefExpr>& expr
 
 ExprRef<AtomicExpr> ExprEvaluatorBase::visitExpr(const ExprPtr& expr)
 {
+    LLVM_DEBUG(llvm::dbgs() << "Unhandled expression: " << *expr << "\n");
     llvm_unreachable("Unhandled expression type in ExprEvaluatorBase");
 }
 
@@ -64,6 +70,27 @@ ExprRef<AtomicExpr> ExprEvaluatorBase::visitSExt(const ExprRef<SExtExpr>& expr)
     auto& type = llvm::cast<BvType>(expr->getType());
 
     return BvLiteralExpr::Get(type, bvLit->getValue().sext(expr->getExtendedWidth()));
+}
+
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitBvConcat(const ExprRef<BvConcatExpr>& expr)
+{
+    auto left = getOperand(0);
+    auto right = getOperand(1);
+
+    if (left->isUndef() || right->isUndef()) {
+        return UndefExpr::Get(expr->getType());
+    }
+
+    auto leftBv = llvm::cast<BvLiteralExpr>(left);
+    auto rightBv = llvm::cast<BvLiteralExpr>(right);
+
+    unsigned size = leftBv->getType().getWidth() + rightBv->getType().getWidth();
+    llvm::APInt result = leftBv->getValue();
+
+    // Zero-extend to the new size, shift to the left and or the bits together
+    result = result.zext(size).shl(rightBv->getType().getWidth()) | rightBv->getValue().zext(size);
+
+    return BvLiteralExpr::Get(BvType::Get(expr->getContext(), size), result);
 }
 
 ExprRef<AtomicExpr> ExprEvaluatorBase::visitExtract(const ExprRef<ExtractExpr>& expr)
@@ -499,10 +526,28 @@ ExprRef<AtomicExpr> ExprEvaluatorBase::visitSelect(const ExprRef<SelectExpr>& ex
 }
 
 // Arrays
-ExprRef<AtomicExpr> ExprEvaluatorBase::visitArrayRead(const ExprRef<ArrayReadExpr>& expr) {
-    return this->visitNonNullary(expr);
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitArrayRead(const ExprRef<ArrayReadExpr>& expr)
+{
+    auto array = getOperand(0);
+    if (array->isUndef()) {
+        return UndefExpr::Get(expr->getType());
+    }
+
+    auto litArray = expr_cast<ArrayLiteralExpr>(array);
+
+    auto index = getOperand(1);
+    if (index->isUndef()) {
+        if (litArray->getMap().empty() && litArray->hasDefault()) {
+            return litArray->getDefault();
+        }
+
+        return UndefExpr::Get(expr->getType());
+    }
+
+    return litArray->getValue(llvm::cast<LiteralExpr>(index));
 }
 
-ExprRef<AtomicExpr> ExprEvaluatorBase::visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr) {
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr)
+{
     return this->visitNonNullary(expr);
 }
