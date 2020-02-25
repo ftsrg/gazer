@@ -292,6 +292,14 @@ public:
 protected:
     void createAutomata();
 
+    void declareLoopVariables(
+        llvm::Loop* loop, CfaGenInfo& loopGenInfo,
+        MemoryInstructionHandler& memoryInstHandler,
+        llvm::ArrayRef<llvm::BasicBlock*> loopBlocks,
+        llvm::ArrayRef<llvm::BasicBlock*> loopOnlyBlocks,
+        llvm::DenseSet<llvm::BasicBlock*>& visitedBlocks
+    );
+
 private:
     llvm::Module& mModule;
 

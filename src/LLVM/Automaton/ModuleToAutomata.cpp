@@ -231,7 +231,7 @@ ModuleToCfa::ModuleToCfa(
     mMemoryModel(memoryModel),
     mSettings(settings),
     mSystem(new AutomataSystem(context)),
-    mGenCtx(*mSystem, mMemoryModel, types, loops, specialFunctions, settings)
+    mGenCtx(*mSystem, mMemoryModel, types, std::move(loops), specialFunctions, settings)
 {
     if (mSettings.simplifyExpr) {
         mExprBuilder = CreateFoldingExprBuilder(mContext);
@@ -308,13 +308,11 @@ void ModuleToCfa::createAutomata()
         for (auto li = loops.rbegin(), le = loops.rend(); li != le; ++li) {
             Loop* loop = *li;
             CfaGenInfo& loopGenInfo = mGenCtx.getLoopCfa(loop);
+            Cfa* nested = loopGenInfo.Automaton;
 
             LLVM_DEBUG(llvm::dbgs() << "Translating loop " << loop->getName() << "\n");
 
-            Cfa* nested = loopGenInfo.Automaton;
-
             ArrayRef<BasicBlock*> loopBlocks = loop->getBlocks();
-
             std::vector<BasicBlock*> loopOnlyBlocks;
             std::copy_if(
                 loopBlocks.begin(), loopBlocks.end(),
@@ -322,59 +320,9 @@ void ModuleToCfa::createAutomata()
                 [&visitedBlocks] (BasicBlock* b) { return visitedBlocks.count(b) == 0; }
             );
 
-            // Create the appropriate extension point.
-            LoopVarDeclExtensionPoint loopVarDecl(loopGenInfo);
-
-            // Ask the memory model to declare possible memory-related loop variables.
-            memoryInstHandler.declareLoopProcedureVariables(loop, loopVarDecl);
-
-            // Declare loop variables for instructions.
-            for (BasicBlock* bb : loopBlocks) {
-                for (Instruction& inst : *bb) {
-                    Variable* variable = nullptr;
-
-                    LLVM_DEBUG(llvm::dbgs() << " Visiting instruction " << inst << "\n");
-                    if (inst.getOpcode() == Instruction::PHI && bb == loop->getHeader()) {
-                        // PHI nodes of the entry block should be inputs.
-                        variable = loopVarDecl.createPhiInput(&inst, mGenCtx.getTypes().get(inst.getType()));
-                        LLVM_DEBUG(llvm::dbgs() << "    Added PHI input variable " << *variable << "\n");
-                    } else {
-                        // Add operands which were defined in the caller as inputs
-                        for (auto oi = inst.op_begin(), oe = inst.op_end(); oi != oe; ++oi) {
-                            llvm::Value* value = *oi;
-                            if (isDefinedInCaller(value, loopBlocks) && !loopGenInfo.hasInput(value)) {
-                                auto argVariable = loopVarDecl.createInput(
-                                    value, mGenCtx.getTypes().get(value->getType())
-                                );
-                                LLVM_DEBUG(llvm::dbgs() << "    Added input variable " << *argVariable << ", instruction " << inst << "\n");
-                            }
-                        }
-
-                        // Do not create a variable if the instruction has no return type.
-                        if (inst.getType()->isVoidTy()) {
-                            continue;
-                        }
-
-                        // If the instruction is defined in an already visited block, it is a local of
-                        // a subloop rather than this loop.
-                        if (visitedBlocks.count(bb) == 0 || hasUsesInBlockRange(&inst, loopOnlyBlocks)) {
-                            variable = loopVarDecl.createLocal(&inst, mGenCtx.getTypes().get(inst.getType()));
-                            LLVM_DEBUG(llvm::dbgs() << "    Added local variable " << *variable << "\n");
-                        }
-                    }
-
-                    // Check if the instruction has users outside of the loop region.
-                    // If so, their corresponding variables must be marked as outputs.
-                    for (auto user : inst.users()) {
-                        if (auto i = llvm::dyn_cast<Instruction>(user)) {
-                            if (std::find(loopBlocks.begin(), loopBlocks.end(), i->getParent()) == loopBlocks.end()) {
-                                loopVarDecl.createLoopOutput(&inst, variable);
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
+            // Declare loop variables.
+            this->declareLoopVariables(loop, loopGenInfo, memoryInstHandler,
+                loopBlocks, loopOnlyBlocks, visitedBlocks);
 
             // Create locations for the blocks
             for (BasicBlock* bb : loopOnlyBlocks) {
@@ -454,6 +402,68 @@ void ModuleToCfa::createAutomata()
             Location* entry = cfa->createLocation();
             Location* exit = isErrorBlock(bb) ? cfa->createErrorLocation() : cfa->createLocation();
             genInfo.addBlockToLocationsMapping(bb, entry, exit);
+        }
+    }
+}
+
+void ModuleToCfa::declareLoopVariables(
+    llvm::Loop* loop, CfaGenInfo& loopGenInfo,
+    MemoryInstructionHandler& memoryInstHandler,
+    llvm::ArrayRef<llvm::BasicBlock*> loopBlocks,
+    llvm::ArrayRef<llvm::BasicBlock*> loopOnlyBlocks,
+    llvm::DenseSet<llvm::BasicBlock*>& visitedBlocks)
+{
+    // Create the appropriate extension point.
+    LoopVarDeclExtensionPoint loopVarDecl(loopGenInfo);
+
+    // Ask the memory model to declare possible memory-related loop variables.
+    memoryInstHandler.declareLoopProcedureVariables(loop, loopVarDecl);
+
+    // Create loop variables inst-by-inst
+    for (BasicBlock* bb : loopBlocks) {
+        for (Instruction& inst : *bb) {
+            Variable* variable = nullptr;
+
+            LLVM_DEBUG(llvm::dbgs() << " Visiting instruction " << inst << "\n");
+            if (inst.getOpcode() == Instruction::PHI && bb == loop->getHeader()) {
+                // PHI nodes of the entry block should be inputs.
+                variable = loopVarDecl.createPhiInput(&inst, mGenCtx.getTypes().get(inst.getType()));
+                LLVM_DEBUG(llvm::dbgs() << "    Added PHI input variable " << *variable << "\n");
+            } else {
+                // Add operands which were defined in the caller as inputs
+                for (auto oi = inst.op_begin(), oe = inst.op_end(); oi != oe; ++oi) {
+                    llvm::Value* value = *oi;
+                    if (isDefinedInCaller(value, loopBlocks) && !loopGenInfo.hasInput(value)) {
+                        auto argVariable = loopVarDecl.createInput(
+                            value, mGenCtx.getTypes().get(value->getType())
+                        );
+                        LLVM_DEBUG(llvm::dbgs() << "    Added input variable " << *argVariable << ", instruction " << inst << "\n");
+                    }
+                }
+
+                // Do not create a variable if the instruction has no return type.
+                if (inst.getType()->isVoidTy()) {
+                    continue;
+                }
+
+                // If the instruction is defined in an already visited block, it is a local of
+                // a subloop rather than this loop.
+                if (visitedBlocks.count(bb) == 0 || hasUsesInBlockRange(&inst, loopOnlyBlocks)) {
+                    variable = loopVarDecl.createLocal(&inst, mGenCtx.getTypes().get(inst.getType()));
+                    LLVM_DEBUG(llvm::dbgs() << "    Added local variable " << *variable << "\n");
+                }
+            }
+
+            // Check if the instruction has users outside of the loop region.
+            // If so, their corresponding variables must be marked as outputs.
+            for (auto user : inst.users()) {
+                if (auto i = llvm::dyn_cast<Instruction>(user)) {
+                    if (std::find(loopBlocks.begin(), loopBlocks.end(), i->getParent()) == loopBlocks.end()) {
+                        loopVarDecl.createLoopOutput(&inst, variable);
+                        break;
+                    }
+                }
+            }
         }
     }
 }

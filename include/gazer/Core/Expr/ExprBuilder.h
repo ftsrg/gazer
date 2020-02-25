@@ -162,19 +162,6 @@ public:
         return this->Or({left, right});
     }
 
-    // The declarations above and below may clash in certain cases,
-    // we use SFINAE to enable the iterator-based overloads only if
-    // the type has iterator_traits.
-
-    template<class InputIterator, class = typename std::iterator_traits<InputIterator>::value_type>
-    ExprPtr And(InputIterator begin, InputIterator end) {
-        return this->And(ExprVector(begin, end));
-    }
-    template<class InputIterator, class = typename std::iterator_traits<InputIterator>::value_type>
-    ExprPtr Or(InputIterator begin, InputIterator end) {
-        return this->Or(ExprVector(begin, end));
-    }
-
     ExprPtr Xor(const ExprPtr& left, const ExprPtr& right)
     {
         assert(left->getType().isBoolType() && right->getType().isBoolType());

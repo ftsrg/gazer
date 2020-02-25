@@ -304,7 +304,7 @@ public:
         FlatMemoryModel& memoryModel, FlatMemoryFunctionInfo& info,
         ExprBuilder& builder, LLVMTypeTranslator& types, const llvm::DataLayout& dl
     ) : MemorySSABasedInstructionHandler(*info.memorySSA, types),
-        mInfo(info), mMemoryModel(memoryModel), mExprBuilder(builder), mDataLayout(dl)
+        mMemoryModel(memoryModel), mInfo(info), mExprBuilder(builder), mDataLayout(dl)
     {}
 
     ExprPtr handleAlloca(
@@ -322,7 +322,7 @@ public:
         llvm::ArrayRef<ExprPtr> ops) override;
 
     ExprPtr handleConstantDataArray(
-        const llvm::ConstantDataArray* cda, llvm::ArrayRef<ExprRef<LiteralExpr>> elems) override;
+        const llvm::ConstantDataArray* cda, llvm::ArrayRef<ExprRef<LiteralExpr>> elements) override;
 
     void handleStore(
         const llvm::StoreInst& store,
@@ -334,7 +334,7 @@ public:
 
     void handleCall(
         llvm::CallSite call,
-        llvm2cfa::GenerationStepExtensionPoint& callerEp,
+        llvm2cfa::GenerationStepExtensionPoint& parentEp,
         llvm2cfa::AutomatonInterfaceExtensionPoint& calleeEp,
         llvm::SmallVectorImpl<VariableAssignment>& inputAssignments,
         llvm::SmallVectorImpl<VariableAssignment>& outputAssignments) override;
@@ -362,10 +362,10 @@ private:
     memory::MemorySSA& getMemorySSA() const { return *mInfo.memorySSA; }
 
 private:
+    FlatMemoryModel& mMemoryModel;
     FlatMemoryFunctionInfo& mInfo;
     ExprBuilder& mExprBuilder;
     const llvm::DataLayout& mDataLayout;
-    FlatMemoryModel& mMemoryModel;
 };
 
 } // namespace
@@ -462,7 +462,7 @@ ExprPtr FlatMemoryModelInstTranslator::handleGetElementPtr(
         //  * Indexing into an array, pointer or vector, integers of any width are allowed, and they are not required to be constant.
         //  * These integers are treated as signed values where relevant.
         ExprPtr index = ops[i];
-        BvType& indexTy = llvm::cast<BvType>(index->getType());
+        auto& indexTy = llvm::cast<BvType>(index->getType());
         if (mMemoryModel.ptrType().getWidth() > indexTy.getWidth()) {
             // We use SExt here to preserve the sign in case of possibly negative indices.
             // This should not affect the struct member case, as we could only observe a difference if

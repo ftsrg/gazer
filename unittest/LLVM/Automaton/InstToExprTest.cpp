@@ -237,6 +237,11 @@ TEST_F(InstToExprTest, TransformBvCast)
         ir->CreateICmp(CmpInst::PRED, loadGv1, loadGv2)   \
     )))
 
+#define CHECK_COMPARE(PREDICATE, KIND)                                      \
+    EXPECT_EQ(inst2expr->transform(*cast<Instruction>(                      \
+        ir->CreateICmp(CmpInst::PREDICATE, loadGv1, loadGv2)                \
+    )), builder->KIND(gv1Var->getRefExpr(), gv2Var->getRefExpr()))          \
+
 TEST_F(InstToExprTest, TransformBvCmp)
 {
     settings.ints = IntRepresentation::BitVectors;
@@ -252,46 +257,41 @@ TEST_F(InstToExprTest, TransformBvCmp)
         { loadGv2, gv2Var }
     });
 
-    EXPECT_EQ(
-        TRANSLATE_COMPARE(ICMP_EQ),
-        builder->Eq(gv1Var->getRefExpr(), gv2Var->getRefExpr())
-    );
-    EXPECT_EQ(
-        TRANSLATE_COMPARE(ICMP_NE),
-        builder->NotEq(gv1Var->getRefExpr(), gv2Var->getRefExpr())
-    );
-    EXPECT_EQ(
-        TRANSLATE_COMPARE(ICMP_UGT),
-        builder->BvUGt(gv1Var->getRefExpr(), gv2Var->getRefExpr())
-    );
-    EXPECT_EQ(
-        TRANSLATE_COMPARE(ICMP_UGE),
-        builder->BvUGtEq(gv1Var->getRefExpr(), gv2Var->getRefExpr())
-    );
-    EXPECT_EQ(
-        TRANSLATE_COMPARE(ICMP_ULT),
-        builder->BvULt(gv1Var->getRefExpr(), gv2Var->getRefExpr())
-    );
-    EXPECT_EQ(
-        TRANSLATE_COMPARE(ICMP_ULE),
-        builder->BvULtEq(gv1Var->getRefExpr(), gv2Var->getRefExpr())
-    );
-    EXPECT_EQ(
-        TRANSLATE_COMPARE(ICMP_SGT),
-        builder->BvSGt(gv1Var->getRefExpr(), gv2Var->getRefExpr())
-    );
-    EXPECT_EQ(
-        TRANSLATE_COMPARE(ICMP_SGE),
-        builder->BvSGtEq(gv1Var->getRefExpr(), gv2Var->getRefExpr())
-    );
-    EXPECT_EQ(
-        TRANSLATE_COMPARE(ICMP_SLT),
-        builder->BvSLt(gv1Var->getRefExpr(), gv2Var->getRefExpr())
-    );
-    EXPECT_EQ(
-        TRANSLATE_COMPARE(ICMP_SLE),
-        builder->BvSLtEq(gv1Var->getRefExpr(), gv2Var->getRefExpr())
-    );
+    CHECK_COMPARE(ICMP_EQ, Eq);
+    CHECK_COMPARE(ICMP_NE, NotEq);
+    CHECK_COMPARE(ICMP_SGT, BvSGt);
+    CHECK_COMPARE(ICMP_SGE, BvSGtEq);
+    CHECK_COMPARE(ICMP_SLT, BvSLt);
+    CHECK_COMPARE(ICMP_SLE, BvSLtEq);
+    CHECK_COMPARE(ICMP_UGT, BvUGt);
+    CHECK_COMPARE(ICMP_UGE, BvUGtEq);
+    CHECK_COMPARE(ICMP_ULT, BvULt);
+    CHECK_COMPARE(ICMP_ULE, BvULtEq);
+}
+
+TEST_F(InstToExprTest, TransformIntCmp)
+{
+    settings.ints = IntRepresentation::Integers;
+
+    auto loadGv1 = ir->CreateLoad(gv1->getValueType(), gv1);
+    auto loadGv2 = ir->CreateLoad(gv2->getValueType(), gv2);
+
+    auto gv1Var = context.createVariable("load_gv1", IntType::Get(context));
+    auto gv2Var = context.createVariable("load_gv2", IntType::Get(context));
+
+    auto inst2expr = createImpl({
+        { loadGv1, gv1Var },
+        { loadGv2, gv2Var }
+    });
+
+    CHECK_COMPARE(ICMP_EQ, Eq);
+    CHECK_COMPARE(ICMP_NE, NotEq);
+    CHECK_COMPARE(ICMP_SGT, Gt);
+    CHECK_COMPARE(ICMP_SGE, GtEq);
+    CHECK_COMPARE(ICMP_SLT, Lt);
+    CHECK_COMPARE(ICMP_SLE, LtEq);
+
+    // TODO: Unordered comparisons require special assertions.
 }
 
 #undef TRANSLATE_COMPARE

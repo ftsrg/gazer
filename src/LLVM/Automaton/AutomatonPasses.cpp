@@ -23,8 +23,8 @@
 #include "FunctionToCfa.h"
 
 #include "gazer/Automaton/CfaTransforms.h"
-#include "gazer/LLVM/Automaton/SpecialFunctions.h"
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
+#include "gazer/LLVM/Automaton/SpecialFunctions.h"
 #include "gazer/LLVM/Memory/MemoryModel.h"
 
 using namespace gazer;
@@ -38,14 +38,14 @@ std::unique_ptr<AutomataSystem> gazer::translateModuleToAutomata(
     MemoryModel& memoryModel,
     llvm::DenseMap<llvm::Value*, Variable*>& variables,
     CfaToLLVMTrace& blockEntries,
-    const SpecialFunctions* specialFunctions
-) {
+    const SpecialFunctions* specialFunctions)
+{
     if (specialFunctions == nullptr) {
         specialFunctions = &SpecialFunctions::empty();
     }
 
     LLVMTypeTranslator types(memoryModel.getMemoryTypeTranslator(), settings);
-    ModuleToCfa transformer(module, loopInfos, context, memoryModel, types, *specialFunctions, settings);
+    ModuleToCfa transformer(module, std::move(loopInfos), context, memoryModel, types, *specialFunctions, settings);
     return transformer.generate(variables, blockEntries);
 }
 
@@ -70,7 +70,8 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
         if (!function.isDeclaration()) {
             // The const_cast is needed here as getAnalysis expects a non-const function.
             // However, it should be safe as DominatorTreeWrapper does not modify the function.
-            auto& dt = getAnalysis<llvm::DominatorTreeWrapperPass>(*const_cast<llvm::Function*>(&function)).getDomTree();
+            auto& dt =
+                getAnalysis<llvm::DominatorTreeWrapperPass>(*const_cast<llvm::Function*>(&function)).getDomTree();
             loopInfos.try_emplace(&function, std::make_unique<llvm::LoopInfo>(dt));
         }
     }
@@ -85,10 +86,7 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
     auto specialFunctions = SpecialFunctions::get();
 
     mSystem = translateModuleToAutomata(
-        module, mSettings, loops, mContext, memoryModel,
-        mVariables, mTraceInfo,
-        specialFunctions.get()
-    );
+        module, mSettings, loops, mContext, memoryModel, mVariables, mTraceInfo, specialFunctions.get());
 
     if (mSettings.loops == LoopRepresentation::Cycle) {
         // Transform the main automaton into a cyclic CFA if requested.
@@ -103,17 +101,14 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
     return false;
 }
 
-namespace
-{
+namespace {
 
 class PrintCfaPass : public llvm::ModulePass
 {
-public:
+    public:
     static char ID;
 
-    PrintCfaPass()
-        : ModulePass(ID)
-    {}
+    PrintCfaPass() : ModulePass(ID) {}
 
     void getAnalysisUsage(llvm::AnalysisUsage& au) const override
     {
@@ -134,12 +129,10 @@ public:
 
 class ViewCfaPass : public llvm::ModulePass
 {
-public:
+    public:
     static char ID;
 
-    ViewCfaPass()
-        : ModulePass(ID)
-    {}
+    ViewCfaPass() : ModulePass(ID) {}
 
     void getAnalysisUsage(llvm::AnalysisUsage& au) const override
     {
@@ -165,8 +158,14 @@ public:
 char PrintCfaPass::ID;
 char ViewCfaPass::ID;
 
-llvm::Pass* gazer::createCfaPrinterPass() { return new PrintCfaPass(); }
-llvm::Pass* gazer::createCfaViewerPass()  { return new ViewCfaPass();  }
+llvm::Pass* gazer::createCfaPrinterPass()
+{
+    return new PrintCfaPass();
+}
+llvm::Pass* gazer::createCfaViewerPass()
+{
+    return new ViewCfaPass();
+}
 
 // Traceability support
 //-----------------------------------------------------------------------------

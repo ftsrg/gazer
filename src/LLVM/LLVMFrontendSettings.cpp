@@ -77,6 +77,9 @@ namespace
     );
     cl::opt<std::string> EntryFunctionName(
         "function", cl::desc("Main function name"), cl::cat(IrToCfaCategory), cl::init("main"));
+    cl::opt<bool> Strict(
+        "strict", cl::desc("Use stricter transformation rules for undefined behavior"), cl::cat(IrToCfaCategory)
+    );
 
     // Memory models
     cl::opt<bool> DebugDumpMemorySSA(
@@ -136,11 +139,14 @@ LLVMFrontendSettings LLVMFrontendSettings::initFromCommandLine()
     settings.slicing =!NoSlice;
     settings.simplifyExpr = !NoSimplifyExpr;
 
+    settings.strict = Strict;
+
     settings.inlineLevel = InlineLevelOpt;
     settings.elimVars = ElimVarsLevelOpt;
     settings.memoryModel = MemoryModelOpt;
 
     settings.checks = EnabledChecks;
+
 
     settings.function = EntryFunctionName;
 

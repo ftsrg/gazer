@@ -252,12 +252,12 @@ bool SignedIntegerOverflowCheck::mark(llvm::Function& function)
 
         llvm::Value* binOp;
         switch (ovrKind) {
-            case GazerIntrinsic::Overflow::SAdd: binOp = builder.CreateAdd(lhs, rhs, "", /*nuw=*/false, /*nsw=*/true); break;
-            case GazerIntrinsic::Overflow::SSub: binOp = builder.CreateSub(lhs, rhs, "", /*nuw=*/false, /*nsw=*/true); break;
-            case GazerIntrinsic::Overflow::SMul: binOp = builder.CreateMul(lhs, rhs, "", /*nuw=*/false, /*nsw=*/true); break;
-            case GazerIntrinsic::Overflow::UAdd: binOp = builder.CreateAdd(lhs, rhs, "", /*nuw=*/true, /*nsw=*/false); break;
-            case GazerIntrinsic::Overflow::USub: binOp = builder.CreateSub(lhs, rhs, "", /*nuw=*/true, /*nsw=*/false); break;
-            case GazerIntrinsic::Overflow::UMul: binOp = builder.CreateMul(lhs, rhs, "", /*nuw=*/true, /*nsw=*/false); break;
+            case GazerIntrinsic::Overflow::SAdd: binOp = builder.CreateAdd(lhs, rhs, "", /*HasNUW=*/false, /*HasNSW=*/true); break;
+            case GazerIntrinsic::Overflow::SSub: binOp = builder.CreateSub(lhs, rhs, "", /*HasNUW=*/false, /*HasNSW=*/true); break;
+            case GazerIntrinsic::Overflow::SMul: binOp = builder.CreateMul(lhs, rhs, "", /*HasNUW=*/false, /*HasNSW=*/true); break;
+            case GazerIntrinsic::Overflow::UAdd: binOp = builder.CreateAdd(lhs, rhs, "", /*HasNUW=*/true,  /*HasNSW=*/false); break;
+            case GazerIntrinsic::Overflow::USub: binOp = builder.CreateSub(lhs, rhs, "", /*HasNUW=*/true,  /*HasNSW=*/false); break;
+            case GazerIntrinsic::Overflow::UMul: binOp = builder.CreateMul(lhs, rhs, "", /*HasNUW=*/true,  /*HasNSW=*/false); break;
         }
 
         assert(binOp != nullptr && "Unknown overflow kind!");

@@ -27,7 +27,7 @@ auto SpecialFunctions::get() -> std::unique_ptr<SpecialFunctions>
 
     // Verifier assumptions
     result->registerHandler("verifier.assume",   &SpecialFunctions::handleAssume, SpecialFunctionHandler::Memory_Pure);
-    result->registerHandler("llvm.assume",       &SpecialFunctions::handleAssume, SpecialFunctionHandler::Memory_Pure);
+    result->registerHandler("llvm.assume",       &SpecialFunctions::handleAssume, SpecialFunctionHandler::Memory_Pure);    
 
     return result;
 }

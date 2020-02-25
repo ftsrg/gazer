@@ -124,6 +124,7 @@ public:
     IntRepresentation ints = IntRepresentation::BitVectors;
     FloatRepresentation floats = FloatRepresentation::Fpa;
     bool simplifyExpr = true;
+    bool strict = false;
 
     std::string function = "main";
 

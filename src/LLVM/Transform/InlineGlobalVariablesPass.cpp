@@ -51,10 +51,10 @@ struct InlineGlobalVariablesPass final : public ModulePass
 
     bool runOnModule(Module& module) override;
 
-    llvm::Function* shouldInlineGlobal(llvm::CallGraph& cg, llvm::GlobalVariable& gv) const;
+    static llvm::Function* shouldInlineGlobal(llvm::CallGraph& cg, llvm::GlobalVariable& gv);
 };
 
-llvm::Function* InlineGlobalVariablesPass::shouldInlineGlobal(llvm::CallGraph& cg, llvm::GlobalVariable& gv) const
+llvm::Function* InlineGlobalVariablesPass::shouldInlineGlobal(llvm::CallGraph& cg, llvm::GlobalVariable& gv)
 {
     llvm::GlobalStatus status;
 
@@ -101,7 +101,7 @@ llvm::Function* InlineGlobalVariablesPass::shouldInlineGlobal(llvm::CallGraph& c
 
 char InlineGlobalVariablesPass::ID = 0;
 
-static void transformConstantUsersToInstructions(llvm::Constant& constant)
+void transformConstantUsersToInstructions(llvm::Constant& constant)
 {
     // Based on the similar utility found in SeaHorn
     llvm::SmallVector<llvm::ConstantExpr*, 4> ceUsers;

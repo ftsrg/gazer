@@ -177,22 +177,14 @@ TEST_F(ExprEvalTest, TestBvArithmetic)
     checkBv(vb, builder->Add(y, z), 18);
 
     // Add with overflow
-    checkBv(
-        vb,
-        builder->Add(builder->BvLit(1, 32), builder->BvLit(llvm::APInt::getMaxValue(32))),
-        0
-    );
+    checkBv(vb, builder->Add(builder->BvLit(1, 32), builder->BvLit(llvm::APInt::getMaxValue(32))), 0);
 
     // Sub
     checkBv(vb, builder->Sub(y, x), 7);
     checkBv(vb, builder->Sub(z, y), 4);
 
     // Sub with underflow
-    checkBv(
-        vb,
-        builder->Sub(x, builder->BvLit(1, 32)),
-        llvm::APInt::getMaxValue(32)
-    );
+    checkBv(vb, builder->Sub(x, builder->BvLit(1, 32)), llvm::APInt::getMaxValue(32));
 
     // Mul
     checkBv(vb, builder->Mul(x, y), 0);
@@ -215,6 +207,12 @@ TEST_F(ExprEvalTest, TestEq)
     EXPECT_EQ(eval.evaluate(builder->Eq(builder->False(), builder->True())), builder->False());
 }
 
+// Helper macros for comparisons
+#define TRUE_COMPARE(KIND, OP1, OP2)                                       \
+    EXPECT_EQ(eval.evaluate(builder->KIND(OP1, OP2)), builder->True())
+#define FALSE_COMPARE(KIND, OP1, OP2)                                       \
+    EXPECT_EQ(eval.evaluate(builder->KIND(OP1, OP2)), builder->False())
+
 TEST_F(ExprEvalTest, TestSignedCompareBv)
 {
     auto vb = Valuation::CreateBuilder();
@@ -226,34 +224,36 @@ TEST_F(ExprEvalTest, TestSignedCompareBv)
     auto minusOne = builder->BvLit(llvm::APInt{32, static_cast<uint64_t>(-1), true});
     auto minusTwo = builder->BvLit(llvm::APInt{32, static_cast<uint64_t>(-2), true});
 
+    TRUE_COMPARE(BvSLt, one, two);
+    TRUE_COMPARE(BvSLt, minusOne, zero);
+    TRUE_COMPARE(BvSLt, minusTwo, minusOne);
+    FALSE_COMPARE(BvSLt, minusOne, minusOne);
+    FALSE_COMPARE(BvSLt, two, minusTwo);
 
-    EXPECT_EQ(eval.evaluate(builder->BvSLt(one, two)), builder->True());
-    EXPECT_EQ(eval.evaluate(builder->BvSLt(minusOne, zero)), builder->True());
-    EXPECT_EQ(eval.evaluate(builder->BvSLt(minusTwo, minusOne)), builder->True());
-    EXPECT_EQ(eval.evaluate(builder->BvSLt(minusOne, minusOne)), builder->False());
-    EXPECT_EQ(eval.evaluate(builder->BvSLt(two, minusTwo)), builder->False());
+    TRUE_COMPARE(BvSLtEq, one, two);
+    TRUE_COMPARE(BvSLtEq, minusOne, zero);
+    TRUE_COMPARE(BvSLtEq, minusTwo, minusOne);
+    TRUE_COMPARE(BvSLtEq, minusOne, minusOne);
+    FALSE_COMPARE(BvSLtEq, two, minusTwo);
 
-    EXPECT_EQ(eval.evaluate(builder->BvSLtEq(one, two)), builder->True());
-    EXPECT_EQ(eval.evaluate(builder->BvSLtEq(minusOne, zero)), builder->True());
-    EXPECT_EQ(eval.evaluate(builder->BvSLtEq(minusTwo, minusOne)), builder->True());
-    EXPECT_EQ(eval.evaluate(builder->BvSLtEq(minusOne, minusOne)), builder->True());
-    EXPECT_EQ(eval.evaluate(builder->BvSLtEq(two, minusTwo)), builder->False());
+    TRUE_COMPARE(BvSGt, one, zero);
+    FALSE_COMPARE(BvSGt, minusOne, zero);
+    TRUE_COMPARE(BvSGt, two, one);
+    FALSE_COMPARE(BvSGt, one, two);
+    FALSE_COMPARE(BvSGt, zero, zero);
+    FALSE_COMPARE(BvSGt, minusTwo, minusOne);
+    FALSE_COMPARE(BvSGt, minusOne, minusOne);
+    TRUE_COMPARE(BvSGt, two, minusTwo);
 
-    EXPECT_EQ(eval.evaluate(builder->BvSGt(one, zero)), builder->True());
-    EXPECT_EQ(eval.evaluate(builder->BvSGt(minusOne, zero)), builder->False());
-    EXPECT_EQ(eval.evaluate(builder->BvSGt(two, one)), builder->True());
-    EXPECT_EQ(eval.evaluate(builder->BvSGt(one, two)), builder->False());
-    EXPECT_EQ(eval.evaluate(builder->BvSGt(zero, zero)), builder->False());
-    EXPECT_EQ(eval.evaluate(builder->BvSGt(minusTwo, minusOne)), builder->False());
-    EXPECT_EQ(eval.evaluate(builder->BvSGt(minusOne, minusOne)), builder->False());
-    EXPECT_EQ(eval.evaluate(builder->BvSGt(two, minusTwo)), builder->True());
-
-    EXPECT_EQ(eval.evaluate(builder->BvSGtEq(one, zero)), builder->True());
-    EXPECT_EQ(eval.evaluate(builder->BvSGtEq(minusOne, zero)), builder->False());
-    EXPECT_EQ(eval.evaluate(builder->BvSGtEq(two, one)), builder->True());
-    EXPECT_EQ(eval.evaluate(builder->BvSGtEq(one, two)), builder->False());
-    EXPECT_EQ(eval.evaluate(builder->BvSGtEq(zero, zero)), builder->True());
-    EXPECT_EQ(eval.evaluate(builder->BvSGtEq(minusTwo, minusOne)), builder->False());
-    EXPECT_EQ(eval.evaluate(builder->BvSGtEq(minusOne, minusOne)), builder->True());
-    EXPECT_EQ(eval.evaluate(builder->BvSGtEq(two, minusTwo)), builder->True());
+    TRUE_COMPARE(BvSGtEq, one, zero);
+    FALSE_COMPARE(BvSGtEq, minusOne, zero);
+    TRUE_COMPARE(BvSGtEq, two, one);
+    FALSE_COMPARE(BvSGtEq, one, two);
+    TRUE_COMPARE(BvSGtEq, zero, zero);
+    FALSE_COMPARE(BvSGtEq, minusTwo, minusOne);
+    TRUE_COMPARE(BvSGtEq, minusOne, minusOne);
+    TRUE_COMPARE(BvSGtEq, two, minusTwo);
 }
+
+#undef TRUE_COMPARE
+#undef FALSE_COMPARE

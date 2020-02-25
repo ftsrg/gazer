@@ -125,7 +125,7 @@ LLVMFrontend::LLVMFrontend(
 
     if (!PrintFinalModule.empty()) {
         std::error_code ec;
-        mModuleOutput.reset(new llvm::ToolOutputFile(PrintFinalModule, ec, llvm::sys::fs::F_None));
+        mModuleOutput = std::make_unique<llvm::ToolOutputFile>(PrintFinalModule, ec, llvm::sys::fs::F_None);
 
         if (ec) {
             emit_error("could not open '%s': %s", PrintFinalModule.c_str(), ec.message().c_str());

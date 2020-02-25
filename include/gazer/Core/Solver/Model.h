@@ -29,7 +29,7 @@ class Model : public ExprEvaluator
 {
 public:
     // Inherited from ExprEvaluator:
-    //  ExprRef<LiteralExpr> evaluate(const ExprPtr& expr);
+    virtual ExprRef<AtomicExpr> evaluate(const ExprPtr& expr) = 0;
 
     virtual ~Model() = default;
 

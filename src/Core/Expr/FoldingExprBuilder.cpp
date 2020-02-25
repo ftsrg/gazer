@@ -29,7 +29,11 @@
 
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/DenseSet.h>
+#include <llvm/Support/raw_ostream.h>
 
+#include <boost/container/flat_set.hpp>
+
+#include <unordered_set>
 #include <variant>
 
 using namespace gazer;
@@ -208,74 +212,7 @@ public:
             return *newOps.begin();
         }
 
-        // Move AND expressions to the beginning
-        auto andEnd = std::partition(newOps.begin(), newOps.end(), [](const ExprPtr& e) {
-            return llvm::isa<AndExpr>(e);
-        });
-
-        // Try to factorize some terms out
-        if (std::distance(newOps.begin(), andEnd) < 2) {
-            return OrExpr::Create(newOps);
-        }
-
-        ExprVector intersection;
-        intersection.insert(intersection.end(), newOps.begin(), andEnd);
-
-        for (auto it = std::next(newOps.begin()); it != andEnd; ++it) {
-            // We know that all these expressions are And instances.
-            ExprRef<AndExpr> andExpr = expr_cast<AndExpr>(*it);
-            intersection.erase(llvm::remove_if(intersection, [&andExpr](auto& p) {
-                return llvm::find(andExpr->operands(), p) == andExpr->op_end();
-            }), intersection.end());
-        }
-
-        if (intersection.empty()) {
-            return OrExpr::Create(newOps);
-        }
-
-        ExprVector terms; 
-        ExprPtr common = this->And(intersection);
-
-        for (auto it = newOps.begin(); it != andEnd; ++it) {
-            ExprRef<AndExpr> andExpr = expr_cast<AndExpr>(*it);
-            ExprVector difference;
-            llvm::copy_if(andExpr->operands(), std::back_inserter(difference), [&intersection](auto& p) {
-                return llvm::find(intersection, p) == intersection.end();
-            });
-            terms.emplace_back(this->And(difference));
-        }
-
-        return this->And({common, OrExpr::Create(terms)});
-/*
-        if (newOps.size() == 2) {
-            // Try some optimizations for the binary case.
-            if (auto left = llvm::dyn_cast<AndExpr>(newOps[0])) {
-                if (auto right = llvm::dyn_cast<AndExpr>(newOps[1])) {
-                    // Or(And(E1, ..., Ek, X1, ..., Xn), And(E1, ..., Ek, ..., Y1, ..., Ym))
-                    //  --> And(E1, ..., Ek, Or(And(X1, ..., Xn), And(Y1, ..., Ym)))
-                    ExprVector top; // also serves as the intersection
-                    ExprVector leftMinusRight;
-                    ExprVector rightMinusLeft;
-                    
-                    intersection_difference(
-                        left->operands(), right->operands(),
-                        std::back_inserter(top),
-                        std::back_inserter(leftMinusRight),
-                        std::back_inserter(rightMinusLeft)
-                    );
-
-                    if (!top.empty()) {
-                        top.push_back(
-                            OrExpr::Create(this->And(leftMinusRight), this->And(rightMinusLeft))
-                        );
-
-                        return AndExpr::Create(top);
-                    }
-                }
-            }
-        }
-
-        return OrExpr::Create(newOps); */
+        return OrExpr::Create(newOps);
     }
 
     ExprPtr Imply(const ExprPtr& left, const ExprPtr& right) override

@@ -179,7 +179,7 @@ def find_tool(toolname, toolpath) -> pathlib.Path:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('target', choices=['crash', 'false-cex', 'invalid-fail', 'pattern', 'invalid-success'], help='The target behavior to debug')
+    parser.add_argument('target', choices=['false-cex', 'invalid-fail', 'pattern', 'invalid-success'], help='The target behavior to debug')
     parser.add_argument('file', help='The input file to reduce')
     parser.add_argument('--pattern', help='A pattern which must be present in the output')
     parser.add_argument("--early-reject", default="", help="Reject the generated C file if it does not contain the given grep pattern")
