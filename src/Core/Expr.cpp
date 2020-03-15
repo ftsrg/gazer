@@ -387,12 +387,9 @@ template class FpCompareExpr<Expr::FLtEq>;
 llvm::StringRef Expr::getKindName(ExprKind kind)
 {
     #define GAZER_EXPR_KIND(KIND) case KIND: return #KIND;
-
-    /// This array contains the name of every Gazer expression kind.
     switch (kind) {
         #include "gazer/Core/Expr/ExprKind.def"
     };
-
     #undef GAZER_EXPR_KIND
 
     llvm_unreachable("Invalid expression kind.");

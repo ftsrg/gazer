@@ -33,8 +33,8 @@ CallGraph::CallGraph(AutomataSystem& system)
     for (Cfa& cfa : system) {
         auto& node = mNodes[&cfa];
 
-        for (auto& edge : cfa.edges()) {
-            if (auto call = llvm::dyn_cast<CallTransition>(edge.get())) {
+        for (Transition* edge : cfa.edges()) {
+            if (auto call = llvm::dyn_cast<CallTransition>(edge)) {
                 node->addCall(call, mNodes[call->getCalledAutomaton()].get());
             }
         }

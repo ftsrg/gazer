@@ -100,18 +100,18 @@ auto BoundedModelCheckerImpl::initializeErrorField() -> bool
     // Set the verification goal - a single error location.
     llvm::SmallVector<Location*, 1> errors;
     Type* errorFieldType = nullptr;
-    for (auto& loc : mRoot->nodes()) {
+    for (Location* loc : mRoot->nodes()) {
         if (loc->isError()) {
-            errors.push_back(loc.get());
-            errorFieldType = &mRoot->getErrorFieldExpr(loc.get())->getType();
+            errors.push_back(loc);
+            errorFieldType = &mRoot->getErrorFieldExpr(loc)->getType();
         }
     }
 
     if (errorFieldType == nullptr) {
         // Try to find the error field type from using another CFA.
         for (Cfa& cfa : mSystem) {
-            for (auto& err : cfa.errors()) {
-                errorFieldType = &err.second->getType();
+            for (auto& [location, errExpr] : cfa.errors()) {
+                errorFieldType = &errExpr->getType();
                 goto ERROR_TYPE_FOUND;
             }
         }
@@ -162,9 +162,9 @@ void BoundedModelCheckerImpl::removeIrrelevantLocations()
 
     // Disconnect all unvisited locations, minus the exit location.
     visited.insert(mRoot->getExit());
-    for (auto& loc : mRoot->nodes()) {
-        if (visited.count(&*loc) == 0) {
-            mRoot->disconnectLocation(&*loc);
+    for (Location* loc : mRoot->nodes()) {
+        if (visited.count(loc) == 0) {
+            mRoot->disconnectNode(loc);
         }
     }
 
@@ -188,8 +188,8 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
     this->createTopologicalSorts();
 
     // Insert initial call approximations.
-    for (auto& edge : mRoot->edges()) {
-        if (auto call = llvm::dyn_cast<CallTransition>(edge.get())) {
+    for (Transition* edge : mRoot->edges()) {
+        if (auto call = llvm::dyn_cast<CallTransition>(edge)) {
             mCalls[call].overApprox = mExprBuilder.False();
             mCalls[call].callChain.push_back(call->getCalledAutomaton());
         }
@@ -554,27 +554,20 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     }
 
     // Insert the locations
-    for (auto& origLoc : callee->nodes()) {
+    for (Location* origLoc : callee->nodes()) {
         auto newLoc = mRoot->createLocation();
-        locToLocMap[origLoc.get()] = newLoc;
-        mInlinedLocations[newLoc] = origLoc.get();
+        locToLocMap[origLoc] = newLoc;
+        mInlinedLocations[newLoc] = origLoc;
 
         if (origLoc->isError()) {
             mRoot->createAssignTransition(newLoc, mError, mExprBuilder.True(), {
-                { mErrorFieldVariable, callee->getErrorFieldExpr(origLoc.get()) }
+                { mErrorFieldVariable, callee->getErrorFieldExpr(origLoc) }
             });
         }
     }
 
     // Transform the edges
-    auto addr = [](auto& ptr) { return ptr.get(); };
-
-    std::vector<Transition*> edges(
-        llvm::map_iterator(callee->edge_begin(), addr),
-        llvm::map_iterator(callee->edge_end(), addr)
-    );
-
-    for (auto origEdge : edges) {
+    for (auto origEdge : callee->edges()) {
         Transition* newEdge = nullptr;
         Location* source = locToLocMap[origEdge->getSource()];
         Location* target = locToLocMap[origEdge->getTarget()];

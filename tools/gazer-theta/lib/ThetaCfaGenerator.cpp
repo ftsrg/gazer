@@ -253,24 +253,24 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
     }
 
     // Add locations
-    for (auto& loc : main->nodes()) {
+    for (Location* loc : main->nodes()) {
         ThetaLocDecl::Flag flag = ThetaLocDecl::Loc_State;
-        if (&*loc == recursiveToCyclicResult.errorLocation) {
+        if (loc == recursiveToCyclicResult.errorLocation) {
             flag = ThetaLocDecl::Loc_Error;
-        } else if (main->getEntry() == &*loc) {
+        } else if (main->getEntry() == loc) {
             flag = ThetaLocDecl::Loc_Init;
-        } else if (main->getExit() == &*loc) {
+        } else if (main->getExit() == loc) {
             flag = ThetaLocDecl::Loc_Final;
         }
 
         auto locName = "loc" + std::to_string(loc->getId());
 
-        nameTrace.locations[locName] = &*loc;
-        locs.try_emplace(&*loc, std::make_unique<ThetaLocDecl>(locName, flag));
+        nameTrace.locations[locName] = loc;
+        locs.try_emplace(loc, std::make_unique<ThetaLocDecl>(locName, flag));
     }
 
     // Add edges
-    for (auto& edge : main->edges()) {
+    for (Transition* edge : main->edges()) {
         ThetaLocDecl& source = *locs[edge->getSource()];
         ThetaLocDecl& target = *locs[edge->getTarget()];
         
@@ -280,7 +280,7 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
             stmts.push_back(ThetaStmt::Assume(edge->getGuard()));
         }
 
-        if (auto assignEdge = dyn_cast<AssignTransition>(&*edge)) {
+        if (auto assignEdge = dyn_cast<AssignTransition>(edge)) {
             for (auto& assignment : *assignEdge) {
                 auto lhsName = vars[assignment.getVariable()]->getName();
 
@@ -290,7 +290,7 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
                     stmts.push_back(ThetaStmt::Assign(lhsName, assignment.getValue()));
                 }
             }
-        } else if (auto callEdge = dyn_cast<CallTransition>(&*edge)) {
+        } else if (auto callEdge = dyn_cast<CallTransition>(edge)) {
             llvm_unreachable("CallTransitions are not supported in theta CFAs!");
         }
 

@@ -43,7 +43,7 @@ Cfa::Cfa(GazerContext &context, std::string name, AutomataSystem& parent)
 Location* Cfa::createLocation()
 {
     auto loc = new Location(mLocationIdx++, this);
-    mLocations.emplace_back(loc);
+    mNodes.emplace_back(loc);
     mLocationNumbers[loc->getId()] = loc;
 
     return loc;
@@ -52,7 +52,7 @@ Location* Cfa::createLocation()
 Location* Cfa::createErrorLocation()
 {
     auto loc = new Location(mLocationIdx++, this, Location::Error);
-    mLocations.emplace_back(loc);
+    mNodes.emplace_back(loc);
     mErrorLocations.emplace_back(loc);
     mLocationNumbers[loc->getId()] = loc;
 
@@ -77,7 +77,7 @@ AssignTransition *Cfa::createAssignTransition(
     std::vector<VariableAssignment> edgeAssigns(assignments.begin(), assignments.end());
 
     auto edge = new AssignTransition(source, target, std::move(guard), std::move(edgeAssigns));
-    mTransitions.emplace_back(edge);
+    mEdges.emplace_back(edge);
     source->addOutgoing(edge);
     target->addIncoming(edge);
 
@@ -94,7 +94,7 @@ CallTransition *Cfa::createCallTransition(Location *source, Location *target, co
     std::vector<VariableAssignment> outputs(outputArgs.begin(), outputArgs.end());
 
     auto call = new CallTransition(source, target, guard, callee, std::move(inputs), std::move(outputs));
-    mTransitions.emplace_back(call);
+    mEdges.emplace_back(call);
     source->addOutgoing(call);
     target->addIncoming(call);
 
@@ -227,30 +227,6 @@ Variable* Cfa::findOutputByName(llvm::StringRef name) const
 // Transformations
 //-----------------------------------------------------------------------------
 
-void Cfa::disconnectLocation(Location* location)
-{
-    for (Transition* edge : location->incoming()) {
-        edge->mTarget = nullptr;
-        edge->mSource->removeOutgoing(edge);
-    }
-
-    for (Transition* edge : location->outgoing()) {
-        edge->mSource = nullptr;
-        edge->mTarget->removeIncoming(edge);
-    }
-
-    location->mIncoming.clear();
-    location->mOutgoing.clear();
-}
-
-void Cfa::disconnectEdge(Transition* edge)
-{
-    edge->getSource()->removeOutgoing(edge);
-    edge->getTarget()->removeIncoming(edge);
-
-    edge->mSource = nullptr;
-    edge->mTarget = nullptr;
-}
 
 void Cfa::removeUnreachableLocations()
 {
@@ -263,57 +239,21 @@ void Cfa::removeUnreachableLocations()
     }
 
     std::vector<Location*> unreachable;
-    for (auto& loc : mLocations) {
-        if (visited.count(&*loc) == 0) {
-            this->disconnectLocation(&*loc);
+    for (Location* loc : nodes()) {
+        if (visited.count(loc) == 0) {
+            this->disconnectNode(loc);
         }
     }
 
     this->clearDisconnectedElements();
 }
 
-void Cfa::clearDisconnectedElements()
-{
-    mLocations.erase(std::remove_if(mLocations.begin(), mLocations.end(), [](auto& loc) {
-        return loc->mIncoming.empty() && loc->mOutgoing.empty();
-    }), mLocations.end());
-
-    mTransitions.erase(std::remove_if(mTransitions.begin(), mTransitions.end(), [](auto& edge) {
-        return edge->mSource == nullptr || edge->mTarget == nullptr;
-    }), mTransitions.end());
-}
-
 Cfa::~Cfa() {}
-
-// Support code for locations
-//-----------------------------------------------------------------------------
-
-void Location::addIncoming(Transition *edge)
-{
-    assert(edge->getTarget() == this);
-    mIncoming.push_back(edge);
-}
-
-void Location::addOutgoing(Transition *edge)
-{
-    assert(edge->getSource() == this);
-    mOutgoing.push_back(edge);
-}
-
-void Location::removeIncoming(Transition *edge)
-{
-    mIncoming.erase(std::remove(mIncoming.begin(), mIncoming.end(), edge), mIncoming.end());
-}
-
-void Location::removeOutgoing(Transition *edge)
-{
-    mOutgoing.erase(std::remove(mOutgoing.begin(), mOutgoing.end(), edge), mOutgoing.end());
-}
 
 // Transitions
 //-----------------------------------------------------------------------------
 Transition::Transition(Location* source, Location* target, ExprPtr expr, EdgeKind kind)
-    : mSource(source), mTarget(target), mExpr(expr), mEdgeKind(kind)
+    : GraphEdge(source, target), mExpr(expr), mEdgeKind(kind)
 {
     assert(source != nullptr && "Transition source location must not be null!");
     assert(target != nullptr && "Transition target location must not be null!");

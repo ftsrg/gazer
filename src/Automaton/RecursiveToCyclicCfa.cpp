@@ -63,8 +63,8 @@ RecursiveToCyclicResult RecursiveToCyclicTransformer::transform()
 {
     this->addUniqueErrorLocation();
 
-    for (auto& edge : mRoot->edges()) {
-        if (auto call = llvm::dyn_cast<CallTransition>(edge.get())) {
+    for (Transition* edge : mRoot->edges()) {
+        if (auto call = llvm::dyn_cast<CallTransition>(edge)) {
             if (mCallGraph.isTailRecursive(call->getCalledAutomaton())) {
                 mTailRecursiveCalls.push_back(call);
             }
@@ -136,19 +136,19 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
     }
 
     // Insert all locations
-    for (auto& origLoc : callee->nodes()) {
+    for (Location* origLoc : callee->nodes()) {
         auto newLoc = mRoot->createLocation();
         locToLocMap[&*origLoc] = newLoc;
-        mInlinedLocations[newLoc] = &*origLoc;
+        mInlinedLocations[newLoc] = origLoc;
         if (origLoc->isError()) {
             mRoot->createAssignTransition(newLoc, mError, mExprBuilder->True(), {
-                { mErrorFieldVariable, callee->getErrorFieldExpr(origLoc.get()) }
+                { mErrorFieldVariable, callee->getErrorFieldExpr(origLoc) }
             });
         }
     }
 
     // Clone the edges
-    for (auto& origEdge : callee->edges()) {
+    for (Transition* origEdge : callee->edges()) {
         Location* source = locToLocMap[origEdge->getSource()];
         Location* target = locToLocMap[origEdge->getTarget()];
 
@@ -265,9 +265,9 @@ void RecursiveToCyclicTransformer::addUniqueErrorLocation()
     auto& ctx = mRoot->getParent().getContext();
 
     llvm::SmallVector<Location*, 1> errors;
-    for (auto& loc : mRoot->nodes()) {
+    for (Location* loc : mRoot->nodes()) {
         if (loc->isError()) {
-            errors.push_back(loc.get());
+            errors.push_back(loc);
         }
     }
     

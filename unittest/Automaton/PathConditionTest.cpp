@@ -73,7 +73,7 @@ TEST(PathConditionTest, PredecessorTest)
 
     // l5 --> ERROR [ z == 0 ]
     cfa->createAssignTransition(l5, le, eq);
-cfa->createAssignTransition(l5, cfa->getExit(), NotExpr::Create(eq));
+    cfa->createAssignTransition(l5, cfa->getExit(), NotExpr::Create(eq));
 
     auto builder = CreateFoldingExprBuilder(ctx);
 

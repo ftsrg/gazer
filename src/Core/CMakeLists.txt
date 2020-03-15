@@ -11,6 +11,7 @@ set(SOURCE_FILES
     Expr/ExprEvaluator.cpp
     Expr/ExprRewrite.cpp
     Expr/ExprUtils.cpp
+    Expr/ExprSimplify.cpp
 )
 
 add_library(GazerCore SHARED ${SOURCE_FILES})

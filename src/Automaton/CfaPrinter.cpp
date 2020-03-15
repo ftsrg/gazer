@@ -196,17 +196,17 @@ void Cfa::print(llvm::raw_ostream& os) const
 
     os << "\n";
 
-    for (auto& loc : mLocations) {
+    for (Location* loc : this->nodes()) {
         os << indent1 << "loc $" << loc->getId();
         if (loc->isError()) {
             os << " error";
         }
 
-        if (mEntry == loc.get()) {
+        if (mEntry == loc) {
             os << " entry ";
         }
 
-        if (mExit == loc.get()) {
+        if (mExit == loc) {
             os << " final ";
         }
 
@@ -215,7 +215,7 @@ void Cfa::print(llvm::raw_ostream& os) const
 
     os << "\n";
 
-    for (auto& edge : mTransitions) {
+    for (Transition* edge : this->edges()) {
         os << indent1 << "transition "
         << "$" << edge->getSource()->getId()
         << " -> "
@@ -224,7 +224,7 @@ void Cfa::print(llvm::raw_ostream& os) const
         InfixPrintExpr(edge->getGuard(), os);
         os << "\n";
 
-        if (auto assignEdge = llvm::dyn_cast<AssignTransition>(edge.get())) {
+        if (auto assignEdge = llvm::dyn_cast<AssignTransition>(edge)) {
             os << indent1 << "{\n";
             for (auto& assign : *assignEdge) {
                 os << indent2 << assign.getVariable()->getName()
@@ -233,7 +233,7 @@ void Cfa::print(llvm::raw_ostream& os) const
                 os << ";\n";
             }
             os << indent1 << "};\n";
-        } else if (auto call = llvm::dyn_cast<CallTransition>(edge.get())) {
+        } else if (auto call = llvm::dyn_cast<CallTransition>(edge)) {
             os << indent2 << "call " << call->getCalledAutomaton()->getName() << "(";
             join_print_as(os, call->input_begin(), call->input_end(), ", ", printCallInput);
             if (call->getNumInputs() != 0 && call->getNumOutputs() != 0) {

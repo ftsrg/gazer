@@ -24,6 +24,7 @@
 #define GAZER_AUTOMATON_CFA_H
 
 #include "gazer/Core/Expr.h"
+#include "gazer/ADT/Graph.h"
 
 #include <llvm/ADT/GraphTraits.h>
 #include <llvm/ADT/DenseMap.h>
@@ -35,10 +36,9 @@ namespace gazer
 class Cfa;
 class Transition;
 
-class Location
+class Location : public GraphNode<Location, Transition>
 {
     friend class Cfa;
-    using EdgeVectorTy = std::vector<Transition*>;
 public:
     enum LocationKind
     {
@@ -56,59 +56,17 @@ public:
     Location& operator=(const Location&) = delete;
 
     unsigned getId() const { return mID; }
-
     bool isError() const { return mKind == Error; }
 
-    size_t getNumIncoming() const { return mIncoming.size(); }
-    size_t getNumOutgoing() const { return mOutgoing.size(); }
-
     Cfa* getAutomaton() const { return mCfa; }
-
-    //-------------------------- Iterator support ---------------------------//
-    using edge_iterator = EdgeVectorTy::iterator;
-    using const_edge_iterator = EdgeVectorTy::const_iterator;
-
-    edge_iterator incoming_begin() { return mIncoming.begin(); }
-    edge_iterator incoming_end() { return mIncoming.end(); }
-    llvm::iterator_range<edge_iterator> incoming() {
-        return llvm::make_range(incoming_begin(), incoming_end());
-    }
-
-    edge_iterator outgoing_begin() { return mOutgoing.begin(); }
-    edge_iterator outgoing_end() { return mOutgoing.end(); }
-    llvm::iterator_range<edge_iterator> outgoing() {
-        return llvm::make_range(outgoing_begin(), outgoing_end());
-    }
-
-    const_edge_iterator incoming_begin() const { return mIncoming.begin(); }
-    const_edge_iterator incoming_end() const { return mIncoming.end(); }
-    llvm::iterator_range<const_edge_iterator> incoming() const {
-        return llvm::make_range(incoming_begin(), incoming_end());
-    }
-
-    const_edge_iterator outgoing_begin() const { return mOutgoing.begin(); }
-    const_edge_iterator outgoing_end() const { return mOutgoing.end(); }
-    llvm::iterator_range<const_edge_iterator> outgoing() const {
-        return llvm::make_range(outgoing_begin(), outgoing_end());
-    }
-
-private:
-    void addIncoming(Transition* edge);
-    void addOutgoing(Transition* edge);
-
-    void removeIncoming(Transition* edge);
-    void removeOutgoing(Transition* edge);
-
 private:
     unsigned mID;
     Cfa* mCfa;
     LocationKind mKind;
-    EdgeVectorTy mIncoming;
-    EdgeVectorTy mOutgoing;
 };
 
 /// A simple transition with a guard or summary expression.
-class Transition
+class Transition : public GraphEdge<Location, Transition>
 {
     friend class Cfa;
 public:
@@ -124,9 +82,6 @@ public:
     Transition(Transition&) = delete;
     Transition& operator=(Transition&) = delete;
 
-    Location* getSource() const { return mSource; }
-    Location* getTarget() const { return mTarget; }
-
     ExprPtr getGuard() const { return mExpr; }
     EdgeKind getKind() const { return mEdgeKind; }
 
@@ -138,8 +93,6 @@ public:
     virtual ~Transition() = default;
 
 private:
-    Location* mSource;
-    Location* mTarget;
     ExprPtr mExpr;
     EdgeKind mEdgeKind;
 };
@@ -219,7 +172,7 @@ private:
 class AutomataSystem;
 
 /// Represents a control flow automaton.
-class Cfa final
+class Cfa final : public Graph<Location, Transition>
 {
     friend class AutomataSystem;
 private:
@@ -268,22 +221,6 @@ public:
     ExprPtr getErrorFieldExpr(Location* location);
 
     //===----------------------------------------------------------------------===//
-    // Iterator support
-    using node_iterator = std::vector<std::unique_ptr<Location>>::iterator;
-    using const_node_iterator = std::vector<std::unique_ptr<Location>>::const_iterator;
-
-    node_iterator node_begin() { return mLocations.begin(); }
-    node_iterator node_end() { return mLocations.end(); }
-
-    const_node_iterator node_begin() const { return mLocations.begin(); }
-    const_node_iterator node_end() const { return mLocations.end(); }
-    llvm::iterator_range<node_iterator> nodes() {
-        return llvm::make_range(node_begin(), node_end());
-    }
-    llvm::iterator_range<const_node_iterator> nodes() const {
-        return llvm::make_range(node_begin(), node_end());
-    }
-
     // Iterator for error locations
     using error_iterator = llvm::SmallDenseMap<Location*, ExprPtr, 1>::const_iterator;
 
@@ -294,22 +231,6 @@ public:
     }
 
     size_t getNumErrors() const { return mErrorFieldExprs.size(); }
-
-    // Transition (edge) iterators...
-    using edge_iterator = std::vector<std::unique_ptr<Transition>>::iterator;
-    using const_edge_iterator = std::vector<std::unique_ptr<Transition>>::const_iterator;
-
-    edge_iterator edge_begin() { return mTransitions.begin(); }
-    edge_iterator edge_end() { return mTransitions.end(); }
-
-    const_edge_iterator edge_begin() const { return mTransitions.begin(); }
-    const_edge_iterator edge_end() const { return mTransitions.end(); }
-    llvm::iterator_range<edge_iterator> edges() {
-        return llvm::make_range(edge_begin(), edge_end());
-    }
-    llvm::iterator_range<const_edge_iterator> edges() const {
-        return llvm::make_range(edge_begin(), edge_end());
-    }
 
     // Variable iterators
     using var_iterator = boost::indirect_iterator<std::vector<Variable*>::iterator>;
@@ -340,8 +261,8 @@ public:
 
     AutomataSystem& getParent() const { return mParent; }
 
-    size_t getNumLocations() const { return mLocations.size(); }
-    size_t getNumTransitions() const { return mTransitions.size(); }
+    size_t getNumLocations() const { return node_size(); }
+    size_t getNumTransitions() const { return edge_size(); }
 
     size_t getNumInputs() const { return mInputs.size(); }
     size_t getNumOutputs() const { return mOutputs.size(); }
@@ -373,11 +294,6 @@ public:
     //------------------------------ Deletion -------------------------------//
     void removeUnreachableLocations();
 
-    void disconnectLocation(Location* location);
-    void disconnectEdge(Transition* edge);
-
-    void clearDisconnectedElements();
-
     template<class Predicate>
     void removeLocalsIf(Predicate p) {
         mLocals.erase(
@@ -385,6 +301,10 @@ public:
             mLocals.end()
         );
     }
+
+    using Graph::disconnectNode;
+    using Graph::disconnectEdge;
+    using Graph::clearDisconnectedElements;
 
     ~Cfa();
 
@@ -396,9 +316,6 @@ private:
     std::string mName;
     GazerContext& mContext;
     AutomataSystem& mParent;
-
-    std::vector<std::unique_ptr<Location>> mLocations;
-    std::vector<std::unique_ptr<Transition>> mTransitions;
 
     llvm::SmallVector<Location*, 1> mErrorLocations;
     llvm::SmallDenseMap<Location*, ExprPtr, 1> mErrorFieldExprs;
@@ -471,132 +388,32 @@ namespace llvm
 {
 
 template<>
-struct GraphTraits<gazer::Cfa>
+struct GraphTraits<gazer::Cfa> :
+    public GraphTraits<gazer::Graph<gazer::Location, gazer::Transition>>
 {
-    using NodeRef = gazer::Location*;
-    using EdgeRef = gazer::Transition*;
-
-    static constexpr auto GetEdgeTarget = [](const gazer::Transition* edge) -> NodeRef  {
-        return edge->getTarget();
-    };
-    static constexpr auto GetLocationFromPtr = [](const std::unique_ptr<gazer::Location>& loc)
-        -> gazer::Location*
-    {
-        return loc.get();
-    };
-
-    // Child traversal
-    using ChildIteratorType = llvm::mapped_iterator<
-        gazer::Location::edge_iterator,
-        decltype(GetEdgeTarget),
-        NodeRef
-    >;
-
-    static ChildIteratorType child_begin(NodeRef loc) {
-        return ChildIteratorType(loc->outgoing_begin(), GetEdgeTarget);
-    }
-    static ChildIteratorType child_end(NodeRef loc) {
-        return ChildIteratorType(loc->outgoing_end(), GetEdgeTarget);
-    }
-
-    using nodes_iterator = llvm::mapped_iterator<
-        gazer::Cfa::const_node_iterator, decltype(GetLocationFromPtr)
-    >;
-
-    static nodes_iterator nodes_begin(const gazer::Cfa& cfa) {
-        return nodes_iterator(cfa.node_begin(), GetLocationFromPtr);
-    }
-    static nodes_iterator nodes_end(const gazer::Cfa& cfa) {
-        return nodes_iterator(cfa.node_end(), GetLocationFromPtr);
-    }
-
     static NodeRef getEntryNode(const gazer::Cfa& cfa) {
         return cfa.getEntry();
     }
+};
 
-    // Edge traversal
-    using ChildEdgeIteratorType = gazer::Location::edge_iterator;
-    static ChildEdgeIteratorType child_edge_begin(NodeRef loc) {
-        return loc->outgoing_begin();
-    }
-    static ChildEdgeIteratorType child_edge_end(NodeRef loc) {
-        return loc->outgoing_end();
-    }
-    static NodeRef edge_dest(EdgeRef edge) {
-        return edge->getTarget();
-    }
-
-    static unsigned size(gazer::Cfa& cfa) {
-        return cfa.getNumLocations();
+template<>
+struct GraphTraits<Inverse<gazer::Cfa>> :
+    public GraphTraits<Inverse<gazer::Graph<gazer::Location, gazer::Transition>>>
+{
+    static NodeRef getEntryNode(Inverse<gazer::Cfa>& cfa) {
+        return cfa.Graph.getExit();
     }
 };
 
 template<>
-struct GraphTraits<Inverse<gazer::Cfa>> : public GraphTraits<gazer::Cfa>
-{
-    using NodeRef = gazer::Location*;
-
-    static constexpr auto GetEdgeSource = [](const gazer::Transition* edge) -> NodeRef  {
-        return edge->getSource();
-    };
-
-    using ChildIteratorType = llvm::mapped_iterator<gazer::Location::edge_iterator, decltype(GetEdgeSource)>;
-
-    static ChildIteratorType child_begin(NodeRef loc) {
-        return ChildIteratorType(loc->outgoing_begin(), GetEdgeSource);
-    }
-    static ChildIteratorType child_end(NodeRef loc) {
-        return ChildIteratorType(loc->outgoing_end(), GetEdgeSource);
-    }
-
-    static NodeRef getEntryNode(Inverse<gazer::Cfa>& cfa) { return cfa.Graph.getExit(); }
-};
+struct GraphTraits<gazer::Location*> :
+    public GraphTraits<gazer::GraphNode<gazer::Location, gazer::Transition>*>
+{};
 
 template<>
-struct GraphTraits<gazer::Location*>
-{
-    using NodeRef = gazer::Location*;
-
-    static constexpr auto GetEdgeTarget = [](gazer::Transition* edge) -> gazer::Location*  {
-        return edge->getTarget();
-    };
-
-    // Child traversal
-    using ChildIteratorType = llvm::mapped_iterator<
-        gazer::Location::edge_iterator,
-        decltype(GetEdgeTarget),
-        NodeRef
-    >;
-
-    static ChildIteratorType child_begin(NodeRef loc) {
-        return ChildIteratorType(loc->outgoing_begin(), GetEdgeTarget);
-    }
-    static ChildIteratorType child_end(NodeRef loc) {
-        return ChildIteratorType(loc->outgoing_end(), GetEdgeTarget);
-    }
-
-    static NodeRef getEntryNode(gazer::Location* loc) { return loc; }
-};
-
-template<>
-struct GraphTraits<Inverse<gazer::Location*>> : public GraphTraits<gazer::Location*>
-{
-    using NodeRef = gazer::Location*;
-
-    using ChildIteratorType = llvm::mapped_iterator<
-        gazer::Location::edge_iterator,
-        decltype(GraphTraits<Inverse<gazer::Cfa>>::GetEdgeSource)
-    >;
-
-    static ChildIteratorType child_begin(NodeRef cp) {
-        return ChildIteratorType(cp->incoming_begin(), GraphTraits<Inverse<gazer::Cfa>>::GetEdgeSource);
-    }
-    static ChildIteratorType child_end(NodeRef cp) {
-        return ChildIteratorType(cp->incoming_end(), GraphTraits<Inverse<gazer::Cfa>>::GetEdgeSource);
-    }
-
-    static NodeRef getEntryNode(Inverse<gazer::Location*> loc) { return loc.Graph; }
-};
+struct GraphTraits<Inverse<gazer::Location*>> :
+    public GraphTraits<Inverse<gazer::GraphNode<gazer::Location, gazer::Transition>*>>
+{};
 
 } // end namespace llvm
 

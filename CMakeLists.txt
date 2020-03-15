@@ -23,6 +23,20 @@ if(GAZER_ENABLE_SANITIZER)
     endif()
 endif()
 
+# Coverage
+option(GAZER_ENABLE_COVERAGE "Enable code coverage" OFF)
+if (GAZER_ENABLE_COVERAGE)
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        message(STATUS "Adding coverage flags for Clang")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-instr-generate -fcoverage-mapping")
+    elseif (CMAKE_COMPILER_IS_GNUCXX)
+        message(STATUS "Adding coverage flags for GCC")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-arcs -ftest-coverage")
+    else()
+        message(STATUS "Coverage flags are only available with Clang or GCC")
+    endif()
+endif()
+
 # Get LLVM
 find_package(LLVM 9.0 REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
