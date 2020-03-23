@@ -53,7 +53,7 @@ public:
         mSettings(settings)
     {}
 
-    ExprPtr transform(const llvm::Instruction& inst);
+    ExprPtr transform(const llvm::Instruction& inst, Type& expectedType);
 
     virtual ~InstToExpr() = default;
 
@@ -67,7 +67,7 @@ protected:
     }
 
 protected:
-    ExprPtr visitBinaryOperator(const llvm::BinaryOperator& binop);
+    ExprPtr visitBinaryOperator(const llvm::BinaryOperator& binop, Type& targetType);
     ExprPtr visitSelectInst(const llvm::SelectInst& select);
     ExprPtr visitICmpInst(const llvm::ICmpInst& icmp);
     ExprPtr visitFCmpInst(const llvm::FCmpInst& fcmp);

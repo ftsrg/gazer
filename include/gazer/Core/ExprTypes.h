@@ -472,6 +472,11 @@ protected:
 public:
     static ExprRef<TupleConstructExpr> Create(TupleType& type, const ExprVector& exprs);
 
+    template<class... Args>
+    static ExprRef<TupleConstructExpr> Create(TupleType& type, Args&&... args) {
+        return Create(type, {args...});
+    }
+
     static bool classof(const Expr* expr) {
         return expr->getKind() == Literal && expr->getType().isTupleType();
     }
@@ -480,7 +485,6 @@ public:
         return classof(&expr);
     }
 
-private:
 };
 
 } // end namespace gazer

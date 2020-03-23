@@ -531,7 +531,7 @@ void BlocksToCfa::encode()
             } else if (auto alloca = llvm::dyn_cast<AllocaInst>(&inst)) {
                 expr = mMemoryInstHandler.handleAlloca(*alloca, ep);
             } else {
-                expr = this->transform(inst);
+                expr = this->transform(inst, variable->getType());
             }
 
             if (!ep.tryToEliminate(&inst, variable, expr)) {

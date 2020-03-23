@@ -26,11 +26,12 @@
 using namespace gazer;
 using namespace llvm;
 
-ExprPtr InstToExpr::transform(const llvm::Instruction& inst)
+ExprPtr InstToExpr::transform(const llvm::Instruction& inst, Type& expectedType)
 {
     LLVM_DEBUG(llvm::dbgs() << "  Transforming instruction " << inst << "\n");
+
     if (auto binOp = llvm::dyn_cast<llvm::BinaryOperator>(&inst)) {
-        return visitBinaryOperator(*binOp);
+        return visitBinaryOperator(*binOp, expectedType);
     }
     
     if (auto cast = llvm::dyn_cast<llvm::CastInst>(&inst)) {
@@ -80,9 +81,8 @@ static bool isNonConstValue(const llvm::Value* value) {
     return isa<Instruction>(value) || isa<Argument>(value) || isa<GlobalVariable>(value);
 }
 
-ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop)
+ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop, Type& targetType)
 {
-    auto variable = getVariable(&binop);
     auto lhs = operand(binop.getOperand(0));
     auto rhs = operand(binop.getOperand(1));
     
@@ -121,13 +121,13 @@ ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop)
         return expr;
     }
 
-    assert(variable->getType().isIntType() || variable->getType().isBvType());
+    assert(targetType.isIntType() || targetType.isBvType());
     
-    if (variable->getType().isBvType()) {
-        const BvType* type = llvm::cast<BvType>(&variable->getType());
+    if (targetType.isBvType()) {
+        BvType& bvType = llvm::cast<BvType>(targetType);
 
-        auto intLHS = asBv(lhs, type->getWidth());
-        auto intRHS = asBv(rhs, type->getWidth());
+        auto intLHS = asBv(lhs, bvType.getWidth());
+        auto intRHS = asBv(rhs, bvType.getWidth());
 
         #define HANDLE_INSTCASE(OPCODE, EXPRNAME)                   \
             case OPCODE:                                            \
@@ -156,7 +156,7 @@ ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop)
         #undef HANDLE_INSTCASE
     }
 
-    if (variable->getType().isIntType()) {
+    if (targetType.isIntType()) {
         auto intLHS = asInt(lhs);
         auto intRHS = asInt(rhs);
 
@@ -359,7 +359,7 @@ ExprPtr InstToExpr::visitFCmpInst(const llvm::FCmpInst& fcmp)
     } else if (CmpInst::isOrdered(pred)) {
         // An ordered instruction can only be true if it has no NaN operands.
         // As our comparison operators are defined to be false if either
-        // argument is NaN, we we can just return the compare expression.
+        // argument is NaN, we can just return the compare expression.
         expr = cmpExpr;
     } else if (CmpInst::isUnordered(pred)) {
         // An unordered instruction may be true if either operand is NaN
