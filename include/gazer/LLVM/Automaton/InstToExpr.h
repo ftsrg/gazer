@@ -67,11 +67,11 @@ protected:
     }
 
 protected:
-    ExprPtr visitBinaryOperator(const llvm::BinaryOperator& binop, Type& targetType);
-    ExprPtr visitSelectInst(const llvm::SelectInst& select);
+    ExprPtr visitBinaryOperator(const llvm::BinaryOperator& binop, Type& expectedType);
+    ExprPtr visitSelectInst(const llvm::SelectInst& select, Type& expectedType);
+    ExprPtr visitCastInst(const llvm::CastInst& cast, Type& expectedType);
     ExprPtr visitICmpInst(const llvm::ICmpInst& icmp);
     ExprPtr visitFCmpInst(const llvm::FCmpInst& fcmp);
-    ExprPtr visitCastInst(const llvm::CastInst& cast);
     ExprPtr visitCallInst(const llvm::CallInst& call);
 
     ExprPtr operand(ValueOrMemoryObject value);
@@ -80,9 +80,9 @@ protected:
     ExprPtr asBv(const ExprPtr& operand, unsigned int bits);
     ExprPtr asInt(const ExprPtr& operand);
 
-    ExprPtr integerCast(const llvm::CastInst& cast, const ExprPtr& operand, unsigned int width);
+    ExprPtr integerCast(const llvm::CastInst& cast, const ExprPtr& castOperand, Type& expectedType);
     ExprPtr castResult(const ExprPtr& expr, const Type& type);
-    ExprPtr boolToIntCast(const llvm::CastInst& cast, const ExprPtr& operand);
+    ExprPtr boolToIntCast(const llvm::CastInst& cast, const ExprPtr& operand, Type& expectedType);
 
     gazer::Type& translateType(const llvm::Type* type);
 
@@ -96,6 +96,7 @@ protected:
     }
 
 private:
+    ExprPtr doTransform(const llvm::Instruction& inst, Type& expectedType);
     ExprPtr unsignedLessThan(const ExprPtr& left, const ExprPtr& right);
 
     ExprPtr operandValue(const llvm::Value* value);

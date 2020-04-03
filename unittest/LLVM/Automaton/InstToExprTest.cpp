@@ -18,6 +18,7 @@
 #include "gazer/LLVM/Automaton/InstToExpr.h"
 
 #include "gazer/LLVM/Memory/MemoryModel.h"
+#include "gazer/Core/Expr/ExprEvaluator.h"
 
 #include <llvm/IR/IRBuilder.h>
 
@@ -26,70 +27,12 @@
 using namespace gazer;
 using namespace llvm;
 
-namespace {
+namespace
+{
 
 class InstToExprTest : public ::testing::Test
 {
 public:
-    GazerContext context;
-    llvm::LLVMContext llvmContext;
-    LLVMFrontendSettings settings;
-    std::unique_ptr<ExprBuilder> builder;
-    std::unique_ptr<MemoryModel> memoryModel;
-    std::unique_ptr<LLVMTypeTranslator> types;
-
-    std::unique_ptr<llvm::Module> module;
-    llvm::Function* function;
-    llvm::BasicBlock* startBB;
-    llvm::GlobalVariable *gv1, *gv2, *gv3;
-    llvm::GlobalVariable *b1, *b2, *b3;
-    std::unique_ptr<llvm::IRBuilder<>> ir;
-
-public:
-    InstToExprTest() : builder(CreateExprBuilder(context)) {}
-
-    void SetUp() override
-    {
-        module.reset(new llvm::Module("InstToExprModule", llvmContext));
-        memoryModel = CreateHavocMemoryModel(context);
-
-        types.reset(new LLVMTypeTranslator(memoryModel->getMemoryTypeTranslator(), settings));
-
-        auto funcTy = llvm::FunctionType::get(
-            llvm::Type::getVoidTy(llvmContext),
-            /*isVarArg=*/false);
-        function = Function::Create(funcTy, Function::ExternalLinkage, "", module.get());
-        startBB = BasicBlock::Create(llvmContext, "", function);
-
-        ir.reset(new IRBuilder<>(startBB));
-
-        gv1 = new GlobalVariable(
-            *module, llvm::Type::getInt32Ty(llvmContext), /*isConstant=*/false,
-            GlobalValue::ExternalLinkage, nullptr);
-        gv2 = new GlobalVariable(
-            *module, llvm::Type::getInt32Ty(llvmContext), /*isConstant=*/false,
-            GlobalValue::ExternalLinkage, nullptr);
-        gv3 = new GlobalVariable(
-            *module, llvm::Type::getInt32Ty(llvmContext), /*isConstant=*/false,
-            GlobalValue::ExternalLinkage, nullptr);
-        b1 = new GlobalVariable(
-            *module, llvm::Type::getInt1Ty(llvmContext), /*isConstant=*/false,
-            GlobalValue::ExternalLinkage, nullptr);
-        b2 = new GlobalVariable(
-            *module, llvm::Type::getInt1Ty(llvmContext), /*isConstant=*/false,
-            GlobalValue::ExternalLinkage, nullptr);
-        b3 = new GlobalVariable(
-            *module, llvm::Type::getInt1Ty(llvmContext), /*isConstant=*/false,
-            GlobalValue::ExternalLinkage, nullptr);
-    }
-
-    void TearDown() override
-    {
-        module.reset();
-        function = nullptr;
-        startBB = nullptr;
-    }
-
     class InstToExprImpl : public InstToExpr
     {
     public:
@@ -112,16 +55,87 @@ public:
         llvm::DenseMap<llvm::Value*, Variable*> mVars;
     };
 
-    std::unique_ptr<InstToExprImpl> createImpl(llvm::DenseMap<llvm::Value*, Variable*> vars)
+public:
+    GazerContext context;
+    llvm::LLVMContext llvmContext;
+    LLVMFrontendSettings settings;
+    std::unique_ptr<ExprBuilder> builder;
+    std::unique_ptr<MemoryModel> memoryModel;
+    std::unique_ptr<LLVMTypeTranslator> types;
+
+    std::unique_ptr<llvm::Module> module;
+    llvm::Function* function;
+    llvm::BasicBlock* startBB;
+    std::unique_ptr<llvm::IRBuilder<>> ir;
+
+    llvm::StringMap<llvm::Value*> insertedValues;
+    llvm::DenseMap<llvm::Value*, Variable*> variables;
+
+public:
+    InstToExprTest() : builder(CreateExprBuilder(context)) {}
+
+    void SetUp() override;
+
+    void TearDown() override
+    {
+        module.reset();
+        function = nullptr;
+        startBB = nullptr;
+    }
+
+    std::unique_ptr<InstToExprImpl> createImpl()
     {
         return std::make_unique<InstToExprImpl>(
             *function, *builder, *types, memoryModel->getMemoryInstructionHandler(*function),
-            settings, std::move(vars));
+            settings, variables);
     }
 
     // Test helpers
     //==--------------------------------------------------------------------==//
 public:
+    llvm::Value* llvmVal(const std::string& name, llvm::Type* llvmType, gazer::Type& gazerType) {
+        static int tempIdx = 0;
+
+        auto gv = module->getOrInsertGlobal(name, llvmType);
+        auto load = ir->CreateLoad(gv, "load_" + name);
+        insertedValues[name] = load;
+
+        auto variable = context.createVariable(name + std::to_string(tempIdx++), gazerType);
+        variables[load] = variable;
+
+        return load;
+    }
+
+    llvm::Value* i1Val(const std::string& name, gazer::Type& gazerType) {
+        return llvmVal(name, llvm::IntegerType::getInt1Ty(llvmContext), gazerType);
+    }
+
+    llvm::Value* i32Val(const std::string& name, gazer::Type& gazerType) {
+        return llvmVal(name, llvm::IntegerType::getInt32Ty(llvmContext), gazerType);
+    }
+
+    Variable* variableFor(const std::string& name) {
+        auto value = insertedValues.lookup(name);
+        return variables.lookup(value);
+    }
+
+    ExprPtr transformWithImpl(llvm::Value* value, gazer::Type& expectedType) {
+        return createImpl()->transform(*llvm::cast<Instruction>(value), expectedType);
+    }
+
+    ExprRef<AtomicExpr> evalInt(const ExprPtr& expr, std::initializer_list<std::pair<llvm::Value*, int64_t>> vals) {
+        auto vb = Valuation::CreateBuilder();
+        for (auto& [llvmValue, lit] : vals) {
+            vb.put(variables.lookup(llvmValue), builder->IntLit(lit));
+        }
+
+        auto valuation = vb.build();
+        ValuationExprEvaluator eval(valuation);
+
+        return eval.evaluate(expr);
+    }
+
+
     template<class IrBuilderFuncTy, class ExprBuilderFuncTy>
     struct TestTriple
     {
@@ -145,26 +159,32 @@ public:
         checkBinaryOperators(const TestVector<IrBuilderFuncTy, ExprBuilderFuncTy>& tests);
 };
 
+void InstToExprTest::SetUp()
+{
+    module.reset(new llvm::Module("InstToExprModule", llvmContext));
+    memoryModel = CreateHavocMemoryModel(context);
+
+    types.reset(new LLVMTypeTranslator(memoryModel->getMemoryTypeTranslator(), settings));
+
+    auto funcTy = llvm::FunctionType::get(
+        llvm::Type::getVoidTy(llvmContext),
+        /*isVarArg=*/false);
+    function = Function::Create(funcTy, Function::ExternalLinkage, "", module.get());
+    startBB = BasicBlock::Create(llvmContext, "", function);
+
+    ir.reset(new IRBuilder<>(startBB));
+}
+
 template<class IrBuilderFuncTy, class ExprBuilderFuncTy>
 auto InstToExprTest::checkBinaryOperators(const TestVector<IrBuilderFuncTy, ExprBuilderFuncTy>& tests)
     -> ::testing::AssertionResult
 {
-    auto loadGv1 = ir->CreateLoad(gv1->getValueType(), gv1);
-    auto loadGv2 = ir->CreateLoad(gv2->getValueType(), gv2);
-
     for (unsigned i = 0; i < tests.size(); ++i) {
         auto& triple = tests[i];
+        llvm::Value* inst = triple.irBuilder(i32Val("x", triple.expectedType), i32Val("y", triple.expectedType));
+        ExprPtr expected = triple.exprBuilder(variableFor("x")->getRefExpr(), variableFor("y")->getRefExpr());
 
-        auto gv1Var = context.createVariable("gv1_" + std::to_string(i), triple.expectedType);
-        auto gv2Var = context.createVariable("gv2_" + std::to_string(i), triple.expectedType);
-        auto instVar =
-            context.createVariable("inst_" + std::to_string(i), BvType::Get(context, 32));
-
-        llvm::Value* inst = triple.irBuilder(loadGv1, loadGv2);
-        ExprPtr expected = triple.exprBuilder(gv1Var->getRefExpr(), gv2Var->getRefExpr());
-
-        auto inst2expr = createImpl({{loadGv1, gv1Var}, {loadGv2, gv2Var}, {inst, instVar}});
-        auto actual = inst2expr->transform(*cast<Instruction>(inst), triple.expectedType);
+        auto actual = transformWithImpl(inst, triple.expectedType);
 
         if (expected != actual) {
             std::string buffer;
@@ -232,127 +252,171 @@ TEST_F(InstToExprTest, TransformBinaryIntArithmeticOperator)
 
 TEST_F(InstToExprTest, TransformBinaryLogicOperator)
 {
-    settings.ints = IntRepresentation::BitVectors;
+    auto& boolTy = BoolType::Get(context);
 
-    auto loadB1 = ir->CreateLoad(b1->getValueType(), b1);
-    auto loadB2 = ir->CreateLoad(b2->getValueType(), b2);
+    auto expr = transformWithImpl(ir->CreateAnd(i1Val("b1", boolTy), i1Val("b2", boolTy)), boolTy);
+    EXPECT_EQ(expr, builder->And(variableFor("b1")->getRefExpr(), variableFor("b2")->getRefExpr()));
 
-    auto b1Var = context.createVariable("load_gv1", BoolType::Get(context));
-    auto b2Var = context.createVariable("load_gv2", BoolType::Get(context));
+    expr = transformWithImpl(ir->CreateOr(i1Val("b3", boolTy), i1Val("b4", boolTy)), boolTy);
+    EXPECT_EQ(expr, builder->Or(variableFor("b3")->getRefExpr(), variableFor("b4")->getRefExpr()));
 
-    auto inst2expr = createImpl({{loadB1, b1Var}, {loadB2, b2Var}});
-
-    EXPECT_EQ(
-        inst2expr->transform(
-            *cast<Instruction>(ir->CreateAnd(loadB1, loadB2)), BoolType::Get(context)),
-        builder->And(b1Var->getRefExpr(), b2Var->getRefExpr()));
-    EXPECT_EQ(
-        inst2expr->transform(
-            *cast<Instruction>(ir->CreateOr(loadB1, loadB2)), BoolType::Get(context)),
-        builder->Or(b1Var->getRefExpr(), b2Var->getRefExpr()));
-    EXPECT_EQ(
-        inst2expr->transform(
-            *cast<Instruction>(ir->CreateXor(loadB1, loadB2)), BoolType::Get(context)),
-        builder->NotEq(b1Var->getRefExpr(), b2Var->getRefExpr()));
+    expr = transformWithImpl(ir->CreateXor(i1Val("b5", boolTy), i1Val("b6", boolTy)), boolTy);
+    EXPECT_EQ(expr, builder->Xor(variableFor("b5")->getRefExpr(), variableFor("b6")->getRefExpr()));
 }
 
 #undef IR_BUILDER_FUNC
 #undef BINARY_EXPR_FUNC
 
-
 TEST_F(InstToExprTest, TransformBvCast)
 {
-    settings.ints = IntRepresentation::BitVectors;
+    auto& bv32Ty = BvType::Get(context, 32);
+    auto& bv64Ty = BvType::Get(context, 64);
 
-    auto loadGv1 = ir->CreateLoad(gv1->getValueType(), gv1);
-    auto loadGv2 = ir->CreateLoad(gv2->getValueType(), gv2);
-    auto loadGv3 = ir->CreateLoad(gv3->getValueType(), gv3);
-    auto zext = ir->CreateZExt(loadGv1, llvm::IntegerType::getInt64Ty(llvmContext));
-    auto sext = ir->CreateSExt(loadGv2, llvm::IntegerType::getInt64Ty(llvmContext));
-    auto trunc = ir->CreateTrunc(loadGv3, llvm::IntegerType::getInt8Ty(llvmContext));
+    auto bvZext = transformWithImpl(
+        ir->CreateZExt(i32Val("x", bv32Ty), llvm::Type::getInt64Ty(llvmContext)), bv64Ty);
+    EXPECT_EQ(bvZext->getType(), bv64Ty);
+    EXPECT_EQ(bvZext, builder->ZExt(variableFor("x")->getRefExpr(), bv64Ty));
 
-    auto gv1Var = context.createVariable("load_gv1", BvType::Get(context, 32));
-    auto gv2Var = context.createVariable("load_gv2", BvType::Get(context, 32));
-    auto gv3Var = context.createVariable("load_gv3", BvType::Get(context, 32));
-    auto zextVar = context.createVariable("zext", BvType::Get(context, 64));
-    auto sextVar = context.createVariable("sext", BvType::Get(context, 64));
-    auto truncVar = context.createVariable("trunc", BvType::Get(context, 8));
+    auto bvSext = transformWithImpl(
+        ir->CreateSExt(i32Val("y", bv32Ty), llvm::Type::getInt64Ty(llvmContext)), bv64Ty);
+    EXPECT_EQ(bvSext->getType(), bv64Ty);
+    EXPECT_EQ(bvSext, builder->SExt(variableFor("y")->getRefExpr(), bv64Ty));
 
-    auto inst2expr = createImpl({{loadGv1, gv1Var},
-                                 {loadGv2, gv2Var},
-                                 {loadGv3, gv3Var},
-                                 {zext, zextVar},
-                                 {sext, sextVar},
-                                 {trunc, truncVar}});
-
-    ASSERT_EQ(
-        inst2expr->transform(*cast<Instruction>(zext), BvType::Get(context, 64)),
-        builder->ZExt(gv1Var->getRefExpr(), BvType::Get(context, 64)));
-    ASSERT_EQ(
-        inst2expr->transform(*cast<Instruction>(sext), BvType::Get(context, 64)),
-        builder->SExt(gv2Var->getRefExpr(), BvType::Get(context, 64)));
-    ASSERT_EQ(
-        inst2expr->transform(*cast<Instruction>(trunc), BvType::Get(context, 8)),
-        builder->Extract(gv3Var->getRefExpr(), 0, 8));
+    auto& bv8Ty = BvType::Get(context, 8);
+    auto bvTrunc = transformWithImpl(
+        ir->CreateTrunc(i32Val("z", bv32Ty), llvm::Type::getInt8Ty(llvmContext)), bv8Ty);
+    EXPECT_EQ(bvTrunc->getType(), bv8Ty);
+    EXPECT_EQ(bvTrunc, builder->Extract(variableFor("z")->getRefExpr(), 0, 8));
 }
 
-// A little helper macro to help us create and translate comparisons.
-#define TRANSLATE_COMPARE(PRED)                                                                    \
-    (inst2expr->transform(*cast<Instruction>(ir->CreateICmp(CmpInst::PRED, loadGv1, loadGv2))))
+TEST_F(InstToExprTest, TransformIntExtCast)
+{
+    auto& intTy = IntType::Get(context);
 
-#define CHECK_COMPARE(PREDICATE, KIND)                                                             \
-    EXPECT_EQ(                                                                                     \
-        inst2expr->transform(                                                                      \
-            *cast<Instruction>(ir->CreateICmp(CmpInst::PREDICATE, loadGv1, loadGv2)),              \
-            BoolType::Get(context)),                                                               \
-        builder->KIND(gv1Var->getRefExpr(), gv2Var->getRefExpr()))
+    auto zext = transformWithImpl(
+        ir->CreateZExt(i32Val("x", intTy), llvm::Type::getInt64Ty(llvmContext)), intTy);
+    EXPECT_EQ(zext->getType(), intTy);
+    EXPECT_EQ(zext, variableFor("x")->getRefExpr());
 
+    auto sext = transformWithImpl(
+        ir->CreateSExt(i32Val("y", intTy), llvm::Type::getInt64Ty(llvmContext)), intTy);
+    EXPECT_EQ(sext->getType(), intTy);
+    EXPECT_EQ(sext, variableFor("y")->getRefExpr());
+}
+
+TEST_F(InstToExprTest, TransformIntTrunc_Semantic)
+{
+    auto& intTy = IntType::Get(context);
+
+    auto xVal = i32Val("x", intTy);
+    auto trunc = transformWithImpl(
+        ir->CreateTrunc(xVal, llvm::Type::getInt8Ty(llvmContext)), intTy);
+
+    EXPECT_EQ(evalInt(trunc, {{xVal, 257}}), builder->IntLit(1));
+    EXPECT_EQ(evalInt(trunc, {{xVal, 8}}), builder->IntLit(8));
+    EXPECT_EQ(evalInt(trunc, {{xVal, 7}}), builder->IntLit(7));
+    EXPECT_EQ(evalInt(trunc, {{xVal, 192}}), builder->IntLit(-64));
+}
+
+// Comparison operators
+//==------------------------------------------------------------------------==//
 TEST_F(InstToExprTest, TransformBvCmp)
 {
-    settings.ints = IntRepresentation::BitVectors;
+    auto& boolTy = BoolType::Get(context);
+    auto& bv32Ty = BvType::Get(context, 32);
 
-    auto loadGv1 = ir->CreateLoad(gv1->getValueType(), gv1);
-    auto loadGv2 = ir->CreateLoad(gv2->getValueType(), gv2);
+#define CHECK_BV_COMPARE(PREDICATE, KIND)                                                          \
+{                                                                                              \
+    auto theInst = transformWithImpl(                                                          \
+        ir->CreateICmp(CmpInst::PREDICATE, i32Val("x", bv32Ty), i32Val("y", bv32Ty)), boolTy); \
+    EXPECT_EQ(                                                                                 \
+        theInst,                                                                               \
+        builder->KIND(variableFor("x")->getRefExpr(), variableFor("y")->getRefExpr()));        \
+}
 
-    auto gv1Var = context.createVariable("load_gv1", BvType::Get(context, 32));
-    auto gv2Var = context.createVariable("load_gv2", BvType::Get(context, 32));
+    CHECK_BV_COMPARE(ICMP_EQ, Eq);
+    CHECK_BV_COMPARE(ICMP_NE, NotEq);
+    CHECK_BV_COMPARE(ICMP_SGT, BvSGt);
+    CHECK_BV_COMPARE(ICMP_SGE, BvSGtEq);
+    CHECK_BV_COMPARE(ICMP_SLT, BvSLt);
+    CHECK_BV_COMPARE(ICMP_SLE, BvSLtEq);
+    CHECK_BV_COMPARE(ICMP_UGT, BvUGt);
+    CHECK_BV_COMPARE(ICMP_UGE, BvUGtEq);
+    CHECK_BV_COMPARE(ICMP_ULT, BvULt);
+    CHECK_BV_COMPARE(ICMP_ULE, BvULtEq);
 
-    auto inst2expr = createImpl({{loadGv1, gv1Var}, {loadGv2, gv2Var}});
-
-    CHECK_COMPARE(ICMP_EQ, Eq);
-    CHECK_COMPARE(ICMP_NE, NotEq);
-    CHECK_COMPARE(ICMP_SGT, BvSGt);
-    CHECK_COMPARE(ICMP_SGE, BvSGtEq);
-    CHECK_COMPARE(ICMP_SLT, BvSLt);
-    CHECK_COMPARE(ICMP_SLE, BvSLtEq);
-    CHECK_COMPARE(ICMP_UGT, BvUGt);
-    CHECK_COMPARE(ICMP_UGE, BvUGtEq);
-    CHECK_COMPARE(ICMP_ULT, BvULt);
-    CHECK_COMPARE(ICMP_ULE, BvULtEq);
+#undef CHECK_BV_COMPARE
 }
 
 TEST_F(InstToExprTest, TransformIntCmp)
 {
-    settings.ints = IntRepresentation::Integers;
+    auto& boolTy = BoolType::Get(context);
+    auto& intTy = IntType::Get(context);
 
-    auto loadGv1 = ir->CreateLoad(gv1->getValueType(), gv1);
-    auto loadGv2 = ir->CreateLoad(gv2->getValueType(), gv2);
+#define CHECK_INT_COMPARE(PREDICATE, KIND)                                                         \
+    {                                                                                              \
+        auto theInst = transformWithImpl(                                                          \
+            ir->CreateICmp(CmpInst::PREDICATE, i32Val("x", intTy), i32Val("y", intTy)), boolTy);   \
+        EXPECT_EQ(                                                                                 \
+            theInst,                                                                               \
+            builder->KIND(variableFor("x")->getRefExpr(), variableFor("y")->getRefExpr()));        \
+    }
 
-    auto gv1Var = context.createVariable("load_gv1", IntType::Get(context));
-    auto gv2Var = context.createVariable("load_gv2", IntType::Get(context));
+    CHECK_INT_COMPARE(ICMP_EQ,  Eq);
+    CHECK_INT_COMPARE(ICMP_NE,  NotEq);
+    CHECK_INT_COMPARE(ICMP_SGT, Gt);
+    CHECK_INT_COMPARE(ICMP_SGE, GtEq);
+    CHECK_INT_COMPARE(ICMP_SLT, Lt);
+    CHECK_INT_COMPARE(ICMP_SLE, LtEq);
 
-    auto inst2expr = createImpl({{loadGv1, gv1Var}, {loadGv2, gv2Var}});
-
-    CHECK_COMPARE(ICMP_EQ, Eq);
-    CHECK_COMPARE(ICMP_NE, NotEq);
-    CHECK_COMPARE(ICMP_SGT, Gt);
-    CHECK_COMPARE(ICMP_SGE, GtEq);
-    CHECK_COMPARE(ICMP_SLT, Lt);
-    CHECK_COMPARE(ICMP_SLE, LtEq);
-
-    // TODO: Unordered comparisons require special assertions.
+#undef CHECK_INT_COMPARE
 }
 
-#undef TRANSLATE_COMPARE
+TEST_F(InstToExprTest, TransformIntCmp_Semantic)
+{
+    settings.ints = IntRepresentation::Integers;
+
+    auto lhs  = i32Val("lhs", IntType::Get(context));
+    auto rhs = i32Val("rhs", IntType::Get(context));
+
+    // 1  u> 0  => 00..01 > 00..00 => True
+    // 1  u> -1 => 00..01 > 11..11 => False
+    // -1 u> 1  => 11..11 > 00..01 => True
+    auto ugt = transformWithImpl(ir->CreateICmpUGT(lhs, rhs), BoolType::Get(context));
+    EXPECT_EQ(evalInt(ugt, {{lhs, 1},  {rhs, 1}}),  builder->False());
+    EXPECT_EQ(evalInt(ugt, {{lhs, 0},  {rhs, 1}}),  builder->False());
+    EXPECT_EQ(evalInt(ugt, {{lhs, 0},  {rhs, -1}}), builder->False());
+    EXPECT_EQ(evalInt(ugt, {{lhs, -1}, {rhs, 1}}),  builder->True());
+    EXPECT_EQ(evalInt(ugt, {{lhs, -1}, {rhs, 0}}),  builder->True());
+    EXPECT_EQ(evalInt(ugt, {{lhs, 1},  {rhs, 0}}),  builder->True());
+    EXPECT_EQ(evalInt(ugt, {{lhs, 1},  {rhs, -1}}), builder->False());
+
+    auto uge = transformWithImpl(ir->CreateICmpUGE(lhs, rhs), BoolType::Get(context));
+    EXPECT_EQ(evalInt(uge, {{lhs, 1},  {rhs, 1}}),  builder->True());
+    EXPECT_EQ(evalInt(uge, {{lhs, 0},  {rhs, 1}}),  builder->False());
+    EXPECT_EQ(evalInt(uge, {{lhs, 0},  {rhs, -1}}), builder->False());
+    EXPECT_EQ(evalInt(uge, {{lhs, -1}, {rhs, 1}}),  builder->True());
+    EXPECT_EQ(evalInt(uge, {{lhs, -1}, {rhs, 0}}),  builder->True());
+    EXPECT_EQ(evalInt(uge, {{lhs, 1},  {rhs, 0}}),  builder->True());
+    EXPECT_EQ(evalInt(uge, {{lhs, 1},  {rhs, -1}}), builder->False());
+
+    auto ult = transformWithImpl(ir->CreateICmpULT(lhs, rhs), BoolType::Get(context));
+    EXPECT_EQ(evalInt(ult, {{lhs, 1},  {rhs, 1}}),  builder->False());
+    EXPECT_EQ(evalInt(ult, {{lhs, 0},  {rhs, 1}}),  builder->True());
+    EXPECT_EQ(evalInt(ult, {{lhs, 0},  {rhs, -1}}), builder->True());
+    EXPECT_EQ(evalInt(ult, {{lhs, -1}, {rhs, 1}}),  builder->False());
+    EXPECT_EQ(evalInt(ult, {{lhs, -1}, {rhs, 0}}),  builder->False());
+    EXPECT_EQ(evalInt(ult, {{lhs, 1},  {rhs, 0}}),  builder->False());
+    EXPECT_EQ(evalInt(ult, {{lhs, 1},  {rhs, -1}}), builder->True());
+
+    auto ule = transformWithImpl(ir->CreateICmpULE(lhs, rhs), BoolType::Get(context));
+    EXPECT_EQ(evalInt(ule, {{lhs, 1},  {rhs, 1}}),  builder->True());
+    EXPECT_EQ(evalInt(ule, {{lhs, 0},  {rhs, 1}}),  builder->True());
+    EXPECT_EQ(evalInt(ule, {{lhs, 0},  {rhs, -1}}), builder->True());
+    EXPECT_EQ(evalInt(ule, {{lhs, -1}, {rhs, 1}}),  builder->False());
+    EXPECT_EQ(evalInt(ule, {{lhs, -1}, {rhs, 0}}),  builder->False());
+    EXPECT_EQ(evalInt(ule, {{lhs, 1},  {rhs, 0}}),  builder->False());
+    EXPECT_EQ(evalInt(ule, {{lhs, 1},  {rhs, -1}}), builder->True());
+}
 
 } // end anonymous namespace

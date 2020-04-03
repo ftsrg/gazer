@@ -26,29 +26,29 @@
 using namespace gazer;
 using namespace llvm;
 
-ExprPtr InstToExpr::transform(const llvm::Instruction& inst, Type& expectedType)
+ExprPtr InstToExpr::transform(const llvm::Instruction &inst, Type &expectedType)
+{
+    ExprPtr result = this->doTransform(inst, expectedType);
+    assert(result->getType() == expectedType && "Result must have the expected type!");
+
+    return result;
+}
+
+ExprPtr InstToExpr::doTransform(const llvm::Instruction& inst, Type& expectedType)
 {
     LLVM_DEBUG(llvm::dbgs() << "  Transforming instruction " << inst << "\n");
 
     if (auto binOp = llvm::dyn_cast<llvm::BinaryOperator>(&inst)) {
         return visitBinaryOperator(*binOp, expectedType);
     }
-    
+
     if (auto cast = llvm::dyn_cast<llvm::CastInst>(&inst)) {
-        return visitCastInst(*cast);
+        return visitCastInst(*cast, expectedType);
     }
 
-    #define HANDLE_INST(OPCODE, NAME)                                   \
-        if (inst.getOpcode() == (OPCODE)) {                             \
-            return visit##NAME(*llvm::cast<llvm::NAME>(&inst));         \
-        }                                                               \
-
-    HANDLE_INST(Instruction::ICmp,      ICmpInst)
-    HANDLE_INST(Instruction::Call,      CallInst)
-    HANDLE_INST(Instruction::FCmp,      FCmpInst)
-    HANDLE_INST(Instruction::Select,    SelectInst)
-
-    #undef HANDLE_INST
+    if (auto select = llvm::dyn_cast<llvm::SelectInst>(&inst)) {
+        return visitSelectInst(*select, expectedType);
+    }
 
     if (auto gep = llvm::dyn_cast<llvm::GetElementPtrInst>(&inst)) {
         std::vector<ExprPtr> ops;
@@ -60,6 +60,18 @@ ExprPtr InstToExpr::transform(const llvm::Instruction& inst, Type& expectedType)
 
         return mMemoryInstHandler.handleGetElementPtr(*gep, ops);
     }
+
+    #define HANDLE_INST(OPCODE, NAME)                                   \
+        if (inst.getOpcode() == (OPCODE)) {                             \
+            return visit##NAME(*llvm::cast<llvm::NAME>(&inst));         \
+        }
+
+    HANDLE_INST(Instruction::ICmp,      ICmpInst)
+    HANDLE_INST(Instruction::Call,      CallInst)
+    HANDLE_INST(Instruction::FCmp,      FCmpInst)
+
+    #undef HANDLE_INST
+
 
     llvm::errs() << inst << "\n";
     llvm_unreachable("Unsupported instruction kind!");
@@ -81,7 +93,7 @@ static bool isNonConstValue(const llvm::Value* value) {
     return isa<Instruction>(value) || isa<Argument>(value) || isa<GlobalVariable>(value);
 }
 
-ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop, Type& targetType)
+ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop, Type& expectedType)
 {
     auto lhs = operand(binop.getOperand(0));
     auto rhs = operand(binop.getOperand(1));
@@ -121,10 +133,10 @@ ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop, Type&
         return expr;
     }
 
-    assert(targetType.isIntType() || targetType.isBvType());
+    assert(expectedType.isIntType() || expectedType.isBvType());
     
-    if (targetType.isBvType()) {
-        BvType& bvType = llvm::cast<BvType>(targetType);
+    if (expectedType.isBvType()) {
+        BvType& bvType = llvm::cast<BvType>(expectedType);
 
         auto intLHS = asBv(lhs, bvType.getWidth());
         auto intRHS = asBv(rhs, bvType.getWidth());
@@ -156,7 +168,7 @@ ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop, Type&
         #undef HANDLE_INSTCASE
     }
 
-    if (targetType.isIntType()) {
+    if (expectedType.isIntType()) {
         auto intLHS = asInt(lhs);
         auto intRHS = asInt(rhs);
 
@@ -189,14 +201,11 @@ ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop, Type&
     llvm_unreachable("Invalid binary operation kind");
 }
 
-ExprPtr InstToExpr::visitSelectInst(const llvm::SelectInst& select)
+ExprPtr InstToExpr::visitSelectInst(const llvm::SelectInst& select, Type& expectedType)
 {
-    Variable* selectVar = getVariable(&select);
-    const Type& type = selectVar->getType();
-
     auto cond = asBool(operand(select.getCondition()));
-    auto then = castResult(operand(select.getTrueValue()), type);
-    auto elze = castResult(operand(select.getFalseValue()), type);
+    auto then = castResult(operand(select.getTrueValue()), expectedType);
+    auto elze = castResult(operand(select.getFalseValue()), expectedType);
 
     return mExprBuilder.Select(cond, then, elze);
 }
@@ -237,7 +246,6 @@ ExprPtr InstToExpr::visitICmpInst(const llvm::ICmpInst& icmp)
     using llvm::CmpInst;
 
     auto pred = icmp.getPredicate();
-
     auto left = operand(icmp.getOperand(0));
     auto right = operand(icmp.getOperand(1));
 
@@ -270,7 +278,7 @@ ExprPtr InstToExpr::visitICmpInst(const llvm::ICmpInst& icmp)
 
     #undef HANDLE_PREDICATE
 
-    if (left->getType().isArithmetic()) {
+    if (left->getType().isIntType()) {
         switch (pred) {
             case CmpInst::ICMP_UGT:
                 return unsignedLessThan(right, left);
@@ -375,7 +383,7 @@ ExprPtr InstToExpr::visitFCmpInst(const llvm::FCmpInst& fcmp)
     return expr;
 }
 
-ExprPtr InstToExpr::visitCastInst(const llvm::CastInst& cast)
+ExprPtr InstToExpr::visitCastInst(const llvm::CastInst& cast, Type& expectedType)
 {
     auto castOp = operand(cast.getOperand(0));
 
@@ -411,61 +419,21 @@ ExprPtr InstToExpr::visitCastInst(const llvm::CastInst& cast)
     }
 
     if (castOp->getType().isBoolType()) {
-        return boolToIntCast(cast, castOp);
+        return boolToIntCast(cast, castOp, expectedType);
     }
     
     // If the instruction truncates an integer to an i1 boolean, cast to boolean instead.
     if (cast.getType()->isIntegerTy(1)
         && cast.getOpcode() == Instruction::Trunc
-        && getVariable(&cast)->getType().isBoolType()    
+        && expectedType.isBoolType()
     ) {
         return asBool(castOp);
     }
 
-    if (castOp->getType().isBvType()) {
-        return integerCast(
-            cast, castOp, dyn_cast<BvType>(&castOp->getType())->getWidth()
-        );
+    if (castOp->getType().isBvType() || castOp->getType().isIntType()) {
+        return integerCast(cast, castOp, expectedType);
     }
 
-    if (castOp->getType().isIntType()) {
-        // ZExt and SExt are no-op in this case.
-        if (cast.getOpcode() == Instruction::ZExt || cast.getOpcode() == Instruction::SExt) {
-            return castOp;
-        }
-
-        if (cast.getOpcode() == Instruction::Trunc) {
-            // We can get the lower 'w' bits of 'n' if we do 'n mod 2^w'.
-            // However, due to LLVM's two's complement representation, this
-            // could turn into a signed number.
-            // For example:
-            //  trunc i6 51 to i4: 11|0011 --> 3
-            //  trunc i6 60 to i4: 11|1100 --> -4
-            // To overcome this, we check the sign bit of the resulting value
-            // and if it set, we substract '2^w' from the result.
-            auto maxVal = mExprBuilder.IntLit(
-                llvm::APInt::getMaxValue(cast.getType()->getIntegerBitWidth()).getZExtValue()
-            );
-            auto maxValDiv2 = mExprBuilder.IntLit(
-                llvm::APInt::getMaxValue(cast.getType()->getIntegerBitWidth() - 1).getZExtValue()
-            );
-            auto modVal = mExprBuilder.Mod(castOp, maxVal);
-
-            return mExprBuilder.Select(
-                mExprBuilder.Eq(
-                    mExprBuilder.Mod(
-                        mExprBuilder.Div(castOp, maxValDiv2),
-                        mExprBuilder.IntLit(2)
-                    ),
-                    mExprBuilder.IntLit(0)
-                ),
-                modVal,
-                mExprBuilder.Sub(modVal, maxVal)
-            );
-        }
-
-        return mExprBuilder.Undef(castOp->getType());
-    }
 
     if (cast.getOpcode() == Instruction::BitCast) {
         // TODO...
@@ -545,12 +513,10 @@ ExprPtr InstToExpr::tryToRepresentBitOperator(const llvm::BinaryOperator& binOp,
     return mExprBuilder.Undef(left->getType());
 }
 
-ExprPtr InstToExpr::integerCast(const llvm::CastInst& cast, const ExprPtr& operand, unsigned width)
+ExprPtr InstToExpr::integerCast(const llvm::CastInst& cast, const ExprPtr& castOperand, Type& expectedType)
 {
-    auto variable = getVariable(&cast);
-
-    if (auto bvTy = llvm::dyn_cast<gazer::BvType>(&variable->getType())) {
-        ExprPtr intOp = asBv(operand, width);
+    if (auto bvTy = llvm::dyn_cast<gazer::BvType>(&expectedType)) {
+        ExprPtr intOp = asBv(castOperand, bvTy->getWidth());
 
         switch (cast.getOpcode()) {
             case Instruction::ZExt:
@@ -560,62 +526,100 @@ ExprPtr InstToExpr::integerCast(const llvm::CastInst& cast, const ExprPtr& opera
             case Instruction::Trunc:
                 return mExprBuilder.Trunc(intOp, *bvTy);
             case Instruction::PtrToInt:
-                return mMemoryInstHandler.handlePointerCast(cast, operand);
+                return mMemoryInstHandler.handlePointerCast(cast, castOperand);
             default:
                 llvm::errs() << cast << "\n";
                 llvm_unreachable("Unhandled integer cast operation");
         }
     }
 
-    llvm_unreachable("Invalid bit-vector type!");
+    if (expectedType.isIntType()) {
+        // ZExt and SExt are no-op in this case.
+        if (cast.getOpcode() == Instruction::ZExt || cast.getOpcode() == Instruction::SExt) {
+            return castOperand;
+        }
+
+        if (cast.getOpcode() == Instruction::Trunc) {
+            // We can get the lower 'w' bits of 'n' if we do 'n mod 2^w'.
+            // However, due to LLVM's two's complement representation, this
+            // could turn into a signed number.
+            // For example:
+            //  trunc i8 51 to i4: 0011|0011 --> 3
+            //  trunc i8 60 to i4: 0011|1100 --> -4
+            // FIXME: If the operand is a negative number, we do not reinterpret the value
+            // Example:
+            //  trunc i8 -1  to i4: 1111|1111 --> -1, but we return 15
+            // We also have trouble when a negative number should turn into positive:
+            //  trunc i8 -57 to i4: 1100|0111 -->  7, but we return 199
+            auto origMaxVal = mExprBuilder.IntLit(
+                llvm::APInt::getMaxValue(cast.getType()->getIntegerBitWidth()).getZExtValue());
+            auto origMaxValDiv2 = mExprBuilder.IntLit(
+                llvm::APInt::getMaxValue(cast.getType()->getIntegerBitWidth() - 1).getZExtValue());
+            auto targetMaxVal = mExprBuilder.IntLit(
+                llvm::APInt::getMaxValue(cast.getType()->getIntegerBitWidth()).getZExtValue() + 1
+            );
+
+            auto modVal = mExprBuilder.Mod(castOperand, targetMaxVal);
+
+            return mExprBuilder.Select(
+                mExprBuilder.Eq(
+                    mExprBuilder.Mod(
+                        mExprBuilder.Div(castOperand, origMaxValDiv2),
+                        mExprBuilder.IntLit(2)
+                    ),
+                    mExprBuilder.IntLit(0)
+                ),
+                modVal,
+                mExprBuilder.Sub(modVal, targetMaxVal)
+            );
+        }
+
+        // We cannot represent this cast on integers
+        return mExprBuilder.Undef(castOperand->getType());
+    }
+
+    llvm_unreachable("Invalid integer type!");
 }
 
-ExprPtr InstToExpr::boolToIntCast(const llvm::CastInst& cast, const ExprPtr& operand)
+ExprPtr InstToExpr::boolToIntCast(const llvm::CastInst& cast, const ExprPtr& operand, Type& expectedType)
 {
-    auto variable = getVariable(&cast);
+    if (auto bvTy = dyn_cast<gazer::BvType>(&expectedType)) {
+        auto one  = llvm::APInt{1, 1};
+        auto zero = llvm::APInt{1, 0};
 
-    auto one  = llvm::APInt{1, 1};
-    auto zero = llvm::APInt{1, 0};
+        if (cast.getOpcode() == Instruction::ZExt) {
+            return mExprBuilder.Select(
+                operand,
+                mExprBuilder.BvLit(one.zext(bvTy->getWidth())),
+                mExprBuilder.BvLit(zero.zext(bvTy->getWidth()))
+            );
+        }
 
-    if (auto bvTy = dyn_cast<gazer::BvType>(&variable->getType())) {
-        switch (cast.getOpcode())
-        {
-            case Instruction::ZExt:
-                return mExprBuilder.Select(
-                    operand,
-                    mExprBuilder.BvLit(one.zext(bvTy->getWidth())),
-                    mExprBuilder.BvLit(zero.zext(bvTy->getWidth()))
-                );
-            case Instruction::SExt:
-                return mExprBuilder.Select(
-                    operand,
-                    mExprBuilder.BvLit(one.sext(bvTy->getWidth())),
-                    mExprBuilder.BvLit(zero.sext(bvTy->getWidth()))
-                );
-            default:
-                llvm_unreachable("Invalid integer cast operation");
+        if (cast.getOpcode() == Instruction::SExt) {
+            return mExprBuilder.Select(
+                operand,
+                mExprBuilder.BvLit(one.sext(bvTy->getWidth())),
+                mExprBuilder.BvLit(zero.sext(bvTy->getWidth()))
+            );
         }
     }
 
-    if (auto intTy = dyn_cast<gazer::IntType>(&variable->getType())) {
-        switch (cast.getOpcode())
-        {
-            case Instruction::ZExt:
-                return mExprBuilder.Select(
-                    operand,
-                    mExprBuilder.IntLit(1),
-                    mExprBuilder.IntLit(0)
-                );
-            case Instruction::SExt: {
-                // In two's complement 111..11 corresponds to -1, 111..10 to -2
-                return mExprBuilder.Select(
-                    operand,
-                    mExprBuilder.IntLit(-1),
-                    mExprBuilder.IntLit(-2)
-                );
-            }
-            default:
-                llvm_unreachable("Invalid integer cast operation");
+    if (expectedType.isIntType()) {
+        if (cast.getOpcode() == Instruction::ZExt) {
+            return mExprBuilder.Select(
+                operand,
+                mExprBuilder.IntLit(1),
+                mExprBuilder.IntLit(0)
+            );
+        }
+
+        if (cast.getOpcode() == Instruction::SExt) {
+            // In two's complement 111..11 corresponds to -1, 111..10 to -2
+            return mExprBuilder.Select(
+                operand,
+                mExprBuilder.IntLit(-1),
+                mExprBuilder.IntLit(-2)
+            );
         }
     }
     
