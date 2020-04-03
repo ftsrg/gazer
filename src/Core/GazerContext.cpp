@@ -62,7 +62,7 @@ GazerContext::~GazerContext() = default;
 
 //-------------------------------- Variables --------------------------------//
 
-Variable* GazerContext::createVariable(llvm::StringRef name, Type &type)
+Variable* GazerContext::createVariable(const std::string& name, Type &type)
 {
     LLVM_DEBUG(llvm::dbgs() << "Adding variable with name " << name << " and type " << type << "\n");
     GAZER_DEBUG_ASSERT(pImpl->VariableTable.count(name) == 0);

@@ -32,4 +32,8 @@ TEST(Variable, CanCreateVariables)
 
     ASSERT_EQ(x->getType(), BvType::Get(context, 32));
     ASSERT_EQ(y->getType(), BoolType::Get(context));
+
+    EXPECT_EQ(x, context.getVariable("x"));
+    context.removeVariable(x);
+    EXPECT_EQ(nullptr, context.getVariable("x"));
 }

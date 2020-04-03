@@ -140,7 +140,7 @@ public:
                 }
                 
                 mTop = nullptr;
-                return std::move(ret);
+                return ret;
             }
 
             auto nn = llvm::cast<NonNullaryExpr>(current->mExpr);

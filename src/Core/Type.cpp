@@ -67,13 +67,6 @@ std::string Type::getName() const
 
             return rso.str();
         }
-        /*
-        case FunctionTypeID: {
-            auto funcType = llvm::cast<FunctionType>(this);
-            return getFunctionTypeStr(
-                funcType->getReturnType(), funcType->args()
-            );
-        } */
     }
 
     llvm_unreachable("Invalid TypeID");

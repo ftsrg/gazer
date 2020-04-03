@@ -246,6 +246,9 @@ struct bind_ty
 
 inline bind_ty<Expr> m_Expr(ExprRef<Expr>& ptr) { return bind_ty<Expr>(ptr); }
 
+template<class ExprKind>
+inline bind_ty<ExprKind> m_Expr(ExprRef<ExprKind>& ptr) { return bind_ty<ExprKind>(ptr); }
+
 inline bind_ty<VarRefExpr> m_VarRef(ExprRef<VarRefExpr>& ptr) {
     return bind_ty<VarRefExpr>(ptr);
 }

@@ -189,6 +189,10 @@ TEST_F(ExprEvalTest, TestBvArithmetic)
     // Mul
     checkBv(vb, builder->Mul(x, y), 0);
     checkBv(vb, builder->Mul(y, z), 77);
+
+    // SDiv
+    checkBv(vb, builder->BvSDiv(x, y), 0);
+    checkBv(vb, builder->BvSDiv(z, y), 1);
 }
 
 TEST_F(ExprEvalTest, TestEq)

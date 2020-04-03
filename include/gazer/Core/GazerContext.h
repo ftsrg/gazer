@@ -46,7 +46,7 @@ public:
 
 public:
     Variable *getVariable(llvm::StringRef name);
-    Variable *createVariable(llvm::StringRef name, Type &type);
+    Variable *createVariable(const std::string& name, Type &type);
 
     void removeVariable(Variable* variable);
 

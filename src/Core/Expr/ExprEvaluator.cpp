@@ -153,20 +153,22 @@ static ExprRef<AtomicExpr> EvalBinaryArithmetic(
             case Expr::Sub: return IntLiteralExpr::Get(intTy, left - right);
             case Expr::Mul: return IntLiteralExpr::Get(intTy, left * right);
             case Expr::Div: return IntLiteralExpr::Get(intTy, left / right);
-            default:
-                break;
-            /*
             case Expr::Mod: {
-                return IntLiteralExpr::Get(intTy, left * right);
+                auto result = left % right;
+                if (result < 0) {
+                    result += std::abs(right);
+                }
+                return IntLiteralExpr::Get(intTy, result);
             }
-            case Expr::Rem: {
+            case Expr::Rem:
                 // Division remainder, for example:
                 //  5 rem  3 = 2
                 //  5 rem -3 = 2
                 // -5 rem  3 = -2
                 // -5 rem -3 = -2
                 return IntLiteralExpr::Get(intTy, left % right);
-            } */
+            default:
+                break;
         }
     }
     
