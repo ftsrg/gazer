@@ -138,6 +138,7 @@ int main(int argc, char* argv[])
     if (!ModelOnly) {
         frontend->setBackendAlgorithm(new theta::ThetaVerifier(backendSettings));
         frontend->registerVerificationPipeline();
+        frontend->run();
     } else {
         if (ModelPath.empty()) {
             llvm::errs() << "ERROR: -model-only must be supplied together with -o <path>!\n";
@@ -155,10 +156,8 @@ int main(int argc, char* argv[])
         // Do not run theta, just generate the model.
         frontend->registerVerificationPipeline();
         frontend->registerPass(theta::createThetaCfaWriterPass(rfo));
+        frontend->run();
     }
-
-    // Finally, execute the frontend
-    frontend->run();
 
     return 0;
 }

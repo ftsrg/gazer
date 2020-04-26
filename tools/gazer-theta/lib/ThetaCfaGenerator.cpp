@@ -211,10 +211,6 @@ static std::string typeName(Type& type)
 
 void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace)
 {
-    //for (auto& cfa : mSystem) {
-    //    cfa.view();
-    //}
-
     Cfa* main = mSystem.getMainAutomaton();
     auto recursiveToCyclicResult = TransformRecursiveToCyclic(main);
 
@@ -308,19 +304,17 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
         return vars[variable]->getName();
     };
 
-    os
-        << "main process __gazer_main_process {\n";
-        //<< INDENT  << "main procedure __gazer_main_entry {\n";
+    os << "main process __gazer_main_process {\n";
     
-    for (auto& varEntry : vars) {
+    for (auto& variable : llvm::concat<Variable>(main->inputs(), main->locals())) {
         os << INDENT;
-        varEntry.second->print(os);
+        vars[&variable]->print(os);
         os << "\n";
     }
 
-    for (auto& locEntry : locs) {
+    for (Location* loc : main->nodes()) {
         os << INDENT;
-        locEntry.second->print(os);
+        locs[loc]->print(os);
         os << "\n";
     }
 

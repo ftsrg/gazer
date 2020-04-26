@@ -52,8 +52,6 @@ struct ThetaCfaWriterPass : public llvm::ModulePass
 
         return false;
     }
-
-
 };
 
 } // end anonymous namespace
