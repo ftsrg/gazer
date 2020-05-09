@@ -1,4 +1,4 @@
-; RUN: %cfa -no-simplify-expr -elim-vars=off -memory=havoc "%s" | diff -B -Z "%p/Expected/PostTestLoop.cfa" -
+; RUN: %cfa -no-simplify-expr -elim-vars=off -memory=havoc "%s" | /usr/bin/diff -B -Z "%p/Expected/PostTestLoop.cfa" -
 
 declare i32 @__VERIFIER_nondet_int()
 

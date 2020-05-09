@@ -1,4 +1,4 @@
-; RUN: %cfa -memory=havoc "%s" | diff -B -Z "%p/Expected/loops1_unnamed.cfa" -
+; RUN: %cfa -memory=havoc "%s" | /usr/bin/diff -B -Z "%p/Expected/loops1_unnamed.cfa" -
 
 ; This test aims to verify that the CFA translation works even if the instructions
 ; in the LLVM IR source have no names.

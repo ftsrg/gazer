@@ -1,5 +1,5 @@
 // RUN: %theta -model-only "%s" -o "%t"
-// RUN: cat "%t" | diff -B -Z "%p/Expected/counter.theta" -
+// RUN: cat "%t" | /usr/bin/diff -B -Z "%p/Expected/counter.theta" -
 #include <assert.h>
 
 int __VERIFIER_nondet_int();

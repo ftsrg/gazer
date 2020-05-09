@@ -1,4 +1,4 @@
-; RUN: %cfa -no-simplify-expr -elim-vars=off -memory=havoc "%s" | diff -B -Z "%p/Expected/NestedLoopExit.cfa" -
+; RUN: %cfa -no-simplify-expr -elim-vars=off -memory=havoc "%s" | /usr/bin/diff -B -Z "%p/Expected/NestedLoopExit.cfa" -
 
 define i32 @main() {
 bb:

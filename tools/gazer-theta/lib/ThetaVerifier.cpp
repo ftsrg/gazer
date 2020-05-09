@@ -54,16 +54,32 @@ public:
     std::unique_ptr<VerificationResult> execute(llvm::StringRef input);
 
 private:
+    std::unique_ptr<Trace> parseCex(llvm::StringRef cex, unsigned* errorCode);
+
+private:
     AutomataSystem& mSystem;
     ThetaSettings mSettings;
     CfaTraceBuilder& mTraceBuilder;
     ThetaNameMapping mNameMapping;
-
-    std::unique_ptr<Trace> parseCex(llvm::StringRef cex, unsigned* errorCode);
 };
 
 } // end anonymous namespace
 
+static auto createTemporaryFiles(llvm::SmallVectorImpl<char>& outputs, llvm::SmallVectorImpl<char>& cex)
+    -> std::error_code
+{
+    std::error_code ec = llvm::sys::fs::createTemporaryFile("gazer_theta", "", outputs);
+    if (ec) {
+        return ec;
+    }
+
+    ec = llvm::sys::fs::createTemporaryFile("gazer_theta_cex", "", cex);
+    if (ec) {
+        return ec;
+    }
+
+    return std::error_code();
+}
 
 auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<VerificationResult>
 {
@@ -76,11 +92,12 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
 
     // Create the temp file which we will use to dump theta outputs into.
     llvm::SmallString<128> outputsFile;
-    auto outputsFileEc = llvm::sys::fs::createTemporaryFile("gazer_theta", "", outputsFile);
-    
-    if (outputsFileEc) {
-        llvm::errs() << outputsFileEc.message() << "\n";
-        return VerificationResult::CreateInternalError("Could not create temporary file. " + outputsFileEc.message());
+    llvm::SmallString<128> cexFile;
+
+    auto ec = createTemporaryFiles(outputsFile, cexFile);
+    if (ec) {
+        llvm::errs() << ec.message() << "\n";
+        return VerificationResult::CreateInternalError("Could not create temporary file. " + ec.message());
     }
 
     // Make sure that we have the theta jar and the Z3 library.
@@ -105,7 +122,7 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
 
     std::string javaLibPath = ("-Djava.library.path=" + z3Path).str();
 
-    llvm::StringRef args[] = {
+    std::vector<llvm::StringRef> args = {
         "java",
         javaLibPath,
         "-jar",
@@ -119,8 +136,8 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
         "--refinement", mSettings.refinement,
         "--search", mSettings.search,
         "--maxenum", mSettings.maxEnum,
-        "--cex",
-        "--loglevel", "RESULT"
+        "--loglevel", "RESULT",
+        "--cex", cexFile
     };
 
     std::string ldLibPathEnv = ("LD_LIBRARY_PATH=" + z3Path).str();
@@ -134,6 +151,7 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
         llvm::None          // stderr
     };
 
+    llvm::outs() << "  Built command: '" << llvm::join(args, " ") << "'.\n";
     llvm::outs() << "  Running theta...\n";
     std::string thetaErrors;
     int returnCode = llvm::sys::ExecuteAndWait(
@@ -170,27 +188,35 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
     // the result and the possible counterexample.
     if (thetaOutput.startswith("(SafetyResult Safe)")) {
         return VerificationResult::CreateSuccess();
-    } else if (thetaOutput.startswith("(SafetyResult Unsafe")) {
+    }
+
+    if (thetaOutput.startswith("(SafetyResult Unsafe")) {
         // Parse the counterexample
-        auto cexPos = thetaOutput.find("(Trace");
+        buffer = llvm::MemoryBuffer::getFile(cexFile);
+        if (auto errorCode = buffer.getError()) {
+            return VerificationResult::CreateInternalError("Could not open theta counterexample file. " + errorCode.message());
+        }
+
+        llvm::StringRef cexFileContents = (*buffer)->getBuffer();
+        auto cexPos = cexFileContents.find("(Trace");
         if (cexPos == llvm::StringRef::npos) {
             llvm::errs() << "Theta returned no parseable counterexample.\n";
             return VerificationResult::CreateFail(VerificationResult::GeneralFailureCode, nullptr);
         }
 
-        auto cex = thetaOutput.substr(cexPos).trim();
+        auto cex = cexFileContents.substr(cexPos).trim();
 
         if (PrintRawCex) {
             llvm::outs() << cex << "\n";
         }
 
-        unsigned ec = VerificationResult::GeneralFailureCode;
-        auto trace = this->parseCex(cex, &ec);
+        unsigned failureCode = VerificationResult::GeneralFailureCode;
+        auto trace = this->parseCex(cex, &failureCode);
 
-        return VerificationResult::CreateFail(ec, std::move(trace));
+        return VerificationResult::CreateFail(failureCode, std::move(trace));
     }
 
-    return VerificationResult::CreateUnknown();
+    return VerificationResult::CreateInternalError("Theta returned unrecognizable output. Raw output is:\n" + thetaOutput);
 }
 
 void ThetaVerifierImpl::writeSystem(llvm::raw_ostream& os)

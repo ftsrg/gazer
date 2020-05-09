@@ -1,6 +1,6 @@
-; RUN: %cfa -no-simplify-expr -elim-vars=off -memory=havoc "%s" | diff -B -Z "%p/Expected/LoopTest_Simple.cfa" -
-; RUN: %cfa -no-simplify-expr -elim-vars=normal -memory=havoc "%s" | diff -B -Z "%p/Expected/LoopTest_ElimVars.cfa" -
-; RUN: %cfa -no-simplify-expr -elim-vars=aggressive -memory=havoc "%s" | diff -B -Z "%p/Expected/LoopTest_ElimVars.cfa" -
+; RUN: %cfa -no-simplify-expr -elim-vars=off -memory=havoc "%s" | /usr/bin/diff -B -Z "%p/Expected/LoopTest_Simple.cfa" -
+; RUN: %cfa -no-simplify-expr -elim-vars=normal -memory=havoc "%s" | /usr/bin/diff -B -Z "%p/Expected/LoopTest_ElimVars.cfa" -
+; RUN: %cfa -no-simplify-expr -elim-vars=aggressive -memory=havoc "%s" | /usr/bin/diff -B -Z "%p/Expected/LoopTest_ElimVars.cfa" -
 
 declare i32 @__VERIFIER_nondet_int()
 
