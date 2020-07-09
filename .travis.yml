@@ -40,7 +40,7 @@ script:
 - mkdir tools/gazer-theta/theta
 - mkdir tools/gazer-theta/theta/lib
 - cp theta/lib/*.so tools/gazer-theta/theta/lib
-- cp theta/subprojects/cfa-cli/build/libs/theta-cfa-cli-0.0.1-SNAPSHOT-all.jar tools/gazer-theta/theta/theta-cfa-cli.jar
+- cp theta/subprojects/cfa-cli/build/libs/theta-cfa-cli-*-all.jar tools/gazer-theta/theta/theta-cfa-cli.jar
 # run tests
 - make check-unit
 - make check-functional
