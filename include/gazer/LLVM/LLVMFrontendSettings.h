@@ -18,8 +18,6 @@
 #ifndef GAZER_LLVM_LLVMFRONTENDSETTINGS_H
 #define GAZER_LLVM_LLVMFRONTENDSETTINGS_H
 
-#include "gazer/ADT/EnumSet.h"
-
 #include <string>
 
 namespace llvm
@@ -73,25 +71,6 @@ enum class MemoryModelSetting
     Flat
 };
 
-/// This structure tells later analyses how to handle
-/// global information in the presence of external
-/// functions.
-enum class ExternFuncGlobalBehavior
-{
-    /// Assume that external functions modify memory through
-    /// pointer operands which may alias with a memory object.
-    PointerArgModifies,
-    /// Assume that functions which take no input parameters
-    /// modify global variables.
-    NoParamModifiesGlobals,
-    /// Assume that external functions which return void modify
-    /// global variables.
-    RetVoidModifiesGlobals,
-};
-
-template<>
-inline constexpr bool enable_enum_flags_v<ExternFuncGlobalBehavior> = true;
-
 class LLVMFrontendSettings
 {
 public:
@@ -131,7 +110,6 @@ public:
     // Memory models
     bool debugDumpMemorySSA = false;
     MemoryModelSetting memoryModel = MemoryModelSetting::Flat;
-    EnumSet<ExternFuncGlobalBehavior> externFuncGlobals = ExternFuncGlobalBehavior::PointerArgModifies;
 
 public:
     /// Returns true if the current settings can be applied to the given module.

@@ -1,6 +1,5 @@
 SET(TEST_SOURCES
     IntersectionDifferenceTest.cpp
-    EnumSetTest.cpp
     GraphTest.cpp
 )
 
