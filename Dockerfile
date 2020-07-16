@@ -41,6 +41,6 @@ RUN git clone https://github.com/FTSRG/theta.git $THETA_DIR && \
     mkdir $GAZER_DIR/tools/gazer-theta/theta && \
     mkdir $GAZER_DIR/tools/gazer-theta/theta/lib && \
     cp $THETA_DIR/lib/*.so $GAZER_DIR/tools/gazer-theta/theta/lib && \
-    cp $THETA_DIR/subprojects/cfa-cli/build/libs/theta-cfa-cli-0.0.1-SNAPSHOT-all.jar $GAZER_DIR/tools/gazer-theta/theta/theta-cfa-cli.jar
+    cp $THETA_DIR/subprojects/cfa-cli/build/libs/theta-cfa-cli-*-all.jar $GAZER_DIR/tools/gazer-theta/theta/theta-cfa-cli.jar
 
 WORKDIR $GAZER_DIR
