@@ -44,7 +44,8 @@ bool isCallToErrorFunction(llvm::Instruction& inst) {
 
     return name == "__VERIFIER_error"
         || name == "__assert_fail"
-        || name == "__gazer_error";
+        || name == "__gazer_error"
+        || name == "reach_error";
 }
 
 /// This check ensures that no assertion failure instructions are reachable.
