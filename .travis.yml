@@ -11,11 +11,13 @@ addons:
     - lsb-release
     - software-properties-common
     - zlib1g-dev
-    - openjdk-11-jdk
+    - openjdk-11-jre
     - python3
     - python3-pip
     - python3-setuptools
     - python3-psutil
+env:
+- THETA_VERSION="v1.2.0"
 script:
 # fetch LLVM and other dependencies
 - wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
@@ -31,16 +33,12 @@ script:
 - sudo pip3 install lit
 # build
 - cmake -DCMAKE_CXX_COMPILER=clang++-9 -DGAZER_ENABLE_UNIT_TESTS=On -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=On . && make
-# clone and build theta
-- git clone https://github.com/FTSRG/theta.git $THETA_DIR
-- cd theta
-- ./gradlew theta-cfa-cli:build
-- cd ..
-# copy binaries to gazer subdirectory
+# download theta (and related libs) to gazer subdirectory
 - mkdir tools/gazer-theta/theta
 - mkdir tools/gazer-theta/theta/lib
-- cp theta/lib/*.so tools/gazer-theta/theta/lib
-- cp theta/subprojects/cfa-cli/build/libs/theta-cfa-cli-*-all.jar tools/gazer-theta/theta/theta-cfa-cli.jar
+- wget "https://github.com/ftsrg/theta/releases/download/$THETA_VERSION/theta-cfa-cli.jar" -O tools/gazer-theta/theta/theta-cfa-cli.jar
+- wget "https://github.com/ftsrg/theta/raw/$THETA_VERSION/lib/libz3.so" -P tools/gazer-theta/theta/lib/
+- wget "https://github.com/ftsrg/theta/raw/$THETA_VERSION/lib/libz3java.so" -P tools/gazer-theta/theta/lib/
 # run tests
 - make check-unit
 - make check-functional
