@@ -1,10 +1,12 @@
 FROM ubuntu:18.04
 
+ENV THETA_VERSION v1.2.0
+
 RUN apt-get update && \
     apt-get install -y build-essential git cmake \
     wget sudo vim lsb-release \
     software-properties-common zlib1g-dev \
-    openjdk-11-jdk
+    openjdk-11-jre
 
 # fetch LLVM and other dependencies
 RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
@@ -33,14 +35,9 @@ RUN mkdir $THETA_DIR
 WORKDIR $GAZER_DIR
 RUN cmake -DCMAKE_CXX_COMPILER=clang++-9 -DGAZER_ENABLE_UNIT_TESTS=On -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=On . && make
 
-# clone and build theta
-WORKDIR $THETA_DIR
-RUN git clone https://github.com/FTSRG/theta.git $THETA_DIR && \
-    ./gradlew theta-cfa-cli:build && \
-# copy binaries to gazer subdirectory
-    mkdir $GAZER_DIR/tools/gazer-theta/theta && \
+# download theta (and libs)
+RUN mkdir $GAZER_DIR/tools/gazer-theta/theta && \
     mkdir $GAZER_DIR/tools/gazer-theta/theta/lib && \
-    cp $THETA_DIR/lib/*.so $GAZER_DIR/tools/gazer-theta/theta/lib && \
-    cp $THETA_DIR/subprojects/cfa-cli/build/libs/theta-cfa-cli-*-all.jar $GAZER_DIR/tools/gazer-theta/theta/theta-cfa-cli.jar
-
-WORKDIR $GAZER_DIR
+    wget "https://github.com/ftsrg/theta/releases/download/$THETA_VERSION/theta-cfa-cli.jar" -O $GAZER_DIR/tools/gazer-theta/theta/theta-cfa-cli.jar && \
+    wget "https://github.com/ftsrg/theta/raw/$THETA_VERSION/lib/libz3.so" -P $GAZER_DIR/tools/gazer-theta/theta/lib/ && \
+    wget "https://github.com/ftsrg/theta/raw/$THETA_VERSION/lib/libz3java.so" -P $GAZER_DIR/tools/gazer-theta/theta/lib/
