@@ -30,8 +30,18 @@ using namespace llvm;
 namespace
 {
 
-bool isErrorFunctionName(llvm::StringRef name)
-{
+bool isCallToErrorFunction(llvm::Instruction& inst) {
+    auto call = llvm::dyn_cast<llvm::CallInst>(&inst);
+    if (call == nullptr) {
+        return false;
+    }
+
+    if (call->getCalledFunction() == nullptr) {
+        return false;
+    }
+
+    auto name = call->getCalledFunction()->getName();
+
     return name == "__VERIFIER_error"
         || name == "__assert_fail"
         || name == "__gazer_error";
@@ -49,40 +59,35 @@ public:
     
     bool mark(llvm::Function& function) override
     {
-        for (BasicBlock& bb : function) {
-            auto it = bb.begin();
-            while (it != bb.end()) {
-                if (auto call = llvm::dyn_cast<llvm::CallInst>(&*it)) {
-                    llvm::Function* callee = call->getCalledFunction();
-                    if (callee == nullptr) {
-                        ++it;
-                        continue;
-                    }
-
-                    // Replace error calls with an unconditional jump
-                    // to an error block
-                    if (isErrorFunctionName(callee->getName())) {
-                        BasicBlock* errorBB = this->createErrorBlock(
-                            function,
-                            "error.assert_fail",
-                            call
-                        );
-                        
-                        llvm::ReplaceInstWithInst(
-                            bb.getTerminator(),
-                            llvm::BranchInst::Create(errorBB)
-                        );
-                        call->eraseFromParent();
-
-                        break;
-                    }
-                }
-
-                ++it;
+        llvm::SmallVector<llvm::Instruction*, 16> errorCalls;
+        for (Instruction& inst : llvm::instructions(function)) {
+            if (isCallToErrorFunction(inst)) {
+                errorCalls.emplace_back(&inst);
             }
         }
 
-        // TODO: Try to preserve some analyses?
+        for (llvm::Instruction* inst : errorCalls) {
+            // Replace error calls with an unconditional jump to an error block
+            BasicBlock* errorBB = this->createErrorBlock(
+                function,
+                "error.assert_fail",
+                inst
+            );
+
+            // Remove all instructions from the error call to the terminator
+            auto it = inst->getIterator();
+            auto terminator = inst->getParent()->getTerminator()->getIterator();
+            while (it != terminator) {
+                auto instToDelete = it++;
+                instToDelete->eraseFromParent();
+            }
+
+            llvm::ReplaceInstWithInst(
+                &*terminator,
+                llvm::BranchInst::Create(errorBB)
+            );
+        }
+
         return true;
     }
 
