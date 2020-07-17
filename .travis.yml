@@ -1,5 +1,5 @@
 dist: bionic
-sudo: required
+language: minimal
 addons:
   apt:
     packages:
@@ -16,13 +16,14 @@ addons:
     - python3-pip
     - python3-setuptools
     - python3-psutil
+  sonarcloud:
+    organization: "ftsrg"
 env:
 - THETA_VERSION="v2.8.0"
 script:
 # fetch LLVM and other dependencies
 - wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
 - sudo add-apt-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main"
-- sudo apt-get update
 - sudo add-apt-repository ppa:mhier/libboost-latest -y
 - sudo apt-get update
 - sudo apt-get install -y clang-9 llvm-9-dev llvm-9-tools llvm-9-runtime libboost1.70-dev
@@ -30,16 +31,20 @@ script:
 - sudo ln -s `which FileCheck-9` /usr/bin/FileCheck
 - sudo pip3 install lit
 # build
-- cmake -DCMAKE_CXX_COMPILER=clang++-9 -DGAZER_ENABLE_UNIT_TESTS=On -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=On . && make
+- mkdir build && cd build
+- cmake -DCMAKE_CXX_COMPILER=clang++-9 -DGAZER_ENABLE_UNIT_TESTS=On -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=On ..
+- cd ..
+- build-wrapper-linux-x86-64 --out-dir bw-output cmake --build build/
 # download theta (and related libs) to gazer subdirectory
-- mkdir tools/gazer-theta/theta
-- mkdir tools/gazer-theta/theta/lib
-- wget "https://github.com/ftsrg/theta/releases/download/$THETA_VERSION/theta-cfa-cli.jar" -O tools/gazer-theta/theta/theta-cfa-cli.jar
-- wget "https://github.com/ftsrg/theta/raw/$THETA_VERSION/lib/libz3.so" -P tools/gazer-theta/theta/lib/
-- wget "https://github.com/ftsrg/theta/raw/$THETA_VERSION/lib/libz3java.so" -P tools/gazer-theta/theta/lib/
+- mkdir -p build/tools/gazer-theta/theta/lib
+- wget "https://github.com/ftsrg/theta/releases/download/$THETA_VERSION/theta-cfa-cli.jar" -O build/tools/gazer-theta/theta/theta-cfa-cli.jar
+- wget "https://github.com/ftsrg/theta/raw/$THETA_VERSION/lib/libz3.so" -P build/tools/gazer-theta/theta/lib/
+- wget "https://github.com/ftsrg/theta/raw/$THETA_VERSION/lib/libz3java.so" -P build/tools/gazer-theta/theta/lib/
 # run tests
-- make check-unit
-- make check-functional
+- cmake --build build --target check-unit
+- cmake --build build --target check-functional
+# run SonarCloud analysis
+- sonar-scanner -Dsonar.cfamily.build-wrapper-output=bw-output
 notifications:
   slack: ftsrg:vNi38fE47RlUDyoVxk64TDWm
   on_success: change
