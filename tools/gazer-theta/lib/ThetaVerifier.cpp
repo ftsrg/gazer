@@ -131,6 +131,7 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
         "--domain",  mSettings.domain,
         "--encoding", mSettings.encoding,
         "--initprec", mSettings.initPrec,
+        "--prunestrategy", mSettings.pruneStrategy,
         "--precgranularity", mSettings.precGranularity,
         "--predsplit", mSettings.predSplit,
         "--refinement", mSettings.refinement,
