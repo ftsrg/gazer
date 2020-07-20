@@ -73,6 +73,7 @@ namespace
     cl::opt<std::string> Encoding("encoding", cl::desc("Block encoding"), cl::init("LBE"), cl::cat(ThetaAlgorithmCategory));
     cl::opt<int> MaxEnum("maxenum", cl::desc("Maximal number of explicitly enumerated successors"), cl::init(0), cl::cat(ThetaAlgorithmCategory));
     cl::opt<std::string> InitPrec("initPrec", cl::desc("Initial precision of abstraction"), cl::init("EMPTY"), cl::cat(ThetaAlgorithmCategory));
+    cl::opt<std::string> PruneStrategy("pruneStrategy", cl::desc("Strategy for pruning after refinement"), cl::init("LAZY"), cl::cat(ThetaAlgorithmCategory));
 } // end anonymous namespace
 
 namespace gazer
@@ -176,6 +177,7 @@ theta::ThetaSettings initSettingsFromCommandLine()
     settings.encoding = Encoding;
     settings.maxEnum = std::to_string(MaxEnum);
     settings.initPrec = InitPrec;
+    settings.pruneStrategy = PruneStrategy;
     settings.thetaCfaPath = ThetaPath;
     settings.thetaLibPath = LibPath;
 
