@@ -8,7 +8,6 @@ set(SOURCE_FILES
     Transform/TransformUtils.cpp
     Instrumentation/MarkFunctionEntries.cpp
     Instrumentation/Check.cpp
-    Instrumentation/DefaultChecks.cpp
     Instrumentation/Intrinsics.cpp
     Trace/TestHarnessGenerator.cpp
     Automaton/ModuleToAutomata.cpp
@@ -32,7 +31,9 @@ set(SOURCE_FILES
     Automaton/ExtensionPoints.cpp
     Automaton/ValueOrMemoryObject.cpp
     Analysis/PDG.cpp
-)
+    Instrumentation/Checks/AssertionFailCheck.cpp
+    Instrumentation/Checks/DivisionByZeroCheck.cpp
+    Instrumentation/Checks/SignedIntegerOverflowCheck.cpp Transform/LoopExitCanonizationPass.cpp)
 
 llvm_map_components_to_libnames(GAZER_LLVM_LIBS core irreader transformutils scalaropts ipo)
 message(STATUS "Using LLVM libraries: ${GAZER_LLVM_LIBS}")

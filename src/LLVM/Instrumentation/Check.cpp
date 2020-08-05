@@ -76,6 +76,47 @@ llvm::BasicBlock* Check::createErrorBlock(
     return errorBB;
 }
 
+bool Check::replaceMatchingUnreachableWithError(
+    llvm::Function& function,
+    const llvm::Twine& errorBlockName,
+    std::function<bool(llvm::Instruction&)> predicate)
+{
+    llvm::SmallVector<llvm::Instruction*, 16> errorCalls;
+    for (Instruction& inst : llvm::instructions(function)) {
+        if (predicate(inst)) {
+            errorCalls.emplace_back(&inst);
+        }
+    }
+
+    if (errorCalls.empty()) {
+        return false;
+    }
+
+    for (llvm::Instruction* inst : errorCalls) {
+        // Replace error calls with an unconditional jump to an error block
+        BasicBlock* errorBB = this->createErrorBlock(
+            function,
+            errorBlockName,
+            inst
+        );
+
+        // Remove all instructions from the error call to the terminator
+        auto it = inst->getIterator();
+        auto terminator = inst->getParent()->getTerminator()->getIterator();
+        while (it != terminator) {
+            auto instToDelete = it++;
+            instToDelete->eraseFromParent();
+        }
+
+        llvm::ReplaceInstWithInst(
+            &*terminator,
+            llvm::BranchInst::Create(errorBB)
+        );
+    }
+
+    return true;
+}
+
 CheckRegistry& Check::getRegistry() const { return *mRegistry; }
 
 void Check::setCheckRegistry(CheckRegistry& registry)

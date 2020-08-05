@@ -636,7 +636,6 @@ static GazerIntrinsic::Overflow getOverflowKind(llvm::StringRef name)
     HANDLE_PREFIX(GazerIntrinsic::SAddNoOverflowPrefix, SAdd)
     HANDLE_PREFIX(GazerIntrinsic::SSubNoOverflowPrefix, SSub)
     HANDLE_PREFIX(GazerIntrinsic::SMulNoOverflowPrefix, SMul)
-    HANDLE_PREFIX(GazerIntrinsic::SDivNoOverflowPrefix, SDiv)
 
     #undef HANDLE_PREFIX
 
@@ -724,7 +723,6 @@ ExprPtr InstToExpr::handleOverflowPredicate(const llvm::CallInst& call)
             case GazerIntrinsic::Overflow::SAdd: result = mExprBuilder.Add(left, right); break;
             case GazerIntrinsic::Overflow::SSub: result = mExprBuilder.Sub(left, right); break;
             case GazerIntrinsic::Overflow::SMul: result = mExprBuilder.Mul(left, right); break;
-            case GazerIntrinsic::Overflow::SDiv: result = mExprBuilder.Div(left, right); break;
             default:
                 llvm_unreachable("Unknown overflow kind!");
         }
@@ -754,7 +752,6 @@ ExprPtr InstToExpr::handleOverflowPredicate(const llvm::CallInst& call)
             case GazerIntrinsic::Overflow::SAdd: return handleSAddOverflow(left, right, mExprBuilder);
             case GazerIntrinsic::Overflow::SSub: return handleSSubOverflow(left, right, mExprBuilder);
             case GazerIntrinsic::Overflow::SMul: return handleSMulOverflow(left, right, mExprBuilder);
-            case GazerIntrinsic::Overflow::SDiv: return handleSDivOverflow(left, right, mExprBuilder);
             default:
                 llvm_unreachable("Unknown overflow kind!");
         }
