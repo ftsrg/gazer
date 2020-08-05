@@ -136,6 +136,9 @@ LLVMFrontend::LLVMFrontend(
 
 void LLVMFrontend::registerVerificationPipeline()
 {
+    // Add an instrumentation to better track assignments to local variables
+    mPassManager.add(gazer::createTrackLocalVariableWriteLocationsPass());
+
     // Do basic preprocessing: get rid of alloca's and turn undef's
     //  into nondet function calls.
     mPassManager.add(llvm::createPromoteMemoryToRegisterPass());

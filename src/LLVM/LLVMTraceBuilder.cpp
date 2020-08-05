@@ -203,26 +203,11 @@ auto LLVMTraceBuilder::build(
             }
 
             llvm::Function* callee = call->getCalledFunction();
-            if (auto dvi = llvm::dyn_cast<llvm::DbgValueInst>(&inst)) {
-                this->handleDbgValueInst(loc, dvi, events, currentVals);
+            if (callee->getName().startswith(GazerIntrinsic::LocalVariableWritePrefix)) {
+                handleGazerWriteIntrinsic(call, loc, currentVals, events);
+                // TODO: Should we retain DbgValueInst handling?
             } else if (callee->getName().startswith(GazerIntrinsic::InlinedGlobalWritePrefix)) {
-                auto value = call->getArgOperand(0);
-                auto mdGlobal = cast<DIGlobalVariable>(
-                    cast<MetadataAsValue>(call->getArgOperand(1))->getMetadata()
-                );
-
-                auto lit = this->getLiteralFromValue(loc->getAutomaton(), value, currentVals);
-
-                LocationInfo location = { 0, 0 };
-                if (auto& debugLoc = call->getDebugLoc()) {
-                    location = { debugLoc->getLine(), debugLoc->getColumn() };
-                }
-
-                events.push_back(std::make_unique<AssignTraceEvent>(
-                    traceVarFromDIVar(mdGlobal),
-                    lit,
-                    location
-                ));
+                handleGazerWriteIntrinsic(call, loc, currentVals, events);
             } else if (callee->getName().startswith(GazerIntrinsic::FunctionEntryPrefix)) {
                 auto diSP = cast<DISubprogram>(
                     cast<MetadataAsValue>(call->getArgOperand(0))->getMetadata()
@@ -312,42 +297,27 @@ auto LLVMTraceBuilder::build(
     return std::make_unique<Trace>(std::move(events));
 }
 
-void LLVMTraceBuilder::handleDbgValueInst(
+void LLVMTraceBuilder::handleGazerWriteIntrinsic(
+    const CallInst* call,
     const Location* loc,
-    const llvm::DbgValueInst* dvi,
-    std::vector<std::unique_ptr<TraceEvent>>& events,
-    Valuation& currentVals
-) {
-    if (dvi->getValue() != nullptr && dvi->getVariable() != nullptr) {
-        Value* value = dvi->getValue();
-        DILocalVariable* diVar = dvi->getVariable();
+    Valuation& currentVals,
+    std::vector<std::unique_ptr<TraceEvent>>& events)
+{
+    auto value = call->getArgOperand(0);
+    auto mdLocal = cast<DIVariable>(
+        cast<MetadataAsValue>(call->getArgOperand(1))->getMetadata());
 
-        DebugLoc debugLoc = nullptr;
-        LocationInfo location = { 0, 0 };
-        if (auto valInst = dyn_cast<Instruction>(value)) {
-            if (valInst->getDebugLoc()) {
-                debugLoc = valInst->getDebugLoc();
-            }
-        }
-
-        if (!debugLoc && dvi->getDebugLoc()) {
-            debugLoc = dvi->getDebugLoc();
-        }
-
-        if (debugLoc) {
-            location = { debugLoc->getLine(), debugLoc->getColumn() };
-        }
-
-        DIType* diType = diVar->getType();
-        gazer::Type* preferredType = this->preferredTypeFromDIType(diType);
-
-        auto lit = getLiteralFromValue(loc->getAutomaton(), value, currentVals, preferredType);
-        events.push_back(std::make_unique<AssignTraceEvent>(
-            traceVarFromDIVar(diVar),
-            lit,
-            location
-        ));
+    auto lit = getLiteralFromValue(loc->getAutomaton(), value, currentVals);
+    LocationInfo location = { 0, 0 };
+    if (auto& debugLoc = call->getDebugLoc()) {
+        location = { debugLoc->getLine(), debugLoc->getColumn() };
     }
+
+    events.push_back(std::make_unique<AssignTraceEvent>(
+        traceVarFromDIVar(mdLocal),
+        lit,
+        location
+    ));
 }
 
 ExprRef<AtomicExpr> LLVMTraceBuilder::getLiteralFromValue(

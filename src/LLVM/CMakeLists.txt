@@ -10,6 +10,7 @@ set(SOURCE_FILES
     Instrumentation/Check.cpp
     Instrumentation/DefaultChecks.cpp
     Instrumentation/Intrinsics.cpp
+    Instrumentation/TrackLocalVariableWriteLocations.cpp
     Trace/TestHarnessGenerator.cpp
     Automaton/ModuleToAutomata.cpp
     Automaton/InstToExpr.cpp
@@ -32,7 +33,7 @@ set(SOURCE_FILES
     Automaton/ExtensionPoints.cpp
     Automaton/ValueOrMemoryObject.cpp
     Analysis/PDG.cpp
-)
+    )
 
 llvm_map_components_to_libnames(GAZER_LLVM_LIBS core irreader transformutils scalaropts ipo)
 message(STATUS "Using LLVM libraries: ${GAZER_LLVM_LIBS}")

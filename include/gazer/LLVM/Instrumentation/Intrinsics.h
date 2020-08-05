@@ -31,11 +31,13 @@ namespace gazer
 class GazerIntrinsic
 {
 public:
+    static constexpr char LocalVariableWritePrefix[] = "gazer.local.write.";
+    static constexpr char InlinedGlobalWritePrefix[] = "gazer.inlined_global.write.";
+
     static constexpr char FunctionEntryPrefix[] = "gazer.function.entry";
     static constexpr char FunctionReturnVoidName[] = "gazer.function.return_void";
     static constexpr char FunctionCallReturnedName[] = "gazer.function.call_returned";
-    static constexpr char FunctionReturnValuePrefix[] = "gazer.function.return_value.";    
-    static constexpr char InlinedGlobalWritePrefix[] = "gazer.inlined_global.write.";
+    static constexpr char FunctionReturnValuePrefix[] = "gazer.function.return_value.";
 
     static constexpr char NoOverflowPrefix[] = "gazer.no_overflow";
 
@@ -54,10 +56,6 @@ public:
     };
 
 public:
-    static llvm::CallInst* CreateInlinedGlobalWrite(llvm::Value* value, llvm::DIGlobalVariable* gv);
-    static llvm::CallInst* CreateFunctionEntry(llvm::Module& module, llvm::DISubprogram* dsp = nullptr);
-
-public:
     /// Returns a 'gazer.function.entry(metadata fn_name, args...)' intrinsic.
     static llvm::FunctionCallee GetOrInsertFunctionEntry(llvm::Module& module, llvm::ArrayRef<llvm::Type*> args);
 
@@ -71,13 +69,14 @@ public:
     /// where 'T' is the given return type.
     static llvm::FunctionCallee GetOrInsertFunctionReturnValue(llvm::Module& module, llvm::Type* type);
 
-    /// Returns a 'gazer.inlined_global_write.T(T value, metadata gv_name)' intrinsic.
-    static llvm::FunctionCallee GetOrInsertInlinedGlobalWrite(llvm::Module& module, llvm::Type* type);
-
     /// Returns a 'gazer.KIND.no_overflow.T(T left, T right)' intrinsic.
     static llvm::FunctionCallee GetOrInsertOverflowCheck(llvm::Module& module, Overflow kind, llvm::Type* type);
 
-    static bool isPredicate(llvm::Function& function);
+    /// Returns a 'gazer.inlined_global_write.T(T value, metadata gv_name)' intrinsic.
+    static llvm::FunctionCallee GetOrInsertInlinedGlobalWrite(llvm::Module& module, llvm::Type* type);
+
+    /// Returns a 'gazer.local.write.T(T value, metadata varname)' intrinsic.
+    static llvm::FunctionCallee GetOrInsertLocalVariableWrite(llvm::Module& module, llvm::Type* type);
 };
 
 }

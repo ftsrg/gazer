@@ -97,6 +97,16 @@ llvm::FunctionCallee GazerIntrinsic::GetOrInsertInlinedGlobalWrite(llvm::Module&
     );
 }
 
+llvm::FunctionCallee GazerIntrinsic::GetOrInsertLocalVariableWrite(llvm::Module& module, llvm::Type* type)
+{
+    return module.getOrInsertFunction(
+        getOverloadedFunctionName(LocalVariableWritePrefix, type),
+        llvm::Type::getVoidTy(module.getContext()),
+        type,
+        llvm::Type::getMetadataTy(module.getContext())
+    );
+}
+
 llvm::FunctionCallee GazerIntrinsic::GetOrInsertOverflowCheck(llvm::Module& module, Overflow kind, llvm::Type* type)
 {
     std::string name;

@@ -44,10 +44,11 @@ public:
     ) override;
 
 private:
-    void handleDbgValueInst(
-        const Location* loc, const llvm::DbgValueInst* dvi,
-        std::vector<std::unique_ptr<TraceEvent>>& events, Valuation& currentVals
-    );
+    void handleGazerWriteIntrinsic(
+        const llvm::CallInst* call,
+        const Location* loc,
+        Valuation& currentVals,
+        std::vector<std::unique_ptr<TraceEvent>>& events);
 
     Type* preferredTypeFromDIType(llvm::DIType* diTy);
     ExprRef<AtomicExpr> getLiteralFromLLVMConst(const llvm::ConstantData* value, Type* preferredType = nullptr);

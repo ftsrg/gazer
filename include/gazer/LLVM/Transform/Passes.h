@@ -39,6 +39,10 @@ llvm::Pass* createNormalizeVerifierCallsPass();
 /// A simpler (and more restricted) inlining pass.
 llvm::Pass* createSimpleInlinerPass(llvm::Function& entry, InlineLevel level);
 
+/// A pass that inserts additional instrumentation so we can get the locations
+/// of assignments to local variables more precisely.
+llvm::Pass* createTrackLocalVariableWriteLocationsPass();
+
 }
 
 #endif

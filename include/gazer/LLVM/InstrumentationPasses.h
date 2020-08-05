@@ -24,16 +24,8 @@
 namespace gazer
 {
 
-class Instrumentation
-{
-public:
-    static llvm::Function* getFunctionEntryIntrinsic(llvm::Module& module);
-    static llvm::Function* getGazerMallocIntrinsic(llvm::Module& module);
-};
 
 llvm::Pass* createMarkFunctionEntriesPass();
-
-llvm::Pass* createInsertLastAddressPass();
 
 }
 
