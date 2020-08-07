@@ -27,10 +27,8 @@ RUN useradd -m user && \
 USER user
 
 ENV GAZER_DIR /home/user/gazer
-ENV THETA_DIR /home/user/theta
 
 ADD --chown=user:user . $GAZER_DIR
-RUN mkdir $THETA_DIR
 
 WORKDIR $GAZER_DIR
 RUN cmake -DCMAKE_CXX_COMPILER=clang++-9 -DGAZER_ENABLE_UNIT_TESTS=On -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=On . && make
