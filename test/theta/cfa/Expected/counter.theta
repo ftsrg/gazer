@@ -1,5 +1,5 @@
 main process __gazer_main_process {
-    var main_RET_VAL : int
+    var result : int
     var main_tmp : int
     var main_error_phi : int
     var main___gazer_error_field : int
@@ -32,7 +32,7 @@ main process __gazer_main_process {
     }
 
     loc5 -> loc1 {
-        main_RET_VAL := 0
+        result := 0
     }
 
     loc6 -> loc7 {

@@ -86,7 +86,10 @@ struct ThetaLocDecl : ThetaAst
 
 struct ThetaStmt : ThetaAst
 {
-    using VariantTy = std::variant<ExprPtr, std::pair<std::string, ExprPtr>, std::string>;
+    using callType = std::tuple<llvm::StringRef,
+        llvm::SmallVector<VariableAssignment, 5>,
+        std::optional<Variable*>>;
+    using VariantTy = std::variant<ExprPtr, std::pair<std::string, ExprPtr>, std::string, callType>;
 
     /* implicit */ ThetaStmt(VariantTy content)
         : mContent(content)
@@ -119,6 +122,12 @@ struct ThetaStmt : ThetaAst
     void print(llvm::raw_ostream& os) const override;
 
     VariantTy mContent;
+    static ThetaStmt Call(
+        llvm::StringRef name,
+        llvm::SmallVector<VariableAssignment, 5> vector,
+        std::optional<Variable*> result) {
+        return VariantTy{callType{name, vector, result}};
+    }
 };
 
 struct ThetaEdgeDecl : ThetaAst
@@ -155,27 +164,60 @@ private:
 
 } // end anonymous namespace
 
+struct PrintVisitor
+{
+    llvm::raw_ostream& mOS;
+    std::function<std::string(Variable*)> mCanonizeName;
+
+    PrintVisitor(llvm::raw_ostream& os, std::function<std::string(Variable*)> canonizeName)
+        : mOS(os), mCanonizeName(canonizeName)
+    {}
+
+    explicit PrintVisitor(llvm::raw_ostream& os)
+        : mOS(os), mCanonizeName([](Variable* v) {return v->getName();})
+    {}
+
+    void operator()(const ExprPtr& expr) {
+        mOS << "assume ";
+        mOS << theta::printThetaExpr(expr, mCanonizeName);
+    }
+
+    void operator()(const std::pair<std::string, ExprPtr>& assign) {
+        mOS << assign.first << " := ";
+        mOS << theta::printThetaExpr(assign.second, mCanonizeName);
+    }
+
+    void operator()(const std::string& variable) {
+        mOS << "havoc " << variable;
+    }
+
+    void operator()(const std::tuple<llvm::StringRef,
+        llvm::SmallVector<VariableAssignment, 5>,
+        std::optional<Variable*>>& call) {
+        auto result = std::get<2>(call);
+        auto prefix = result.has_value() ? mCanonizeName(result.value()) + llvm::Twine(" := ") : "";
+
+        mOS << prefix << "call " << std::get<0>(call) << "(";
+        bool first = true;
+        for (const auto& param : std::get<1>(call)) {
+            if (first) {
+                first = false;
+            } else {
+                mOS << ", ";
+            }
+            if (auto var = llvm::dyn_cast<VarRefExpr>(param.getValue())) {
+                mOS << mCanonizeName(&(var->getVariable()));
+            } else {
+                llvm_unreachable("parameter should be a variable reference");
+            }
+        }
+        mOS << ")";
+    }
+};
+
 void ThetaStmt::print(llvm::raw_ostream& os) const
 {
-    struct PrintVisitor
-    {
-        llvm::raw_ostream& mOS;
-        explicit PrintVisitor(llvm::raw_ostream& os) : mOS(os) {}
-
-        void operator()(const ExprPtr& expr) {
-            mOS << "assume ";
-            mOS << theta::printThetaExpr(expr);
-        }
-
-        void operator()(const std::pair<std::string, ExprPtr>& assign) {
-            mOS << assign.first << " := ";
-            mOS << theta::printThetaExpr(assign.second);
-        }
-
-        void operator()(const std::string& variable) {
-            mOS << "havoc " << variable;
-        }
-    } visitor(os);
+    PrintVisitor visitor(os);
 
     std::visit(visitor, mContent);
 }
@@ -235,6 +277,11 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
     for (auto& variable : main->locals()) {
         auto name = validName(variable.getName(), isValidVarName);
         auto type = typeName(variable.getType());
+
+        // name should be "result" if it is the/an output instead of the original (<func>_RES_VAR)
+        if (std::find(main->outputs().begin(), main->outputs().end(), variable) != main->outputs().end()) {
+            name = "result";
+        }
         
         nameTrace.variables[name] = &variable;
         vars.try_emplace(&variable, std::make_unique<ThetaVarDecl>(name, type));
@@ -251,7 +298,7 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
     // Add locations
     for (Location* loc : main->nodes()) {
         ThetaLocDecl::Flag flag = ThetaLocDecl::Loc_State;
-        if (loc == recursiveToCyclicResult.errorLocation) {
+        if (loc == nameTrace.errorLocation) {
             flag = ThetaLocDecl::Loc_Error;
         } else if (main->getEntry() == loc) {
             flag = ThetaLocDecl::Loc_Init;
@@ -287,7 +334,33 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
                 }
             }
         } else if (auto callEdge = dyn_cast<CallTransition>(edge)) {
-            llvm_unreachable("CallTransitions are not supported in theta CFAs!");
+            assert(callEdge->getNumOutputs() <= 1 && "calls should have at most one output");
+
+            llvm::SmallVector<VariableAssignment, 5> inputs;
+            for (const auto& input : callEdge->inputs()) {
+                auto lhsName = input.getVariable()->getName();
+
+                auto rhs = input.getValue();
+                static int paramCounter = 0;
+                // Create a new variable because XCFA needs it.
+                auto newVarName = "call_param_tmp_" + llvm::Twine(paramCounter++);
+
+                auto variable = main->createLocal(newVarName.str(), rhs->getType());
+                auto name = validName(variable->getName(), isValidVarName);
+                auto type = typeName(variable->getType());
+
+                nameTrace.variables[name] = variable;
+                vars.try_emplace(variable, std::make_unique<ThetaVarDecl>(name, type));
+
+                // initialize the new variable
+                stmts.push_back(ThetaStmt::Assign(variable->getName(), rhs));
+                inputs.push_back(VariableAssignment(input.getVariable(), variable->getRefExpr()));
+            }
+            std::optional<Variable*> result = {};
+            if (callEdge->getNumOutputs() == 1) {
+                result = callEdge->outputs().begin()->getVariable();
+            }
+            stmts.push_back(ThetaStmt::Call(callEdge->getCalledAutomaton()->getName(), inputs, result));
         }
 
         edges.emplace_back(std::make_unique<ThetaEdgeDecl>(source, target, std::move(stmts)));
@@ -322,30 +395,7 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
         os << INDENT << edge->mSource.mName << " -> " << edge->mTarget.mName << " {\n";
         for (auto& stmt : edge->mStmts) {
             os << INDENT2;
-            struct PrintVisitor
-            {
-                llvm::raw_ostream& mOS;
-                std::function<std::string(Variable*)> mCanonizeName;
-
-                PrintVisitor(llvm::raw_ostream& os, std::function<std::string(Variable*)> canonizeName)
-                    : mOS(os), mCanonizeName(canonizeName)
-                {}
-
-                void operator()(const ExprPtr& expr) {
-                    mOS << "assume ";
-                    mOS << theta::printThetaExpr(expr, mCanonizeName);
-                }
-
-                void operator()(const std::pair<std::string, ExprPtr>& assign) {
-                    mOS << assign.first << " := ";
-                    mOS << theta::printThetaExpr(assign.second, mCanonizeName);
-                }
-
-                void operator()(const std::string& variable) {
-                    mOS << "havoc " << variable;
-                }
-            } visitor(os, canonizeName);
-
+            PrintVisitor visitor(os, canonizeName);
             std::visit(visitor, stmt.mContent);
             os << "\n";
         }

@@ -95,7 +95,7 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
         // translate it to the format of another verifier immediately.
 
         // TODO: We should translate automata other than the main in this case.
-        TransformRecursiveToCyclic(mSystem->getMainAutomaton());
+        //TransformRecursiveToCyclic(mSystem->getMainAutomaton());
     }
 
     return false;
