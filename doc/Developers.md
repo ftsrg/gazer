@@ -4,6 +4,9 @@
 
 1. Download and install CMake (3.6 is the minimum required).
 2. Download and install LLVM 9. Make sure you use the exact major version.
+
+   **Note**: When building LLVM by hand, remove tests for LLVM with `cmake -DLLVM_INCLUDE_TESTS=OFF ...`. See [this](https://github.com/pytorch/glow/issues/1675) for more information.
+
 3. Install the Boost library (version 1.70 or later).
 4. Create a build directory.
     ```
@@ -26,9 +29,9 @@ Gazer's unit tests may be run by invoking:
 make check-unit
 ```
 
-To run the functional test suite, LLVM's `lit` tool must be installed:
+To run the functional test suite, LLVM's `lit` tool and `psutil` must be installed with:
 ```
-pip install lit
+pip install lit psutil
 ```
 
 After installing `lit`, you can run the functional test suite using:
