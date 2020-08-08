@@ -155,6 +155,7 @@ static bool isErrorBlock(llvm::BasicBlock* bb)
     return false;
 }
 
+/*
 /// If \p bb is part of a loop nested into the CFA represented by \p genInfo, returns this loop.
 /// Otherwise, this function returns nullptr.
 static llvm::Loop* getNestedLoopOf(GenerationContext& genCtx, CfaGenInfo& genInfo, const llvm::BasicBlock* bb)
@@ -188,7 +189,7 @@ static llvm::Loop* getNestedLoopOf(GenerationContext& genCtx, CfaGenInfo& genInf
     }
 
     llvm_unreachable("A CFA source should either be a function or a loop.");
-}
+}*/
 
 static gazer::Type& getExitSelectorType(IntRepresentation ints, GazerContext& context)
 {         
@@ -292,10 +293,10 @@ void ModuleToCfa::createAutomata()
         DenseSet<BasicBlock*> visitedBlocks;
 
         // Create a CFA for each loop nested in this function
-        LoopInfo* loopInfo = mGenCtx.getLoopInfoFor(&function);
+        /*LoopInfo* loopInfo = mGenCtx.getLoopInfoFor(&function);*/
 
         unsigned loopCount = 0;
-        auto loops = loopInfo->getLoopsInPreorder();
+        /*auto loops = loopInfo->getLoopsInPreorder();
 
         for (Loop* loop : loops) {
             std::string name = getLoopName(loop, loopCount, cfa->getName());
@@ -349,7 +350,7 @@ void ModuleToCfa::createAutomata()
             }
 
             visitedBlocks.insert(loop->getBlocks().begin(), loop->getBlocks().end());
-        }
+        }*/
 
         // Now that all loops in this function have been dealt with, translate the function itself.
         CfaGenInfo& genInfo = mGenCtx.createFunctionCfaInfo(cfa, &function);
@@ -383,14 +384,14 @@ void ModuleToCfa::createAutomata()
         // For the local variables, we only need to add the values not present in any of the loops.
         for (BasicBlock& bb : function) {
             for (Instruction& inst : bb) {
-                if (auto loop = loopInfo->getLoopFor(&bb)) {
+                /*if (auto loop = loopInfo->getLoopFor(&bb)) {
                     // If the variable is an output of a loop, add it here as a local variable
                     Variable* output = mGenCtx.getLoopCfa(loop).findOutput(&inst);
                     if (output == nullptr && !hasUsesInBlockRange(&inst, functionBlocks)) {
                         LLVM_DEBUG(llvm::dbgs() << "Not adding " << inst << "\n");
                         continue;
                     }
-                }
+                }*/
 
                 if (!inst.getType()->isVoidTy()) {
                     functionVarDecl.createLocal(&inst, mGenCtx.getTypes().get(inst.getType()));
@@ -815,14 +816,14 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
         mMemoryInstHandler.handleBasicBlockEdge(*parent, *succ, phiEp);
 
         mCfa->createAssignTransition(exit, to, succCondition, phiAssignments);
-    } else if (auto loop = getNestedLoopOf(mGenCtx, mGenInfo, succ)) {
+    } else /*if (auto loop = getNestedLoopOf(mGenCtx, mGenInfo, succ)) {
         this->createCallToLoop(loop, parent, succ, succCondition, exit);
-    } else {
+    } else */{
         createExitTransition(succ, exit, succCondition);
     }
 }
 
-void BlocksToCfa::createCallToLoop(
+/*void BlocksToCfa::createCallToLoop(
     llvm::Loop* loop, const llvm::BasicBlock* source, const llvm::BasicBlock* target,
     const ExprPtr& condition, Location* exit)
 {
@@ -893,7 +894,7 @@ void BlocksToCfa::createCallToLoop(
             createExitTransition(exitBlock, exit, condition);
         }
     }
-}
+}*/
 
 void BlocksToCfa::insertOutputAssignments(CfaGenInfo& callee, std::vector<VariableAssignment>& outputArgs)
 {

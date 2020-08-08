@@ -114,11 +114,11 @@ public:
             return &function->getEntryBlock();
         }
         
-        if (auto loop = getSourceLoop()) {
+        /*if (auto loop = getSourceLoop()) {
             return loop->getHeader();
-        }
+        }*/
 
-        llvm_unreachable("A CFA source can only be a function or a loop!");
+        llvm_unreachable("A CFA source can only be a function!");
     }
 
     // Variables
@@ -192,17 +192,17 @@ public:
         const SpecialFunctions& specialFunctions,
         const LLVMFrontendSettings& settings
     ) : mSystem(system), mMemoryModel(memoryModel), mTypes(types),
-        mLoopInfos(loopInfos), mSpecialFunctions(specialFunctions), mSettings(settings)
+        /*mLoopInfos(loopInfos), */mSpecialFunctions(specialFunctions), mSettings(settings)
     {}
 
     GenerationContext(const GenerationContext&) = delete;
     GenerationContext& operator=(const GenerationContext&) = delete;
 
-    CfaGenInfo& createLoopCfaInfo(Cfa* cfa, llvm::Loop* loop)
+    /*CfaGenInfo& createLoopCfaInfo(Cfa* cfa, llvm::Loop* loop)
     {
         CfaGenInfo& info = mProcedures.try_emplace(loop, *this, cfa, loop).first->second;
         return info;
-    }
+    }*/
 
     CfaGenInfo& createFunctionCfaInfo(Cfa* cfa, llvm::Function* function)
     {
@@ -225,7 +225,7 @@ public:
         }
     }
 
-    CfaGenInfo& getLoopCfa(llvm::Loop* loop) { return getInfoFor(loop); }
+    //CfaGenInfo& getLoopCfa(llvm::Loop* loop) { return getInfoFor(loop); }
     CfaGenInfo& getFunctionCfa(llvm::Function* function) { return getInfoFor(function); }
 
     llvm::iterator_range<typename std::unordered_map<VariantT, CfaGenInfo>::iterator> procedures()
@@ -233,10 +233,10 @@ public:
         return llvm::make_range(mProcedures.begin(), mProcedures.end());
     }
 
-    llvm::LoopInfo* getLoopInfoFor(const llvm::Function* function)
+    /*llvm::LoopInfo* getLoopInfoFor(const llvm::Function* function)
     {
         return mLoopInfos(function);
-    }
+    }*/
 
     std::string uniqueName(const llvm::Twine& base = "");
 
@@ -260,7 +260,7 @@ private:
     AutomataSystem& mSystem;
     MemoryModel& mMemoryModel;
     LLVMTypeTranslator& mTypes;
-    LoopInfoFuncTy mLoopInfos;
+    //LoopInfoFuncTy mLoopInfos;
     const SpecialFunctions& mSpecialFunctions;
     const LLVMFrontendSettings& mSettings;
     std::unordered_map<VariantT, CfaGenInfo> mProcedures;
@@ -382,9 +382,9 @@ private:
     );
 
     void createExitTransition(const llvm::BasicBlock* target, Location* pred, const ExprPtr& succCondition);
-    void createCallToLoop(
+    /*void createCallToLoop(
         llvm::Loop* loop, const llvm::BasicBlock* source, const llvm::BasicBlock* target,
-        const ExprPtr& condition, Location* exit);
+        const ExprPtr& condition, Location* exit);*/
 
     ExprPtr getExitCondition(const llvm::BasicBlock* target, Variable* exitSelector, CfaGenInfo& nestedInfo);
     size_t getNumUsesInBlocks(const llvm::Instruction* inst) const;
