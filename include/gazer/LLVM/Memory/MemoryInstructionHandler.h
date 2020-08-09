@@ -61,6 +61,10 @@ public:
     /// Allows the declaration of top-level procedure variables.
     virtual void declareFunctionVariables(llvm2cfa::VariableDeclExtensionPoint& ep) {}
 
+    /// Allows the declaration of global variables.
+    /// TODO this does not fit the original picture that memory models are per-function...
+    virtual void declareGlobalVariables(llvm2cfa::GlobalVariableDeclExtensionPoint& ep) {}
+
     /// Allows the declaration of loop-procedure level variables.
     virtual void declareLoopProcedureVariables(
         llvm::Loop* loop, llvm2cfa::LoopVarDeclExtensionPoint& ep) {}
