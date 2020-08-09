@@ -115,6 +115,20 @@ public:
     void markOutput(ValueOrMemoryObject val, Variable* variable);
 };
 
+/// This extension can be used to insert additional global variables at the
+/// very beginning of the generation process.
+class GlobalVariableDeclExtensionPoint
+{
+public:
+    explicit GlobalVariableDeclExtensionPoint(AutomataSystem& system)
+        : mSystem(system)
+    {}
+
+    Variable* createGlobalVar(ValueOrMemoryObject val, Type& type, const std::string& suffix = "");
+private:
+    AutomataSystem& mSystem;
+};
+
 /// Variable declaration extension point for loops.
 class LoopVarDeclExtensionPoint : public VariableDeclExtensionPoint
 {

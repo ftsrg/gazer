@@ -105,6 +105,12 @@ Variable* VariableDeclExtensionPoint::createInput(ValueOrMemoryObject val, Type&
     return variable;
 }
 
+Variable* GlobalVariableDeclExtensionPoint::createGlobalVar(ValueOrMemoryObject val, Type& type, const std::string& suffix)
+{
+    auto name = val.hasName() ? val.getName() + suffix : "_" + suffix;
+    return mSystem.createGlobal(name, type);
+}
+
 Variable* VariableDeclExtensionPoint::createLocal(ValueOrMemoryObject val, Type& type, const std::string& suffix)
 {
     Cfa* cfa = mGenInfo.Automaton;
