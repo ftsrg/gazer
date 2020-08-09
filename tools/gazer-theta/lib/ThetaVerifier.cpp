@@ -192,7 +192,8 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
     }
 
     if (thetaOutput.startswith("(SafetyResult Unsafe")) {
-        // Parse the counterexample
+        return VerificationResult::CreateFail(VerificationResult::GeneralFailureCode, {});
+/*        // Parse the counterexample
         buffer = llvm::MemoryBuffer::getFile(cexFile);
         if (auto errorCode = buffer.getError()) {
             return VerificationResult::CreateInternalError("Could not open theta counterexample file. " + errorCode.message());
@@ -214,7 +215,7 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
         unsigned failureCode = VerificationResult::GeneralFailureCode;
         auto trace = this->parseCex(cex, &failureCode);
 
-        return VerificationResult::CreateFail(failureCode, std::move(trace));
+        return VerificationResult::CreateFail(failureCode, std::move(trace));*/
     }
 
     return VerificationResult::CreateInternalError("Theta returned unrecognizable output. Raw output is:\n" + thetaOutput);
