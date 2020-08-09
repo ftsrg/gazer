@@ -56,7 +56,7 @@ bool MemoryModelWrapperPass::runOnModule(llvm::Module& module)
             break;
         }
         case MemoryModelSetting::Havoc: {
-            mMemoryModel = CreateHavocMemoryModel(mContext);
+            mMemoryModel = CreateSimpleMemoryModel(mContext, mSettings, module); // CreateHavocMemoryModel(mContext);
             break;
         }
     }
