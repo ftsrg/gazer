@@ -152,6 +152,8 @@ public:
 
     llvm::StringRef getName() { return mName; }
 
+    llvm::StringRef getType() { return mType; }
+
     void print(llvm::raw_ostream& os) const override
     {
         os << "var " << mName << " : " << mType;
@@ -170,7 +172,7 @@ struct PrintVisitor
     std::function<std::string(Variable*)> mCanonizeName;
 
     PrintVisitor(llvm::raw_ostream& os, std::function<std::string(Variable*)> canonizeName)
-        : mOS(os), mCanonizeName(canonizeName)
+        : mOS(os), mCanonizeName(std::move(canonizeName))
     {}
 
     explicit PrintVisitor(llvm::raw_ostream& os)
@@ -197,7 +199,8 @@ struct PrintVisitor
         auto result = std::get<2>(call);
         auto prefix = result.has_value() ? mCanonizeName(result.value()) + llvm::Twine(" := ") : "";
 
-        mOS << prefix << "call " << std::get<0>(call) << "(";
+        // TODO main -> xmain temp solution
+        mOS << prefix << "call x" << std::get<0>(call) << "(";
         bool first = true;
         for (const auto& param : std::get<1>(call)) {
             if (first) {
@@ -253,8 +256,32 @@ static std::string typeName(Type& type)
 
 void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace)
 {
-    Cfa* main = mSystem.getMainAutomaton();
-    auto recursiveToCyclicResult = TransformRecursiveToCyclic(main);
+    os << "main process main_process {\n";
+    for (Cfa& cfa : mSystem) {
+        writeCFA(os, &cfa, nameTrace);
+    }
+    os << "}\n";
+}
+
+std::string ThetaCfaGenerator::validName(std::string name, std::function<bool(const std::string&)> isUnique)
+{
+    name = std::regex_replace(name, std::regex("[^a-zA-Z0-9_]"), "_");
+
+    if (std::find(ThetaKeywords.begin(), ThetaKeywords.end(), name) != ThetaKeywords.end()) {
+        name += "_gazer";
+    }
+
+    while (!isUnique(name)) {
+        llvm::Twine nextTry = name + llvm::Twine(mTmpCount++);
+        name = nextTry.str();
+    }
+
+    return name;
+}
+
+void ThetaCfaGenerator::writeCFA(llvm::raw_ostream& os, Cfa* cfa, ThetaNameMapping& nameTrace) {
+    // this should not be needed, but it does some extra stuff related to error handling
+    auto recursiveToCyclicResult = TransformRecursiveToCyclic(cfa);
 
     nameTrace.errorLocation = recursiveToCyclicResult.errorLocation;
     nameTrace.errorFieldVariable = recursiveToCyclicResult.errorFieldVariable;
@@ -267,42 +294,43 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
 
     // Create a closure to test variable names
     auto isValidVarName = [&vars](const std::string& name) -> bool {
-        // The variable name should not be present in the variable list.
-        return std::find_if(vars.begin(), vars.end(), [name](auto& v1) {
-            return name == v1.second->getName();
-        }) == vars.end();
+      // The variable name should not be present in the variable list.
+      return std::find_if(vars.begin(), vars.end(), [name](auto& v1) {
+        return name == v1.second->getName();
+      }) == vars.end();
     };
 
     // Add variables
-    for (auto& variable : main->locals()) {
+    for (auto& variable : cfa->locals()) {
         auto name = validName(variable.getName(), isValidVarName);
         auto type = typeName(variable.getType());
 
-        // name should be "result" if it is the/an output instead of the original (<func>_RES_VAR)
-        if (std::find(main->outputs().begin(), main->outputs().end(), variable) != main->outputs().end()) {
-            name = "result";
-        }
-        
+        //// name should be "result" if it is the output instead of the original (<func>_RES_VAR)
+        //if (std::find(cfa->outputs().begin(), cfa->outputs().end(), variable) != cfa->outputs().end()) {
+        //    name = "result";
+        //}
+
         nameTrace.variables[name] = &variable;
         vars.try_emplace(&variable, std::make_unique<ThetaVarDecl>(name, type));
     }
 
-    for (auto& variable : main->inputs()) {
+    // inputs are defined elsewhere
+    for (auto& variable : cfa->inputs()) {
         auto name = validName(variable.getName(), isValidVarName);
         auto type = typeName(variable.getType());
 
-        nameTrace.variables[name] = &variable;
+//        nameTrace.variables[name] = &variable;
         vars.try_emplace(&variable, std::make_unique<ThetaVarDecl>(name, type));
     }
 
     // Add locations
-    for (Location* loc : main->nodes()) {
+    for (Location* loc : cfa->nodes()) {
         ThetaLocDecl::Flag flag = ThetaLocDecl::Loc_State;
         if (loc == nameTrace.errorLocation) {
             flag = ThetaLocDecl::Loc_Error;
-        } else if (main->getEntry() == loc) {
+        } else if (cfa->getEntry() == loc) {
             flag = ThetaLocDecl::Loc_Init;
-        } else if (main->getExit() == loc) {
+        } else if (cfa->getExit() == loc) {
             flag = ThetaLocDecl::Loc_Final;
         }
 
@@ -313,10 +341,10 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
     }
 
     // Add edges
-    for (Transition* edge : main->edges()) {
+    for (Transition* edge : cfa->edges()) {
         ThetaLocDecl& source = *locs[edge->getSource()];
         ThetaLocDecl& target = *locs[edge->getTarget()];
-        
+
         std::vector<ThetaStmt> stmts;
 
         if (edge->getGuard() != BoolLiteralExpr::True(edge->getGuard()->getContext())) {
@@ -345,7 +373,7 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
                 // Create a new variable because XCFA needs it.
                 auto newVarName = "call_param_tmp_" + llvm::Twine(paramCounter++);
 
-                auto variable = main->createLocal(newVarName.str(), rhs->getType());
+                auto variable = cfa->createLocal(newVarName.str(), rhs->getType());
                 auto name = validName(variable->getName(), isValidVarName);
                 auto type = typeName(variable->getType());
 
@@ -353,7 +381,7 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
                 vars.try_emplace(variable, std::make_unique<ThetaVarDecl>(name, type));
 
                 // initialize the new variable
-                stmts.push_back(ThetaStmt::Assign(variable->getName(), rhs));
+                stmts.push_back(ThetaStmt::Assign(name, rhs));
                 inputs.push_back(VariableAssignment(input.getVariable(), variable->getRefExpr()));
             }
             std::optional<Variable*> result = {};
@@ -370,22 +398,38 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
     auto INDENT2 = "        ";
 
     auto canonizeName = [&vars](Variable* variable) -> std::string {
-        if (vars.count(variable) == 0) {
-            return variable->getName();
-        }
+      if (vars.count(variable) == 0) {
+          return variable->getName();
+      }
 
-        return vars[variable]->getName();
+      return vars[variable]->getName();
     };
 
-    os << "main process __gazer_main_process {\n";
-    
-    for (auto& variable : llvm::concat<Variable>(main->inputs(), main->locals())) {
+    if (cfa == mSystem.getMainAutomaton()) {
+        os << "main ";
+    }
+    // TODO main -> xmain temp solution
+    os << "procedure x" << cfa->getName() << "(";
+    bool first = true;
+    for (auto& input : cfa->inputs()) {
+        if (first) {
+            first = false;
+        } else {
+            os << ", ";
+        }
+        auto name = vars[&input]->getName();
+        auto type = vars[&input]->getType();
+
+        os << name << " : " << type;
+    }
+    os << ") {\n";
+    for (auto& variable : cfa->locals()) {
         os << INDENT;
         vars[&variable]->print(os);
         os << "\n";
     }
 
-    for (Location* loc : main->nodes()) {
+    for (Location* loc : cfa->nodes()) {
         os << INDENT;
         locs[loc]->print(os);
         os << "\n";
@@ -405,20 +449,4 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
 
     os << "}\n";
     os.flush();
-}
-
-std::string ThetaCfaGenerator::validName(std::string name, std::function<bool(const std::string&)> isUnique)
-{
-    name = std::regex_replace(name, std::regex("[^a-zA-Z0-9_]"), "_");
-
-    if (std::find(ThetaKeywords.begin(), ThetaKeywords.end(), name) != ThetaKeywords.end()) {
-        name += "_gazer";
-    }
-
-    while (!isUnique(name)) {
-        llvm::Twine nextTry = name + llvm::Twine(mTmpCount++);
-        name = nextTry.str();
-    }
-
-    return name;
 }

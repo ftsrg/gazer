@@ -52,6 +52,7 @@ struct ThetaNameMapping
     llvm::DenseMap<Variable*, Variable*> inlinedVariables;
 };
 
+/// XXX Currently creates an XCFA
 class ThetaCfaGenerator
 {
 public:
@@ -63,6 +64,7 @@ public:
 
 private:
     std::string validName(std::string name, std::function<bool(const std::string&)> isUnique);
+    void writeCFA(llvm::raw_ostream& os, Cfa* cfa, ThetaNameMapping& nameTrace);
 
 private:
     AutomataSystem& mSystem;
