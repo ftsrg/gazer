@@ -65,6 +65,15 @@ std::unique_ptr<MemoryModel> CreateFlatMemoryModel(
     std::function<llvm::DominatorTree&(llvm::Function&)> dominators
 );
 
+//==-----------------------------------------------------------------------==//
+// SimpleMemoryModel - a memory model which represents all memory as separate locals or globals.
+// Sound when these cannot alias.
+std::unique_ptr<MemoryModel> CreateSimpleMemoryModel(
+    GazerContext& context,
+    const LLVMFrontendSettings& settings,
+    llvm::Module& module
+);
+
 class MemoryModelWrapperPass : public llvm::ModulePass
 {
 public:

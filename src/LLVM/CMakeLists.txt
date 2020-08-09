@@ -23,6 +23,7 @@ set(SOURCE_FILES
     FrontendConfig.cpp
     Memory/MemoryObject.cpp
     Memory/FlatMemoryModel.cpp
+    Memory/SimpleMemoryModel.cpp
     Memory/HavocMemoryModel.cpp
     Memory/MemoryModel.cpp
     Memory/MemorySSA.cpp
@@ -32,7 +33,7 @@ set(SOURCE_FILES
     Automaton/ExtensionPoints.cpp
     Automaton/ValueOrMemoryObject.cpp
     Analysis/PDG.cpp
-)
+        Memory/SimpleMemoryModel.cpp)
 
 llvm_map_components_to_libnames(GAZER_LLVM_LIBS core irreader transformutils scalaropts ipo)
 message(STATUS "Using LLVM libraries: ${GAZER_LLVM_LIBS}")
