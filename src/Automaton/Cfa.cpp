@@ -341,3 +341,12 @@ void AutomataSystem::setMainAutomaton(Cfa* cfa)
     assert(&cfa->getParent() == this);
     mMainAutomaton = cfa;
 }
+
+Variable* AutomataSystem::createGlobal(
+    std::string name,
+    Type& type)
+{
+    auto result = mContext.createVariable(name, type);
+    mGlobals.push_back(result);
+    return result;
+}

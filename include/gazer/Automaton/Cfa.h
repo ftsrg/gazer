@@ -345,6 +345,10 @@ public:
     AutomataSystem(const AutomataSystem&) = delete;
     AutomataSystem& operator=(const AutomataSystem&) = delete;
 
+    Variable* createGlobal(
+        std::basic_string<char, std::char_traits<char>, std::allocator<char>> basicString,
+        Type& type);
+
 public:
     Cfa* createCfa(std::string name);
 
@@ -370,7 +374,11 @@ public:
 private:
     GazerContext& mContext;
     std::vector<std::unique_ptr<Cfa>> mAutomata;
+    std::vector<Variable*> mGlobals;
     Cfa* mMainAutomaton;
+public:
+    using globals_iterator = decltype(mGlobals.begin());
+    llvm::iterator_range<globals_iterator> globals() { return llvm::make_range(mGlobals.begin(), mGlobals.end()); }
 };
 
 inline llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Transition& transition)
