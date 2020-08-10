@@ -20,6 +20,7 @@
 
 #include "gazer/Automaton/Cfa.h"
 #include "gazer/Automaton/CallGraph.h"
+#include "ThetaUtil.h"
 
 #include <llvm/Support/raw_ostream.h>
 
@@ -31,26 +32,12 @@ namespace llvm
 namespace gazer::theta
 {
 
-std::string printThetaExpr(const ExprPtr& expr);
-
-std::string printThetaExpr(const ExprPtr& expr, std::function<std::string(Variable*)> variableNames);
-
 /// \brief Perform pre-processing steps required by theta on the input CFA.
 ///
 /// This pass does the following transformations:
 ///     - Undefined values in expressions are replaced with previously havoc'd variables.
 ///     - Array literals are replaced with a appropriately constructed array variable.
 void preprocessCfa(Cfa* cfa);
-
-struct ThetaNameMapping
-{
-    llvm::StringMap<Location*> locations;
-    llvm::StringMap<Variable*> variables;
-    Location* errorLocation;
-    Variable* errorFieldVariable;
-    llvm::DenseMap<Location*, Location*> inlinedLocations;
-    llvm::DenseMap<Variable*, Variable*> inlinedVariables;
-};
 
 /// XXX Currently creates an XCFA
 class ThetaCfaGenerator
