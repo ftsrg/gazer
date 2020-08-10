@@ -82,9 +82,20 @@ public:
     ExprPtr handlePointerCast(
         const llvm::CastInst& cast,
         const ExprPtr& origPtr) override {
-        llvm_unreachable("Pointer casts are not supported");
-        // maybe this will do?
-        // return origPtr;
+        // TODO this is a fake implementation
+        // mostly for the gazer intrinsics that use pointer casts
+        // if a real cast would take place, this would make no sense at all.
+        // probably the intrinsics themselves would brake if tracing would work...
+        auto& goalType = types.get(cast.getDestTy());
+        if (cast.getDestTy()->isPointerTy()) {
+            return ExprBuilder(getContext()).BvLit8(0);
+        }
+        switch(goalType.getTypeID()) {
+            case gazer::Type::BoolTypeID: return ExprBuilder(getContext()).False();
+            case gazer::Type::IntTypeID: return ExprBuilder(getContext()).IntLit(0);
+            case gazer::Type::BvTypeID: return ExprBuilder(getContext()).BvLit(0, llvm::cast<BvType>(goalType).getWidth());
+        }
+        llvm_unreachable("Unsupported pointer cast");
     }
 
     /// Represents a pointer arithmetic instruction.
@@ -169,7 +180,8 @@ public:
     ~SimpleMemoryInstructionHandler() override = default;
 
     gazer::Type& handlePointerType(const llvm::PointerType* type) override {
-        llvm_unreachable("Pointers and arrays are not supported right now");
+        // TODO this is a fake implementation, and I'm not quite sure what are the dependencies
+        return ExprBuilder(getContext()).BvLit8(0)->getType();
     }
 
     /// Translates types of constant arrays and initializers.
