@@ -71,9 +71,9 @@ struct ThetaLocDecl : ThetaAst
 
 struct ThetaStmt : ThetaAst
 {
-    using callType = std::tuple<llvm::StringRef,
-    llvm::SmallVector<gazer::VariableAssignment, 5>,
-    std::optional<gazer::Variable*>>;
+    using callType = std::tuple<std::string, // callee name
+    llvm::SmallVector<std::string, 5>, // variables
+    std::optional<std::string>>; // return variable
     using VariantTy = std::variant<gazer::ExprPtr, std::pair<std::string, gazer::ExprPtr>, std::string, callType>;
 
     /* implicit */ ThetaStmt(VariantTy content)
@@ -109,8 +109,8 @@ struct ThetaStmt : ThetaAst
     VariantTy mContent;
     static ThetaStmt Call(
         llvm::StringRef name,
-        llvm::SmallVector<gazer::VariableAssignment, 5> vector,
-        std::optional<gazer::Variable*> result) {
+        llvm::SmallVector<std::string, 5> vector,
+        std::optional<std::string> result) {
         return VariantTy{callType{name, vector, result}};
     }
 };
@@ -178,7 +178,7 @@ struct PrintVisitor
 
     void operator()(const gazer::theta::ThetaStmt::callType& call) {
         auto result = std::get<2>(call);
-        auto prefix = result.has_value() ? mCanonizeName(result.value()) + llvm::Twine(" := ") : "";
+        auto prefix = result.has_value() ? result.value() + llvm::Twine(" := ") : "";
 
         // TODO main -> xmain temp solution
         mOS << prefix << "call x" << std::get<0>(call) << "(";
@@ -189,11 +189,7 @@ struct PrintVisitor
             } else {
                 mOS << ", ";
             }
-            if (auto var = llvm::dyn_cast<gazer::VarRefExpr>(param.getValue())) {
-                mOS << mCanonizeName(&(var->getVariable()));
-            } else {
-                llvm_unreachable("parameter should be a variable reference");
-            }
+            mOS << param;
         }
         mOS << ")";
     }

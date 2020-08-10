@@ -119,10 +119,9 @@ void gazer::ThetaCfaProcedureGenerator::writeCFA(llvm::raw_ostream& os, gazer::t
         } else if (auto callEdge = dyn_cast<CallTransition>(edge)) {
             assert(callEdge->getNumOutputs() <= 1 && "calls should have at most one output");
 
-            llvm::SmallVector<VariableAssignment, 5> inputs;
+            llvm::SmallVector<std::string, 5> inputs;
             for (const auto& input : callEdge->inputs()) {
-                auto lhsName = input.getVariable()->getName();
-
+                // we do not use the input variable itself, only the value it's assigned to
                 auto rhs = input.getValue();
                 static int paramCounter = 0;
                 // Create a new variable because XCFA needs it.
@@ -137,11 +136,11 @@ void gazer::ThetaCfaProcedureGenerator::writeCFA(llvm::raw_ostream& os, gazer::t
 
                 // initialize the new variable
                 stmts.push_back(ThetaStmt::Assign(name, rhs));
-                inputs.push_back(VariableAssignment(input.getVariable(), variable->getRefExpr()));
+                inputs.push_back(name);
             }
-            std::optional<Variable*> result = {};
+            std::optional<std::string> result = {};
             if (callEdge->getNumOutputs() == 1) {
-                result = callEdge->outputs().begin()->getVariable();
+                result = find_var(callEdge->outputs().begin()->getVariable())->getName();
             }
             stmts.push_back(ThetaStmt::Call(callEdge->getCalledAutomaton()->getName(), inputs, result));
         }
