@@ -692,6 +692,12 @@ bool BlocksToCfa::tryToEliminate(ValueOrMemoryObject val, Variable* variable, co
         return false;
     }
 
+    if (val.isMemoryObjectDef()) {
+        // TODO: Currently we cannot query the use count for a memory object def, so we just
+        //  disable variable elimination for memory objects.
+        return false;
+    }
+
     // Never eliminate variables obtained from call instructions,
     // as they might be needed to obtain a counterexample.
     if (llvm::isa<llvm::CallInst>(val) || llvm::isa<memory::CallDef>(val)) {

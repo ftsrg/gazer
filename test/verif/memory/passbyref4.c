@@ -16,10 +16,9 @@ int main(void)
     make_symbolic(&b);
     
     __VERIFIER_assume(a < INT_MAX - 2);
+    __VERIFIER_assume(b > 0);
     
-    if (a == 0) {
-        b = a + 1;
-    } else {
+    if (a != 0) {
         b = a + 2;
     }
 
