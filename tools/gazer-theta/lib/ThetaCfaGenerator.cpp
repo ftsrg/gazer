@@ -57,4 +57,5 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
         ThetaCfaProcedureGenerator(mSystem, &cfa, globals).writeCFA(os, nameTrace);
     }
     os << "}\n";
+    os.flush();
 }

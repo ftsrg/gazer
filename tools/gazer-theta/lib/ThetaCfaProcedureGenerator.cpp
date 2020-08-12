@@ -206,5 +206,4 @@ void gazer::ThetaCfaProcedureGenerator::writeCFA(llvm::raw_ostream& os, gazer::t
     }
 
     os << "}\n";
-    os.flush();
 }
