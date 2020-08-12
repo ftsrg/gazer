@@ -17,6 +17,7 @@
 //===----------------------------------------------------------------------===//
 #include "gazer/LLVM/LLVMFrontend.h"
 #include "gazer/LLVM/Instrumentation/DefaultChecks.h"
+#include "gazer/LLVM/Instrumentation/AnnotateSpecialFunctions.h"
 #include "gazer/LLVM/InstrumentationPasses.h"
 #include "gazer/LLVM/Transform/Passes.h"
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
@@ -154,6 +155,9 @@ void LLVMFrontend::registerVerificationPipeline()
 
     // Unify function exit nodes
     mPassManager.add(llvm::createUnifyFunctionExitNodesPass());
+
+    // Unify function exit nodes
+    mPassManager.add(gazer::createAnnotateSpecialFunctionsPass());
 
     // Run assertion lifting.
     if (mSettings.liftAsserts) {

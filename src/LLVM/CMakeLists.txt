@@ -6,6 +6,7 @@ set(SOURCE_FILES
     Transform/BackwardSlicer.cpp
     Transform/Inline.cpp
     Transform/TransformUtils.cpp
+    Instrumentation/AnnotateSpecialFunctions.cpp
     Instrumentation/MarkFunctionEntries.cpp
     Instrumentation/Check.cpp
     Instrumentation/DefaultChecks.cpp
