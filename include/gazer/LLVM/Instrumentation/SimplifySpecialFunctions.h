@@ -1,10 +1,15 @@
 /**
  * @file SimplifySpecialFunctions.h
  *
- * @brief <<Write a short description of the file here. >>
+ * @brief Contains pass which simplifies functions with special properties
  *
- * << Write the detailed description of the file here. >>
+ * Simplifies functions with special properties so analysis can take place.
+ * There are some hard to analyze constructs like pointer handling.
+ * The goal of this pass is to rewrite the function call to easier constructs.
  * 
+ * When certain conditions are met for a function,
+ *   replaces function call with access to a global variable
+ *
  * @author laszlo.radnai
  * @date 2020.08.19.
  * 
@@ -22,9 +27,13 @@ class Pass;
 
 namespace gazer {
 /**
+ * Simplifies functions with special properties so analysis can take place.
+ * There are some hard to analyze constructs like pointer handling.
+ * The goal of this pass is to rewrite the function call to easier constructs.
+ *
  * Simplifies special known, but not implemented functions.
- * 1) When certain conditions are met for a function,
- *       replaces function call with a pre-defined value
+ * When certain conditions are met for a function,
+ *   replaces function call with access to a global variable
  * @return
  */
 llvm::Pass* createSimplifySpecialFunctionsPass();
