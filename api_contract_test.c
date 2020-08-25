@@ -4,7 +4,7 @@ int* FixPtr_First(void);
 int* FixPtr_Second(void);
 void undef_call(void);
 
-int main() {
+int main2() {
     *FixPtr_First() = 5;
 
     // another instance is returned from another function call
@@ -18,4 +18,12 @@ int main() {
     // Side-effects might cause unsound verification.
     undef_call();
 	return 0;
+}
+
+void Enter1(void) __attribute__((used));
+void Exit1(void) __attribute__((used));
+
+int main() {
+    Enter1();
+    Exit1();
 }
