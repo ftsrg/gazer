@@ -146,6 +146,9 @@ void LLVMFrontend::registerVerificationPipeline()
     mPassManager.add(gazer::createNormalizeVerifierCallsPass());
     registerEnabledChecks();
 
+    // mutex check needs a promotion
+    mPassManager.add(llvm::createPromoteMemoryToRegisterPass());
+
     // Execute early optimization passes.
     registerEarlyOptimizations();
 
