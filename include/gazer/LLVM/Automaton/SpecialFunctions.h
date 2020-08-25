@@ -71,7 +71,6 @@ public:
     // Some handlers for common cases
 public:
     static void handleAssume(llvm::ImmutableCallSite cs, llvm2cfa::GenerationStepExtensionPoint& ep);
-
 private:
     llvm::StringMap<SpecialFunctionHandler> mHandlers;
 

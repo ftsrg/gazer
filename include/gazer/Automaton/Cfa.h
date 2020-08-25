@@ -346,7 +346,7 @@ public:
     AutomataSystem& operator=(const AutomataSystem&) = delete;
 
     Variable* createGlobal(
-        std::basic_string<char, std::char_traits<char>, std::allocator<char>> basicString,
+        std::string basicString,
         Type& type);
 
 public:
