@@ -37,6 +37,7 @@ FrontendConfig::FrontendConfig()
     registerCheck("assertion-fail",     &checks::createAssertionFailCheck);
     registerCheck("div-by-zero",        &checks::createDivisionByZeroCheck);
     registerCheck("signed-overflow",    &checks::createSignedIntegerOverflowCheck);
+    registerCheck("mutex",    &checks::createMutexCheck);
 }
 
 void FrontendConfig::registerCheck(llvm::StringRef name, CheckFactory factory)
@@ -83,6 +84,7 @@ void FrontendConfig::createChecks(std::vector<std::unique_ptr<Check>>& checks)
         fragments.push_back("assertion-fail");
         fragments.push_back("div-by-zero");
         fragments.push_back("signed-overflow");
+        fragments.push_back("mutex");
     } else if (filter == AllChecksSetting) {
         // Add all registered checks
         for (auto& [name, factory] : mFactories) {
