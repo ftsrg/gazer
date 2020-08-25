@@ -11,6 +11,7 @@ set(SOURCE_FILES
     Instrumentation/Check.cpp
     Instrumentation/DefaultChecks.cpp
     Instrumentation/Intrinsics.cpp
+    Instrumentation/SimplifySpecialFunctions.cpp
     Trace/TestHarnessGenerator.cpp
     Automaton/ModuleToAutomata.cpp
     Automaton/InstToExpr.cpp
