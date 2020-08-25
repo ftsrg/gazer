@@ -183,6 +183,198 @@ char DivisionByZeroCheck::ID;
 char AssertionFailCheck::ID;
 char SignedIntegerOverflowCheck::ID;
 
+class MutexCheck : public Check
+{
+public:
+    static char ID;
+
+    MutexCheck()
+        : Check(ID)
+    {}
+
+    // TODO duplicate
+    /// for a specific (function;variableName) pair, returns a unique global variable.
+    static GlobalVariable* getOrInsertUniqueGlobal(Module& m,
+                                            Function* functionDecl,
+                                            Type* type,
+                                            StringRef variableName) {
+        return getOrInsertUniqueGlobal(m, functionDecl->getName(), type, variableName);
+    }
+
+    static GlobalVariable* getOrInsertUniqueGlobal(Module& m,
+                                            llvm::Twine functionName,
+                                            Type* type,
+                                            StringRef variableName) {
+        auto fullVariableName = ("gazer.global." + functionName + "." + variableName).str();
+        auto var = m.getOrInsertGlobal(fullVariableName, type,
+                            [&fullVariableName, &m, &type]() -> GlobalVariable* {
+                        return new GlobalVariable(m, type, false,
+                                GlobalVariable::LinkageTypes::InternalLinkage,
+                                UndefValue::get(type),
+                                fullVariableName);
+                    });
+        return static_cast<GlobalVariable*>(var);
+    }
+
+    bool isMutexEnterFunction(llvm::Function* function) {
+        return function->getName().startswith("Enter");
+    }
+
+    static GlobalVariable* enterLockVariable(llvm::Function* function) {
+        auto funcSuffix = function->getName().substr(5);
+        return getOrInsertUniqueGlobal(*(function->getParent()), funcSuffix,
+                IntegerType::getInt1Ty(function->getContext()),
+                "locked");
+    }
+
+    static GlobalVariable* exitLockVariable(llvm::Function* function) {
+        auto funcSuffix = function->getName().substr(4);
+        return getOrInsertUniqueGlobal(*(function->getParent()), funcSuffix,
+                IntegerType::getInt1Ty(function->getContext()),
+                "locked");
+    }
+
+    static void setLockValue(IRBuilder<>& builder, GlobalVariable* lockVariable, bool locked) {
+        builder.CreateStore(builder.getInt1(false), lockVariable, locked);
+    }
+
+    static llvm::Value* unlockedCheck(IRBuilder<>& builder, GlobalVariable* lockVariable) {
+        auto* lockValue = builder.CreateLoad(IntegerType::getInt1Ty(builder.getContext()),
+                lockVariable);
+        return builder.CreateICmpEQ(lockValue, builder.getInt1(false));
+    }
+
+    static llvm::Value* lockedCheck(IRBuilder<>& builder, GlobalVariable* lockVariable) {
+        auto* lockValue = builder.CreateLoad(IntegerType::getInt1Ty(builder.getContext()),
+                lockVariable);
+        return builder.CreateICmpEQ(lockValue, builder.getInt1(true));
+    }
+
+    static bool isMainFunction(llvm::Function& function) {
+        return function.getName() == "main"; // TODO LLVMFrontendSettings knows the main function
+    }
+
+    bool mark(llvm::Function& function) override {
+        if (isMainFunction(function)) {
+
+            llvm::SmallVector<llvm::Function*, 16> enterFunctions;
+            // initialize the lock variable
+            for (llvm::Function& enterFunc: function.getParent()->functions()) {
+                if (isMutexEnterFunction(&enterFunc)) {
+                    enterFunctions.push_back(&enterFunc);
+                }
+            }
+
+            for (llvm::Function* enterFunc : enterFunctions) {
+                IRBuilder<> irbuilder(function.getContext());
+                auto* global = enterLockVariable(enterFunc);
+                irbuilder.SetInsertPoint(&(function.getEntryBlock()), function.getEntryBlock().begin());
+                setLockValue(irbuilder, global, false);
+            }
+
+            llvm::SmallVector<llvm::BasicBlock*, 16> exitBlocks;
+            // assert that at the end nothing is locked.
+            for (llvm::BasicBlock& bb : function) {
+                // exit node; UnreachableInst would be unreachable anyways...
+                if (llvm::isa<llvm::ReturnInst>(bb.getTerminator())) {
+                    exitBlocks.push_back(&bb);
+                }
+            }
+            for (auto* enterFunc: enterFunctions) {
+                for (auto* bb : exitBlocks) {
+                    // add check to the last non-terminator instruction
+                    IRBuilder<> builder(function.getContext());
+                    auto* global = enterLockVariable(enterFunc);
+
+                    auto* errorBB = createErrorBlock(function, "err.mutex", bb->getTerminator());
+
+                    // insert check
+                    builder.SetInsertPoint(bb->getTerminator());
+                    auto* check = unlockedCheck(builder, global);
+
+                    // create new block with the old terminator (cloned)
+                    auto * newBB = llvm::BasicBlock::Create(builder.getContext(), "", &function);
+                    auto * clonedTerminator = bb->getTerminator()->clone();
+                    builder.SetInsertPoint(newBB, newBB->begin());
+                    builder.Insert(clonedTerminator);
+
+                    // replace old terminator with branching on the check
+                    builder.ClearInsertionPoint();
+                    llvm::ReplaceInstWithInst(
+                        bb->getTerminator(),
+                        builder.CreateCondBr(check, newBB, errorBB)
+                    );
+                }
+            }
+        }
+        llvm::SmallVector<llvm::CallInst*, 16> enters;
+        llvm::SmallVector<llvm::CallInst*, 16> exits;
+
+        for (Instruction& inst : instructions(function)) {
+            if (auto* call = dyn_cast<CallInst>(&inst)) {
+                if (isMutexEnterFunction(call->getCalledFunction())) {
+                    enters.push_back(call);
+                }
+                if (call->getCalledFunction()->getName().startswith("Exit")) {
+                    exits.push_back(call);
+                }
+            }
+        }
+
+        for (CallInst* inst : enters) {
+            auto* bb = inst->getParent();
+            auto* errorBB = createErrorBlock(function, "err.mutex", inst);
+            auto* global = enterLockVariable(inst->getCalledFunction());
+            IRBuilder<> builder(function.getContext());
+            auto* newBB = bb->splitBasicBlock(inst, "");
+            builder.SetInsertPoint(bb->getTerminator());
+
+            auto* check = unlockedCheck(builder, global);
+
+            builder.ClearInsertionPoint();
+            llvm::ReplaceInstWithInst(
+                bb->getTerminator(),
+                builder.CreateCondBr(check, newBB, errorBB)
+            );
+
+            builder.SetInsertPoint(inst);
+            builder.CreateStore(builder.getInt1(true), global);
+
+            inst->dropAllReferences();
+            inst->eraseFromParent();
+        }
+
+        for (CallInst* inst : exits) {
+
+            auto* bb = inst->getParent();
+            auto* errorBB = createErrorBlock(function, "err.mutex", inst);
+            auto* global = exitLockVariable(inst->getCalledFunction());
+            IRBuilder<> builder(function.getContext());
+            auto* newBB = bb->splitBasicBlock(inst, "");
+            builder.SetInsertPoint(bb->getTerminator());
+
+            auto* check = lockedCheck(builder, global);
+
+            builder.ClearInsertionPoint();
+            llvm::ReplaceInstWithInst(
+                bb->getTerminator(),
+                builder.CreateCondBr(check, newBB, errorBB)
+            );
+
+            builder.SetInsertPoint(inst);
+            builder.CreateStore(builder.getInt1(false), global);
+
+            inst->dropAllReferences();
+            inst->eraseFromParent();
+        }
+        return true;//!enters.empty() || !exits.empty();
+    }
+
+    llvm::StringRef getErrorDescription() const override { return "Bad mutex usage"; }
+};
+
+char MutexCheck::ID;
+
 } // end anonymous namespace
 
 bool SignedIntegerOverflowCheck::isOverflowIntrinsic(llvm::Function* callee, GazerIntrinsic::Overflow* ovrKind)
@@ -320,4 +512,9 @@ std::unique_ptr<Check> gazer::checks::createSignedIntegerOverflowCheck(ClangOpti
 {
     options.addSanitizerFlag("signed-integer-overflow");
     return std::make_unique<SignedIntegerOverflowCheck>();
+}
+
+std::unique_ptr<Check> gazer::checks::createMutexCheck(ClangOptions& options)
+{
+    return std::make_unique<MutexCheck>();
 }
