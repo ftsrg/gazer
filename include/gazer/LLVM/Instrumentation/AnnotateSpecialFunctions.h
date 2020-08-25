@@ -34,10 +34,16 @@
 #ifndef SRC_LLVM_INSTRUMENTATION_ANNOTATESPECIALFUNCTIONS_H_
 #define SRC_LLVM_INSTRUMENTATION_ANNOTATESPECIALFUNCTIONS_H_
 
-#include <llvm/Pass.h>
+namespace llvm {
+class Pass;
+}
 
 namespace gazer {
-llvm::Pass* createAnnotateSpecialFunctionsPass();
+/**
+ * Returns analysis pass which annotates known functions for use in SimplifySpecialFunctions.
+ * TODO currently known functions are based on name patterns (FixPtr* functions are annotated).
+ */
+char& getAnnotateSpecialFunctionsID();
 }
 
 #endif /* SRC_LLVM_INSTRUMENTATION_ANNOTATESPECIALFUNCTIONS_H_ */

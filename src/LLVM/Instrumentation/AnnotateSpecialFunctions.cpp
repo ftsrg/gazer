@@ -19,18 +19,18 @@
 #include "gazer/LLVM/Instrumentation/AnnotateSpecialFunctions.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
-//#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
 
 using namespace llvm;
 
 namespace {
+
+// TODO use this only to mark functions, add a Checks pass that watch for the attributes/marked functions
 class AnnotateSpecialFunctionsPass : public ModulePass {
 public:
-    AnnotateSpecialFunctionsPass() : ModulePass(ID) {
-
-    }
+    AnnotateSpecialFunctionsPass() : ModulePass(ID) {}
 
     bool runOnModule(Module& m) override {
         bool res = false;
@@ -54,22 +54,32 @@ public:
     static char ID;
 
 private:
+
     bool processInstruction(Module& m, CallInst& inst) {
-        // known function
+        auto enterExitCounterType = Type::getInt32Ty(m.getContext());
+        // known API functions
         if (inst.getCalledFunction()->getName().startswith("FixPtr")) {
             auto varName = ("gazer." + inst.getCalledFunction()->getName()).str();
-            // TODO assert definition is like "type* FixPtr()"
-            auto resType = inst.getCalledFunction()->getReturnType()->getPointerElementType();
-            auto var = m.getOrInsertGlobal(varName, resType,
-                    [&varName, &m, &resType]() -> GlobalVariable* {
-                return new GlobalVariable(m, resType, false,
-                        GlobalVariable::LinkageTypes::InternalLinkage,
-                        UndefValue::get(resType),
-                        varName);
-            });
-            inst.replaceAllUsesWith(var);
-            inst.dropAllReferences();
-            inst.eraseFromParent();
+
+            bool ok = true;
+            if (inst.getNumArgOperands() != 0) {
+                m.getContext().emitError(&inst, "FixPtr calls must have zero parameters\n");
+                ok = false;
+                // do not return for more checks
+            }
+            if (!inst.getFunctionType()->getReturnType()->isPointerTy()) {
+                m.getContext().emitError(&inst, "FixPtr calls must have pointer return type\n");
+                ok = false;
+            }
+            if (!ok) {
+                // no change
+                return false;
+            }
+
+            inst.setDoesNotAccessMemory();
+            inst.getCalledFunction()->setSpeculatable();
+            inst.getCalledFunction()->setDoesNotAccessMemory();
+            inst.getCalledFunction()->setReturnDoesNotAlias();
             return true;
         }
         // known intrinsics
@@ -77,7 +87,7 @@ private:
                 inst.getCalledFunction()->getName().startswith("llvm.")) {
             return false;
         }
-        llvm::errs() << "WARNING: unknown function " << *(inst.getCalledFunction()) << "\n";
+        errs() << "WARNING: unknown function " << *(inst.getCalledFunction()) << "\n";
         return false;
     }
 
@@ -86,8 +96,13 @@ private:
 
 char AnnotateSpecialFunctionsPass::ID;
 
-static RegisterPass<AnnotateSpecialFunctionsPass> X("annot-spec-functions", "annot-spec-functions", false, false);
+char& gazer::getAnnotateSpecialFunctionsID() {
+    return AnnotateSpecialFunctionsPass::ID;
+}
 
+static RegisterPass<AnnotateSpecialFunctionsPass> X("annot-spec-functions", "annot-spec-functions", false, true);
+/*
 llvm::Pass* gazer::createAnnotateSpecialFunctionsPass() {
     return new AnnotateSpecialFunctionsPass();
 }
+*/
