@@ -27,7 +27,6 @@ using namespace llvm;
 
 namespace {
 
-// TODO use this only to mark functions, add a Checks pass that watch for the attributes/marked functions
 class AnnotateSpecialFunctionsPass : public ModulePass {
 public:
     AnnotateSpecialFunctionsPass() : ModulePass(ID) {}
