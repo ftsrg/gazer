@@ -160,7 +160,7 @@ public:
 /// Checks for over- and underflow in signed integer operations.
 class SignedIntegerOverflowCheck : public Check
 {
-    static constexpr char IntrinsicPattern[] = "^llvm.(u|s)(add|sub|mul).with.overflow.i([0-9]+)$";
+    static constexpr char IntrinsicPattern[] = "^llvm\\.(u|s)(add|sub|mul)\\.with\\.overflow\\.i([0-9]+)$";
 public:
     static char ID;
 
