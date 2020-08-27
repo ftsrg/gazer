@@ -1,6 +1,9 @@
 # Contributors to the Gazer project
 
 * [Gyula Sallai](https://github.com/sallaigy/): Design and initial implementation.
+* [Ákos Hajdu](https://hajduakos.github.io/): Advisor.
+* Ádám Zsófia
+* László Radnai
 
 # Dependencies
 
