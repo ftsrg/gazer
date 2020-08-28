@@ -17,7 +17,7 @@ addons:
     - python3-setuptools
     - python3-psutil
 env:
-- THETA_VERSION="v1.6.0"
+- THETA_VERSION="v1.7.0"
 script:
 # fetch LLVM and other dependencies
 - wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
