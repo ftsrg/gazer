@@ -181,7 +181,7 @@ struct PrintVisitor
         auto prefix = result.has_value() ? result.value() + llvm::Twine(" := ") : "";
 
         // TODO main -> xmain temp solution
-        mOS << prefix << "call x" << std::get<0>(call) << "(";
+        mOS << prefix << "call " << std::get<0>(call) << "(";
         bool first = true;
         for (const auto& param : std::get<1>(call)) {
             if (first) {

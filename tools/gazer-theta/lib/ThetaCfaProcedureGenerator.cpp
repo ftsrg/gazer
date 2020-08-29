@@ -167,7 +167,8 @@ void gazer::ThetaCfaProcedureGenerator::writeCFA(llvm::raw_ostream& os, gazer::t
         os << "main ";
     }
     // TODO main -> xmain temp solution
-    os << "procedure x" << cfa->getName() << "(";
+    std::string cfaName = gazer::theta::validName(cfa->getName(), [](const std::string& x) {return true;});
+    os << "procedure " << cfaName << "(";
     bool first = true;
     for (auto& input : cfa->inputs()) {
         if (first) {
