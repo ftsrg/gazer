@@ -1,8 +1,12 @@
 main process __gazer_main_process {
     var main_RET_VAL : int
     var main_tmp : int
+    var main__01 : int
     var main_error_phi : int
     var main___gazer_error_field : int
+    var main_main_bb2__01_inlined0 : int
+    var main_main_bb2__0_inlined0 : int
+    var main_main_bb2_tmp_inlined0 : int
     init loc loc0
     final loc loc1
     loc loc2
@@ -11,7 +15,17 @@ main process __gazer_main_process {
     loc loc5
     loc loc6
     loc loc7
-    error loc loc8
+    loc loc8
+    loc loc9
+    loc loc10
+    error loc loc11
+    loc loc12
+    loc loc13
+    loc loc14
+    loc loc15
+    loc loc16
+    loc loc17
+    loc loc18
     loc0 -> loc2 {
     }
 
@@ -19,31 +33,72 @@ main process __gazer_main_process {
         havoc main_tmp
     }
 
-    loc3 -> loc6 {
-        assume ((if (main_tmp <= 0) then 0 else main_tmp) = 0)
-        main_error_phi := 2
-    }
-
-    loc3 -> loc4 {
-        assume (not ((if (main_tmp <= 0) then 0 else main_tmp) = 0))
+    loc10 -> loc4 {
     }
 
     loc4 -> loc5 {
     }
 
-    loc5 -> loc1 {
-        main_RET_VAL := 0
+    loc5 -> loc6 {
+        assume (not (main__01 = 0))
+    }
+
+    loc5 -> loc8 {
+        assume (not (not (main__01 = 0)))
+        main_error_phi := 2
     }
 
     loc6 -> loc7 {
     }
 
     loc7 -> loc1 {
+        main_RET_VAL := 0
+    }
+
+    loc8 -> loc9 {
+    }
+
+    loc9 -> loc1 {
         assume false
     }
 
-    loc7 -> loc8 {
+    loc9 -> loc11 {
         main___gazer_error_field := main_error_phi
+    }
+
+    loc12 -> loc14 {
+    }
+
+    loc14 -> loc15 {
+    }
+
+    loc15 -> loc16 {
+        assume (not (main_main_bb2_tmp_inlined0 <= main_main_bb2__0_inlined0))
+    }
+
+    loc15 -> loc13 {
+        assume (not (not (main_main_bb2_tmp_inlined0 <= main_main_bb2__0_inlined0)))
+        main__01 := main_main_bb2__01_inlined0
+    }
+
+    loc16 -> loc17 {
+    }
+
+    loc17 -> loc18 {
+    }
+
+    loc18 -> loc12 {
+        main_main_bb2__01_inlined0 := (main_main_bb2__01_inlined0 + 1)
+        main_main_bb2__0_inlined0 := (main_main_bb2__0_inlined0 + 1)
+    }
+
+    loc3 -> loc12 {
+        main_main_bb2__01_inlined0 := 0
+        main_main_bb2__0_inlined0 := 0
+        main_main_bb2_tmp_inlined0 := main_tmp
+    }
+
+    loc13 -> loc10 {
     }
 
 }
