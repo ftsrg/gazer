@@ -122,12 +122,18 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
 
     std::string javaLibPath = ("-Djava.library.path=" + z3Path).str();
 
+    std::string inputs = input;
+    for (auto& x : mSettings.xcfas) {
+        inputs += "," + mSettings.xcfaDir + x;
+    }
+    llvm::errs() << inputs;
+
     std::vector<llvm::StringRef> args = {
         "java",
         javaLibPath,
         "-jar",
         thetaPath,
-        "--model", input,
+        "--model", inputs,
         "--domain",  mSettings.domain,
         "--encoding", mSettings.encoding,
         "--initprec", mSettings.initPrec,

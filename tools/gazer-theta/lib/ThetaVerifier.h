@@ -21,6 +21,8 @@
 #include "gazer/Automaton/Cfa.h"
 #include "gazer/Verifier/VerificationAlgorithm.h"
 
+#include <vector>
+
 namespace gazer::theta
 {
 
@@ -31,6 +33,9 @@ struct ThetaSettings
     std::string thetaLibPath;
     unsigned timeout = 0;
     std::string modelPath;
+
+    std::string xcfaDir;
+    std::vector<std::string> xcfas;
 
     // Algorithm settings
     std::string domain;
