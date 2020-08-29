@@ -91,7 +91,9 @@ public:
     LLVMFrontendSettings& getSettings() { return config.getSettings(); }
 
 private:
-    llvm::llvm_shutdown_obj mShutdown; // This should be kept as first, will be destroyed last
+    // We will run LLVM multiple times and use different FrontendConfigWrappers.
+    // TODO removing this breaks the normal usage.
+    //llvm::llvm_shutdown_obj mShutdown;
 public:
     llvm::LLVMContext llvmContext;
     GazerContext context;
