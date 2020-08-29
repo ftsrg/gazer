@@ -183,6 +183,7 @@ char DivisionByZeroCheck::ID;
 char AssertionFailCheck::ID;
 char SignedIntegerOverflowCheck::ID;
 
+/// Unused check for mutex
 class MutexCheck : public Check
 {
 public:
@@ -251,6 +252,7 @@ public:
     }
 
     static bool isMainFunction(llvm::Function& function) {
+        // TODO global ctor/dtor??
         return function.getName() == "main"; // TODO LLVMFrontendSettings knows the main function
     }
 

@@ -32,7 +32,7 @@ namespace gazer::checks
     std::unique_ptr<Check> createSignedIntegerOverflowCheck(ClangOptions& options);
 
     /// This check fails if a non-reentrant mutex has bad usage.
-    /// TODO initialization and clean-up are a problem.
+    /// Unused
     std::unique_ptr<Check> createMutexCheck(ClangOptions& options);
 
 } // end namespace gazer::checks
