@@ -315,10 +315,12 @@ AutomataSystem::AutomataSystem(GazerContext &context)
     : mContext(context)
 {}
 
-Cfa *AutomataSystem::createCfa(std::string name)
+Cfa *AutomataSystem::createCfa(std::string name, bool register_cfa)
 {
     Cfa* cfa = new Cfa(mContext, name, *this);
-    mAutomata.emplace_back(cfa);
+    if (register_cfa) {
+        mAutomata.emplace_back(cfa);
+    }
 
     return cfa;
 }

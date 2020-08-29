@@ -48,7 +48,7 @@ public:
         void addCall(CallTransition* call, Node* node)
         {
             assert(call != nullptr);
-            assert(node != nullptr);
+            if (node == nullptr) { return; }
 
             mCallsToOthers.emplace_back(call, node);
             node->mCallsToThis.emplace_back(call);

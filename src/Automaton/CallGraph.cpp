@@ -43,7 +43,8 @@ CallGraph::CallGraph(AutomataSystem& system)
 
 bool CallGraph::isTailRecursive(Cfa* cfa)
 {
-    auto& node = mNodes[cfa];
+    return false;
+    /*auto& node = mNodes[cfa];
 
     bool isRecursive = false;
     bool isTail = true;
@@ -58,7 +59,7 @@ bool CallGraph::isTailRecursive(Cfa* cfa)
         }
     }
 
-    return isRecursive && isTail;
+    return isRecursive && isTail;*/
 }
 
 auto CallGraph::lookupNode(Cfa* cfa) -> Node*

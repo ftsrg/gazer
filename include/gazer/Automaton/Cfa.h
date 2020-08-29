@@ -350,7 +350,7 @@ public:
         Type& type);
 
 public:
-    Cfa* createCfa(std::string name);
+    Cfa* createCfa(std::string name, bool register_cfa = true);
 
     using iterator = boost::indirect_iterator<std::vector<std::unique_ptr<Cfa>>::iterator>;
     using const_iterator = boost::indirect_iterator<std::vector<std::unique_ptr<Cfa>>::const_iterator>;

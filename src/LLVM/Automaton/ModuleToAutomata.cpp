@@ -250,12 +250,14 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
 
     // Encode all loops and functions
     for (auto& [source, genInfo] : mGenCtx.procedures()) {
-        LLVM_DEBUG(llvm::dbgs() << "Encoding function CFA " << genInfo.Automaton->getName() << "\n");
+        if (!genInfo.getSourceFunction()->isDeclaration()){
+            LLVM_DEBUG(llvm::dbgs() << "Encoding function CFA " << genInfo.Automaton->getName() << "\n");
 
-        BlocksToCfa blocksToCfa(mGenCtx, genInfo, *mExprBuilder);
+            BlocksToCfa blocksToCfa(mGenCtx, genInfo, *mExprBuilder);
 
-        // Do the actual encoding.
-        blocksToCfa.encode();
+            // Do the actual encoding.
+            blocksToCfa.encode();
+        }
     }
 
     // CFAs must be connected graphs. Remove unreachable components now.
@@ -563,83 +565,91 @@ void BlocksToCfa::encode()
 bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Location* exit, std::vector<VariableAssignment>& previousAssignments)
 {
     Function* callee = call->getCalledFunction();
-    if (callee == nullptr) {
-        // We do not support indirect calls yet.
-        return false;
-    }
+    assert(callee != nullptr && "Indirect calls are unsupported");
     
     // Create an extension point to handle the call
     auto callerEP = this->createExtensionPoint(previousAssignments, entry, &exit);
 
-    if (!callee->isDeclaration()) {
-        CfaGenInfo& calledAutomatonInfo = mGenCtx.getFunctionCfa(callee);
-        Cfa* calledCfa = calledAutomatonInfo.Automaton;
-        assert(calledCfa != nullptr && "The callee automaton must exist in a function call!");
-        
-        // Split the current transition here and create a call.
-        Location* callBegin = mCfa->createLocation();
-        Location* callEnd = mCfa->createLocation();
-
-        mCfa->createAssignTransition(*entry, callBegin, previousAssignments);
-        previousAssignments.clear();
-
-        llvm::SmallVector<VariableAssignment, 4> inputs;
-        llvm::SmallVector<VariableAssignment, 4> outputs;
-        std::vector<VariableAssignment> additionalAssignments;
-
-        // Insert regular LLVM IR arguments.
-        llvm::SmallVector<llvm::Argument*, 4> arguments;
-        for (llvm::Argument& arg : callee->args()) {
-            arguments.push_back(&arg);
-        }
-
-        for (size_t i = 0; i < call->getNumArgOperands(); ++i) {
-            ExprPtr expr = this->operand(call->getArgOperand(i));
-            Variable* input = calledAutomatonInfo.findInput(arguments[i]);
-            assert(input != nullptr && "Function arguments should be present as procedure inputs!");
-
-            inputs.emplace_back(input, expr);
-        }
-
-        // Insert arguments coming from the memory model.
-        AutomatonInterfaceExtensionPoint calleeEP(calledAutomatonInfo);
-
-        // FIXME: This const_cast is needed because the memory model interface must
-        // take a mutable call site as ImmutableCallSite objects cannot be put into
-        // a map properly. This should be removed as soon as something about that changes.
-        mMemoryInstHandler.handleCall(const_cast<llvm::CallInst*>(call), callerEP, calleeEP, inputs, outputs);
-
-        if (!callee->getReturnType()->isVoidTy()) {
-            Variable* variable = getVariable(call);
-
-            // Find the return variable of this function.                        
-            Variable* retval = mGenCtx.getFunctionCfa(callee).ReturnVariable;
-            assert(retval != nullptr && "A non-void function must have a return value!");
-            
-            outputs.emplace_back(variable, retval->getRefExpr());
-        }
-
-        mCfa->createCallTransition(callBegin, callEnd, calledCfa, inputs, outputs);
-
-        // Continue the translation from the end location of the call.
-        *entry = callEnd;
-
-        // Do not generate an assignment for this call.
-        return false;
-    }
-    
-    if (callee->getName() == CheckRegistry::ErrorFunctionName) {
+    if (callee->isDeclaration() && callee->getName() == CheckRegistry::ErrorFunctionName) {
         assert(exit->isError() && "The target location of a 'gazer.error_code' call must be an error location!");
-        
+
         llvm::Value* arg = call->getArgOperand(0);
         ExprPtr errorCodeExpr = operand(arg);
         mCfa->addErrorCode(exit, errorCodeExpr);
-    } else {
+        return true;
+    } else if (callee->isDeclaration()) {
         // Try to handle this value as a special function.
-        mGenCtx.getSpecialFunctions().handle(call, callerEP);
+        if (mGenCtx.getSpecialFunctions().handle(call, callerEP)) {
+            return true;
+        }
     }
 
-    return true;
+    if (callee->getName().startswith("gazer.")) {
+        return true;
+    }
+
+    if (!mGenCtx.hasInfoFor(callee)) {
+        Cfa* calledCfa = (*entry)->getAutomaton()->getParent().createCfa(callee->getName(), false);
+        auto& it = mGenCtx.createFunctionCfaInfo(calledCfa, callee);
+    }
+
+    // If there is a declaration or there is no special function to handle, generate a call
+    CfaGenInfo& calledAutomatonInfo = mGenCtx.getFunctionCfa(callee);
+    Cfa* calledCfa = calledAutomatonInfo.Automaton;
+
+
+    // Split the current transition here and create a call.
+    Location* callBegin = mCfa->createLocation();
+    Location* callEnd = mCfa->createLocation();
+
+    mCfa->createAssignTransition(*entry, callBegin, previousAssignments);
+    previousAssignments.clear();
+
+    llvm::SmallVector<VariableAssignment, 4> inputs;
+    llvm::SmallVector<VariableAssignment, 4> outputs;
+    std::vector<VariableAssignment> additionalAssignments;
+
+    // Insert regular LLVM IR arguments.
+    llvm::SmallVector<llvm::Argument*, 4> arguments;
+    for (llvm::Argument& arg : callee->args()) {
+        arguments.push_back(&arg);
+    }
+
+    llvm::errs() << call->getNumArgOperands() << "\n";
+    llvm::errs() << callee->getName() << "\n";
+    for (size_t i = 0; i < call->getNumArgOperands(); ++i) {
+        ExprPtr expr = this->operand(call->getArgOperand(i));
+        Variable* input = calledAutomatonInfo.findInput(arguments[i]);
+        assert(input != nullptr && "Function arguments should be present as procedure inputs!");
+
+        inputs.emplace_back(input, expr);
+    }
+
+    // Insert arguments coming from the memory model.
+    AutomatonInterfaceExtensionPoint calleeEP(calledAutomatonInfo);
+
+    // FIXME: This const_cast is needed because the memory model interface must
+    // take a mutable call site as ImmutableCallSite objects cannot be put into
+    // a map properly. This should be removed as soon as something about that changes.
+    mMemoryInstHandler.handleCall(const_cast<llvm::CallInst*>(call), callerEP, calleeEP, inputs, outputs);
+
+    if (!callee->getReturnType()->isVoidTy()) {
+        Variable* variable = getVariable(call);
+
+        // Find the return variable of this function.
+        Variable* retval = mGenCtx.getFunctionCfa(callee).ReturnVariable;
+        assert(retval != nullptr && "A non-void function must have a return value!");
+
+        outputs.emplace_back(variable, retval->getRefExpr());
+    }
+
+    mCfa->createCallTransition(callBegin, callEnd, calledCfa, inputs, outputs);
+
+    // Continue the translation from the end location of the call.
+    *entry = callEnd;
+
+    // Do not generate an assignment for this call.
+    return false;
 }
 
 void BlocksToCfa::handleTerminator(const llvm::BasicBlock* bb, Location* entry, Location* exit)

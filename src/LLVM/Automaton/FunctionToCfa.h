@@ -247,6 +247,12 @@ public:
     CfaToLLVMTrace& getTraceInfo() { return mTraceInfo; }
     const SpecialFunctions& getSpecialFunctions() const { return mSpecialFunctions; }
 
+    bool hasInfoFor(llvm::Function* function)
+    {
+        auto it = mProcedures.find(function);
+        return it != mProcedures.end();
+    }
+
 private:
     CfaGenInfo& getInfoFor(VariantT key)
     {
