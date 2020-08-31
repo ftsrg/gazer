@@ -23,72 +23,62 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Debug.h"
 
+#include <unordered_set>
+
 using namespace llvm;
+
+// Implemented by gazer-theta-re.cpp :'(
+// TODO This is ugly
+__attribute__((weak)) std::vector<std::string> getAnnotationsFor(std::string functionName) {
+    return {};
+}
+//extern std::vector<std::string> getAnnotationsFor(std::string functionName);
 
 namespace {
 
 class AnnotateSpecialFunctionsPass : public ModulePass {
+    std::unordered_set<Function*> fixptrs;
 public:
     AnnotateSpecialFunctionsPass() : ModulePass(ID) {}
 
-    bool runOnModule(Module& m) override {
-        bool res = false;
-        SmallVector<CallInst*, 16> toProcess;
-        for (auto& f : m.functions()) {
-            for (auto& bb: f) {
-                for (auto& inst : bb) {
-                    if (auto* callInst = dyn_cast<CallInst>(&inst)) {
-                        toProcess.push_back(callInst);
-                    }
+    bool runOnModule(llvm::Module& m) override {
+        for (auto& f: m.functions()) {
+            processFunction(f);
+        }
+        return true;
+    }
+
+    bool processFunction(Function& func) {
+        for (std::string annot : getAnnotationsFor(func.getName())) {
+            if (annot == "fixptr") {
+                bool ok = true;
+                if (func.arg_size() != 0) {
+                    func.getContext().emitError("FixPtr calls must have zero parameters\n");
+                    ok = false;
+                    // do not return for more checks
                 }
+                if (!func.getFunctionType()->getReturnType()->isPointerTy()) {
+                    func.getContext().emitError("FixPtr calls must have pointer return type\n");
+                    ok = false;
+                }
+                if (!ok) {
+                    // no change
+                    return false;
+                }
+
+                //fixptrs.insert(&func);
+
+                func.setSpeculatable();
+                func.setDoesNotAccessMemory();
+                func.setReturnDoesNotAlias();
+                return true; // TODO what happens with multiple annotations on a single call?
             }
         }
-        for (auto* callInst : toProcess) {
-            res |= processInstruction(m, *callInst);
-        }
-        return res;
+        return false;
     }
 
 public:
     static char ID;
-
-private:
-
-    bool processInstruction(Module& m, CallInst& inst) {
-        auto enterExitCounterType = Type::getInt32Ty(m.getContext());
-        // known API functions
-        if (inst.getCalledFunction()->getName().startswith("FixPtr")) {
-            auto varName = ("gazer." + inst.getCalledFunction()->getName()).str();
-
-            bool ok = true;
-            if (inst.getNumArgOperands() != 0) {
-                m.getContext().emitError(&inst, "FixPtr calls must have zero parameters\n");
-                ok = false;
-                // do not return for more checks
-            }
-            if (!inst.getFunctionType()->getReturnType()->isPointerTy()) {
-                m.getContext().emitError(&inst, "FixPtr calls must have pointer return type\n");
-                ok = false;
-            }
-            if (!ok) {
-                // no change
-                return false;
-            }
-
-            inst.setDoesNotAccessMemory();
-            inst.getCalledFunction()->setSpeculatable();
-            inst.getCalledFunction()->setDoesNotAccessMemory();
-            inst.getCalledFunction()->setReturnDoesNotAlias();
-            return true;
-        }
-        // known intrinsics
-        if (inst.getCalledFunction()->getName().startswith("gazer.") ||
-                inst.getCalledFunction()->getName().startswith("llvm.")) {
-            return false;
-        }
-        errs() << "WARNING: unknown function " << *(inst.getCalledFunction()) << "\n";
-        return false;
-    }
 
 };
 }
