@@ -1,1 +1,7 @@
-re_test ea_stub.xcfa
+re_test_ok ea_stub.xcfa
+re_test_ok_empty ea_stub.xcfa
+re_test_ok_double ea_stub.xcfa
+re_test_no_enter ea_stub.xcfa
+re_test_no_exit ea_stub.xcfa
+re_test_double_enter ea_stub.xcfa
+re_test_double_exit ea_stub.xcfa

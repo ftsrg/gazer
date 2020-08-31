@@ -2,8 +2,8 @@ main process main_process {
 	var locked__test : bool
 	procedure Enter_test() {
 		init loc L0
-		error loc L1
-		final loc LE
+		final loc L1
+		error loc LE
 		L0 -> L1 {
 			assume not locked__test
 			locked__test := true
@@ -14,20 +14,22 @@ main process main_process {
 	}
 	procedure Exit_test() {
 		init loc L0
-		error loc L1
-		final loc LE
+		final loc L1
+		error loc LE
 		L0 -> L1 {
 			assume locked__test
 			locked__test := false
 		}
 		L0 -> LE {
-			assume locked__test
+			assume not locked__test
 		}
 	}
 	procedure ctor_locked__test() {
 		init loc L0
 		final loc L1
-		L0 -> L1 { }
+		L0 -> L1 {
+			locked__test := false
+		}
 	}
 	procedure dtor_locked__test() {
 		init loc L0
