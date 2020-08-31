@@ -615,8 +615,6 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
         arguments.push_back(&arg);
     }
 
-    llvm::errs() << call->getNumArgOperands() << "\n";
-    llvm::errs() << callee->getName() << "\n";
     for (size_t i = 0; i < call->getNumArgOperands(); ++i) {
         ExprPtr expr = this->operand(call->getArgOperand(i));
         Variable* input = calledAutomatonInfo.findInput(arguments[i]);
