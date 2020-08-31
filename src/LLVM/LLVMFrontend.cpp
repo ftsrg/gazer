@@ -146,7 +146,8 @@ void LLVMFrontend::registerVerificationPipeline()
     mPassManager.add(gazer::createNormalizeVerifierCallsPass());
     registerEnabledChecks();
 
-    // mutex check needs a promotion
+    // Simplify special functions
+    mPassManager.add(gazer::createSimplifySpecialFunctionsPass());
     mPassManager.add(llvm::createPromoteMemoryToRegisterPass());
 
     // Execute early optimization passes.
@@ -158,9 +159,6 @@ void LLVMFrontend::registerVerificationPipeline()
 
     // Unify function exit nodes
     mPassManager.add(llvm::createUnifyFunctionExitNodesPass());
-
-    // Simplify special functions
-    mPassManager.add(gazer::createSimplifySpecialFunctionsPass());
 
     // Run assertion lifting.
     if (mSettings.liftAsserts) {
