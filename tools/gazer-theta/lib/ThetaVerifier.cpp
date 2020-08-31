@@ -126,7 +126,6 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
     for (auto& x : mSettings.xcfas) {
         inputs += "," + mSettings.xcfaDir + x;
     }
-    llvm::errs() << inputs;
 
     std::vector<llvm::StringRef> args = {
         "java",
