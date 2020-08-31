@@ -20,6 +20,19 @@
 using namespace gazer;
 using namespace llvm;
 
+namespace {
+    std::map<std::string, std::vector<std::string>> currentAnnotations;
+}
+
+/// used by AnnotateSpecialFunctionsPass (rip)
+std::vector<std::string> getAnnotationsFor(std::string functionName) {
+    auto it = currentAnnotations.find(functionName);
+    if (it == currentAnnotations.end()) {
+        return std::vector<std::string>();
+    }
+    return it->second;
+}
+
 namespace
 {
 
@@ -76,6 +89,19 @@ namespace gazer
 
 static theta::ThetaSettings initSettingsFromCommandLine();
 
+namespace {
+
+/// removes leftover newlines, problem on cross-platform installations
+int good_getline(std::istream& ifs, std::string& tmp) {
+    if (!std::getline(ifs, tmp)) {
+        return 0;
+    }
+    if (tmp.size() && tmp[tmp.size()-1] == '\r' ) {
+        tmp = tmp.substr( 0, tmp.size() - 1 );
+    }
+    return 1;
+}
+
 std::vector<std::string> runnables() {
     const std::string target_path(InputFilename + "/src/");
     const boost::regex my_filter(".*\\.c");
@@ -97,7 +123,8 @@ std::vector<std::string> runnables() {
     return std::move(all_matching_files);
 }
 
-using AnnotationMap = std::map<std::string, std::vector<std::string>>;
+// Runnable -> {Function -> [Annotation]}
+using AnnotationMap = std::map<std::string, std::map<std::string, std::vector<std::string>>>;
 
 AnnotationMap annotations() {
 
@@ -107,7 +134,7 @@ AnnotationMap annotations() {
     std::vector<std::string> lines;
     {
         std::string tmp;
-        while (std::getline(ifs, tmp)) {
+        while (good_getline(ifs, tmp)) {
             lines.push_back(std::move(tmp));
         }
     }
@@ -121,9 +148,11 @@ AnnotationMap annotations() {
         if (tokens.size() == 0) {
             continue;
         }
-        auto& re = tokens[0];
-        std::vector<std::string> annotations(std::next(tokens.begin()), tokens.end());
-        result[re] = annotations;
+        auto& func = tokens[0];
+        auto& re = tokens[1];
+        std::vector<std::string> annotations(tokens.begin()+2, tokens.end());
+        result.try_emplace(re);
+        result[re][func] = annotations;
     }
     return result;
 }
@@ -138,7 +167,7 @@ XcfaMap xcfas() {
     std::vector<std::string> lines;
     {
         std::string tmp;
-        while (std::getline(ifs, tmp)) {
+        while (good_getline(ifs, tmp)) {
             lines.push_back(std::move(tmp));
         }
     }
@@ -154,10 +183,11 @@ XcfaMap xcfas() {
         }
         auto& re = tokens[0];
         std::vector<std::string> xcfas(std::next(tokens.begin()), tokens.end());
-        llvm::errs() << xcfas[0] << "\n";
         result[re] = xcfas;
     }
     return result;
+}
+
 }
 
 int main(int argc, char* argv[])
@@ -210,13 +240,10 @@ int main(int argc, char* argv[])
 
     for (auto& runnable : runnableList) {
         std::string file = InputFilename + "/src/" + runnable + ".c";
-        llvm::errs() << "Runnable " << runnable << " has file " << file << "\n";
         // Find matching annotations
         auto it = annots.find(runnable);
         if (it != annots.end()) {
-            for (auto annot : it->second) {
-                llvm::errs() << "Annotation " << annot << "\n";
-            }
+            currentAnnotations = it->second;
         }
 
         // Run the frontend
@@ -239,6 +266,8 @@ int main(int argc, char* argv[])
         if (frontend == nullptr) {
             return 1;
         }
+
+        llvm::outs() << "Running " << runnable << "\n";
 
         frontend->setBackendAlgorithm(new theta::ThetaVerifier(backendSettings));
         frontend->registerVerificationPipeline();
