@@ -107,3 +107,45 @@ $ clang example.c harness.ll -o example_test
 $ ./example_test
 [1]    19948 floating point exception (core dumped)  ./example_test
 ```
+
+## Development on Windows
+
+One possibility, devised here, is to install Docker, and use it as a Linux subsystem.
+
+After installing Docker, one must create an image, that is capable of running the tests.
+
+- Install docker
+- Download gazer project and theta project and LLVM source code (later referred to as `$HOST_THETA_DIR` and `$HOST_GAZER_DIR`, `$HOST_LLVM_DIR`).
+- Modify gazer's dockerfile to include `lit` (used in regression tests) and it's necessary components: `psutil` (for handling case-by-case timeouts)
+- Modify gazer's dockerfile to use theta project's source code instead of downloading the source.
+- Mount Theta and Gazer, LLVM inside Docker. Publish port 8000:
+
+  `docker run -i -t -p 127.0.0.1:8000:8000 --name dev-container --mount type=bind,source="$HOST_THETA_DIR\theta",target=/host/theta --mount type=bind,source="$HOST_LLVM_DIR/theta",target=/host/llvm --mount type=bind,source="C:\Workspaces\Theta-dev\gazer",target=/host/gazer theta-gazer-dev bash`
+
+- When first running, run LLVM's CMakefile with the proper configuration, and generate Makefiles. This (binding LLVM) is used to be able to import LLVM as a project and use its' sources (and comments) for development.
+- When first running, it's a good idea to create scripts capable of handling basic usage:
+
+  ```sh
+  # build java
+  cd /host/theta
+  ./gradlew :theta-xcfa-cli:shadowJar
+  ```
+
+  ```sh
+  # bulid gazer
+  cd /host/gazer/build
+  make gazer-theta-re
+  ```
+  
+  ```sh
+  # run gazer's regression tests with necessary options
+  GAZER_TOOLS_DIR=/host/gazer/build/tools
+  make check-functional
+  ```
+  
+  ```sh
+  # run gazer with necessary options.
+  /host/gazer/build/tools/gazer-theta/gazer-theta-re --inline=off --no-assert-lift --theta-path=/host/theta/subprojects/xcfa-cli/build/libs/theta-xcfa-cli-0.0.1-SNAPSHOT-all.jar --lib-path=/host/theta/lib/ "$@"
+  ```
+  
+  (TBD)
