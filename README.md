@@ -138,7 +138,7 @@ After installing Docker, one must create an image, that is capable of running th
       openjdk-11-jdk python3-pip
 
   # fetch LLVM and other dependencies
-  RUN pip install psutil && \
+  RUN pip3 install psutil && \
       wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
       add-apt-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main" && \
       apt-get update && \
