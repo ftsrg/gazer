@@ -124,7 +124,7 @@ After installing Docker, one must create an image, that is capable of running th
   docker run -i -t -p 127.0.0.1:8000:8000 --name dev-container \
       --mount type=bind,source="$HOST_THETA_DIR/theta",target=/host/theta \
       --mount type=bind,source="$HOST_LLVM_DIR/theta",target=/host/llvm \
-      --mount type=bind,source="C:\Workspaces\Theta-dev\gazer",target=/host/gazer \
+      --mount type=bind,source="$HOST_GAZER_DIR\gazer",target=/host/gazer \
       theta-gazer-dev bash`
   ```
       
