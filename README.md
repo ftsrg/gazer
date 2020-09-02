@@ -147,7 +147,7 @@ After installing Docker, one must create an image, that is capable of running th
       ln -s `which clang-9` /usr/bin/clang && \
       ln -s `which llvm-link-9` /usr/bin/llvm-link && \
       ln -s /usr/lib/llvm-9/build/utils/lit/lit.py /usr/bin/lit && \
-      ln -s /usr/lib/llvm-9/bin/FileCheck /usr/bin/FileCheck && \
+      ln -s /usr/lib/llvm-9/bin/FileCheck /usr/bin/FileCheck
 
   # create a new user `user` with the password `user` and sudo rights
   RUN useradd -m user && \
@@ -159,9 +159,6 @@ After installing Docker, one must create an image, that is capable of running th
 
   ENV GAZER_DIR /host/gazer
   ENV THETA_DIR /host/theta
-
-  COPY ./build.sh /host/build.sh
-  COPY ./first-run.sh /host/first-run.sh
 
   WORKDIR $GAZER_DIR
   CMD /bin/bash
