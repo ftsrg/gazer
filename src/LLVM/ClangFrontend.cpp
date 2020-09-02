@@ -16,6 +16,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "gazer/LLVM/ClangFrontend.h"
+#include "gazer/Support/Warnings.h"
 
 #include <llvm/Support/Path.h>
 #include <llvm/Support/Program.h>
@@ -181,8 +182,11 @@ auto gazer::ClangCompileAndLink(
             bitcodeFiles.push_back(inputFile);
             continue;
         }
-
-        if (!inputFile.endswith_lower(".c")) {
+        
+        if(inputFile.endswith_lower(".i")) {
+            emit_warning("support for preprocessed .i files is an experimental feature only");
+        }
+        else if (!inputFile.endswith_lower(".c")) {
             llvm::errs() << "Cannot compile source file " << inputFile << ".\n"
             << "Supported extensions are: .c, .bc, .ll\n";
             return nullptr;
