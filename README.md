@@ -120,23 +120,69 @@ After installing Docker, one must create an image, that is capable of running th
 - Modify gazer's dockerfile to use theta project's source code instead of downloading the source.
 - Mount Theta and Gazer, LLVM inside Docker. Publish port 8000:
 
-  `docker run -i -t -p 127.0.0.1:8000:8000 --name dev-container --mount type=bind,source="$HOST_THETA_DIR\theta",target=/host/theta --mount type=bind,source="$HOST_LLVM_DIR/theta",target=/host/llvm --mount type=bind,source="C:\Workspaces\Theta-dev\gazer",target=/host/gazer theta-gazer-dev bash`
+  ```sh
+  docker run -i -t -p 127.0.0.1:8000:8000 --name dev-container \
+      --mount type=bind,source="$HOST_THETA_DIR/theta",target=/host/theta \
+      --mount type=bind,source="$HOST_LLVM_DIR/theta",target=/host/llvm \
+      --mount type=bind,source="C:\Workspaces\Theta-dev\gazer",target=/host/gazer \
+      theta-gazer-dev bash`
+  ```
+      
+  ```dev.dockerfile
+  FROM ubuntu:18.04
+
+  RUN apt-get update && \
+      apt-get install -y build-essential git cmake \
+      wget sudo vim lsb-release \
+      software-properties-common zlib1g-dev \
+      openjdk-11-jdk
+
+  # fetch LLVM and other dependencies
+  RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
+      add-apt-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main" && \
+      apt-get update && \
+      add-apt-repository ppa:mhier/libboost-latest && \
+      apt-get update && \
+      apt-get install -y clang-9 llvm-9-dev llvm-9-tools llvm-9-runtime libboost1.70-dev && \
+      ln -s `which clang-9` /usr/bin/clang && \
+      ln -s `which llvm-link-9` /usr/bin/llvm-link && \
+      ln -s /usr/lib/llvm-9/build/utils/lit/lit.py /usr/bin/lit && \
+      ln -s /usr/lib/llvm-9/bin/FileCheck /usr/bin/FileCheck && \
+
+  # create a new user `user` with the password `user` and sudo rights
+  RUN useradd -m user && \
+      echo user:user | chpasswd && \
+      cp /etc/sudoers /etc/sudoers.bak && \
+      echo 'user  ALL=(root) NOPASSWD: ALL' >> /etc/sudoers
+
+  USER user
+
+  ENV GAZER_DIR /host/gazer
+  ENV THETA_DIR /host/theta
+
+  COPY ./build.sh /host/build.sh
+  COPY ./first-run.sh /host/first-run.sh
+
+  WORKDIR $GAZER_DIR
+  CMD /bin/bash
+  ```
 
 - When first running, run LLVM's CMakefile with the proper configuration, and generate Makefiles. This (binding LLVM) is used to be able to import LLVM as a project and use its' sources (and comments) for development.
 - When first running, it's a good idea to create scripts capable of handling basic usage:
 
+  Useful commands/scripts for use inside Docker
   ```sh
-  # build java
+  # build Theta (xcfa only)
   cd /host/theta
   ./gradlew :theta-xcfa-cli:shadowJar
   ```
 
   ```sh
-  # bulid gazer
+  # bulid gazer (runnable-entity checker only)
   cd /host/gazer/build
   make gazer-theta-re
   ```
-  
+
   ```sh
   # run gazer's regression tests with necessary options
   GAZER_TOOLS_DIR=/host/gazer/build/tools
@@ -145,7 +191,7 @@ After installing Docker, one must create an image, that is capable of running th
   
   ```sh
   # run gazer with necessary options.
-  /host/gazer/build/tools/gazer-theta/gazer-theta-re --inline=off --no-assert-lift --theta-path=/host/theta/subprojects/xcfa-cli/build/libs/theta-xcfa-cli-0.0.1-SNAPSHOT-all.jar --lib-path=/host/theta/lib/ "$@"
+  /host/gazer/build/tools/gazer-theta/gazer-theta-re --theta-path=/host/theta/subprojects/xcfa-cli/build/libs/theta-xcfa-cli-0.0.1-SNAPSHOT-all.jar --lib-path=/host/theta/lib/ "$@"
   ```
   
   (TBD)
