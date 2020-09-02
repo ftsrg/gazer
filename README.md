@@ -135,10 +135,11 @@ After installing Docker, one must create an image, that is capable of running th
       apt-get install -y build-essential git cmake \
       wget sudo vim lsb-release \
       software-properties-common zlib1g-dev \
-      openjdk-11-jdk
+      openjdk-11-jdk python3-pip
 
   # fetch LLVM and other dependencies
-  RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
+  RUN pip install psutil && \
+      wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
       add-apt-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main" && \
       apt-get update && \
       add-apt-repository ppa:mhier/libboost-latest && \
