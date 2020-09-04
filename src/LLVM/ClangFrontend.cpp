@@ -181,10 +181,10 @@ auto gazer::ClangCompileAndLink(
             bitcodeFiles.push_back(inputFile);
             continue;
         }
-
-        if (!inputFile.endswith_lower(".c")) {
+        
+        if (!inputFile.endswith_lower(".c") && !inputFile.endswith_lower(".i")) {
             llvm::errs() << "Cannot compile source file " << inputFile << ".\n"
-            << "Supported extensions are: .c, .bc, .ll\n";
+            << "Supported extensions are: .c, .i, .bc, .ll\n";
             return nullptr;
         }
 
