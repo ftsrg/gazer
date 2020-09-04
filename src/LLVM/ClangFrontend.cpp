@@ -16,7 +16,6 @@
 //
 //===----------------------------------------------------------------------===//
 #include "gazer/LLVM/ClangFrontend.h"
-#include "gazer/Support/Warnings.h"
 
 #include <llvm/Support/Path.h>
 #include <llvm/Support/Program.h>
