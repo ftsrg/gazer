@@ -183,11 +183,9 @@ auto gazer::ClangCompileAndLink(
             continue;
         }
         
-        if (inputFile.endswith_lower(".i")) {
-            emit_warning("support for preprocessed .i files is an experimental feature only");
-        } else if (!inputFile.endswith_lower(".c")) {
+        if (!inputFile.endswith_lower(".c") && !inputFile.endswith_lower(".i")) {
             llvm::errs() << "Cannot compile source file " << inputFile << ".\n"
-            << "Supported extensions are: .c, .bc, .ll\n";
+            << "Supported extensions are: .c, .i, .bc, .ll\n";
             return nullptr;
         }
 
