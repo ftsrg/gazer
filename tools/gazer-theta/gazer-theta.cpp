@@ -19,15 +19,17 @@
 #include "lib/ThetaCfaGenerator.h"
 
 #include "gazer/LLVM/LLVMFrontend.h"
-#include "gazer/Core/GazerContext.h"
+#include "gazer/Support/Runtime.h"
+#include "gazer/Support/Warnings.h"
 
 #include <llvm/IR/Module.h>
-#include <boost/dll/runtime_symbol_info.hpp>
+#include <llvm/Support/Path.h>
 
 #ifndef NDEBUG
+#include <llvm/Support/Debug.h>
+#include <llvm/Support/ErrorOr.h>
 #include <llvm/Support/PrettyStackTrace.h>
 #include <llvm/Support/Signals.h>
-#include <llvm/Support/Debug.h>
 #endif
 
 using namespace gazer;
@@ -91,6 +93,8 @@ namespace gazer
 
 static theta::ThetaSettings initSettingsFromCommandLine();
 
+static bool lookupTheta(llvm::StringRef argvZero, theta::ThetaSettings* settings);
+
 int main(int argc, char* argv[])
 {
     cl::HideUnrelatedOptions({
@@ -111,24 +115,8 @@ int main(int argc, char* argv[])
     // Set up settings
     FrontendConfigWrapper config;
     theta::ThetaSettings backendSettings = initSettingsFromCommandLine();
-
-    if (backendSettings.thetaCfaPath.empty() || backendSettings.thetaLibPath.empty()) {
-        // Find the current program location
-        boost::dll::fs::error_code ec;
-        auto pathToBinary = boost::dll::program_location(ec);
-
-        if (ec) {
-            llvm::errs() << "ERROR: Could not find the path to this process: " + ec.message();
-            return 1;
-        }
-
-        if (backendSettings.thetaCfaPath.empty()) {
-            backendSettings.thetaCfaPath = pathToBinary.parent_path().string() + "/theta/theta-cfa-cli.jar";
-        }
-
-        if (backendSettings.thetaLibPath.empty()) {
-            backendSettings.thetaLibPath = pathToBinary.parent_path().string() + "/theta/lib";
-        }
+    if (!lookupTheta(argv[0], &backendSettings)) {
+        return 1;
     }
 
     // Force -math-int
@@ -146,7 +134,7 @@ int main(int argc, char* argv[])
         frontend->run();
     } else {
         if (ModelPath.empty()) {
-            llvm::errs() << "ERROR: -model-only must be supplied together with -o <path>!\n";
+            emit_error("-model-only must be supplied together with -o <path>!");
             return 1;
         }
 
@@ -154,7 +142,7 @@ int main(int argc, char* argv[])
         llvm::raw_fd_ostream rfo(ModelPath, errorCode);
 
         if (errorCode) {
-            llvm::errs() << "ERROR: " << errorCode.message() << "\n";
+            emit_error("%s\n", errorCode.message().c_str());
             return 1;
         }
 
@@ -165,6 +153,49 @@ int main(int argc, char* argv[])
     }
 
     return 0;
+}
+
+bool lookupTheta(llvm::StringRef argvZero, theta::ThetaSettings* settings)
+{
+    if (!settings->thetaCfaPath.empty() && !settings->thetaLibPath.empty()) {
+        // All paths are set manually.
+        return true;
+    }
+
+    // See if we have some environment variables set.
+    auto thetaJarEnv = std::getenv("THETA_JAR");
+    if (thetaJarEnv != nullptr && settings->thetaCfaPath.empty()) {
+        settings->thetaCfaPath = thetaJarEnv;
+    }
+
+    auto thetaLibEnv = std::getenv("THETA_LIBS");
+    if (thetaLibEnv != nullptr && settings->thetaLibPath.empty()) {
+        settings->thetaLibPath = thetaLibEnv;
+    }
+
+    // Check if we have everything we need after using the environment variables.
+    if (!settings->thetaCfaPath.empty() && !settings->thetaLibPath.empty()) {
+        return true;
+    }
+
+    // Find the current program location
+    llvm::ErrorOr<std::string> pathToBinary = findProgramLocation(argvZero);
+    if (auto ec = pathToBinary.getError()) {
+        emit_error("Could not find the path to this process: %s\n", ec.message().c_str());
+        return false;
+    }
+
+    std::string parentPath = llvm::sys::path::parent_path(pathToBinary.get());
+
+    if (settings->thetaCfaPath.empty()) {
+        settings->thetaCfaPath = parentPath + "/theta/theta-cfa-cli.jar";
+    }
+
+    if (settings->thetaLibPath.empty()) {
+        settings->thetaLibPath = parentPath + "/theta/lib";
+    }
+
+    return true;
 }
 
 theta::ThetaSettings initSettingsFromCommandLine()
