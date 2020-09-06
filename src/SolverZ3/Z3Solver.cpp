@@ -19,6 +19,8 @@
 
 #include "gazer/Support/Float.h"
 
+#include <llvm/ADT/SmallString.h>
+
 #include <llvm/Support/raw_os_ostream.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/Debug.h>
@@ -381,9 +383,9 @@ Z3Handle<Z3_sort> Z3ExprTransformer::handleTupleType(TupleType& tupTy)
 Z3AstHandle Z3ExprTransformer::translateLiteral(const ExprRef<LiteralExpr>& expr)
 {
     if (auto bvLit = llvm::dyn_cast<BvLiteralExpr>(expr)) {
-        return createHandle(Z3_mk_unsigned_int64(
-            mZ3Context, bvLit->getValue().getZExtValue(), typeToSort(bvLit->getType())
-        ));
+        llvm::SmallString<20> buffer;
+        bvLit->getValue().toStringUnsigned(buffer, 10);
+        return createHandle(Z3_mk_numeral(mZ3Context, buffer.c_str(), typeToSort(bvLit->getType())));
     }
     
     if (auto bl = llvm::dyn_cast<BoolLiteralExpr>(expr)) {
