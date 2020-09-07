@@ -30,6 +30,8 @@
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Support/CommandLine.h>
 
+#include <charconv>
+
 using namespace gazer;
 using namespace gazer::theta;
 
@@ -240,6 +242,100 @@ static void reportInvalidCex(llvm::StringRef message, llvm::StringRef cex, sexpr
     llvm::errs() << "Raw counterexample is: " << cex << "\n";
 }
 
+static auto parseLiteral(sexpr::Value* sexpr, Type& varTy) -> boost::intrusive_ptr<LiteralExpr>;
+
+static auto parseBoolLiteral(sexpr::Value* sexpr, BoolType& varTy) -> boost::intrusive_ptr<LiteralExpr>
+{
+    llvm::StringRef value = sexpr->asAtom();
+    if (value.equals_lower("true")) {
+        return BoolLiteralExpr::True(varTy.getContext());
+    }
+    else if (value.equals_lower("false")) {
+        return BoolLiteralExpr::False(varTy.getContext());
+    }
+    else {
+        return nullptr;
+    }
+}
+
+static auto parseIntLiteral(sexpr::Value* sexpr, IntType& varTy) -> boost::intrusive_ptr<LiteralExpr>
+{
+    llvm::StringRef value = sexpr->asAtom();
+    long long int intVal;
+    if (!value.getAsInteger(10, intVal)) {
+        return IntLiteralExpr::Get(varTy, intVal);
+    }
+    else {
+        return nullptr;
+    }
+}
+
+static auto parseBvLiteral(sexpr::Value* sexpr, BvType& varTy) -> boost::intrusive_ptr<LiteralExpr>
+{
+    llvm::StringRef value = sexpr->asAtom();
+    llvm::APInt intVal;
+
+    if (!value.getAsInteger(10, intVal)) {
+        return BvLiteralExpr::Get(varTy, intVal.zextOrTrunc(varTy.getWidth()));
+    }
+    else if (const auto lit = value.split("'"); std::get<1>(lit) != "") {
+        auto bvSizeStr = std::get<0>(lit);
+        auto bvLitForm = std::get<1>(lit)[0];
+        auto bvLitValueStr = std::get<1>(lit).substr(1);
+
+        unsigned bvSize;
+        auto [p, ec] = std::from_chars(bvSizeStr.data(), bvSizeStr.data() + bvSizeStr.size(), bvSize);
+
+        if (ec == std::errc() && bvSize == varTy.getWidth()) {
+            switch (std::tolower(bvLitForm)) {
+                case 'b':
+                    if (!bvLitValueStr.getAsInteger(2, intVal)) {
+                        return BvLiteralExpr::Get(varTy, intVal.zextOrTrunc(varTy.getWidth()));
+                    }
+                    break;
+                case 'x':
+                    if (!bvLitValueStr.getAsInteger(16, intVal)) {
+                        return BvLiteralExpr::Get(varTy, intVal.zextOrTrunc(varTy.getWidth()));
+                    }
+                    break;
+                case 'd':
+                    if (!bvLitValueStr.getAsInteger(10, intVal)) {
+                        return BvLiteralExpr::Get(varTy, intVal.zextOrTrunc(varTy.getWidth()));
+                    }
+                    break;
+            }
+
+            // Error while parsing
+            return nullptr;
+        }
+        else {
+            // Error while parsing the size
+            return nullptr;
+        }
+    }
+    else {
+        // Not supported format
+        return nullptr;
+    }
+}
+static auto parseLiteral(sexpr::Value* sexpr, Type& varTy) -> boost::intrusive_ptr<LiteralExpr>
+{
+    switch (varTy.getTypeID()) {
+        case Type::BoolTypeID: {
+            return parseBoolLiteral(sexpr, cast<BoolType>(varTy));
+        }
+        case Type::IntTypeID: {
+            return parseIntLiteral(sexpr, cast<IntType>(varTy));
+        }
+        case Type::BvTypeID: {
+            return parseBvLiteral(sexpr, cast<BvType>(varTy));
+        }
+        default: {
+            return nullptr;
+        }
+    }
+}
+
 std::unique_ptr<Trace> ThetaVerifierImpl::parseCex(llvm::StringRef cex, unsigned* errorCode)
 {
     // TODO: The whole parsing process is very fragile. We should introduce some proper error cheks.
@@ -276,7 +372,6 @@ std::unique_ptr<Trace> ThetaVerifierImpl::parseCex(llvm::StringRef cex, unsigned
             std::vector<VariableAssignment> assigns;
             for (size_t j = 1; j < actionList.size(); ++j) {
                 llvm::StringRef varName = actionList[j]->asList()[0]->asAtom();
-                llvm::StringRef value = actionList[j]->asList()[1]->asAtom();
 
                 Variable* variable = mNameMapping.variables.lookup(varName);
                 assert(variable != nullptr && "Each variable must be present in the theta name mapping!");
@@ -286,37 +381,7 @@ std::unique_ptr<Trace> ThetaVerifierImpl::parseCex(llvm::StringRef cex, unsigned
                     origVariable = variable;
                 }
 
-                ExprPtr rhs;
-                Type& varTy = origVariable->getType();
-
-                switch (varTy.getTypeID()) {
-                    case Type::IntTypeID: {
-                        long long int intVal;
-                        if (!value.getAsInteger(10, intVal)) {
-                            rhs = IntLiteralExpr::Get(cast<IntType>(varTy), intVal);
-                        }
-                        break;
-                    }
-                    case Type::BvTypeID: {
-                        llvm::APInt intVal;
-                        if (!value.getAsInteger(10, intVal)) {
-                            auto& bvTy = cast<BvType>(varTy);
-                            rhs = BvLiteralExpr::Get(bvTy, intVal.zextOrTrunc(bvTy.getWidth()));
-                        }
-                        break;
-                    }
-                    case Type::BoolTypeID: {
-                        if (value.equals_lower("true")) {
-                            rhs = BoolLiteralExpr::True(varTy.getContext());
-                        } else if (value.equals_lower("false")) {
-                            rhs = BoolLiteralExpr::False(varTy.getContext());
-                        }
-                        break;
-                    }
-                    default:
-                        break;
-                }
-
+                auto rhs = parseLiteral(actionList[j]->asList()[1], origVariable->getType());
                 if (rhs == nullptr) {
                     reportInvalidCex("expected a valid integer or boolean value", cex, &*(actionList[j]->asList()[1]));
                     return nullptr;
