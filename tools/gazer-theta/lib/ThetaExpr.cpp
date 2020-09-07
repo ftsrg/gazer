@@ -109,7 +109,7 @@ public:
         return expr->getVariable().getName();
     }
 
-    std::string visitNot(const ExprRef<NotExpr>& expr) {
+    std::string visitNot([[maybe_unused]] const ExprRef<NotExpr>& expr) {
         return "(not " + getOperand(0) + ")";
     }
 
@@ -141,7 +141,7 @@ public:
     }
     }
 
-    std::string visitDiv(const ExprRef<DivExpr>& expr) {
+    std::string visitDiv([[maybe_unused]] const ExprRef<DivExpr>& expr) {
         return "(" + getOperand(0) + " / " + getOperand(1) + ")";
     }
 
@@ -203,7 +203,7 @@ public:
         return rso.str();
     }
 
-    std::string visitImply(const ExprRef<ImplyExpr>& expr) {
+    std::string visitImply([[maybe_unused]] const ExprRef<ImplyExpr>& expr) {
         return "(" + getOperand(0) + " imply " + getOperand(1) + ")";
     }
 
@@ -250,26 +250,28 @@ public:
     std::string visitLShr([[maybe_unused]] const ExprRef<LShrExpr>& expr) {
         return "(" + getOperand(0) + " bvlshr " + getOperand(1) + ")";
     }
+
+    std::string visitEq([[maybe_unused]] const ExprRef<EqExpr>& expr) {
         return "(" + getOperand(0) + " = " + getOperand(1) + ")";
     }
     
-    std::string visitNotEq(const ExprRef<NotEqExpr>& expr) {
+    std::string visitNotEq([[maybe_unused]] const ExprRef<NotEqExpr>& expr) {
         return "(" + getOperand(0) + " /= " + getOperand(1) + ")";
     }
 
-    std::string visitLt(const ExprRef<LtExpr>& expr) {
+    std::string visitLt([[maybe_unused]] const ExprRef<LtExpr>& expr) {
         return "(" + getOperand(0) + " < " + getOperand(1) + ")";
     }
 
-    std::string visitLtEq(const ExprRef<LtEqExpr>& expr) {
+    std::string visitLtEq([[maybe_unused]] const ExprRef<LtEqExpr>& expr) {
         return "(" + getOperand(0) + " <= " + getOperand(1) + ")";
     }
 
-    std::string visitGt(const ExprRef<GtExpr>& expr) {
+    std::string visitGt([[maybe_unused]] const ExprRef<GtExpr>& expr) {
         return "(" + getOperand(0) + " > " + getOperand(1) + ")";
     }
 
-    std::string visitGtEq(const ExprRef<GtEqExpr>& expr) {
+    std::string visitGtEq([[maybe_unused]] const ExprRef<GtEqExpr>& expr) {
         return "(" + getOperand(0) + " >= " + getOperand(1) + ")";
     }
 
@@ -304,14 +306,16 @@ public:
     std::string visitBvSGtEq([[maybe_unused]] const ExprRef<BvSGtEqExpr>& expr) {
         return "(" + getOperand(0) + " bvsge " + getOperand(1) + ")";
     }
+
+    std::string visitSelect([[maybe_unused]] const ExprRef<SelectExpr>& expr) {
         return "(if " + getOperand(0) + " then " + getOperand(1) + " else " + getOperand(2) + ")";
     }
 
-    std::string visitArrayRead(const ExprRef<ArrayReadExpr>& expr) {
+    std::string visitArrayRead([[maybe_unused]] const ExprRef<ArrayReadExpr>& expr) {
         return  "(" + getOperand(0) + ")[" + getOperand(1) + "]";
     }
 
-    std::string visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr) {
+    std::string visitArrayWrite([[maybe_unused]] const ExprRef<ArrayWriteExpr>& expr) {
         return  "(" + getOperand(0) + ")[" + getOperand(1) + " <- " + getOperand(2) + "]";
     }
 
