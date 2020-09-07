@@ -367,10 +367,43 @@ public:
 
     void print(llvm::raw_ostream& os) const;
 
+    using var_iterator = boost::indirect_iterator<std::vector<Variable*>::iterator>;
+
+    var_iterator global_begin() { return mGlobals.begin(); }
+    var_iterator global_end() { return mGlobals.end(); }
+    llvm::iterator_range<var_iterator> globals() {
+        return llvm::make_range(global_begin(), global_end());
+    }
+
+    /** Global variables contradict how MemorySSA works. */
+    Variable* createGlobal(const std::string& name, Type &type) {
+        // TODO name clashing?
+        auto* var = mContext.createVariable(name, type);
+        mGlobals.push_back(var);
+        return var;
+    }
+
+    Variable* findGlobalVariable(llvm::StringRef name) const
+    {
+        Variable* variable = mContext.getVariable(name.str());
+        if (variable == nullptr) {
+            return nullptr;
+        }
+
+        if (std::find(mGlobals.begin(), mGlobals.end(), variable) == mGlobals.end()) {
+            return nullptr;
+        }
+
+        return variable;
+    }
+
+
 private:
     GazerContext& mContext;
     std::vector<std::unique_ptr<Cfa>> mAutomata;
     Cfa* mMainAutomaton;
+
+    std::vector<Variable*> mGlobals;
 };
 
 inline llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Transition& transition)

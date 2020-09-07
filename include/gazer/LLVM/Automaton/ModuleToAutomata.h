@@ -127,6 +127,18 @@ public:
         ValueOrMemoryObject val, Variable* output, const llvm::Twine& suffix = "_out");
 };
 
+/// Variable declaration extension point for globals
+class GlobalVarDeclExtensionPoint
+{
+public:
+    GlobalVarDeclExtensionPoint(AutomataSystem& system) : mSystem(system) {}
+
+    /// Creates a global variable.
+    Variable* createGlobal(ValueOrMemoryObject val, Type& type, const std::string& suffix = "");
+private:
+    AutomataSystem& mSystem;
+};
+
 /// An extension point which can access the representations of already-translated instructions
 /// and insert assignments in the current transformation step.
 class GenerationStepExtensionPoint : public AutomatonInterfaceExtensionPoint

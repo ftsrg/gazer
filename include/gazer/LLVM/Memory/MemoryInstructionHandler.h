@@ -58,6 +58,10 @@ public:
     // Variables
     //==--------------------------------------------------------------------==//
 
+    /// Allows the declaration of global variables. Called once per module.
+    virtual void declareGlobalVariables(llvm::Module& module,
+                                        llvm2cfa::GlobalVarDeclExtensionPoint& ep) {}
+
     /// Allows the declaration of top-level procedure variables.
     virtual void declareFunctionVariables(llvm2cfa::VariableDeclExtensionPoint& ep) {}
 

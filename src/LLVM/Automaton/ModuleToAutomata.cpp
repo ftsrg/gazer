@@ -280,12 +280,20 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
 void ModuleToCfa::createAutomata()
 {
     // Create an automaton for each function definition and set the interfaces.
+
+    bool firstIteration = true;
     for (llvm::Function& function : mModule.functions()) {
         if (function.isDeclaration()) {
             continue;
         }
 
         auto& memoryInstHandler = mMemoryModel.getMemoryInstructionHandler(function);
+
+        if (firstIteration) {
+            GlobalVarDeclExtensionPoint ep(*mSystem);
+            memoryInstHandler.declareGlobalVariables(ep);
+            firstIteration = false;
+        }
 
         Cfa* cfa = mSystem->createCfa(function.getName());
         LLVM_DEBUG(llvm::dbgs() << "Created CFA " << cfa->getName() << "\n");

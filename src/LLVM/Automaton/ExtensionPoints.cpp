@@ -157,6 +157,17 @@ void LoopVarDeclExtensionPoint::createLoopOutput(ValueOrMemoryObject val, Variab
     mGenInfo.LoopOutputs[val] = VariableAssignment(copyOfVar, output->getRefExpr());
 }
 
+// Global variable extension point
+//===----------------------------------------------------------------------===//
+
+Variable* GlobalVarDeclExtensionPoint::createGlobal(ValueOrMemoryObject val, Type& type, const std::string& suffix)
+{
+    auto name = val.hasName() ? val.getName() + suffix : "_" + suffix;
+    Variable* variable = mSystem.createGlobal(name, type);
+
+    return variable;
+}
+
 // Genaration step extension point
 //===----------------------------------------------------------------------===//
 
