@@ -122,6 +122,8 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
 
     std::string javaLibPath = ("-Djava.library.path=" + z3Path).str();
 
+    std::string stackTrace = mSettings.stackTrace ? "--stacktrace" : "";
+
     std::vector<llvm::StringRef> args = {
         "java",
         javaLibPath,
@@ -138,7 +140,8 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
         "--search", mSettings.search,
         "--maxenum", mSettings.maxEnum,
         "--loglevel", "RESULT",
-        "--cex", cexFile
+        "--cex", cexFile,
+        stackTrace
     };
 
     std::string ldLibPathEnv = ("LD_LIBRARY_PATH=" + z3Path).str();
