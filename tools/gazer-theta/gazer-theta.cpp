@@ -120,7 +120,8 @@ int main(int argc, char* argv[])
     }
 
     // Force -math-int
-    config.getSettings().ints = IntRepresentation::Integers;
+    // TODO: Find a way to make this behavior default
+    // config.getSettings().ints = IntRepresentation::Integers;
 
     // Create the frontend object
     auto frontend = config.buildFrontend(InputFilenames);
