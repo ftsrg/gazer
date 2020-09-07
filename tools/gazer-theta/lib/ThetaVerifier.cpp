@@ -318,6 +318,31 @@ static auto parseBvLiteral(sexpr::Value* sexpr, BvType& varTy) -> boost::intrusi
         return nullptr;
     }
 }
+
+static auto parseArrayLiteral(sexpr::Value* sexpr, ArrayType& varTy) -> boost::intrusive_ptr<LiteralExpr>
+{
+    auto arrLitImpl = sexpr->asList();
+    // The string "array" at the beginning
+    arrLitImpl.erase(arrLitImpl.begin());
+
+    ArrayLiteralExpr::MappingT entries;
+    ExprRef<LiteralExpr> def = nullptr;
+
+    for(auto arrEntryImpl : arrLitImpl) {
+        auto keyImpl = arrEntryImpl->asList()[0];
+        auto valueImpl = arrEntryImpl->asList()[1];
+
+        if(keyImpl->isAtom() && keyImpl->asAtom() == "default") {
+            def = parseLiteral(valueImpl, varTy.getElementType());
+        }
+        else {
+            entries[parseLiteral(keyImpl, varTy.getIndexType())] = parseLiteral(valueImpl, varTy.getElementType());
+        }
+    }
+
+    return ArrayLiteralExpr::Get(varTy, entries, def);
+}
+
 static auto parseLiteral(sexpr::Value* sexpr, Type& varTy) -> boost::intrusive_ptr<LiteralExpr>
 {
     switch (varTy.getTypeID()) {
@@ -329,6 +354,9 @@ static auto parseLiteral(sexpr::Value* sexpr, Type& varTy) -> boost::intrusive_p
         }
         case Type::BvTypeID: {
             return parseBvLiteral(sexpr, cast<BvType>(varTy));
+        }
+        case Type::ArrayTypeID: {
+            return parseArrayLiteral(sexpr, cast<ArrayType>(varTy));
         }
         default: {
             return nullptr;
@@ -383,7 +411,7 @@ std::unique_ptr<Trace> ThetaVerifierImpl::parseCex(llvm::StringRef cex, unsigned
 
                 auto rhs = parseLiteral(actionList[j]->asList()[1], origVariable->getType());
                 if (rhs == nullptr) {
-                    reportInvalidCex("expected a valid integer or boolean value", cex, &*(actionList[j]->asList()[1]));
+                    reportInvalidCex("expected a valid integer, bitvector, boolean or their array as value", cex, &*(actionList[j]->asList()[1]));
                     return nullptr;
                 }
 
