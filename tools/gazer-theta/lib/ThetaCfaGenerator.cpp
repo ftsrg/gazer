@@ -45,7 +45,14 @@ constexpr std::array ThetaKeywords = {
     "return", "havoc", "bool", "int", "rat",
     "if", "then", "else", "iff", "imply",
     "forall", "exists", "or", "and", "not",
-    "mod", "rem", "true", "false"
+    "mod", "rem", "true", "false",
+    "bvadd", "bvsub", "bvpos", "bvneg",
+    "bvmul", "bvudiv", "bvsdiv",
+    "bvsmod", "bvurem", "bvsrem",
+    "bvshl", "bvashr", "bvlshr", "bvrol", "bvror",
+    "bvult", "bvule", "bvugt", "bvuge",
+    "bvslt", "bvsle", "bvsgt", "bvsge",
+    "bv_zero_extend", "bv_sign_extend"
 };
 
 struct ThetaAst
