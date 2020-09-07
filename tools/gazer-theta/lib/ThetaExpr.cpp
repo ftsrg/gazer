@@ -16,6 +16,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "ThetaCfaGenerator.h"
+#include "ThetaType.h"
 #include "gazer/Core/Expr/ExprWalker.h"
 #include "gazer/ADT/StringUtils.h"
 
@@ -23,9 +24,11 @@
 
 #include <boost/range/irange.hpp>
 
+#include <bitset>
 #include <functional>
 
 using namespace gazer;
+using namespace gazer::theta;
 
 class ThetaExprPrinter : public ExprWalker<ThetaExprPrinter, std::string>
 {
@@ -63,6 +66,11 @@ public:
             return std::to_string(val.numerator()) + "%" + std::to_string(val.denominator());
         }
 
+        if(auto bvLit = llvm::dyn_cast<BvLiteralExpr>(expr)) {
+            auto exactValue = bvLit->getValue().getZExtValue();
+            auto exactString = std::bitset<sizeof (exactValue) * 8>(exactValue).to_string();
+            return std::to_string(bvLit->getType().getWidth()) + "'b" + exactString.substr(exactString.length() - bvLit->getType().getWidth());
+        }
         return visitExpr(expr);
     }
 
@@ -81,23 +89,59 @@ public:
 
     // Binary
     std::string visitAdd(const ExprRef<AddExpr>& expr) {
+        if(expr->getType().isBvType()) {
+            return "(" + getOperand(0) + " bvadd " + getOperand(1) + ")";
+        }
+        else {
         return "(" + getOperand(0) + " + " + getOperand(1) + ")";
+    }
     }
 
     std::string visitSub(const ExprRef<SubExpr>& expr) {
+        if(expr->getType().isBvType()) {
+            return "(" + getOperand(0) + " bvsub " + getOperand(1) + ")";
+        }
+        else {
         return "(" + getOperand(0) + " - " + getOperand(1) + ")";
+    }
     }
 
     std::string visitMul(const ExprRef<MulExpr>& expr) {
+        if(expr->getType().isBvType()) {
+            return "(" + getOperand(0) + " bvmul " + getOperand(1) + ")";
+        }
+        else {
         return "(" + getOperand(0) + " * " + getOperand(1) + ")";
+    }
     }
 
     std::string visitDiv(const ExprRef<DivExpr>& expr) {
         return "(" + getOperand(0) + " / " + getOperand(1) + ")";
     }
 
+    std::string visitBvUDiv([[maybe_unused]] const ExprRef<BvUDivExpr>& expr) {
+        return "(" + getOperand(0) + " bvudiv " + getOperand(1) + ")";
+    }
+
+    std::string visitBvSDiv([[maybe_unused]] const ExprRef<BvSDivExpr>& expr) {
+        return "(" + getOperand(0) + " bvsdiv " + getOperand(1) + ")";
+    }
+
     std::string visitMod(const ExprRef<ModExpr>& expr) {
+        if(expr->getType().isBvType()) {
+            return "(" + getOperand(0) + " bvsmod " + getOperand(1) + ")";
+        }
+        else {
         return "(" + getOperand(0) + " mod " + getOperand(1) + ")";
+    }
+    }
+
+    std::string visitBvURem([[maybe_unused]] const ExprRef<BvURemExpr>& expr) {
+        return "(" + getOperand(0) + " bvurem " + getOperand(1) + ")";
+    }
+
+    std::string visitBvSRem([[maybe_unused]] const ExprRef<BvSRemExpr>& expr) {
+        return "(" + getOperand(0) + " bvsrem " + getOperand(1) + ")";
     }
 
     std::string visitAnd(const ExprRef<AndExpr>& expr)
@@ -137,7 +181,49 @@ public:
         return "(" + getOperand(0) + " imply " + getOperand(1) + ")";
     }
 
-    std::string visitEq(const ExprRef<EqExpr>& expr) {
+    std::string visitBvAnd([[maybe_unused]] const ExprRef<BvAndExpr>& expr) {
+        return "(" + getOperand(0) + " bvand " + getOperand(1) + ")";
+    }
+
+    std::string visitBvOr([[maybe_unused]] const ExprRef<BvOrExpr>& expr) {
+        return "(" + getOperand(0) + " bvor " + getOperand(1) + ")";
+    }
+
+    std::string visitBvXor([[maybe_unused]] const ExprRef<BvXorExpr>& expr) {
+        return "(" + getOperand(0) + " bvxor " + getOperand(1) + ")";
+    }
+
+    std::string visitShl([[maybe_unused]] const ExprRef<ShlExpr>& expr) {
+        return "(" + getOperand(0) + " bvshl " + getOperand(1) + ")";
+    }
+
+    std::string visitAShr([[maybe_unused]] const ExprRef<AShrExpr>& expr) {
+        return "(" + getOperand(0) + " bvashr " + getOperand(1) + ")";
+    }
+
+    std::string visitBvConcat([[maybe_unused]] const ExprRef<BvConcatExpr>& expr) {
+        return "(" + getOperand(0) + " ++ " + getOperand(1) + ")";
+    }
+
+    std::string visitExtract(const ExprRef<ExtractExpr>& expr) {
+        auto from = expr->getOffset();
+        auto until = expr->getOffset() + expr->getWidth();
+        return "(" + getOperand(0) + ")[" + std::to_string(until) + ":" + std::to_string(from) + "]";
+    }
+
+    std::string visitZExt(const ExprRef<ZExtExpr>& expr) {
+        auto width = expr->getExtendedWidth();
+        return "(" + getOperand(0) + " bv_zero_extend bv[" + std::to_string(width) + "])";
+    }
+
+    std::string visitSExt(const ExprRef<SExtExpr>& expr) {
+        auto width = expr->getExtendedWidth();
+        return "(" + getOperand(0) + " bv_sign_extend bv[" + std::to_string(width) + "])";
+    }
+
+    std::string visitLShr([[maybe_unused]] const ExprRef<LShrExpr>& expr) {
+        return "(" + getOperand(0) + " bvlshr " + getOperand(1) + ")";
+    }
         return "(" + getOperand(0) + " = " + getOperand(1) + ")";
     }
     
@@ -161,7 +247,37 @@ public:
         return "(" + getOperand(0) + " >= " + getOperand(1) + ")";
     }
 
-    std::string visitSelect(const ExprRef<SelectExpr>& expr) {
+    std::string visitBvULt([[maybe_unused]] const ExprRef<BvULtExpr>& expr) {
+        return "(" + getOperand(0) + " bvult " + getOperand(1) + ")";
+    }
+
+    std::string visitBvULtEq([[maybe_unused]] const ExprRef<BvULtEqExpr>& expr) {
+        return "(" + getOperand(0) + " bvule " + getOperand(1) + ")";
+    }
+
+    std::string visitBvUGt([[maybe_unused]] const ExprRef<BvUGtExpr>& expr) {
+        return "(" + getOperand(0) + " bvugt " + getOperand(1) + ")";
+    }
+
+    std::string visitBvUGtEq([[maybe_unused]] const ExprRef<BvUGtEqExpr>& expr) {
+        return "(" + getOperand(0) + " bvuge " + getOperand(1) + ")";
+    }
+
+    std::string visitBvSLt([[maybe_unused]] const ExprRef<BvSLtExpr>& expr) {
+        return "(" + getOperand(0) + " bvslt " + getOperand(1) + ")";
+    }
+
+    std::string visitBvSLtEq([[maybe_unused]] const ExprRef<BvSLtEqExpr>& expr) {
+        return "(" + getOperand(0) + " bvsle " + getOperand(1) + ")";
+    }
+
+    std::string visitBvSGt([[maybe_unused]] const ExprRef<BvSGtExpr>& expr) {
+        return "(" + getOperand(0) + " bvsgt " + getOperand(1) + ")";
+    }
+
+    std::string visitBvSGtEq([[maybe_unused]] const ExprRef<BvSGtEqExpr>& expr) {
+        return "(" + getOperand(0) + " bvsge " + getOperand(1) + ")";
+    }
         return "(if " + getOperand(0) + " then " + getOperand(1) + " else " + getOperand(2) + ")";
     }
 
