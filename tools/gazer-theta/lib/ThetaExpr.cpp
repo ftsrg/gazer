@@ -71,6 +71,32 @@ public:
             auto exactString = std::bitset<sizeof (exactValue) * 8>(exactValue).to_string();
             return std::to_string(bvLit->getType().getWidth()) + "'b" + exactString.substr(exactString.length() - bvLit->getType().getWidth());
         }
+
+        if(auto arrLit = llvm::dyn_cast<ArrayLiteralExpr>(expr)) {
+            std::string arrLitStr = "[";
+
+            const auto& kvPairs = arrLit->getMap();
+            if(kvPairs.size() > 0) {
+                for(const auto& [index, elem] : kvPairs) {
+                    arrLitStr += this->walk(index) + " <- " + this->walk(elem) + ", ";
+                }
+                arrLitStr += "default <- ";
+            }
+            else {
+                arrLitStr += "<" + ThetaType::getThetaTypeName(arrLit->getType().getIndexType()) + ">default <- ";
+            }
+
+            if(arrLit->hasDefault()) {
+                arrLitStr += this->walk(arrLit->getDefault());
+            }
+            else {
+                arrLitStr += ThetaType::getThetaTypeDefaultValue(arrLit->getType().getElementType());
+            }
+
+            arrLitStr += "]";
+            return arrLitStr;
+        }
+
         return visitExpr(expr);
     }
 
