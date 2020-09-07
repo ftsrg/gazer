@@ -16,6 +16,8 @@
 //
 //===----------------------------------------------------------------------===//
 #include "ThetaCfaGenerator.h"
+#include "ThetaType.h"
+
 #include "gazer/Core/LiteralExpr.h"
 #include "gazer/Automaton/CfaTransforms.h"
 
@@ -191,24 +193,6 @@ void ThetaEdgeDecl::print(llvm::raw_ostream& os) const
     os << "}\n";
 }
 
-static std::string typeName(Type& type)
-{
-    switch (type.getTypeID()) {
-        case Type::IntTypeID:
-            return "int";
-        case Type::RealTypeID:
-            return "rat";
-        case Type::BoolTypeID:
-            return "bool";
-        case Type::ArrayTypeID: {
-            auto& arrTy = llvm::cast<ArrayType>(type);
-            return "[" + typeName(arrTy.getIndexType()) + "] -> " + typeName(arrTy.getElementType());
-        }
-        default:
-            llvm_unreachable("Types which are unsupported by theta should have been eliminated earlier!");
-    }
-}
-
 void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace)
 {
     Cfa* main = mSystem.getMainAutomaton();
@@ -234,7 +218,7 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
     // Add variables
     for (auto& variable : main->locals()) {
         auto name = validName(variable.getName(), isValidVarName);
-        auto type = typeName(variable.getType());
+        auto type = ThetaType::getThetaTypeName(variable.getType());
         
         nameTrace.variables[name] = &variable;
         vars.try_emplace(&variable, std::make_unique<ThetaVarDecl>(name, type));
@@ -242,7 +226,7 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
 
     for (auto& variable : main->inputs()) {
         auto name = validName(variable.getName(), isValidVarName);
-        auto type = typeName(variable.getType());
+        auto type = ThetaType::getThetaTypeName(variable.getType());
 
         nameTrace.variables[name] = &variable;
         vars.try_emplace(&variable, std::make_unique<ThetaVarDecl>(name, type));
