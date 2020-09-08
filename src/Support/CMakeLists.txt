@@ -1,6 +1,6 @@
 set(SOURCE_FILES
     SExpr.cpp
-)
+    Runtime.cpp)
 
 llvm_map_components_to_libnames(LLVM_LIBS support)
 
