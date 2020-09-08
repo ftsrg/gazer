@@ -141,8 +141,9 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
         "--cex", cexFile
     };
 
-    if (mSettings.stackTrace) args.push_back("--stacktrace");
-
+    if (mSettings.stackTrace) {
+        args.push_back("--stacktrace");
+    }
     std::string ldLibPathEnv = ("LD_LIBRARY_PATH=" + z3Path).str();
     llvm::ArrayRef<llvm::StringRef> env = {
         llvm::StringRef(ldLibPathEnv)
