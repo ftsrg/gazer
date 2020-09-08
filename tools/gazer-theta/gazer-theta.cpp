@@ -61,6 +61,10 @@ namespace
         cl::cat(ThetaEnvironmentCategory),
         cl::init("")
     );
+    cl::opt<bool> StackTrace("stacktrace",
+        cl::desc("Get full stack trace from Theta in case of an exception"),
+        cl::cat(ThetaEnvironmentCategory)
+    );
 
     // Algorithm options
     cl::OptionCategory ThetaAlgorithmCategory("Theta algorithm settings");
@@ -169,6 +173,7 @@ theta::ThetaSettings initSettingsFromCommandLine()
 
     settings.timeout = 0; // TODO
     settings.modelPath = ModelPath;
+    settings.stackTrace = StackTrace;
     settings.domain = Domain;
     settings.refinement = Refinement;
     settings.search = Search;

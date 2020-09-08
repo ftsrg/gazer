@@ -31,6 +31,7 @@ struct ThetaSettings
     std::string thetaLibPath;
     unsigned timeout = 0;
     std::string modelPath;
+    bool stackTrace = false;
 
     // Algorithm settings
     std::string domain;
