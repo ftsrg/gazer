@@ -1,4 +1,4 @@
-// RUN: %theta -memory=havoc "%s" | FileCheck "%s"
+// RUN: %theta -memory=havoc -math-int "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED
 extern void __VERIFIER_error() __attribute__ ((__noreturn__));

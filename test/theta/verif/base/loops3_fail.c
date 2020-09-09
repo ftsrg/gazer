@@ -1,4 +1,4 @@
-// RUN: %theta -no-optimize -memory=havoc "%s" | FileCheck "%s"
+// RUN: %theta -no-optimize -memory=havoc -math-int "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED
 #include <assert.h>

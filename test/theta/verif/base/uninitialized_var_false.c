@@ -1,5 +1,5 @@
-// RUN: %theta -no-optimize -memory=havoc "%s" | FileCheck "%s"
-// RUN: %theta -memory=havoc "%s"  | FileCheck "%s"
+// RUN: %theta -no-optimize -memory=havoc "%s" -math-int | FileCheck "%s"
+// RUN: %theta -memory=havoc "%s" -math-int  | FileCheck "%s"
 
 // CHECK: Verification FAILED
 
