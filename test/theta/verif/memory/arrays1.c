@@ -1,5 +1,5 @@
 // REQUIRES: memory.burstall
-// RUN: %theta "%s" -math-int | FileCheck "%s"
+// RUN: %theta --domain EXPL --refinement UNSAT_CORE "%s" | FileCheck "%s"
 
 // CHECK: Verification SUCCESSFUL
 int __VERIFIER_nondet_int(void);
