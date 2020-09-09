@@ -1,4 +1,4 @@
-// RUN: %theta "%s" | FileCheck "%s"
+// RUN: %theta "%s" -math-int | FileCheck "%s"
 
 // CHECK: Verification SUCCESSFUL
 int __VERIFIER_nondet_int(void);
