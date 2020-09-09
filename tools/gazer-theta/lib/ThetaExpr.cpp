@@ -119,8 +119,8 @@ public:
             return "(" + getOperand(0) + " bvadd " + getOperand(1) + ")";
         }
         else {
-        return "(" + getOperand(0) + " + " + getOperand(1) + ")";
-    }
+            return "(" + getOperand(0) + " + " + getOperand(1) + ")";
+        }
     }
 
     std::string visitSub(const ExprRef<SubExpr>& expr) {
@@ -128,8 +128,8 @@ public:
             return "(" + getOperand(0) + " bvsub " + getOperand(1) + ")";
         }
         else {
-        return "(" + getOperand(0) + " - " + getOperand(1) + ")";
-    }
+            return "(" + getOperand(0) + " - " + getOperand(1) + ")";
+        }
     }
 
     std::string visitMul(const ExprRef<MulExpr>& expr) {
@@ -137,8 +137,8 @@ public:
             return "(" + getOperand(0) + " bvmul " + getOperand(1) + ")";
         }
         else {
-        return "(" + getOperand(0) + " * " + getOperand(1) + ")";
-    }
+            return "(" + getOperand(0) + " * " + getOperand(1) + ")";
+        }
     }
 
     std::string visitDiv([[maybe_unused]] const ExprRef<DivExpr>& expr) {
@@ -158,8 +158,8 @@ public:
             return "(" + getOperand(0) + " bvsmod " + getOperand(1) + ")";
         }
         else {
-        return "(" + getOperand(0) + " mod " + getOperand(1) + ")";
-    }
+            return "(" + getOperand(0) + " mod " + getOperand(1) + ")";
+        }
     }
 
     std::string visitBvURem([[maybe_unused]] const ExprRef<BvURemExpr>& expr) {
