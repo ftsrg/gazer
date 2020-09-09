@@ -30,8 +30,6 @@
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Support/CommandLine.h>
 
-#include <charconv>
-
 using namespace gazer;
 using namespace gazer::theta;
 
@@ -281,9 +279,8 @@ static auto parseBvLiteral(sexpr::Value* sexpr, BvType& varTy) -> boost::intrusi
         auto bvLitValueStr = std::get<1>(lit).substr(1);
 
         unsigned bvSize;
-        auto [p, ec] = std::from_chars(bvSizeStr.data(), bvSizeStr.data() + bvSizeStr.size(), bvSize);
 
-        if (ec == std::errc() && bvSize == varTy.getWidth()) {
+        if (!bvSizeStr.getAsInteger(10, bvSize) && bvSize == varTy.getWidth()) {
             switch (std::tolower(bvLitForm)) {
                 case 'b':
                     if (!bvLitValueStr.getAsInteger(2, intVal)) {
