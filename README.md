@@ -5,7 +5,7 @@ It provides a user-friendly end-to-end verification workflow, with support for m
 
 Currently we support two verification backends:
 * `gazer-theta` leverages the power of the [theta](https://github.com/ftsrg/theta) model checking framework.
-  * Currently, [v1.7.0](https://github.com/ftsrg/theta/releases/tag/v1.7.0) is tested, but newer releases might also work.
+  * Currently, [v2.3.0](https://github.com/ftsrg/theta/releases/tag/v2.3.0) is tested, but newer releases might also work.
 * `gazer-bmc` is gazer's built-in bounded model checking engine.
 
 # Usage
