@@ -85,7 +85,7 @@ public:
             const auto& kvPairs = arrLit->getMap();
             if (kvPairs.size() > 0) {
                 for (const auto& [index, elem] : kvPairs) {
-                    arrLitStr += this->walk(index) + " <- " + this->walk(elem) + ", ";
+                    arrLitStr += printThetaExpr(index, mReplacedNames) + " <- " + printThetaExpr(elem, mReplacedNames) + ", ";
                 }
                 arrLitStr += "default <- ";
             } else {
@@ -93,7 +93,7 @@ public:
             }
 
             if (arrLit->hasDefault()) {
-                arrLitStr += this->walk(arrLit->getDefault());
+                arrLitStr += printThetaExpr(arrLit->getDefault(), mReplacedNames);
             } else {
                 arrLitStr += defaultValueForType(arrLit->getType().getElementType());
             }
