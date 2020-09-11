@@ -247,11 +247,9 @@ static auto parseBoolLiteral(sexpr::Value* sexpr, BoolType& varTy) -> ExprRef<Li
     llvm::StringRef value = sexpr->asAtom();
     if (value.equals_lower("true")) {
         return BoolLiteralExpr::True(varTy.getContext());
-    }
-    else if (value.equals_lower("false")) {
+    } else if (value.equals_lower("false")) {
         return BoolLiteralExpr::False(varTy.getContext());
-    }
-    else {
+    } else {
         return nullptr;
     }
 }
@@ -262,8 +260,7 @@ static auto parseIntLiteral(sexpr::Value* sexpr, IntType& varTy) -> ExprRef<Lite
     long long int intVal;
     if (!value.getAsInteger(10, intVal)) {
         return IntLiteralExpr::Get(varTy, intVal);
-    }
-    else {
+    } else {
         return nullptr;
     }
 }
@@ -275,8 +272,7 @@ static auto parseBvLiteral(sexpr::Value* sexpr, BvType& varTy) -> ExprRef<Litera
 
     if (!value.getAsInteger(10, intVal)) {
         return BvLiteralExpr::Get(varTy, intVal.zextOrTrunc(varTy.getWidth()));
-    }
-    else if (const auto lit = value.split("'"); std::get<1>(lit) != "") {
+    } else if (const auto lit = value.split("'"); std::get<1>(lit) != "") {
         auto bvSizeStr = std::get<0>(lit);
         auto bvLitForm = std::get<1>(lit)[0];
         auto bvLitValueStr = std::get<1>(lit).substr(1);
@@ -304,13 +300,11 @@ static auto parseBvLiteral(sexpr::Value* sexpr, BvType& varTy) -> ExprRef<Litera
 
             // Error while parsing
             return nullptr;
-        }
-        else {
+        } else {
             // Error while parsing the size
             return nullptr;
         }
-    }
-    else {
+    } else {
         // Not supported format
         return nullptr;
     }
@@ -325,14 +319,13 @@ static auto parseArrayLiteral(sexpr::Value* sexpr, ArrayType& varTy) -> ExprRef<
     ArrayLiteralExpr::MappingT entries;
     ExprRef<LiteralExpr> def = nullptr;
 
-    for(auto arrEntryImpl : arrLitImpl) {
+    for (auto arrEntryImpl : arrLitImpl) {
         auto keyImpl = arrEntryImpl->asList()[0];
         auto valueImpl = arrEntryImpl->asList()[1];
 
-        if(keyImpl->isAtom() && keyImpl->asAtom() == "default") {
+        if (keyImpl->isAtom() && keyImpl->asAtom() == "default") {
             def = parseLiteral(valueImpl, varTy.getElementType());
-        }
-        else {
+        } else {
             entries[parseLiteral(keyImpl, varTy.getIndexType())] = parseLiteral(valueImpl, varTy.getElementType());
         }
     }
