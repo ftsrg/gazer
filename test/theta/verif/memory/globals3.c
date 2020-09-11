@@ -1,4 +1,4 @@
-// RUN: %theta "%s" | FileCheck "%s"
+// RUN: %theta --domain EXPL --refinement UNSAT_CORE "%s" | FileCheck "%s"
 
 // CHECK: Verification SUCCESSFUL
 #include <limits.h>
