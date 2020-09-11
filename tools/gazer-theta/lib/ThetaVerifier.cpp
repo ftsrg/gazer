@@ -240,9 +240,9 @@ static void reportInvalidCex(llvm::StringRef message, llvm::StringRef cex, sexpr
     llvm::errs() << "Raw counterexample is: " << cex << "\n";
 }
 
-static auto parseLiteral(sexpr::Value* sexpr, Type& varTy) -> boost::intrusive_ptr<LiteralExpr>;
+static auto parseLiteral(sexpr::Value* sexpr, Type& varTy) -> ExprRef<LiteralExpr>;
 
-static auto parseBoolLiteral(sexpr::Value* sexpr, BoolType& varTy) -> boost::intrusive_ptr<LiteralExpr>
+static auto parseBoolLiteral(sexpr::Value* sexpr, BoolType& varTy) -> ExprRef<LiteralExpr>
 {
     llvm::StringRef value = sexpr->asAtom();
     if (value.equals_lower("true")) {
@@ -256,7 +256,7 @@ static auto parseBoolLiteral(sexpr::Value* sexpr, BoolType& varTy) -> boost::int
     }
 }
 
-static auto parseIntLiteral(sexpr::Value* sexpr, IntType& varTy) -> boost::intrusive_ptr<LiteralExpr>
+static auto parseIntLiteral(sexpr::Value* sexpr, IntType& varTy) -> ExprRef<LiteralExpr>
 {
     llvm::StringRef value = sexpr->asAtom();
     long long int intVal;
@@ -268,7 +268,7 @@ static auto parseIntLiteral(sexpr::Value* sexpr, IntType& varTy) -> boost::intru
     }
 }
 
-static auto parseBvLiteral(sexpr::Value* sexpr, BvType& varTy) -> boost::intrusive_ptr<LiteralExpr>
+static auto parseBvLiteral(sexpr::Value* sexpr, BvType& varTy) -> ExprRef<LiteralExpr>
 {
     llvm::StringRef value = sexpr->asAtom();
     llvm::APInt intVal;
@@ -316,7 +316,7 @@ static auto parseBvLiteral(sexpr::Value* sexpr, BvType& varTy) -> boost::intrusi
     }
 }
 
-static auto parseArrayLiteral(sexpr::Value* sexpr, ArrayType& varTy) -> boost::intrusive_ptr<LiteralExpr>
+static auto parseArrayLiteral(sexpr::Value* sexpr, ArrayType& varTy) -> ExprRef<LiteralExpr>
 {
     auto arrLitImpl = sexpr->asList();
     // The string "array" at the beginning
@@ -340,7 +340,7 @@ static auto parseArrayLiteral(sexpr::Value* sexpr, ArrayType& varTy) -> boost::i
     return ArrayLiteralExpr::Get(varTy, entries, def);
 }
 
-static auto parseLiteral(sexpr::Value* sexpr, Type& varTy) -> boost::intrusive_ptr<LiteralExpr>
+static auto parseLiteral(sexpr::Value* sexpr, Type& varTy) -> ExprRef<LiteralExpr>
 {
     switch (varTy.getTypeID()) {
         case Type::BoolTypeID: {
