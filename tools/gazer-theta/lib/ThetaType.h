@@ -25,14 +25,8 @@
 namespace gazer::theta
 {
 
-class ThetaType final
-{
-public:
-    ThetaType() = delete;
-
-    static std::string getThetaTypeName(Type& type);
-    static std::string getThetaTypeDefaultValue(Type& type);
-};
+std::string thetaType(Type& type);
+std::string defaultValueForType(Type& type);
 
 } // end namespace gazer::theta
 

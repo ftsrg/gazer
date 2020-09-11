@@ -83,14 +83,14 @@ public:
                 arrLitStr += "default <- ";
             }
             else {
-                arrLitStr += "<" + ThetaType::getThetaTypeName(arrLit->getType().getIndexType()) + ">default <- ";
+                arrLitStr += "<" + thetaType(arrLit->getType().getIndexType()) + ">default <- ";
             }
 
             if(arrLit->hasDefault()) {
                 arrLitStr += this->walk(arrLit->getDefault());
             }
             else {
-                arrLitStr += ThetaType::getThetaTypeDefaultValue(arrLit->getType().getElementType());
+                arrLitStr += defaultValueForType(arrLit->getType().getElementType());
             }
 
             arrLitStr += "]";

@@ -21,7 +21,7 @@
 using namespace gazer;
 using namespace gazer::theta;
 
-std::string ThetaType::getThetaTypeName(Type &type)
+std::string gazer::theta::thetaType(Type &type)
 {
     switch (type.getTypeID()) {
         case Type::IntTypeID:
@@ -32,7 +32,7 @@ std::string ThetaType::getThetaTypeName(Type &type)
             return "bool";
         case Type::ArrayTypeID: {
             auto& arrTy = llvm::cast<ArrayType>(type);
-            return "[" + getThetaTypeName(arrTy.getIndexType()) + "] -> " + getThetaTypeName(arrTy.getElementType());
+            return "[" + thetaType(arrTy.getIndexType()) + "] -> " + thetaType(arrTy.getElementType());
         }
         case Type::BvTypeID: {
             auto& bvTy = llvm::cast<BvType>(type);
@@ -43,7 +43,7 @@ std::string ThetaType::getThetaTypeName(Type &type)
     }
 }
 
-std::string ThetaType::getThetaTypeDefaultValue(Type &type)
+std::string gazer::theta::defaultValueForType(Type &type)
 {
     switch (type.getTypeID()) {
         case Type::IntTypeID:
@@ -54,7 +54,7 @@ std::string ThetaType::getThetaTypeDefaultValue(Type &type)
             return "false";
         case Type::ArrayTypeID: {
             auto& arrTy = llvm::cast<ArrayType>(type);
-            return "[<" + getThetaTypeName(arrTy.getIndexType()) + ">default <- " + getThetaTypeDefaultValue(arrTy.getElementType()) + "]";
+            return "[<" + thetaType(arrTy.getIndexType()) + ">default <- " + defaultValueForType(arrTy.getElementType()) + "]";
         }
         case Type::BvTypeID: {
             auto& bvTy = llvm::cast<BvType>(type);

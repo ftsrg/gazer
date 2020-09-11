@@ -225,7 +225,7 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
     // Add variables
     for (auto& variable : main->locals()) {
         auto name = validName(variable.getName(), isValidVarName);
-        auto type = ThetaType::getThetaTypeName(variable.getType());
+        auto type = thetaType(variable.getType());
         
         nameTrace.variables[name] = &variable;
         vars.try_emplace(&variable, std::make_unique<ThetaVarDecl>(name, type));
@@ -233,7 +233,7 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
 
     for (auto& variable : main->inputs()) {
         auto name = validName(variable.getName(), isValidVarName);
-        auto type = ThetaType::getThetaTypeName(variable.getType());
+        auto type = thetaType(variable.getType());
 
         nameTrace.variables[name] = &variable;
         vars.try_emplace(&variable, std::make_unique<ThetaVarDecl>(name, type));
