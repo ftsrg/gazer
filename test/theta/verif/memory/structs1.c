@@ -1,5 +1,5 @@
 // REQUIRES: memory.structs
-// RUN: %theta --domain EXPL --refinement UNSAT_CORE "%s" | FileCheck "%s"
+// RUN: %theta --domain EXPL --refinement NWT_IT_WP "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED
 

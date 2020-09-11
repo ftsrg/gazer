@@ -1,5 +1,5 @@
 // REQUIRES: memory.burstall
-// RUN: %theta --domain EXPL --refinement UNSAT_CORE "%s" | FileCheck "%s"
+// RUN: %theta --domain EXPL --refinement NWT_IT_WP "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED
 void __VERIFIER_error(void) __attribute__((__noreturn__));
