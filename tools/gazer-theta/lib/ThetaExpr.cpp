@@ -66,30 +66,28 @@ public:
             return std::to_string(val.numerator()) + "%" + std::to_string(val.denominator());
         }
 
-        if(auto bvLit = llvm::dyn_cast<BvLiteralExpr>(expr)) {
+        if (auto bvLit = llvm::dyn_cast<BvLiteralExpr>(expr)) {
             auto exactValue = bvLit->getValue().getZExtValue();
             auto exactString = std::bitset<sizeof (exactValue) * 8>(exactValue).to_string();
             return std::to_string(bvLit->getType().getWidth()) + "'b" + exactString.substr(exactString.length() - bvLit->getType().getWidth());
         }
 
-        if(auto arrLit = llvm::dyn_cast<ArrayLiteralExpr>(expr)) {
+        if (auto arrLit = llvm::dyn_cast<ArrayLiteralExpr>(expr)) {
             std::string arrLitStr = "[";
 
             const auto& kvPairs = arrLit->getMap();
-            if(kvPairs.size() > 0) {
-                for(const auto& [index, elem] : kvPairs) {
+            if (kvPairs.size() > 0) {
+                for (const auto& [index, elem] : kvPairs) {
                     arrLitStr += this->walk(index) + " <- " + this->walk(elem) + ", ";
                 }
                 arrLitStr += "default <- ";
-            }
-            else {
+            } else {
                 arrLitStr += "<" + thetaType(arrLit->getType().getIndexType()) + ">default <- ";
             }
 
-            if(arrLit->hasDefault()) {
+            if (arrLit->hasDefault()) {
                 arrLitStr += this->walk(arrLit->getDefault());
-            }
-            else {
+            } else {
                 arrLitStr += defaultValueForType(arrLit->getType().getElementType());
             }
 
@@ -115,28 +113,25 @@ public:
 
     // Binary
     std::string visitAdd(const ExprRef<AddExpr>& expr) {
-        if(expr->getType().isBvType()) {
+        if (expr->getType().isBvType()) {
             return "(" + getOperand(0) + " bvadd " + getOperand(1) + ")";
-        }
-        else {
+        } else {
             return "(" + getOperand(0) + " + " + getOperand(1) + ")";
         }
     }
 
     std::string visitSub(const ExprRef<SubExpr>& expr) {
-        if(expr->getType().isBvType()) {
+        if (expr->getType().isBvType()) {
             return "(" + getOperand(0) + " bvsub " + getOperand(1) + ")";
-        }
-        else {
+        } else {
             return "(" + getOperand(0) + " - " + getOperand(1) + ")";
         }
     }
 
     std::string visitMul(const ExprRef<MulExpr>& expr) {
-        if(expr->getType().isBvType()) {
+        if (expr->getType().isBvType()) {
             return "(" + getOperand(0) + " bvmul " + getOperand(1) + ")";
-        }
-        else {
+        } else {
             return "(" + getOperand(0) + " * " + getOperand(1) + ")";
         }
     }
@@ -154,10 +149,9 @@ public:
     }
 
     std::string visitMod(const ExprRef<ModExpr>& expr) {
-        if(expr->getType().isBvType()) {
+        if (expr->getType().isBvType()) {
             return "(" + getOperand(0) + " bvsmod " + getOperand(1) + ")";
-        }
-        else {
+        } else {
             return "(" + getOperand(0) + " mod " + getOperand(1) + ")";
         }
     }
