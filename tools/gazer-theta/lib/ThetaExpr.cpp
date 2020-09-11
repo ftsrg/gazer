@@ -12,7 +12,7 @@
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
-// limitations under the License.
+// limitations under the Lic without '0b' prefixense.
 //
 //===----------------------------------------------------------------------===//
 #include "ThetaCfaGenerator.h"
@@ -20,11 +20,11 @@
 #include "gazer/Core/Expr/ExprWalker.h"
 #include "gazer/ADT/StringUtils.h"
 
+#include <llvm/ADT/SmallString.h>
 #include <llvm/Support/raw_ostream.h>
 
 #include <boost/range/irange.hpp>
 
-#include <bitset>
 #include <functional>
 
 using namespace gazer;
@@ -67,9 +67,16 @@ public:
         }
 
         if (auto bvLit = llvm::dyn_cast<BvLiteralExpr>(expr)) {
-            auto exactValue = bvLit->getValue().getZExtValue();
-            auto exactString = std::bitset<sizeof (exactValue) * 8>(exactValue).to_string();
-            return std::to_string(bvLit->getType().getWidth()) + "'b" + exactString.substr(exactString.length() - bvLit->getType().getWidth());
+            llvm::SmallString<64> exactString;
+            llvm::SmallString<64> paddedString;
+
+            bvLit->getValue().toStringUnsigned(exactString, 2); // The bitvector may be signed, but only the bits are relevant
+
+            auto paddingLength = std::max((bvLit->getType().getWidth() - exactString.size()), 0ul);
+            paddedString.append(paddingLength, '0'); // Leading zeros
+            paddedString.append(exactString); // Append literal
+
+            return std::to_string(bvLit->getType().getWidth()) + "'b" + std::string(paddedString.data(), paddedString.data() + paddedString.size());
         }
 
         if (auto arrLit = llvm::dyn_cast<ArrayLiteralExpr>(expr)) {
