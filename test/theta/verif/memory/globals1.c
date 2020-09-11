@@ -1,4 +1,4 @@
-// RUN: %theta --domain EXPL --refinement UNSAT_CORE "%s" | FileCheck "%s"
+// RUN: %theta --domain EXPL --refinement NWT_IT_WP -no-inline-globals "%s" | FileCheck "%s"
 
 // CHECK: Verification SUCCESSFUL
 int __VERIFIER_nondet_int(void);
