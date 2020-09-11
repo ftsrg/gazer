@@ -59,6 +59,22 @@ public:
         return IntLiteralExpr::Get(IntType::Get(mContext), value);
     }
 
+    ExprRef<ArrayLiteralExpr> ArrayLit(ArrayType& arrTy, const ArrayLiteralExpr::MappingT& entries, const ExprRef<LiteralExpr>& elze = nullptr) {
+        return ArrayLiteralExpr::Get(arrTy, entries, elze);
+    }
+
+    ExprRef<ArrayLiteralExpr> ArrayLit(const ArrayLiteralExpr::MappingT& entries) {
+        assert(entries.size() > 0);
+        const auto& [index, elem] = *entries.begin();
+        return ArrayLit(ArrayType::Get(index->getType(), elem->getType()), entries, nullptr);
+    }
+
+    ExprRef<ArrayLiteralExpr> ArrayLit(const ArrayLiteralExpr::MappingT& entries, const ExprRef<LiteralExpr>& elze) {
+        assert(entries.size() > 0);
+        const auto& [index, elem] = *entries.begin();
+        return ArrayLit(ArrayType::Get(index->getType(), elem->getType()), entries, elze);
+    }
+
     ExprRef<BoolLiteralExpr> BoolLit(bool value) { return value ? True() : False(); }
     ExprRef<BoolLiteralExpr> True()  { return BoolLiteralExpr::True(BoolType::Get(mContext)); }
     ExprRef<BoolLiteralExpr> False() { return BoolLiteralExpr::False(BoolType::Get(mContext)); }
