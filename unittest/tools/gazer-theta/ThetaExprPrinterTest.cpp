@@ -86,7 +86,13 @@ ThetaExprPrinterTest::ThetaExprPrinterTest()
               { b->BvSLt(b->BvLit(2, 8), b->BvLit(3, 8)), "(8'b00000010 bvslt 8'b00000011)" },
               { b->BvSLtEq(b->BvLit(2, 8), b->BvLit(3, 8)), "(8'b00000010 bvsle 8'b00000011)" },
               { b->BvSGt(b->BvLit(2, 8), b->BvLit(3, 8)), "(8'b00000010 bvsgt 8'b00000011)" },
-              { b->BvSGtEq(b->BvLit(2, 8), b->BvLit(3, 8)), "(8'b00000010 bvsge 8'b00000011)" }
+              { b->BvSGtEq(b->BvLit(2, 8), b->BvLit(3, 8)), "(8'b00000010 bvsge 8'b00000011)" },
+              { b->ArrayLit({
+                    { b->BvLit(2, 4), b->BvLit(3, 4) },
+                    { b->BvLit(1, 4), b->BvLit(0, 4) }
+                                                        }, b->BvLit(0, 4)), "[4'b0010 <- 4'b0011, 4'b0001 <- 4'b0000, default <- 4'b0000]" 
+              },
+              { b->ArrayLit(ArrayType::Get(BvType::Get(ctx, 8), BvType::Get(ctx, 4)), {}, b->BvLit(0, 4)), "[<bv[8]>default <- 4'b0000]" }
           })
 {}
 
