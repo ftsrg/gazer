@@ -192,7 +192,8 @@ void BlocksToCfa::ExtensionPointImpl::splitCurrentTransition(const ExprPtr& guar
 {
     Location* aux = mGenInfo.Automaton->createLocation();
 
-    mGenInfo.Automaton->createAssignTransition(*mEntry, aux, guard, mAssigns);
+    mGenInfo.Automaton->createAssignTransition(*mEntry, aux, ExprBuilder(guard->getContext()).True(), mAssigns);
+    mGenInfo.Automaton->createAssignTransition(*mEntry, aux, guard, {});
     mAssigns.clear();
 
     *mEntry = aux;
