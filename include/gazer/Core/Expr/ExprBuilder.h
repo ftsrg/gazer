@@ -280,6 +280,10 @@ public:
         return this->createTupleConstructor(type, {first, second, exprs...});
     }
 
+    /// Constructs a new tuple based on \p tuple, where the element at \p index
+    /// will be set to \p value.
+    ExprPtr TupleInsert(const ExprPtr& tuple, const ExprPtr& value, unsigned index);
+
     virtual ExprPtr TupSel(const ExprPtr& tuple, unsigned index);
 
 protected:

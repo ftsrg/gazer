@@ -28,6 +28,30 @@ ExprPtr ExprBuilder::createTupleConstructor(TupleType& type, const ExprVector& m
     return TupleConstructExpr::Create(type, members);
 }
 
+ExprPtr ExprBuilder::TupleInsert(const ExprPtr &tuple, const ExprPtr &value, unsigned int index)
+{
+    assert(tuple->getType().isTupleType() && "Can only perform tuple insertion on tuples!");
+    auto& tupleTy = llvm::cast<TupleType>(tuple->getType());
+
+    assert(index <= tupleTy.getNumSubtypes() && "Tuple insert index out of range!");
+    assert(tupleTy.getTypeAtIndex(index) == value->getType() && "Tuple insert of incompatible types!");
+
+    ExprVector newMembers;
+    newMembers.reserve(tupleTy.getNumSubtypes());
+
+    if (auto tupleConstruct = llvm::dyn_cast<TupleConstructExpr>(tuple)) {
+        newMembers.insert(newMembers.begin(), tupleConstruct->op_begin(), tupleConstruct->op_end());
+    } else {
+        newMembers.resize(tupleTy.getNumSubtypes());
+        for (unsigned i = 0; i < tupleTy.getNumSubtypes(); ++i) {
+            newMembers[i] = this->TupSel(tuple, i);
+        }
+    }
+
+    newMembers[index] = value;
+    return this->createTupleConstructor(tupleTy, newMembers);
+}
+
 ExprPtr ExprBuilder::TupSel(const ExprPtr& tuple, unsigned index)
 {
     return TupleSelectExpr::Create(tuple, index);
