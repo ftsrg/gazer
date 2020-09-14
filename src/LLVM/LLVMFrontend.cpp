@@ -26,6 +26,7 @@
 #include "gazer/LLVM/Trace/TestHarnessGenerator.h"
 #include "gazer/LLVM/Transform/BackwardSlicer.h"
 #include "gazer/Support/Warnings.h"
+#include "gazer/LLVM/Transform/AllocaStorePass.h"
 
 #include <llvm/Analysis/ScopedNoAliasAA.h>
 #include <llvm/Analysis/TypeBasedAliasAnalysis.h>
@@ -137,10 +138,14 @@ LLVMFrontend::LLVMFrontend(
 void LLVMFrontend::registerVerificationPipeline()
 {
     // Do basic preprocessing: get rid of alloca's and turn undef's
-    //  into nondet function calls.
-    mPassManager.add(llvm::createPromoteMemoryToRegisterPass());
+    // into nondet function calls.
+    
+    mPassManager.add(gazer::createAllocaStorePass());
     mPassManager.add(gazer::createPromoteUndefsPass());
 
+    mPassManager.add(llvm::createPromoteMemoryToRegisterPass());
+    mPassManager.add(gazer::createPromoteUndefsPass());
+    
     // Perform check instrumentation.
     mPassManager.add(gazer::createNormalizeVerifierCallsPass());
     registerEnabledChecks();
