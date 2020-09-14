@@ -34,6 +34,9 @@
 namespace gazer
 {
 
+// Inserts a store of an undef value after each alloca instructions
+// (This prevents some incorrect false values due to uninitialized variables,
+// but the UndefToNondet Pass has to be run after this one immediately)
 class AllocaStorePass : public llvm::FunctionPass
 {
 public:
