@@ -75,6 +75,11 @@ public:
         return this->Extract(op, 0, type.getWidth());
     }
 
+    /// Resize bit-vector operand \p op to match \p type.
+    /// If \p type is wider than the type of \p op, ZExt, otherwise
+    /// Extract is used to do the cast.
+    ExprPtr BvResize(const ExprPtr& op, BvType& type);
+
     // Virtual methods
     //===------------------------------------------------------------------===//
     virtual ExprPtr Not(const ExprPtr& op) {
