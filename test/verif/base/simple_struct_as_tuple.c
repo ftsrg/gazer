@@ -1,4 +1,5 @@
 // RUN: %bmc -bound 1 -Wno-int-conversion "%s" | FileCheck "%s"
+// RUN: %bmc -bound 1 -no-optimize -Wno-int-conversion "%s" | FileCheck "%s"
 
 // CHECK: Verification SUCCESSFUL
 

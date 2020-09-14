@@ -52,6 +52,22 @@ ExprPtr ExprBuilder::TupleInsert(const ExprPtr &tuple, const ExprPtr &value, uns
     return this->createTupleConstructor(tupleTy, newMembers);
 }
 
+ExprPtr ExprBuilder::BvResize(const ExprPtr &op, BvType &type)
+{
+    assert(op->getType().isBvType() && "BvResize only works on bit-vectors!");
+    unsigned width = llvm::cast<BvType>(op->getType()).getWidth();
+
+    if (width < type.getWidth()) {
+        return this->ZExt(op, type);
+    }
+
+    if (width > type.getWidth()) {
+        return this->Trunc(op, type);
+    }
+
+    return op;
+}
+
 ExprPtr ExprBuilder::TupSel(const ExprPtr& tuple, unsigned index)
 {
     return TupleSelectExpr::Create(tuple, index);
