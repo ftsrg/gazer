@@ -273,6 +273,10 @@ public:
     static bool classof(const Type* type) {
         return type->getTypeID() == ArrayTypeID;
     }
+
+    static bool classof(const Type& type) {
+        return classof(&type);
+    }
 };
 
 class TupleType final : public Type
@@ -299,12 +303,15 @@ public:
         return TupleType::Get(subtypeList);
     }
 
+    static TupleType& Get(std::vector<Type*> subtypes);
+
     static bool classof(const Type* type) {
         return type->getTypeID() == TupleTypeID;
     }
 
-private:
-    static TupleType& Get(std::vector<Type*> subtypes);
+    static bool classof(const Type& type) {
+        return classof(&type);
+    }
 
 private:
     std::vector<Type*> mSubtypeList;

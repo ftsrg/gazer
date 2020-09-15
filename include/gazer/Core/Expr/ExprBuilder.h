@@ -75,6 +75,11 @@ public:
         return this->Extract(op, 0, type.getWidth());
     }
 
+    /// Resize bit-vector operand \p op to match \p type.
+    /// If \p type is wider than the type of \p op, ZExt, otherwise
+    /// Extract is used to do the cast.
+    ExprPtr BvResize(const ExprPtr& op, BvType& type);
+
     // Virtual methods
     //===------------------------------------------------------------------===//
     virtual ExprPtr Not(const ExprPtr& op) {
@@ -279,6 +284,10 @@ public:
         TupleType& type = TupleType::Get(first->getType(), second->getType(), exprs->getType()...);
         return this->createTupleConstructor(type, {first, second, exprs...});
     }
+
+    /// Constructs a new tuple based on \p tuple, where the element at \p index
+    /// will be set to \p value.
+    ExprPtr TupleInsert(const ExprPtr& tuple, const ExprPtr& value, unsigned index);
 
     virtual ExprPtr TupSel(const ExprPtr& tuple, unsigned index);
 

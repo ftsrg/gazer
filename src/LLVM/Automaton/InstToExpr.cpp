@@ -69,6 +69,8 @@ ExprPtr InstToExpr::doTransform(const llvm::Instruction& inst, Type& expectedTyp
     HANDLE_INST(Instruction::ICmp,      ICmpInst)
     HANDLE_INST(Instruction::Call,      CallInst)
     HANDLE_INST(Instruction::FCmp,      FCmpInst)
+    HANDLE_INST(Instruction::InsertValue,        InsertValueInst)
+    HANDLE_INST(Instruction::ExtractValue,        ExtractValueInst)
 
     #undef HANDLE_INST
 
@@ -777,6 +779,24 @@ ExprPtr InstToExpr::visitCallInst(const llvm::CallInst& call)
     }
 
     return UndefExpr::Get(callTy);
+}
+
+ExprPtr InstToExpr::visitInsertValueInst(const llvm::InsertValueInst& insert) {
+    const llvm::Value* structOperand = insert.getAggregateOperand();
+    assert(structOperand->getType()->isStructTy() && "InsertValue is only supported for simple struct types!");
+    assert(insert.getNumIndices() == 1 && "Nested structs are not supported (the number of indices must be 1)");
+
+    ExprPtr valueToInsert = this->operand(insert.getInsertedValueOperand());
+
+    return mExprBuilder.TupleInsert(this->operand(structOperand), valueToInsert, insert.getIndices()[0]);
+}
+
+ExprPtr InstToExpr::visitExtractValueInst(const llvm::ExtractValueInst& extract) {
+    const llvm::Value* structOperand = extract.getAggregateOperand();
+    assert(structOperand->getType()->isStructTy() && "ExtractValue is only supported for simple struct types!");
+    assert(extract.getNumIndices() == 1 && "Nested structs are not supported (the number of indices must be 1)");
+
+    return mExprBuilder.TupSel(this->operand(structOperand), extract.getIndices()[0]);
 }
 
 ExprPtr InstToExpr::operand(ValueOrMemoryObject value)

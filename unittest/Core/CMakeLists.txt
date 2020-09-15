@@ -7,7 +7,7 @@ SET(TEST_SOURCES
     Expr/ExprEvaluatorTest.cpp
     Expr/ExprWalkerTest.cpp
     Expr/FoldingExprBuilderTest.cpp
-)
+    Expr/ExprBuilderTest.cpp)
 
 add_test(GazerCoreTest GazerCoreTest)
 add_executable(GazerCoreTest ${TEST_SOURCES})

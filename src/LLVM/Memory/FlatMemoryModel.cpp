@@ -429,9 +429,14 @@ ExprPtr FlatMemoryModelInstTranslator::handlePointerCast(
 {
     switch (cast.getOpcode()) {
         case llvm::Instruction::BitCast:
-        case llvm::Instruction::PtrToInt:
-        case llvm::Instruction::IntToPtr:
             return origPtr;
+        case llvm::Instruction::PtrToInt:
+        case llvm::Instruction::IntToPtr: {
+            Type& targetType = mTypes.get(cast.getDestTy());
+            assert(targetType.isBvType() && "Can only do pointer casts to/from bit-vectors!");
+
+            return mExprBuilder.BvResize(origPtr, llvm::cast<BvType>(targetType));
+        }
         default:
             break;
     }

@@ -73,6 +73,8 @@ protected:
     ExprPtr visitICmpInst(const llvm::ICmpInst& icmp);
     ExprPtr visitFCmpInst(const llvm::FCmpInst& fcmp);
     ExprPtr visitCallInst(const llvm::CallInst& call);
+    ExprPtr visitInsertValueInst(const llvm::InsertValueInst& insert);
+    ExprPtr visitExtractValueInst(const llvm::ExtractValueInst& extract);
 
     ExprPtr operand(ValueOrMemoryObject value);
     
