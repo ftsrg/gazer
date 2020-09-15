@@ -1,4 +1,4 @@
-// RUN: %theta --domain EXPL --refinement NWT_IT_WP -no-inline-globals "%s" | FileCheck "%s"
+// RUN: %theta --domain PRED_CART --refinement NWT_IT_WP -no-inline-globals "%s" | FileCheck "%s"
 
 // CHECK: Verification SUCCESSFUL
 
