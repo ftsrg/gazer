@@ -54,6 +54,15 @@ gazer::Type& LLVMTypeTranslator::get(const llvm::Type* type)
             return mMemoryTypes.handlePointerType(llvm::cast<llvm::PointerType>(type));
         case llvm::Type::ArrayTyID:
             return mMemoryTypes.handleArrayType(llvm::cast<llvm::ArrayType>(type));
+        case llvm::Type::StructTyID: {
+            auto structTy = llvm::cast<llvm::StructType>(type);
+            std::vector<Type*> subtypeList;
+            for (llvm::Type* llvmSubtype : structTy->subtypes()) {
+                subtypeList.push_back(&this->get(llvmSubtype));
+            }
+
+            return TupleType::Get(subtypeList);
+        }
         default:
             llvm::errs() << "Unsupported LLVM Type: " << *type << "\n";
             llvm_unreachable("Unsupported LLVM type.");

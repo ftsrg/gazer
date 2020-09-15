@@ -470,6 +470,8 @@ class TupleConstructExpr : public NonNullaryExpr
 protected:
     using NonNullaryExpr::NonNullaryExpr;
 public:
+    TupleType& getType() const { return llvm::cast<TupleType>(mType); }
+
     static ExprRef<TupleConstructExpr> Create(TupleType& type, const ExprVector& exprs);
 
     template<class... Args>
@@ -478,7 +480,7 @@ public:
     }
 
     static bool classof(const Expr* expr) {
-        return expr->getKind() == Literal && expr->getType().isTupleType();
+        return expr->getKind() == TupleConstruct;
     }
 
     static bool classof(const Expr& expr) {
