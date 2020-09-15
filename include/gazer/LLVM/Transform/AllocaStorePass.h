@@ -51,7 +51,7 @@ public:
             for (auto &I : BB) {
                 if (llvm::AllocaInst *CI = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
                     builder.SetInsertPoint(CI->getNextNode());
-                    builder.CreateAlignedStore(llvm::UndefValue::get(CI->getAllocatedType()), CI, 4); // TODO don't hardcode alignment               
+                    builder.CreateAlignedStore(llvm::UndefValue::get(CI->getAllocatedType()), CI, CI->getAlignment());
                 }
             }
         }                        

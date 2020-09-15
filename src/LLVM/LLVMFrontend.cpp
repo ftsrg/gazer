@@ -143,6 +143,8 @@ void LLVMFrontend::registerVerificationPipeline()
     mPassManager.add(gazer::createAllocaStorePass());
     mPassManager.add(gazer::createPromoteUndefsPass());
 
+    // mPassManager.add(llvm::createPrintFunctionPass(llvm::errs())); // print IR
+
     mPassManager.add(llvm::createPromoteMemoryToRegisterPass());
     mPassManager.add(gazer::createPromoteUndefsPass());
     
