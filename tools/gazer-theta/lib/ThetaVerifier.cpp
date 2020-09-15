@@ -260,9 +260,9 @@ static auto parseIntLiteral(sexpr::Value* sexpr, IntType& varTy) -> ExprRef<Lite
     long long int intVal;
     if (!value.getAsInteger(10, intVal)) {
         return IntLiteralExpr::Get(varTy, intVal);
-    } else {
-        return nullptr;
     }
+    
+    return nullptr;
 }
 
 static auto parseBvLiteral(sexpr::Value* sexpr, BvType& varTy) -> ExprRef<LiteralExpr>
