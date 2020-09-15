@@ -72,7 +72,7 @@ public:
     ExprRef<ArrayLiteralExpr> ArrayLit(const ArrayLiteralExpr::MappingT& entries, const ExprRef<LiteralExpr>& elze) {
         assert(entries.size() > 0);
         const auto& [index, elem] = *entries.begin();
-        return ArrayLit(ArrayType::Get(index->getType(), elem->getType()), entries, elze);
+        return this->ArrayLit(ArrayType::Get(index->getType(), elem->getType()), entries, elze);
     }
 
     ExprRef<BoolLiteralExpr> BoolLit(bool value) { return value ? True() : False(); }
