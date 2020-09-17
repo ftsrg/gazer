@@ -24,6 +24,7 @@
 #include "gazer/LLVM/Memory/MemoryModel.h"
 #include "gazer/Trace/TraceWriter.h"
 #include "gazer/LLVM/Trace/TestHarnessGenerator.h"
+#include "gazer/Witness/WitnessWriter.h"
 #include "gazer/LLVM/Transform/BackwardSlicer.h"
 #include "gazer/Support/Warnings.h"
 
@@ -225,6 +226,23 @@ bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
                     llvm::outs() << "Error trace is unavailable.\n";
                 }
             }
+            
+            if (!mSettings.witness.empty() && fail->hasTrace() && !mSettings.hash.empty()) {
+                if (fail->hasTrace()) {
+                    std::error_code EC{};
+                    llvm::raw_fd_ostream fouts{ StringRef{mSettings.witness}, EC };
+                    
+                    ViolationWitnessWriter witnessWriter{ fouts, fail->getTrace(), mSettings.hash };
+                    
+                    witnessWriter.initializeWitness();
+                    witnessWriter.write(fail->getTrace());
+                    witnessWriter.closeWitness();
+                } else if (mSettings.hash.empty()) {
+                    llvm::outs() << "Hash of the source file must be given to produce a witness (--hash)";
+                } else if (!mSettings.witness.empty()) {
+                    llvm::outs() << "Error witness is unavailable.\n";
+                }
+            }
 
             if (!mSettings.testHarnessFile.empty() && fail->hasTrace()) {
                 llvm::outs() << "Generating test harness.\n";
@@ -248,6 +266,16 @@ bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
         }
         case VerificationResult::Success:
             llvm::outs() << "Verification SUCCESSFUL.\n";
+            if (!mSettings.witness.empty() && !mSettings.hash.empty()) {
+                // puts the witness file in the working directory of gazer
+                std::error_code EC{};
+                llvm::raw_fd_ostream fouts{ StringRef{mSettings.witness}, EC };
+                
+                CorrectnessWitnessWriter witnessWriter{ fouts, mSettings.hash };
+                witnessWriter.outputWitness();
+            } else if(!mSettings.witness.empty() && mSettings.hash.empty()) {
+                llvm::outs() << "Hash of the source file must be given to produce a witness (--hash)";
+            }
             break;
         case VerificationResult::Timeout:
             llvm::outs() << "Verification TIMEOUT.\n";

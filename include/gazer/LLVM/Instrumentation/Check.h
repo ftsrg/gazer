@@ -133,7 +133,7 @@ public:
     llvm::Value* createCheckViolation(Check* check, llvm::DebugLoc loc);
 
     std::string messageForCode(unsigned ec) const;
-
+    
     ~CheckRegistry();
 private:
     llvm::LLVMContext& mLlvmContext;

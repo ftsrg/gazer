@@ -18,10 +18,12 @@
 #include "gazer/LLVM/LLVMFrontend.h"
 #include "gazer/LLVM/Instrumentation/DefaultChecks.h"
 #include "gazer/Support/Warnings.h"
+#include "gazer/Witness/WitnessWriter.h"
 #include "gazer/Config/gazer-config.h"
 
 #include <llvm/IR/Module.h>
 #include <llvm/ADT/StringExtras.h>
+#include <llvm/Support/Path.h>
 
 #ifndef NDEBUG
 #include <llvm/Support/PrettyStackTrace.h>
@@ -67,6 +69,20 @@ auto FrontendConfig::buildFrontend(
 
     auto frontend = std::make_unique<LLVMFrontend>(std::move(module), context, mSettings);
 
+    // The Witness generator has to get the initial name of the sourcefile
+    // ( witnesses support programs with a single source file only )
+    if (!mSettings.witness.empty()) {
+        if(inputs.size()!=1) {
+            llvm::errs() << "Witnesses support programs with a single source file only. Gazer won't generate a witness, as there were more than one input files";
+            mSettings.witness = "";
+            mSettings.hash = "";
+        } else { // TODO something more elegant?
+            llvm::StringRef filename = llvm::sys::path::filename(inputs[0]);
+            gazer::ViolationWitnessWriter::src_filename = filename;
+            CorrectnessWitnessWriter::src_filename = filename;
+        }
+    }
+
     for (auto& check : checks) {
         // Release the unique pointer and add it to the check registry
         frontend->getChecks().add(check.release());
@@ -107,7 +123,11 @@ void FrontendConfig::createChecks(std::vector<std::unique_ptr<Check>>& checks)
 
 void FrontendConfigWrapper::PrintVersion(llvm::raw_ostream& os)
 {
+<<<<<<< HEAD
     os << "gazer - a formal verification frontend\n";
     os.indent(2) << "version " << GAZER_VERSION_STRING << "\n";
     os.indent(2) << "LLVM version " << LLVM_VERSION_STRING << "\n";
+=======
+    os << "Gazer v" << GAZER_VERSION_STRING << "\nLLVM v" << LLVM_VERSION_STRING;
+>>>>>>> b2460c4... Implemented SVComp witness generation and SVComp starter script for combined runs
 }

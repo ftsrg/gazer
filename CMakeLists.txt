@@ -7,10 +7,17 @@ if(NOT DEFINED GAZER_VERSION_MAJOR)
   set(GAZER_VERSION_MAJOR 1)
 endif()
 if(NOT DEFINED GAZER_VERSION_MINOR)
+<<<<<<< HEAD
   set(GAZER_VERSION_MINOR 0)
 endif()
 if(NOT DEFINED GAZER_VERSION_PATCH)
   set(GAZER_VERSION_PATCH 0)
+=======
+  set(GAZER_VERSION_MINOR 1)
+endif()
+if(NOT DEFINED GAZER_VERSION_PATCH)
+  set(GAZER_VERSION_PATCH 1)
+>>>>>>> b2460c4... Implemented SVComp witness generation and SVComp starter script for combined runs
 endif()
 if(NOT DEFINED GAZER_VERSION_SUFFIX)
   set(GAZER_VERSION_SUFFIX "")
