@@ -104,7 +104,27 @@ int main(int argc, char* argv[])
     });
 
     cl::SetVersionPrinter(&FrontendConfigWrapper::PrintVersion);
-    cl::ParseCommandLineOptions(argc, argv);
+
+    // TODO - find some builtin llvm option for this:
+    // -instcombine-maxarray-size should have a default value of 0
+    bool addMaxArraySize = true;
+    std::string flag1 = "-instcombine-maxarray-size", flag2 = "--instcombine-maxarray-size";
+    for(size_t i = 1; i < argc; ++i) {
+        if(argv[i] == flag1 || argv[i] == flag2) addMaxArraySize = false;
+    }
+    if(addMaxArraySize) {
+        char* argv_ext[argc+2];
+        for(size_t i = 0; i < argc; i++) argv_ext[i] = argv[i];
+        argv_ext[argc] = (char*)malloc(strlen("-instcombine-maxarray-size"+1)*sizeof(char));
+        strcpy(argv_ext[argc], "-instcombine-maxarray-size"); 
+
+        argv_ext[argc+1] = (char*)malloc(strlen("0"+1)*sizeof(char));
+        strcpy(argv_ext[argc+1], "0"); 
+        cl::ParseCommandLineOptions(argc+2, argv_ext);
+    }
+    else {
+        cl::ParseCommandLineOptions(argc, argv);
+    }
 
     #ifndef NDEBUG
     llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
