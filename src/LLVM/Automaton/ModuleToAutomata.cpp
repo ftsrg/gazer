@@ -291,7 +291,7 @@ void ModuleToCfa::createAutomata()
 
         if (firstIteration) {
             GlobalVarDeclExtensionPoint ep(*mSystem);
-            memoryInstHandler.declareGlobalVariables(ep);
+            memoryInstHandler.declareGlobalVariables(mModule, ep);
             firstIteration = false;
         }
 
