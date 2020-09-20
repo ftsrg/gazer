@@ -65,6 +65,15 @@ std::unique_ptr<MemoryModel> CreateFlatMemoryModel(
     std::function<llvm::DominatorTree&(llvm::Function&)> dominators
 );
 
+//==-----------------------------------------------------------------------==//
+// SimpleMemoryModel - a memory model which uses global variables for naive
+// accesses (does not support arrays, special pointer operations)
+std::unique_ptr<MemoryModel> CreateSimpleMemoryModel(
+    GazerContext& context,
+    const LLVMFrontendSettings& settings,
+    llvm::Module& module
+);
+
 class MemoryModelWrapperPass : public llvm::ModulePass
 {
 public:

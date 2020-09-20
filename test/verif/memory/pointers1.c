@@ -1,4 +1,5 @@
 // RUN: %bmc -bound 1 -memory=flat "%s" | FileCheck "%s"
+// RUN: %bmc -memory=simple -bound 1 "%s" | FileCheck "%s"
 
 // CHECK: Verification {{(SUCCESSFUL|BOUND REACHED)}}
 

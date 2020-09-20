@@ -89,7 +89,8 @@ namespace
     cl::opt<MemoryModelSetting> MemoryModelOpt("memory", cl::desc("Memory model to use:"),
         cl::values(
             clEnumValN(MemoryModelSetting::Flat, "flat", "Bit-precise flat memory model"),
-            clEnumValN(MemoryModelSetting::Havoc, "havoc", "Dummy havoc model")
+            clEnumValN(MemoryModelSetting::Havoc, "havoc", "Dummy havoc model"),
+            clEnumValN(MemoryModelSetting::Simple, "simple", "Naive model")
         ),
         cl::init(MemoryModelSetting::Flat),
         cl::cat(IrToCfaCategory)

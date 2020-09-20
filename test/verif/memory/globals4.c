@@ -1,4 +1,5 @@
 // RUN: %bmc -bound 10 -no-inline-globals "%s" | FileCheck "%s"
+// RUN: %bmc -memory=simple -bound 10 -no-inline-globals "%s" | FileCheck "%s"
 
 // CHECK: Verification {{(SUCCESSFUL|BOUND REACHED)}}
 

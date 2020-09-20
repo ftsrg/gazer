@@ -1,4 +1,5 @@
 // RUN: %bmc -bound 10 "%s" | FileCheck "%s"
+// RUN: %bmc -memory=simple -bound 10 "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED
 void __VERIFIER_error(void) __attribute__((__noreturn__));

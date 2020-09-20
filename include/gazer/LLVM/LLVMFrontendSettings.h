@@ -68,7 +68,8 @@ enum class ElimVarsLevel
 enum class MemoryModelSetting
 {
     Havoc,
-    Flat
+    Flat,
+    Simple
 };
 
 class LLVMFrontendSettings

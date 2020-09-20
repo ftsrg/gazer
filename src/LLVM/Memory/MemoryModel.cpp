@@ -35,7 +35,10 @@ void MemoryModelWrapperPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
         case MemoryModelSetting::Flat:
             au.addRequired<llvm::UnifyFunctionExitNodes>();
             au.addRequired<llvm::DominatorTreeWrapperPass>();
+            break;
         case MemoryModelSetting::Havoc:
+            break;
+        case MemoryModelSetting::Simple:
             break;
         default:
             llvm_unreachable("Unknown memory model setting!");
@@ -57,6 +60,10 @@ bool MemoryModelWrapperPass::runOnModule(llvm::Module& module)
         }
         case MemoryModelSetting::Havoc: {
             mMemoryModel = CreateHavocMemoryModel(mContext);
+            break;
+        }
+        case MemoryModelSetting::Simple: {
+            mMemoryModel = CreateSimpleMemoryModel(mContext, mSettings, module);
             break;
         }
     }

@@ -515,6 +515,15 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
 
     VariableExprRewrite rewrite(mExprBuilder);
 
+    for (Variable& global : callee->getParent().globals())
+    {
+        //auto varname = (global.getName() + suffix).str();
+        //auto newGlobal = mRoot->createLocal(varname, global.getType());
+        oldVarToNew[&global] = &global;
+        vmap[&global] = &global;
+        rewrite[&global] = global.getRefExpr();
+    }
+
     // Clone all local variables into the parent
     for (Variable& local : callee->locals()) {
         LLVM_DEBUG(llvm::dbgs() << "Callee local " << local.getName() << "\n"); 
@@ -571,6 +580,8 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
         Transition* newEdge = nullptr;
         Location* source = locToLocMap[origEdge->getSource()];
         Location* target = locToLocMap[origEdge->getTarget()];
+        assert(source != nullptr && "Location should be valid!");
+        assert(target != nullptr && "Location should be valid!");
 
         if (auto assign = llvm::dyn_cast<AssignTransition>(origEdge)) {
             // Transform the assignments of this edge to use the new variables.
@@ -639,6 +650,9 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     Location* before = call->getSource();
     Location* after  = call->getTarget();
 
+    assert(before != nullptr);
+    assert(after != nullptr);
+
     std::vector<VariableAssignment> inputAssigns;
     for (auto& input : call->inputs()) {
         VariableAssignment inputAssignment(oldVarToNew[input.getVariable()], input.getValue());
@@ -646,6 +660,9 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
             " for variable " << *input.getVariable() << "n");
         inputAssigns.push_back(inputAssignment);
     }
+
+    assert(locToLocMap[callee->getEntry()] != nullptr);
+    assert(locToLocMap[callee->getExit()] != nullptr);
 
     mRoot->createAssignTransition(before, locToLocMap[callee->getEntry()], call->getGuard(), inputAssigns);
     mRoot->createAssignTransition(locToLocMap[callee->getExit()], after , mExprBuilder.True());
@@ -676,6 +693,7 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
 
 auto BoundedModelCheckerImpl::runSolver() -> Solver::SolverStatus
 {
+
     llvm::outs() << "    Running solver...\n";
     mTimer.start();
     auto status = mSolver->run();
