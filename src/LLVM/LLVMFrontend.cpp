@@ -155,6 +155,8 @@ void LLVMFrontend::registerVerificationPipeline()
     // Execute early optimization passes.
     registerEarlyOptimizations();
 
+    // mPassManager.add(llvm::createPrintFunctionPass(llvm::errs())); // print IR
+
     // Inline functions and global variables if requested.
     mPassManager.add(gazer::createMarkFunctionEntriesPass());
     registerInlining();
