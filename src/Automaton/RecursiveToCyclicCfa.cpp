@@ -111,9 +111,10 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
             rewrite[&local] = newLocal->getRefExpr();
         }
     }
-    
+
     // Clone input variables as well; we will insert an assign transition
     // with the initial values later.
+    std::vector<Variable*> inputTemporaries;
     for (Variable& input : callee->inputs()) {
         if (!callee->isOutput(&input)) {
             auto varname = (input.getName() + suffix).str();
@@ -122,6 +123,9 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
             mInlinedVariables[newInput] = &input;
             //rewrite[input] = call->getInputArgument(i);
             rewrite[&input] = newInput->getRefExpr();
+
+            auto val = mRoot->createLocal(varname+"_", input.getType());
+            inputTemporaries.emplace_back(val);
         }
     }
 
@@ -174,18 +178,34 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
                 // to the entry.
                 std::vector<VariableAssignment> recursiveInputArgs;
                 for (size_t i = 0; i < callee->getNumInputs(); ++i) {
-                    Variable* input = callee->getInput(i);
+                    // result variable is different then original inputs #46
+                    // to simulate parallel assignments
+                    Variable* input = inputTemporaries[i];
+                    Variable* realInput = callee->getInput(i);
 
-                    auto variable = oldVarToNew[input];
-                    auto value = rewrite.walk(nestedCall->getInputArgument(*input)->getValue());
+                    auto variable = input;
+                    auto value = rewrite.walk(nestedCall->getInputArgument(*realInput)->getValue());
 
                     if (variable->getRefExpr() != value) {
                         // Do not add unneeded assignments (X := X).
                         recursiveInputArgs.push_back({
-                            oldVarToNew[input],
-                            value
-                        });
+                                                         variable,
+                                                         value
+                                                     });
                     }
+                }
+
+                for (size_t i = 0; i < callee->getNumInputs(); ++i) {
+                    Variable* inputTemp = inputTemporaries[i];
+                    Variable* realInput = callee->getInput(i);
+
+                    auto variable = oldVarToNew[realInput];
+                    auto value = inputTemp->getRefExpr();
+
+                    recursiveInputArgs.push_back({
+                                                     variable,
+                                                     value
+                                                 });
                 }
 
                 // Create the assignment back-edge.
