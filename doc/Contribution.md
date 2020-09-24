@@ -1,5 +1,16 @@
 # Contribution Guidelines
 
+## General
+
+As the main repository is read-only, we suggest you to create your own [fork](https://help.github.com/articles/fork-a-repo/).
+Within your fork, we also recommend to create new _branches_ for your development.
+This enables us later on to easily integrate your work into the main repository by using [pull requests](https://help.github.com/articles/about-pull-requests/).
+
+As the framework is under development, we suggest you to [sync your fork](https://help.github.com/articles/syncing-a-fork/) often and merge the master branch into your development branch(es).
+
+Gazer uses [semantic versioning](https://semver.org/) in a `MAJOR.MINOR.PATCH` format, e.g., `1.2.3`.
+The preferred development workflow is to bump the version number (see `CMakeLists.txt `) each time a PR gets merged.
+
 ## Coding style and naming convention
 
 You can use `clang-format` with our provided style configuration file to reformat source code files to the appropriate coding style before commiting a patch.
