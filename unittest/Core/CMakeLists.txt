@@ -11,4 +11,4 @@ SET(TEST_SOURCES
 
 add_test(GazerCoreTest GazerCoreTest)
 add_executable(GazerCoreTest ${TEST_SOURCES})
-target_link_libraries(GazerCoreTest GazerCore gtest_main)
+target_link_libraries(GazerCoreTest GazerLLVM gtest_main)
