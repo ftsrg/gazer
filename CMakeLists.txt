@@ -1,6 +1,26 @@
 cmake_minimum_required(VERSION 3.8)
 project(gazer)
 
+# Set version information
+
+if(NOT DEFINED GAZER_VERSION_MAJOR)
+  set(GAZER_VERSION_MAJOR 1)
+endif()
+if(NOT DEFINED GAZER_VERSION_MINOR)
+  set(GAZER_VERSION_MINOR 0)
+endif()
+if(NOT DEFINED GAZER_VERSION_PATCH)
+  set(GAZER_VERSION_PATCH 0)
+endif()
+if(NOT DEFINED GAZER_VERSION_SUFFIX)
+  set(GAZER_VERSION_SUFFIX "")
+endif()
+
+if (NOT PACKAGE_VERSION)
+  set(PACKAGE_VERSION
+    "${GAZER_VERSION_MAJOR}.${GAZER_VERSION_MINOR}.${GAZER_VERSION_PATCH}${GAZER_VERSION_SUFFIX}")
+endif()
+
 include(ExternalProject)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
@@ -53,13 +73,21 @@ include_directories(${Boost_INCLUDE_DIR})
 add_definitions(-DBOOST_NO_RTTI -DBOOST_EXCEPTION_DISABLE -DBOOST_NO_EXCEPTIONS)
 
 # Project directories
-include_directories(include)
+set(GAZER_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/include")
+set(GAZER_MAIN_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/include")
+
+include_directories(${GAZER_INCLUDE_DIR} ${GAZER_MAIN_INCLUDE_DIR})
 
 # Find out which solvers are enabled
 set(GAZER_ENABLE_SOLVERS "z3" CACHE STRING "Semicolon-separated list of solvers to build")
 
 add_subdirectory(src)
 add_subdirectory(tools)
+
+# Generate the configuration file
+configure_file(
+  ${GAZER_INCLUDE_DIR}/gazer/Config/gazer-config.h.cmake
+  ${GAZER_MAIN_INCLUDE_DIR}/gazer/Config/gazer-config.h)
 
 option(GAZER_ENABLE_UNIT_TESTS "Enable unit tests" ON)
 

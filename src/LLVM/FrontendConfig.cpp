@@ -18,6 +18,7 @@
 #include "gazer/LLVM/LLVMFrontend.h"
 #include "gazer/LLVM/Instrumentation/DefaultChecks.h"
 #include "gazer/Support/Warnings.h"
+#include "gazer/Config/gazer-config.h"
 
 #include <llvm/IR/Module.h>
 #include <llvm/ADT/StringExtras.h>
@@ -108,6 +109,6 @@ void FrontendConfig::createChecks(std::vector<std::unique_ptr<Check>>& checks)
 void FrontendConfigWrapper::PrintVersion(llvm::raw_ostream& os)
 {
     os << "gazer - a formal verification frontend\n";
-    os << "   version 0.1\n";
-    os << "   LLVM version 9.0\n";
+    os.indent(2) << "version " << GAZER_VERSION_STRING << "\n";
+    os.indent(2) << "LLVM version " << LLVM_VERSION_STRING << "\n";
 }
