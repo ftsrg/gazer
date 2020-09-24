@@ -86,5 +86,9 @@ bool UndefToNondetCallPass::runOnModule(llvm::Module& module)
     return changed;
 }
 
+static llvm::RegisterPass<UndefToNondetCallPass> X("gazer-promote-undefs",
+                             "Gazer Promote Undef values",
+                             false /* Only looks at CFG */,
+                             false /* Analysis Pass */);
 
 llvm::Pass* gazer::createPromoteUndefsPass() { return new UndefToNondetCallPass(); }

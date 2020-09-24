@@ -132,6 +132,11 @@ void NormalizeVerifierCallsPass::runOnFunction(llvm::Function& function)
     }
 }
 
+static llvm::RegisterPass<NormalizeVerifierCallsPass> X("gazer-normalize-verifier-calls",
+                             "Gazer Normalize Verifier Calls",
+                             false /* Only looks at CFG */,
+                             false /* Analysis Pass */);
+
 llvm::Pass* gazer::createNormalizeVerifierCallsPass()
 {
     return new NormalizeVerifierCallsPass();
