@@ -246,6 +246,13 @@ public:
         return FpToUnsignedExpr::Create(op, type, rm);
     }
 
+    virtual ExprPtr FpToBv(const ExprPtr& op, BvType& type) {
+        return FpToBvExpr::Create(op, type);
+    }
+    virtual ExprPtr BvToFp(const ExprPtr& op, FloatType& type) {
+        return BvToFpExpr::Create(op, type);
+    }
+
     virtual ExprPtr FAdd(const ExprPtr& left, const ExprPtr& right, llvm::APFloat::roundingMode rm) {
         return FAddExpr::Create(left, right, rm);
     }

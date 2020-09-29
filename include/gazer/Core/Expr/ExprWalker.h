@@ -403,6 +403,13 @@ public:
         return static_cast<DerivedT*>(this)->visitNonNullary(expr);
     }
 
+    ReturnT visitFpToBv(const ExprRef<FpToBvExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+    ReturnT visitBvToFp(const ExprRef<BvToFpExpr>& expr) {
+        return static_cast<DerivedT*>(this)->visitNonNullary(expr);
+    }
+
     // Floating-point arithmetic
     ReturnT visitFAdd(const ExprRef<FAddExpr>& expr) {
         return static_cast<DerivedT*>(this)->visitNonNullary(expr);

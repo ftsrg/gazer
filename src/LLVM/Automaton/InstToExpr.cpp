@@ -432,15 +432,15 @@ ExprPtr InstToExpr::visitCastInst(const llvm::CastInst& cast, Type& expectedType
         return asBool(castOp);
     }
 
+    if (cast.getOpcode() == Instruction::BitCast) {
+        return this->bitCast(castOp, expectedType);
+    }
+
     if (castOp->getType().isBvType() || castOp->getType().isIntType()) {
         return integerCast(cast, castOp, expectedType);
     }
 
-
-    if (cast.getOpcode() == Instruction::BitCast) {
-        // TODO...
-    }
-
+    llvm::errs() << cast << " " << expectedType << "\n";
     llvm_unreachable("Unsupported cast operation");
 }
 
@@ -580,6 +580,7 @@ ExprPtr InstToExpr::integerCast(const llvm::CastInst& cast, const ExprPtr& castO
         return mExprBuilder.Undef(castOperand->getType());
     }
 
+    llvm::errs() << cast << "\n";
     llvm_unreachable("Invalid integer type!");
 }
 
@@ -626,6 +627,28 @@ ExprPtr InstToExpr::boolToIntCast(const llvm::CastInst& cast, const ExprPtr& ope
     }
     
     llvm_unreachable("Invalid integer cast type!");
+}
+
+ExprPtr InstToExpr::bitCast(const ExprPtr &castOperand, Type &expectedType)
+{
+    Type& srcType = castOperand->getType();
+
+    if (auto floatTy = llvm::dyn_cast<FloatType>(&srcType)) {
+        if (auto bvTy = llvm::dyn_cast<BvType>(&expectedType)) {
+            assert(floatTy->getWidth() == bvTy->getWidth() && "Can only perform bit-cast between types of equal width!");
+            return mExprBuilder.FpToBv(castOperand, *bvTy);
+        }
+    }
+
+    if (auto bvTy = llvm::dyn_cast<BvType>(&srcType)) {
+        if (auto floatTy = llvm::dyn_cast<FloatType>(&expectedType)) {
+            assert(floatTy->getWidth() == bvTy->getWidth() && "Can only perform bit-cast between types of equal width!");
+            return mExprBuilder.BvToFp(castOperand, *floatTy);
+        }
+    }
+
+    llvm::errs() << "Unhandled bitcast between " << srcType << " and " << expectedType << "\n";
+    llvm_unreachable("Unknown bit-cast instruction!");
 }
 
 static GazerIntrinsic::Overflow getOverflowKind(llvm::StringRef name)

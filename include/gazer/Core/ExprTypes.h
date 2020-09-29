@@ -292,15 +292,13 @@ namespace detail
 template<Expr::ExprKind Kind>
 class BvFpCastExpr final : public UnaryExpr, public detail::FpExprWithRoundingMode
 {
-    static_assert(Kind >= Expr::FCast && Kind <= Expr::FpToUnsigned, "A BvFpCastExpr must have a Bv-to-Fp or Fp-to-Bv cast kind.");
+    static_assert(Kind >= Expr::FCast && Kind <= Expr::FpToBv, "A BvFpCastExpr must have a Bv-to-Fp or Fp-to-Bv cast kind.");
     friend class ExprStorage;
 private:
     template<class InputIterator>
     BvFpCastExpr(Expr::ExprKind kind, Type& type, InputIterator begin, InputIterator end, const llvm::APFloat::roundingMode& rm)
         : UnaryExpr(kind, type, begin, end), FpExprWithRoundingMode(rm)
     {}
-
-protected:
 
 public:
     static ExprRef<BvFpCastExpr<Kind>> Create(const ExprPtr& operand, Type& type, const llvm::APFloat::roundingMode& rm);
@@ -314,6 +312,27 @@ using SignedToFpExpr   = BvFpCastExpr<Expr::SignedToFp>;
 using UnsignedToFpExpr = BvFpCastExpr<Expr::UnsignedToFp>;
 using FpToSignedExpr   = BvFpCastExpr<Expr::FpToSigned>;
 using FpToUnsignedExpr = BvFpCastExpr<Expr::FpToUnsigned>;
+
+template<Expr::ExprKind Kind>
+class BitCastExpr final : public UnaryExpr
+{
+    static_assert(Kind >= Expr::FpToBv && Kind <= Expr::BvToFp, "BitCast expressions can only be FpToBv or BvToFp!");
+    friend class ExprStorage;
+private:
+    template<class InputIterator>
+    BitCastExpr(Expr::ExprKind kind, Type& type, InputIterator begin, InputIterator end)
+        : UnaryExpr(kind, type, begin, end)
+    {}
+
+public:
+    static ExprRef<BitCastExpr<Kind>> Create(const ExprPtr& operand, Type& type);
+
+    static bool classof(const Expr* expr) { return expr->getKind() == Kind; }
+    static bool classof(const Expr& expr) { return expr.getKind() == Kind; }
+};
+
+using FpToBvExpr = BitCastExpr<Expr::FpToBv>;
+using BvToFpExpr = BitCastExpr<Expr::BvToFp>;
 
 template<Expr::ExprKind Kind>
 class FpArithmeticExpr final : public BinaryExpr, public detail::FpExprWithRoundingMode

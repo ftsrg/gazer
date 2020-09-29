@@ -105,6 +105,8 @@ ExprPtr ExprRewriteBase::rewriteNonNullary(const ExprRef<NonNullaryExpr>& expr, 
                 casted->getRoundingMode()
             );
         }
+        case Expr::FpToBv: return mExprBuilder.FpToBv(ops[0], llvm::cast<BvType>(expr->getType()));
+        case Expr::BvToFp: return mExprBuilder.BvToFp(ops[0], llvm::cast<FloatType>(expr->getType()));
         case Expr::FAdd: return mExprBuilder.FAdd(ops[0], ops[1], llvm::cast<FAddExpr>(expr)->getRoundingMode());
         case Expr::FSub: return mExprBuilder.FSub(ops[0], ops[1], llvm::cast<FSubExpr>(expr)->getRoundingMode());
         case Expr::FMul: return mExprBuilder.FMul(ops[0], ops[1], llvm::cast<FMulExpr>(expr)->getRoundingMode());

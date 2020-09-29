@@ -182,6 +182,7 @@ void LLVMFrontend::registerVerificationPipeline()
 
     // Unify exit nodes again
     mPassManager.add(llvm::createUnifyFunctionExitNodesPass());
+    mPassManager.add(llvm::createInstructionCombiningPass(false));
     
     // Display the final LLVM CFG now.
     if (ShowFinalCFG) {
