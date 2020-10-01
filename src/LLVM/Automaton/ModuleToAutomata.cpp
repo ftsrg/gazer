@@ -302,61 +302,64 @@ void ModuleToCfa::createAutomata()
         // Create a CFA for each loop nested in this function
         LoopInfo* loopInfo = mGenCtx.getLoopInfoFor(&function);
 
-        unsigned loopCount = 0;
-        auto loops = loopInfo->getLoopsInPreorder();
+        // only register loops if we want to create recursive representation of loops
+        if (mSettings.loops == LoopRepresentation::Recursion) {
+            unsigned loopCount = 0;
+            auto loops = loopInfo->getLoopsInPreorder();
 
-        for (Loop* loop : loops) {
-            std::string name = getLoopName(loop, loopCount, cfa->getName());
+            for (Loop* loop : loops) {
+                std::string name = getLoopName(loop, loopCount, cfa->getName());
 
-            Cfa* nested = mSystem->createCfa(name);
-            LLVM_DEBUG(llvm::dbgs() << "Created nested CFA " << nested->getName() << "\n");
-            mGenCtx.createLoopCfaInfo(nested, loop);
-        }
-
-        for (auto li = loops.rbegin(), le = loops.rend(); li != le; ++li) {
-            Loop* loop = *li;
-            CfaGenInfo& loopGenInfo = mGenCtx.getLoopCfa(loop);
-            Cfa* nested = loopGenInfo.Automaton;
-
-            LLVM_DEBUG(llvm::dbgs() << "Translating loop " << loop->getName() << "\n");
-
-            ArrayRef<BasicBlock*> loopBlocks = loop->getBlocks();
-            std::vector<BasicBlock*> loopOnlyBlocks;
-            std::copy_if(
-                loopBlocks.begin(), loopBlocks.end(),
-                std::back_inserter(loopOnlyBlocks),
-                [&visitedBlocks] (BasicBlock* b) { return visitedBlocks.count(b) == 0; }
-            );
-
-            // Declare loop variables.
-            this->declareLoopVariables(loop, loopGenInfo, memoryInstHandler,
-                loopBlocks, loopOnlyBlocks, visitedBlocks);
-
-            // Create locations for the blocks
-            for (BasicBlock* bb : loopOnlyBlocks) {
-                Location* entry = nested->createLocation();
-                Location* exit = isErrorBlock(bb) ? nested->createErrorLocation() : nested->createLocation();
-
-                loopGenInfo.addBlockToLocationsMapping(bb, entry, exit);
+                Cfa* nested = mSystem->createCfa(name);
+                LLVM_DEBUG(llvm::dbgs() << "Created nested CFA " << nested->getName() << "\n");
+                mGenCtx.createLoopCfaInfo(nested, loop);
             }
 
-            // If the loop has multiple exits, add a selector output to disambiguate between these.
-            llvm::SmallVector<llvm::BasicBlock*, 4> exitBlocks;
-            loop->getUniqueExitBlocks(exitBlocks);
+            for (auto li = loops.rbegin(), le = loops.rend(); li != le; ++li) {
+                Loop* loop = *li;
+                CfaGenInfo& loopGenInfo = mGenCtx.getLoopCfa(loop);
+                Cfa* nested = loopGenInfo.Automaton;
 
-            if (exitBlocks.size() != 1) {
-                Type& selectorTy = getExitSelectorType(mSettings.ints, mContext);
-                loopGenInfo.ExitVariable = nested->createLocal(LoopOutputSelectorName, selectorTy);
-                nested->addOutput(loopGenInfo.ExitVariable);
-                for (size_t i = 0; i < exitBlocks.size(); ++i) {
-                    LLVM_DEBUG(llvm::dbgs() << " Registering exit block " << exitBlocks[i]->getName() << "\n");
-                    loopGenInfo.ExitBlocks[exitBlocks[i]] = selectorTy.isBvType() 
-                        ? expr_cast<LiteralExpr>(mExprBuilder->BvLit(i, 8))
-                        : mExprBuilder->IntLit(i);
+                LLVM_DEBUG(llvm::dbgs() << "Translating loop " << loop->getName() << "\n");
+
+                ArrayRef<BasicBlock*> loopBlocks = loop->getBlocks();
+                std::vector<BasicBlock*> loopOnlyBlocks;
+                std::copy_if(
+                    loopBlocks.begin(), loopBlocks.end(),
+                    std::back_inserter(loopOnlyBlocks),
+                    [&visitedBlocks](BasicBlock* b) { return visitedBlocks.count(b) == 0; }
+                );
+
+                // Declare loop variables.
+                this->declareLoopVariables(loop, loopGenInfo, memoryInstHandler,
+                    loopBlocks, loopOnlyBlocks, visitedBlocks);
+
+                // Create locations for the blocks
+                for (BasicBlock* bb : loopOnlyBlocks) {
+                    Location* entry = nested->createLocation();
+                    Location* exit = isErrorBlock(bb) ? nested->createErrorLocation() : nested->createLocation();
+
+                    loopGenInfo.addBlockToLocationsMapping(bb, entry, exit);
                 }
-            }
 
-            visitedBlocks.insert(loop->getBlocks().begin(), loop->getBlocks().end());
+                // If the loop has multiple exits, add a selector output to disambiguate between these.
+                llvm::SmallVector<llvm::BasicBlock*, 4> exitBlocks;
+                loop->getUniqueExitBlocks(exitBlocks);
+
+                if (exitBlocks.size() != 1) {
+                    Type& selectorTy = getExitSelectorType(mSettings.ints, mContext);
+                    loopGenInfo.ExitVariable = nested->createLocal(LoopOutputSelectorName, selectorTy);
+                    nested->addOutput(loopGenInfo.ExitVariable);
+                    for (size_t i = 0; i < exitBlocks.size(); ++i) {
+                        LLVM_DEBUG(llvm::dbgs() << " Registering exit block " << exitBlocks[i]->getName() << "\n");
+                        loopGenInfo.ExitBlocks[exitBlocks[i]] = selectorTy.isBvType()
+                            ? expr_cast<LiteralExpr>(mExprBuilder->BvLit(i, 8))
+                            : mExprBuilder->IntLit(i);
+                    }
+                }
+
+                visitedBlocks.insert(loop->getBlocks().begin(), loop->getBlocks().end());
+            }
         }
 
         // Now that all loops in this function have been dealt with, translate the function itself.
@@ -391,12 +394,14 @@ void ModuleToCfa::createAutomata()
         // For the local variables, we only need to add the values not present in any of the loops.
         for (BasicBlock& bb : function) {
             for (Instruction& inst : bb) {
-                if (auto loop = loopInfo->getLoopFor(&bb)) {
-                    // If the variable is an output of a loop, add it here as a local variable
-                    Variable* output = mGenCtx.getLoopCfa(loop).findOutput(&inst);
-                    if (output == nullptr && !hasUsesInBlockRange(&inst, functionBlocks)) {
-                        LLVM_DEBUG(llvm::dbgs() << "Not adding " << inst << "\n");
-                        continue;
+                if (mSettings.loops == LoopRepresentation::Recursion) {
+                    if (auto loop = loopInfo->getLoopFor(&bb)) {
+                        // If the variable is an output of a loop, add it here as a local variable
+                        Variable* output = mGenCtx.getLoopCfa(loop).findOutput(&inst);
+                        if (output == nullptr && !hasUsesInBlockRange(&inst, functionBlocks)) {
+                            LLVM_DEBUG(llvm::dbgs() << "Not adding " << inst << "\n");
+                            continue;
+                        }
                     }
                 }
 
