@@ -153,29 +153,45 @@ private:
     std::string mType;
 };
 
+class PrintVisitor
+{
+    llvm::raw_ostream& mOS;
+    std::function<std::string(Variable*)> mCanonizeName;
+
+    void printExpr(const ExprPtr& expr) {
+        if (mCanonizeName == nullptr) {
+            mOS << theta::printThetaExpr(expr);
+        } else {
+            mOS << theta::printThetaExpr(expr, mCanonizeName);
+        }
+    }
+
+public:
+    PrintVisitor(llvm::raw_ostream& os, std::function<std::string(Variable*)> canonizeName)
+        : mOS(os), mCanonizeName(canonizeName)
+    {}
+
+    void operator()(const ExprPtr& expr) {
+        mOS << "assume ";
+        printExpr(expr);
+    }
+
+    void operator()(const std::pair<std::string, ExprPtr>& assign) {
+        mOS << assign.first << " := ";
+        printExpr(assign.second);
+    }
+
+    void operator()(const std::string& variable) {
+        mOS << "havoc " << variable;
+    }
+};
+
 } // end anonymous namespace
+
 
 void ThetaStmt::print(llvm::raw_ostream& os) const
 {
-    struct PrintVisitor
-    {
-        llvm::raw_ostream& mOS;
-        explicit PrintVisitor(llvm::raw_ostream& os) : mOS(os) {}
-
-        void operator()(const ExprPtr& expr) {
-            mOS << "assume ";
-            mOS << theta::printThetaExpr(expr);
-        }
-
-        void operator()(const std::pair<std::string, ExprPtr>& assign) {
-            mOS << assign.first << " := ";
-            mOS << theta::printThetaExpr(assign.second);
-        }
-
-        void operator()(const std::string& variable) {
-            mOS << "havoc " << variable;
-        }
-    } visitor(os);
+    PrintVisitor visitor(os, nullptr);
 
     std::visit(visitor, mContent);
 }
@@ -322,30 +338,8 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
         os << INDENT << edge->mSource.mName << " -> " << edge->mTarget.mName << " {\n";
         for (auto& stmt : edge->mStmts) {
             os << INDENT2;
-            struct PrintVisitor
-            {
-                llvm::raw_ostream& mOS;
-                std::function<std::string(Variable*)> mCanonizeName;
 
-                PrintVisitor(llvm::raw_ostream& os, std::function<std::string(Variable*)> canonizeName)
-                    : mOS(os), mCanonizeName(canonizeName)
-                {}
-
-                void operator()(const ExprPtr& expr) {
-                    mOS << "assume ";
-                    mOS << theta::printThetaExpr(expr, mCanonizeName);
-                }
-
-                void operator()(const std::pair<std::string, ExprPtr>& assign) {
-                    mOS << assign.first << " := ";
-                    mOS << theta::printThetaExpr(assign.second, mCanonizeName);
-                }
-
-                void operator()(const std::string& variable) {
-                    mOS << "havoc " << variable;
-                }
-            } visitor(os, canonizeName);
-
+            PrintVisitor visitor(os, canonizeName);
             std::visit(visitor, stmt.mContent);
             os << "\n";
         }
