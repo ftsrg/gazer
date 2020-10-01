@@ -122,6 +122,9 @@ int main(int argc, char* argv[])
     // Force -math-int
     config.getSettings().ints = IntRepresentation::Integers;
 
+    // Force cycles
+    config.getSettings().loops = LoopRepresentation::Cycle;
+
     // Create the frontend object
     auto frontend = config.buildFrontend(InputFilenames);
     if (frontend == nullptr) {
