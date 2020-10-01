@@ -86,7 +86,12 @@ struct ThetaLocDecl : ThetaAst
 
 struct ThetaStmt : ThetaAst
 {
-    using VariantTy = std::variant<ExprPtr, std::pair<std::string, ExprPtr>, std::string>;
+    struct CallData {
+        std::string resultVar;
+        std::string functionName;
+        std::vector<std::string> parameters;
+    };
+    using VariantTy = std::variant<ExprPtr, std::pair<std::string, ExprPtr>, std::string, CallData>;
 
     /* implicit */ ThetaStmt(VariantTy content)
         : mContent(content)
@@ -114,6 +119,11 @@ struct ThetaStmt : ThetaAst
     static ThetaStmt Havoc(std::string variable)
     {
         return VariantTy{variable};
+    }
+
+    static ThetaStmt Call(CallData callData)
+    {
+        return VariantTy{callData};
     }
 
     void print(llvm::raw_ostream& os) const override;
@@ -183,6 +193,22 @@ public:
 
     void operator()(const std::string& variable) {
         mOS << "havoc " << variable;
+    }
+
+    void operator()(const ThetaStmt::CallData& function) {
+        if (function.resultVar != "") {
+            mOS << function.resultVar << " ";
+        }
+        mOS << "call " << function.functionName << "(";
+        bool first = true;
+        for (const std::string& param : function.parameters) {
+            if (!first) {
+                mOS << ", ";
+            } else {
+                first = false;
+            }
+            mOS << param;
+        }
     }
 };
 
@@ -302,8 +328,22 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
                     stmts.push_back(ThetaStmt::Assign(lhsName, assignment.getValue()));
                 }
             }
-        } else if (auto callEdge = dyn_cast<CallTransition>(edge)) {
-            llvm_unreachable("CallTransitions are not supported in theta CFAs!");
+        } else if (auto* callEdge = dyn_cast<CallTransition>(edge)) {
+            ThetaStmt::CallData data;
+            assert(callEdge->getNumOutputs() <= 1 && "Only one output is supported for calls");
+            data.functionName = callEdge->getCalledAutomaton()->getName(); // TODO mangling?
+            for (const auto& input : callEdge->inputs()) {
+                auto param = vars[input.getVariable()]->getName();
+                data.parameters.push_back(param);
+            }
+            if (callEdge->getNumOutputs() == 1) {
+                auto output = vars[callEdge->output_begin()->getVariable()]->getName();
+                data.resultVar = output;
+            } else {
+                data.resultVar = "";
+            }
+
+            stmts.push_back(ThetaStmt::Call(data));
         }
 
         edges.emplace_back(std::make_unique<ThetaEdgeDecl>(source, target, std::move(stmts)));
