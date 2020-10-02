@@ -68,6 +68,9 @@ namespace
     cl::opt<bool> StructurizeCFG(
         "structurize", cl::desc("Try to remove irreducible controlf flow"), cl::cat(LLVMFrontendCategory)
     );
+    cl::opt<bool> SkipPipeline(
+        "skip-pipeline", cl::desc("Do not execute the verification pipeline; translate and verify the input LLVM module directly")
+    );
 
     class RunVerificationBackendPass : public llvm::ModulePass
     {
@@ -117,10 +120,7 @@ LLVMFrontend::LLVMFrontend(
 
     // Force settings to be consistent
     if (mSettings.ints == IntRepresentation::Integers) {
-        llvm::errs().changeColor(llvm::raw_ostream::YELLOW, true);
-        llvm::errs() << "warning: ";
-        llvm::errs().resetColor();
-        llvm::errs() << "-math-int mode forces havoc memory model, analysis may be unsound\n";
+        emit_warning("-math-int mode forces havoc memory model, analysis may be unsound\n");
         mSettings.memoryModel = MemoryModelSetting::Havoc;
     }
 
@@ -137,6 +137,12 @@ LLVMFrontend::LLVMFrontend(
 
 void LLVMFrontend::registerVerificationPipeline()
 {
+    if (SkipPipeline) {
+        mPassManager.add(new llvm::DominatorTreeWrapperPass());
+        this->registerVerificationStep();
+        return;
+    }
+
     // Do basic preprocessing: get rid of alloca's and turn undef's
     //  into nondet function calls.
     mPassManager.add(llvm::createPromoteMemoryToRegisterPass());
@@ -175,11 +181,6 @@ void LLVMFrontend::registerVerificationPipeline()
     // Do an instruction namer pass.
     mPassManager.add(llvm::createInstructionNamerPass());
 
-    if (!PrintFinalModule.empty() && mModuleOutput != nullptr) {
-        mPassManager.add(llvm::createPrintModulePass(mModuleOutput->os()));
-        mModuleOutput->keep();
-    }
-
     // Unify exit nodes again
     mPassManager.add(llvm::createUnifyFunctionExitNodesPass());
     mPassManager.add(llvm::createInstructionCombiningPass(false));
@@ -189,6 +190,16 @@ void LLVMFrontend::registerVerificationPipeline()
         mPassManager.add(llvm::createCFGPrinterLegacyPassPass());
     }
 
+    if (mModuleOutput != nullptr) {
+        mPassManager.add(llvm::createPrintModulePass(mModuleOutput->os()));
+        mModuleOutput->keep();
+    }
+
+    this->registerVerificationStep();
+}
+
+void LLVMFrontend::registerVerificationStep()
+{
     // Perform module-to-automata translation.
     mPassManager.add(new gazer::MemoryModelWrapperPass(mContext, mSettings));
     mPassManager.add(new gazer::ModuleToAutomataPass(mContext, mSettings));
@@ -405,33 +416,3 @@ void LLVMFrontend::registerLateOptimizations()
     mPassManager.add(gazer::createCanonizeLoopExitsPass());
 }
 
-auto LLVMFrontend::FromInputFile(
-    llvm::StringRef input,
-    GazerContext& context,
-    llvm::LLVMContext& llvmContext,
-    LLVMFrontendSettings& settings
-) -> std::unique_ptr<LLVMFrontend>
-{
-    llvm::SMDiagnostic err;
-
-    std::unique_ptr<llvm::Module> module = nullptr;
-
-    if (input.endswith(".bc")) {
-        module = llvm::parseIRFile(input, err, llvmContext);
-    } else if (input.endswith(".ll")) {
-        module = llvm::parseAssemblyFile(input, err, llvmContext);
-    } else {
-        err = SMDiagnostic(
-            input,
-            SourceMgr::DK_Error,
-            "Input file must be in LLVM bitcode (.bc) or LLVM assembly (.ll) format."
-        );
-    }
-
-    if (module == nullptr) {
-        err.print(nullptr, llvm::errs());
-        return nullptr;
-    }
-
-    return std::make_unique<LLVMFrontend>(std::move(module), context, settings);
-}
