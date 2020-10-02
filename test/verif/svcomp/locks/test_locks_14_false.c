@@ -2,6 +2,8 @@
 // RUN: %bmc -bound 10 -math-int "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED
+// CHECK: Assertion failure in {{.*}}test_locks_14_false.c at line 223 column 10
+
 extern void __VERIFIER_error() __attribute__ ((__noreturn__));
 
 extern int __VERIFIER_nondet_int();

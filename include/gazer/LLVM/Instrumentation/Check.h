@@ -52,10 +52,19 @@ public:
     virtual bool mark(llvm::Function& function) = 0;
 
 protected:
-
     /// Creates an error block with a gazer.error_code(i16 code) call and a terminating unreachable instruction.
     llvm::BasicBlock* createErrorBlock(
         llvm::Function& function, const llvm::Twine& name = "", llvm::Instruction* location = nullptr
+    );
+
+    /// Replaces all instructions matching the given predicate with an error call.
+    /// This function assumes that all instructions that follow a matching instruction within the
+    /// block are unreachable.
+    /// \return True if there were any matches; false otherwise.
+    bool replaceMatchingUnreachableWithError(
+        llvm::Function& function,
+        const llvm::Twine& errorBlockName,
+        std::function<bool(llvm::Instruction&)> predicate
     );
 
     CheckRegistry& getRegistry() const;

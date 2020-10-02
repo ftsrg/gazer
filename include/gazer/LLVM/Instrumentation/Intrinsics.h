@@ -50,7 +50,7 @@ public:
 
     enum class Overflow
     {
-        SAdd, UAdd, SSub, USub, SMul, UMul, SDiv, Shl
+        SAdd, UAdd, SSub, USub, SMul, UMul
     };
 
 public:
@@ -76,8 +76,6 @@ public:
 
     /// Returns a 'gazer.KIND.no_overflow.T(T left, T right)' intrinsic.
     static llvm::FunctionCallee GetOrInsertOverflowCheck(llvm::Module& module, Overflow kind, llvm::Type* type);
-
-    static bool isPredicate(llvm::Function& function);
 };
 
 }

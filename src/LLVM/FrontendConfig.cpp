@@ -83,7 +83,6 @@ void FrontendConfig::createChecks(std::vector<std::unique_ptr<Check>>& checks)
         // Do the defaults
         fragments.push_back("assertion-fail");
         fragments.push_back("div-by-zero");
-        fragments.push_back("signed-overflow");
     } else if (filter == AllChecksSetting) {
         // Add all registered checks
         for (auto& [name, factory] : mFactories) {

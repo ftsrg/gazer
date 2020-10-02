@@ -373,6 +373,7 @@ void LLVMFrontend::registerLateOptimizations()
     // to work properly as it relies on loop preheaders being available.
     mPassManager.add(llvm::createCFGSimplificationPass());
     mPassManager.add(llvm::createLoopSimplifyPass());
+    mPassManager.add(gazer::createCanonizeLoopExitsPass());
 }
 
 auto LLVMFrontend::FromInputFile(

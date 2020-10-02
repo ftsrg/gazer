@@ -240,6 +240,9 @@ void ClangOptions::addSanitizerFlag(llvm::StringRef flag)
 void ClangOptions::createArgumentList(std::vector<std::string>& args)
 {
     if (!mSanitizerFlags.empty()) {
-        args.emplace_back("-fsanitize-trap=" + llvm::join(mSanitizerFlags, ","));
+        auto sanitizerNames = llvm::join(mSanitizerFlags, ",");
+
+        args.emplace_back("-fsanitize=" + sanitizerNames);
+        args.emplace_back("-fno-sanitize-recover=" + sanitizerNames);
     }
 }
