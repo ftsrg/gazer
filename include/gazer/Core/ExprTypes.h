@@ -292,7 +292,7 @@ namespace detail
 template<Expr::ExprKind Kind>
 class BvFpCastExpr final : public UnaryExpr, public detail::FpExprWithRoundingMode
 {
-    static_assert(Kind >= Expr::FCast && Kind <= Expr::FpToBv, "A BvFpCastExpr must have a Bv-to-Fp or Fp-to-Bv cast kind.");
+    static_assert(Kind >= Expr::FCast && Kind <= Expr::FpToUnsigned, "A BvFpCastExpr must have a Bv-to-Fp or Fp-to-Bv cast kind.");
     friend class ExprStorage;
 private:
     template<class InputIterator>
