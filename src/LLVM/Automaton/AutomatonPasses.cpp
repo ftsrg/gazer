@@ -88,16 +88,6 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
     mSystem = translateModuleToAutomata(
         module, mSettings, loops, mContext, memoryModel, mVariables, mTraceInfo, specialFunctions.get());
 
-    if (mSettings.loops == LoopRepresentation::Cycle) {
-        // Transform the main automaton into a cyclic CFA if requested.
-        // Note: This yields an invalid CFA, which will not be recognizable by
-        // most built-in analysis algorithms. Use it only if you are going to
-        // translate it to the format of another verifier immediately.
-
-        // TODO: We should translate automata other than the main in this case.
-        TransformRecursiveToCyclic(mSystem->getMainAutomaton());
-    }
-
     return false;
 }
 

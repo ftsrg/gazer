@@ -304,6 +304,7 @@ void ModuleToCfa::createAutomata()
 
         // only register loops if we want to create recursive representation of loops
         if (mSettings.loops == LoopRepresentation::Recursion) {
+
             unsigned loopCount = 0;
             auto loops = loopInfo->getLoopsInPreorder();
 
