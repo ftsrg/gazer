@@ -123,11 +123,5 @@ void FrontendConfig::createChecks(std::vector<std::unique_ptr<Check>>& checks)
 
 void FrontendConfigWrapper::PrintVersion(llvm::raw_ostream& os)
 {
-<<<<<<< HEAD
-    os << "gazer - a formal verification frontend\n";
-    os.indent(2) << "version " << GAZER_VERSION_STRING << "\n";
-    os.indent(2) << "LLVM version " << LLVM_VERSION_STRING << "\n";
-=======
     os << "Gazer v" << GAZER_VERSION_STRING << "\nLLVM v" << LLVM_VERSION_STRING;
->>>>>>> b2460c4... Implemented SVComp witness generation and SVComp starter script for combined runs
 }
