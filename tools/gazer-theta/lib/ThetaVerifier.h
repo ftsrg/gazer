@@ -43,6 +43,8 @@ struct ThetaSettings
     std::string maxEnum;
     std::string initPrec;
     std::string pruneStrategy;
+
+    bool xcfa;
 };
 
 class ThetaVerifier : public VerificationAlgorithm

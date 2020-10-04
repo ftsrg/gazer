@@ -24,7 +24,7 @@ using namespace gazer::theta;
 
 using llvm::dyn_cast;
 
-void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace)
+void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace, bool xcfa)
 {
     // Create a closure to test variable names
     auto isValidVarName = [&nameTrace](const std::string& name) -> bool {
@@ -47,7 +47,7 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
     }
 
     os << "main process __gazer_main_process {\n";
-    ThetaCfaProcedureGenerator(mSystem.getMainAutomaton(), isValidVarName, globalVars).write(os, nameTrace);
+    ThetaCfaProcedureGenerator(mSystem.getMainAutomaton(), isValidVarName, globalVars).write(os, nameTrace, xcfa);
     os << "}";
     os.flush();
 }

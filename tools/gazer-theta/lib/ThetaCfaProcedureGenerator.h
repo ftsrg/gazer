@@ -34,7 +34,7 @@ public:
     : mCfa(cfa), isValidVarName(isValidVarName), globals(globals)
     {}
 
-    void write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace);
+    void write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace, bool xcfa);
 
 private:
     Cfa* mCfa;

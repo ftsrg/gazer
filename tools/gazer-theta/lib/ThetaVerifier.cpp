@@ -226,7 +226,7 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
 void ThetaVerifierImpl::writeSystem(llvm::raw_ostream& os)
 {
     theta::ThetaCfaGenerator generator{mSystem};
-    generator.write(os, mNameMapping);
+    generator.write(os, mNameMapping, mSettings.xcfa);
 }
 
 static void reportInvalidCex(llvm::StringRef message, llvm::StringRef cex, sexpr::Value* value = nullptr)

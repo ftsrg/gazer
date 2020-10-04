@@ -48,7 +48,7 @@ struct ThetaCfaWriterPass : public llvm::ModulePass
         theta::ThetaNameMapping mapping;
         theta::ThetaCfaGenerator generator{system};
 
-        generator.write(mOS, mapping);
+        generator.write(mOS, mapping, false);
 
         return false;
     }

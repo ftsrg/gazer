@@ -141,6 +141,7 @@ public:
     {}
 
     llvm::StringRef getName() { return mName; }
+    llvm::StringRef getType() { return mType; }
 
     void print(llvm::raw_ostream& os) const override
     {

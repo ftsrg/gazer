@@ -80,6 +80,9 @@ namespace
     cl::opt<int> MaxEnum("maxenum", cl::desc("Maximal number of explicitly enumerated successors"), cl::init(0), cl::cat(ThetaAlgorithmCategory));
     cl::opt<std::string> InitPrec("initprec", cl::desc("Initial precision of abstraction"), cl::init("EMPTY"), cl::cat(ThetaAlgorithmCategory));
     cl::opt<std::string> PruneStrategy("prunestrategy", cl::desc("Strategy for pruning after refinement"), cl::init("LAZY"), cl::cat(ThetaAlgorithmCategory));
+
+    cl::opt<bool> GenerateXcfa("xcfa", llvm::cl::desc("Generate XCFA instead of CFA."));
+
 } // end anonymous namespace
 
 namespace gazer
@@ -191,7 +194,11 @@ bool lookupTheta(llvm::StringRef argvZero, theta::ThetaSettings* settings)
     std::string parentPath = llvm::sys::path::parent_path(pathToBinary.get());
 
     if (settings->thetaCfaPath.empty()) {
-        settings->thetaCfaPath = parentPath + "/theta/theta-cfa-cli.jar";
+        if (GenerateXcfa) {
+            settings->thetaCfaPath = parentPath + "/theta/theta-xcfa-cli.jar";
+        } else {
+            settings->thetaCfaPath = parentPath + "/theta/theta-cfa-cli.jar";
+        }
     }
 
     if (settings->thetaLibPath.empty()) {
@@ -219,6 +226,7 @@ theta::ThetaSettings initSettingsFromCommandLine()
     settings.pruneStrategy = PruneStrategy;
     settings.thetaCfaPath = ThetaPath;
     settings.thetaLibPath = LibPath;
+    settings.xcfa = GenerateXcfa;
 
     return settings;
 }

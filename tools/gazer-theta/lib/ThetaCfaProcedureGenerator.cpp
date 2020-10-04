@@ -28,7 +28,7 @@
 using namespace gazer::theta;
 using namespace llvm;
 
-void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace) {
+void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace, bool xcfa) {
     auto recursiveToCyclicResult = TransformRecursiveToCyclic(mCfa);
 
     nameTrace.errorLocation = recursiveToCyclicResult.errorLocation;
@@ -116,9 +116,6 @@ void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& 
         edges.emplace_back(std::make_unique<ThetaEdgeDecl>(source, target, std::move(stmts)));
     }
 
-    auto INDENT  = "    ";
-    auto INDENT2 = "        ";
-
     auto canonizeName = [&vars](Variable* variable) -> std::string {
       if (vars.count(variable) == 0) {
           return variable->getName();
@@ -126,6 +123,33 @@ void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& 
 
       return vars[variable]->getName();
     };
+
+    auto INDENT  = "    ";
+    auto INDENT2 = "        ";
+
+    if (xcfa) {
+        INDENT = "        ";
+        INDENT2 = "            ";
+
+        os << "    ";
+        if (mCfa->getParent().getMainAutomaton() == mCfa) {
+            os << "main ";
+        }
+        os << "procedure " << mCfa->getName() << "(";
+        bool first = true;
+        for (auto& input: mCfa->inputs()) {
+            if (first) {
+                first = false;
+            } else {
+                os << ", ";
+            }
+            auto name = vars[&input]->getName();
+            auto type = vars[&input]->getType();
+
+            os << name << " : " << type;
+        }
+        os << ") {\n";
+    }
 
     for (auto& variable : llvm::concat<Variable>(mCfa->inputs(), mCfa->locals())) {
         os << INDENT;
@@ -150,6 +174,9 @@ void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& 
         }
         os << INDENT << "}\n";
         os << "\n";
+    }
+    if (xcfa) {
+        os << "    }\n";
     }
 }
 

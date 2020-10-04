@@ -55,7 +55,7 @@ public:
         : mSystem(system), mCallGraph(system)
     {}
 
-    void write(llvm::raw_ostream& os, ThetaNameMapping& names);
+    void write(llvm::raw_ostream& os, ThetaNameMapping& names, bool xcfa);
 
 private:
     AutomataSystem& mSystem;
