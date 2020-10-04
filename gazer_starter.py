@@ -150,7 +150,7 @@ def run_test_harness(task): # TODO ide is kellhet -m32, ha a Gazerben is lesz
     except subprocess.TimeoutExpired as err:
         print("Could not compile test harness, timed out after " + str(err.timeout))
         return Result.ERROR
-    except as err: # Shouldn't happen, but just in case
+    except: # Shouldn't happen, but just in case
         print("Unexpected error:", sys.exc_info()[0])
         print("Could not compile test harness")
         return Result.ERROR
@@ -174,7 +174,7 @@ def run_test_harness(task): # TODO ide is kellhet -m32, ha a Gazerben is lesz
     except subprocess.TimeoutExpired as err:
         print("Counterexample timed out after " + str(err.timeout))
         return Result.ERROR
-    except as err: # Shouldn't happen, but just in case
+    except: # Shouldn't happen, but just in case
         print("Unexpected error:", sys.exc_info()[0])
         print("Problems while running test harness")
         return Result.ERROR
@@ -196,7 +196,7 @@ def run_next_config(toolname, flags, task_with_path, timeout):
             print_if_not_empty(err.output)
         except subprocess.TimeoutExpired as err:
             print_if_not_empty(err.output)
-        except as err: # Shouldn't happen, but just in case
+        except: # Shouldn't happen, but just in case
             print("Unexpected error:", sys.exc_info()[0])
             print("Changing result to unknown")
             result = Result.UNKNOWN
@@ -209,7 +209,7 @@ def run_next_config(toolname, flags, task_with_path, timeout):
             print_line()
         except subprocess.CalledProcessError as err:
             print_if_not_empty(err.output)
-        except as err: # Shouldn't happen, but just in case
+        except: # Shouldn't happen, but just in case
             print("Unexpected error:", sys.exc_info()[0])
             print("Changing result to unknown")
             result = Result.UNKNOWN
