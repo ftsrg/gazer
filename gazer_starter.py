@@ -155,12 +155,11 @@ def run_test_harness(task): # TODO ide is kellhet -m32, ha a Gazerben is lesz
         print("Counterexample is wrong, result is unknown")
         return Result.UNKNOWN
     except subprocess.CalledProcessError as err:
-        good_output = 'reach_error: Assertion `0\' failed'
-        if(good_output in err.output.decode('utf-8')):
+        good_output = r"reach_error(\(\))?: Assertion.*failed"
+        if(re.search(good_output, err.output.decode('utf-8'))):
             print("Counterexample ok")
             return Result.FALSE
         else:
-            print("Counterexample returned with " + str(err.returncode))
             print("Counterexample is wrong, result is unknown")
             return Result.UNKNOWN
     except subprocess.TimeoutExpired as err:
@@ -206,6 +205,7 @@ def main():
 
     parser = argparse.ArgumentParser()
 
+    # optional TODO get_version_number runs in every case, even when --version isn't used - it shouldn't
     parser.add_argument("--version", action="version", version=get_version_number())
     parser.add_argument("task", help="name of the to be verified programfile with path")
     parser.add_argument("--output", help="output directory (for the witness and test harness), default: working directory")
