@@ -92,7 +92,8 @@ ThetaExprPrinterTest::ThetaExprPrinterTest()
                     { b->BvLit(1, 4), b->BvLit(0, 4) }
                                                         }, b->BvLit(0, 4)), "[4'b0010 <- 4'b0011, 4'b0001 <- 4'b0000, default <- 4'b0000]" 
               },
-              { b->ArrayLit(ArrayType::Get(BvType::Get(ctx, 8), BvType::Get(ctx, 4)), {}, b->BvLit(0, 4)), "[<bv[8]>default <- 4'b0000]" }
+              { b->ArrayLit(ArrayType::Get(BvType::Get(ctx, 8), BvType::Get(ctx, 4)), {}, b->BvLit(0, 4)), "[<bv[8]>default <- 4'b0000]" },
+              { b->ArrayLit(ArrayType::Get(BvType::Get(ctx, 8), BvType::Get(ctx, 4)), {}), "__gazer_uninitialized_memory___bv_8_bv_4__" }
           })
 {}
 
