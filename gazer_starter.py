@@ -58,7 +58,7 @@ def print_result():
 
 # If output is None, prints "No output"
 def print_if_not_empty(output):
-    if(output != None): print(output.decode('utf-8'))
+    if output != None: print(output.decode('utf-8'))
     else: print("No output")
 
 # raises CalledProcessError, if returncode isn't 0; raises TimeoutExpire, if process times out
@@ -75,10 +75,12 @@ def run_with_timeout(command, timeout, env=None, no_print=False):
             returncode = process.poll()
 
             if returncode:
-                if(not no_print): print('Command returned with ' + str(returncode) + ' after {:.2f} seconds'.format(timer()-start))
+                if not no_print:
+                    print('Command returned with ' + str(returncode) + ' after {:.2f} seconds'.format(timer()-start))
                 raise subprocess.CalledProcessError(returncode, process.args, output=stdout_bytes)
             else:
-                if(not no_print): print('Command returned with 0 after {:.2f} seconds'.format(timer() - start))
+                if not no_print:
+                    print('Command returned with 0 after {:.2f} seconds'.format(timer() - start))
                 return stdout_bytes
         except KeyboardInterrupt:
             os.killpg(process.pid, signal.SIGINT)  # send signal to the process group
@@ -86,7 +88,8 @@ def run_with_timeout(command, timeout, env=None, no_print=False):
         except subprocess.TimeoutExpired:
             os.killpg(process.pid, signal.SIGINT)  # send signal to the process group
             # stdout_bytes, stderr_dummy = process.communicate() - hangs sometimes
-            if(not no_print): print('Command timeout after {:.2f} seconds'.format(timer() - start))
+            if not no_print:
+                print('Command timeout after {:.2f} seconds'.format(timer() - start))
             raise TimeoutExpired(process.args, timeout, output=None)
 
 # raises CalledProcessError, if returncode isn't 0; no timeout - waits for the process to return infinitely
@@ -103,10 +106,10 @@ def run_without_timeout(command, env=None, no_print=False):
             returncode = process.poll()
 
             if returncode:
-                if(not no_print): print('Command returned with ' + str(returncode) + ' after {:.2f} seconds'.format(timer()-start))
+                if not no_print: print('Command returned with ' + str(returncode) + ' after {:.2f} seconds'.format(timer()-start))
                 raise subprocess.CalledProcessError(returncode, process.args, output=stdout_bytes)
             else:
-                if(not no_print): print('Command returned with 0 after {:.2f} seconds'.format(timer() - start))
+                if not no_print: print('Command returned with 0 after {:.2f} seconds'.format(timer() - start))
                 return stdout_bytes
         except KeyboardInterrupt:
             os.killpg(process.pid, signal.SIGINT)  # send signal to the process group
@@ -140,13 +143,19 @@ def run_test_harness(task): # TODO ide is kellhet -m32, ha a Gazerben is lesz
     print("Running " + clang_command + "\n")
     try:
         clang_output = run_with_timeout(clang_command, test_harness_compile_timeout)
-        print_if_not_empty(clang_output)
     except subprocess.CalledProcessError as err:
+        print(err)
         print("Could not compile test harness")
         return Result.ERROR
     except subprocess.TimeoutExpired as err:
         print("Could not compile test harness, timed out after " + str(err.timeout))
         return Result.ERROR
+    except as err: # Shouldn't happen, but just in case
+        print("Unexpected error:", sys.exc_info()[0])
+        print("Could not compile test harness")
+        return Result.ERROR
+    else:
+        print_if_not_empty(clang_output)
 
     print("Running " + test_command + "\n")
     try:
@@ -156,7 +165,7 @@ def run_test_harness(task): # TODO ide is kellhet -m32, ha a Gazerben is lesz
         return Result.UNKNOWN
     except subprocess.CalledProcessError as err:
         good_output = r"reach_error(\(\))?: Assertion.*failed"
-        if(re.search(good_output, err.output.decode('utf-8'))):
+        if re.search(good_output, err.output.decode('utf-8')):
             print("Counterexample ok")
             return Result.FALSE
         else:
@@ -165,40 +174,51 @@ def run_test_harness(task): # TODO ide is kellhet -m32, ha a Gazerben is lesz
     except subprocess.TimeoutExpired as err:
         print("Counterexample timed out after " + str(err.timeout))
         return Result.ERROR
-
+    except as err: # Shouldn't happen, but just in case
+        print("Unexpected error:", sys.exc_info()[0])
+        print("Problems while running test harness")
+        return Result.ERROR
+    
 # if timeout is 0, then it will be run without timeout
 def run_next_config(toolname, flags, task_with_path, timeout):
     print_line()
 
     command = tool_directory + toolname + " " + ' '.join(flags) + " " + task_with_path
     print("Running " + command + "\n")
-    if(timeout!=0):
+    if timeout!=0:
         try:
             output = run_with_timeout(command, timeout)
             print_if_not_empty(output)
-            if(output != None):
+            if output != None:
                 parse_output(output, task_with_path)
             print_line()
         except subprocess.CalledProcessError as err:
             print_if_not_empty(err.output)
         except subprocess.TimeoutExpired as err:
             print_if_not_empty(err.output)
+        except as err: # Shouldn't happen, but just in case
+            print("Unexpected error:", sys.exc_info()[0])
+            print("Changing result to unknown")
+            result = Result.UNKNOWN
     else:
         try:
             output = run_without_timeout(command)
             print_if_not_empty(output)
-            if(output != None):
+            if output != None:
                 parse_output(output, task_with_path)
             print_line()
         except subprocess.CalledProcessError as err:
             print_if_not_empty(err.output)
+        except as err: # Shouldn't happen, but just in case
+            print("Unexpected error:", sys.exc_info()[0])
+            print("Changing result to unknown")
+            result = Result.UNKNOWN
         
 def get_version_number():
     z3path = tool_directory + "/gazer-theta/theta/lib"
     gazer_version = run_without_timeout(tool_directory + "/gazer-theta/gazer-theta --version", no_print=True)
     theta_ver = run_without_timeout("java -Djava.library.path=" + z3path + " -jar " + tool_directory + "/gazer-theta/theta/theta-cfa-cli.jar --version", env={"LD_LIBRARY_PATH": z3path}, no_print=True)
     return "Theta v" + theta_ver.decode('utf-8') + re.search(r"Gazer v\d*[.]\d*[.]\d*", gazer_version.decode('utf-8')).group()
-
 
 def main():
     global output_path
@@ -221,21 +241,33 @@ def main():
         output_path = os.path.abspath(args.output)
 
     # check if the output directory exists, create it if not
-    if(not os.path.exists(output_path) or not os.path.isdir(output_path)):
+    if not os.path.exists(output_path) or not os.path.isdir(output_path):
         try:
             os.makedirs(output_path)
-        except OSError:
-            print ("Creation of the directory %s failed" % output_path)
-            return
+        except OSError as err:
+            # possible race condition here (someone creates the output dir between our check and makedirs), then an incorrect OSError can happen
+            # see http://deepix.github.io/2017/02/02/eexists.html
+            if err.errno != errno.EEXIST:
+                print ("Creation of the output directory %s failed" % output_path)
+                result = Result.ERROR
+                print_result()
+                return
         else:
-            print ("Successfully created the directory %s" % output_path)
+            print ("Successfully created the output directory %s" % output_path)
 
-    # check, if the tool directory is correct and has gazer-bmc and gazer-theta as well
-    if(not os.path.isfile(tool_directory+"/gazer-bmc/gazer-bmc")):
+    # check, if the tool directory is correct and has gazer-bmc, gazer-theta, theta and z3 libs as well
+    if not os.path.isfile(tool_directory+"/gazer-bmc/gazer-bmc"):
         raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), tool_directory+"/gazer-bmc/gazer-bmc")
-    if(not os.path.isfile(tool_directory+"/gazer-theta/gazer-theta")):
+    if not os.path.isfile(tool_directory+"/gazer-theta/gazer-theta"):
         raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), tool_directory+"/gazer-theta/gazer-theta")
+    if not os.path.isfile(tool_directory+"/gazer-theta/gazer-theta/theta/theta-cfa-cli.jar"):
+        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), tool_directory+"/gazer-theta/gazer-theta/theta/theta-cfa-cli.jar")
+    if not os.path.isfile(tool_directory+"/gazer-theta/gazer-theta/theta/lib/libz3.so"):
+        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), tool_directory+"/gazer-theta/gazer-theta/theta/lib/libz3.so")
+    if not os.path.isfile(tool_directory+"/gazer-theta/gazer-theta/theta/lib/libz3java.so"):
+        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), tool_directory+"/gazer-theta/gazer-theta/theta/lib/libz3java.so")
 
+    # hash to use in the witness
     print("Hashing taskfile " + taskname)
     with open(task_with_path, 'r') as pgf:
         hash_of_source = hashlib.sha256(pgf.read().encode('utf-8')).hexdigest()
@@ -247,12 +279,12 @@ def main():
     print("Starting combined gazer-theta-bmc run...")
     
     run_next_config("/gazer-bmc/gazer-bmc", bmc_config + outputfile_flags, task_with_path, bmc_timeout)
-    if(result == Result.FALSE or result == Result.TRUE):
+    if result == Result.FALSE or result == Result.TRUE:
         print_result()
         return
 
     run_next_config("/gazer-theta/gazer-theta", theta_explicit_config + outputfile_flags, task_with_path, theta_explicit_timeout)
-    if(result == Result.FALSE or result == Result.TRUE):
+    if result == Result.FALSE or result == Result.TRUE:
         print_result()
         return
 
