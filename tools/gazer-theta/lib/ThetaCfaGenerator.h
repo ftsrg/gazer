@@ -31,10 +31,6 @@ namespace llvm
 namespace gazer::theta
 {
 
-std::string printThetaExpr(const ExprPtr& expr);
-
-std::string printThetaExpr(const ExprPtr& expr, std::function<std::string(Variable*)> variableNames);
-
 /// \brief Perform pre-processing steps required by theta on the input CFA.
 ///
 /// This pass does the following transformations:
@@ -62,12 +58,8 @@ public:
     void write(llvm::raw_ostream& os, ThetaNameMapping& names);
 
 private:
-    std::string validName(std::string name, std::function<bool(const std::string&)> isUnique);
-
-private:
     AutomataSystem& mSystem;
     CallGraph mCallGraph;
-    unsigned mTmpCount = 0;
 };
 
 llvm::Pass* createThetaCfaWriterPass(llvm::raw_ostream& os);

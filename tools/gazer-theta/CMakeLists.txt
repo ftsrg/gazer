@@ -2,7 +2,9 @@ set(LIB_SOURCE_FILES
     lib/ThetaCfaGenerator.cpp
     lib/ThetaExpr.cpp
     lib/ThetaVerifier.cpp
-    lib/ThetaCfaWriterPass.cpp)
+    lib/ThetaCfaWriterPass.cpp
+    lib/ThetaCfaProcedureGenerator.cpp
+    lib/ThetaCommon.cpp)
 
 set(TOOL_SOURCE_FILES
     gazer-theta.cpp
