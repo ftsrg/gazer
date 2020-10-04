@@ -337,3 +337,35 @@ std::string gazer::theta::printThetaExpr(const ExprPtr& expr, std::function<std:
 
     return printer.walk(expr);
 }
+
+// Collects the array literals in an expression (used for modeling uninitialized memory)
+class ThetaExprArrayLiteralCollector : public ExprWalker<ThetaExprArrayLiteralCollector, void*> {
+public:
+    llvm::SmallVector<ExprRef<gazer::ArrayLiteralExpr>, 1> getArrayLiterals() const {
+        return mArrayLiterals;
+    }
+
+public:
+    void* visitExpr(const ExprPtr& expr) {
+        return nullptr;
+    }
+
+    void* visitLiteral(const ExprRef<LiteralExpr>& expr)
+    {
+        if (auto *arrLit = llvm::dyn_cast<ArrayLiteralExpr>(expr)) {
+            mArrayLiterals.push_back(arrLit);
+        }
+
+        return nullptr;
+    }
+
+private:
+    llvm::SmallVector<ExprRef<gazer::ArrayLiteralExpr>, 1> mArrayLiterals;
+};
+
+llvm::SmallVector<ExprRef<gazer::ArrayLiteralExpr>, 1> gazer::theta::collectArrayLiteralsThetaExpr(const ExprPtr& expr)
+{
+    ThetaExprArrayLiteralCollector collector;
+    collector.walk(expr);
+    return collector.getArrayLiterals();
+}

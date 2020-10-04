@@ -18,10 +18,12 @@
 #ifndef GAZER_TOOLS_GAZERTHETA_THETACFAGENERATOR_H
 #define GAZER_TOOLS_GAZERTHETA_THETACFAGENERATOR_H
 
-#include "gazer/Automaton/Cfa.h"
 #include "gazer/Automaton/CallGraph.h"
+#include "gazer/Automaton/Cfa.h"
 
 #include <llvm/Support/raw_ostream.h>
+
+#include <gazer/Core/LiteralExpr.h>
 
 namespace llvm
 {
@@ -34,6 +36,8 @@ namespace gazer::theta
 std::string printThetaExpr(const ExprPtr& expr);
 
 std::string printThetaExpr(const ExprPtr& expr, std::function<std::string(Variable*)> variableNames);
+
+llvm::SmallVector<ExprRef<gazer::ArrayLiteralExpr>, 1> collectArrayLiteralsThetaExpr(const ExprPtr& expr);
 
 /// \brief Perform pre-processing steps required by theta on the input CFA.
 ///
