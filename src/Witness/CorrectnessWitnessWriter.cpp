@@ -21,47 +21,22 @@
 #include <llvm/ADT/SmallString.h>
 
 #include <fstream>
-#include <time.h>
+#include <ctime>
 
-namespace gazer {
+using namespace gazer;
 
-std::string CorrectnessWitnessWriter::src_filename{};
+std::string CorrectnessWitnessWriter::SourceFileName{};
 
-void CorrectnessWitnessWriter::outputWitness() {
-    time_t rawtime;
-    struct tm * ptm;
-    time ( &rawtime );
-    ptm = gmtime( &rawtime ); // UTC timestamp
-    std::stringstream timestamp;
-    timestamp << ptm->tm_year+1900 << "-";
-    timestamp << std::setfill('0') << std::setw(2);
-    timestamp << ptm->tm_mon+1 << "-"
-              << std::setfill('0') << std::setw(2) << ptm->tm_mday << "T" 
-              << std::setfill('0') << std::setw(2) << ptm->tm_hour%24 << ":" 
-              << std::setfill('0') << std::setw(2) << ptm->tm_min << ":" 
-              << std::setfill('0') << std::setw(2) << ptm->tm_sec;
-
-    os << schema;
-    os << keys;
-    os << graph_data;
-    os << "<data key=\"programhash\">" << hash << "</data>";
-    os << "<data key=\"creationtime\">" << timestamp.str() << "</data>\n";
-    os << "<data key=\"programfile\">" << src_filename << "</data>\n";
-    os << nodes;
-    os << "</graph>";
-    os << "</graphml>";
-}
-
-const std::string CorrectnessWitnessWriter::nodes = R"(<node id="N0">
+const std::string nodes = R"(<node id="N0">
 <data key="entry">true</data>
 </node>
 )";
 
-const std::string CorrectnessWitnessWriter::schema = R"(<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+const std::string schema = R"(<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 )";
 
-const std::string CorrectnessWitnessWriter::keys = R"(
+const std::string keys = R"(
 <key id="sourcecodelang" attr.name="sourcecodelang" for="graph"/>
 <key id="witness-type" attr.name="witness-type" for="graph"/>
 <key id="entry" attr.name="entry" for="node">
@@ -78,7 +53,7 @@ const std::string CorrectnessWitnessWriter::keys = R"(
 <key attr.name="creationtime" attr.type="string" for="graph" id="creationtime"/>
 )";
 
-const std::string CorrectnessWitnessWriter::graph_data = R"(<graph edgedefault="directed">
+const std::string graph_data = R"(<graph edgedefault="directed">
 <data key="witness-type">correctness_witness</data>
 <data key="producer">gazer-theta</data>
 <data key="specification">CHECK( init(main()), LTL(G ! call(reach_error())) )</data>
@@ -86,5 +61,22 @@ const std::string CorrectnessWitnessWriter::graph_data = R"(<graph edgedefault="
 <data key="architecture">32bit</data>
 )";
 
+void CorrectnessWitnessWriter::outputWitness()
+{
+    time_t rawtime;
+    struct tm * ptm;
+    time ( &rawtime );
+    ptm = gmtime( &rawtime ); // UTC timestamp
+    std::stringstream timestamp;
+    timestamp << std::put_time(ptm, "%FT%T");
 
+    mOS << schema;
+    mOS << keys;
+    mOS << graph_data;
+    mOS << "<data key=\"programhash\">" << mHash << "</data>";
+    mOS << "<data key=\"creationtime\">" << timestamp.str() << "</data>\n";
+    mOS << "<data key=\"programfile\">" << SourceFileName << "</data>\n";
+    mOS << nodes;
+    mOS << "</graph>";
+    mOS << "</graphml>";
 }

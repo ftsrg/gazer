@@ -10,7 +10,6 @@ import signal
 import psutil
 import sys
 import subprocess
-import re
 import hashlib
 import argparse
 import enum
@@ -29,7 +28,7 @@ bmc_config = ["--inline all", "--bound 1000000"] # bound: We'll kill it after th
 
 # default values
 output_path = os.getcwd()
-tool_directory = os.path.abspath(os.path.dirname(__file__) + "/tools") # gazer/tools
+tool_directory = os.path.abspath(os.path.dirname(os.path.dirname(__file__)) + "/build/tools") # gazer/tools
 
 class Result(enum.Enum):
     UNKNOWN = 1

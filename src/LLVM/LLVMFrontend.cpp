@@ -232,7 +232,7 @@ bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
                     std::error_code EC{};
                     llvm::raw_fd_ostream fouts{ StringRef{mSettings.witness}, EC };
                     
-                    ViolationWitnessWriter witnessWriter{ fouts, fail->getTrace(), mSettings.hash };
+                    ViolationWitnessWriter witnessWriter{ fouts, mSettings.hash };
                     
                     witnessWriter.initializeWitness();
                     witnessWriter.write(fail->getTrace());

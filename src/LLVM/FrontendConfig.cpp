@@ -72,14 +72,14 @@ auto FrontendConfig::buildFrontend(
     // The Witness generator has to get the initial name of the sourcefile
     // ( witnesses support programs with a single source file only )
     if (!mSettings.witness.empty()) {
-        if(inputs.size()!=1) {
+        if (inputs.size()!=1) {
             llvm::errs() << "Witnesses support programs with a single source file only. Gazer won't generate a witness, as there were more than one input files";
             mSettings.witness = "";
             mSettings.hash = "";
         } else { // TODO something more elegant?
             llvm::StringRef filename = llvm::sys::path::filename(inputs[0]);
-            gazer::ViolationWitnessWriter::src_filename = filename;
-            CorrectnessWitnessWriter::src_filename = filename;
+            gazer::ViolationWitnessWriter::SourceFileName = filename;
+            CorrectnessWitnessWriter::SourceFileName = filename;
         }
     }
 

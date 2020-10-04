@@ -28,33 +28,33 @@
 #include <llvm/IR/DebugLoc.h>
 #include <llvm/IR/DebugInfoMetadata.h>
 
-namespace gazer {
+namespace gazer
+{
 
 // Although it sounds like that this class should be more closely related to the ViolationWitnessWriter, they are not,
 // as this one only outputs a hardcoded empty correctness witness (for now) and has nothing to do with traces
-class CorrectnessWitnessWriter {
-    llvm::raw_ostream& os;
-    std::string hash;
-    
-    static const std::string nodes;
-    static const std::string schema;
-    static const std::string keys;
-    static const std::string graph_data;
+class CorrectnessWitnessWriter
+{
 public:
-    static std::string src_filename;
+    static std::string SourceFileName;
 
-    explicit CorrectnessWitnessWriter(llvm::raw_ostream& _os, std::string _hash)
-    : os(_os), hash(_hash) {}
+    CorrectnessWitnessWriter(llvm::raw_ostream& os, std::string hash)
+    : mOS(os), mHash(hash) {}
 
     void outputWitness();
+
+private:
+    llvm::raw_ostream& mOS;
+    std::string mHash;
 };
 
-class ViolationWitnessWriter : public TraceWriter {
+class ViolationWitnessWriter : public TraceWriter
+{
 public:
-    static std::string src_filename;
+    static std::string SourceFileName;
 
-    explicit ViolationWitnessWriter(llvm::raw_ostream& os, Trace& _trace, std::string _hash)
-    : TraceWriter(os), trace(_trace), hash(_hash) {}
+    ViolationWitnessWriter(llvm::raw_ostream& os, std::string hash)
+    : TraceWriter(os), mHash(hash) {}
 
     // After creating the WitnessWriter, the witness should be initialized, written and then closed
     void initializeWitness();
@@ -67,14 +67,9 @@ private:
     void visit(FunctionCallEvent& event) override;
     void visit(UndefinedBehaviorEvent& event) override;
 
-    unsigned int nodeCounter = 0; // the values is always the id of the next node, that hasn't been created yet
-    bool inProgress = false; // true, if witness is initialized, but not closed
-    Trace& trace;
-    const std::string hash; // The hash of the source file
-
-    static const std::string schema;
-    static const std::string keys;
-    static const std::string graph_data;
+    unsigned int mNodeCounter = 0; // the values is always the id of the next node, that hasn't been created yet
+    bool mInProgress = false; // true, if witness is initialized, but not closed
+    const std::string mHash; // The hash of the source file
 
     void createNode(bool violation = false);
     void openEdge();
