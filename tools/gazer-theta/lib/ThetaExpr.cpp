@@ -15,7 +15,8 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
-#include "ThetaCfaGenerator.h"
+#include "ThetaCommon.h"
+
 #include "gazer/Core/Expr/ExprWalker.h"
 #include "gazer/ADT/StringUtils.h"
 
