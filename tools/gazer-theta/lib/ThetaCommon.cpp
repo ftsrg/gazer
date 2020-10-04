@@ -84,3 +84,12 @@ std::string gazer::theta::typeName(Type& type)
     }
 }
 
+std::string gazer::theta::thetaName(gazer::Cfa* cfa) {
+    // main is a keyword...
+    if (cfa->getName() == "main") {
+        return "_main";
+    }
+    // TODO main clashes with _main
+    return cfa->getName();
+}
+

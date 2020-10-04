@@ -19,6 +19,7 @@
 #define GAZER_THETACOMMON_H
 
 #include "gazer/Core/LiteralExpr.h"
+#include "gazer/Automaton/Cfa.h"
 
 #include <llvm/ADT/Twine.h>
 
@@ -199,8 +200,11 @@ public:
             }
             mOS << param;
         }
+        mOS << ")";
     }
 };
+
+std::string thetaName(gazer::Cfa*);
 
 } // namespace gazer::theta
 

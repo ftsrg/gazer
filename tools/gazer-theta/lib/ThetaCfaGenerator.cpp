@@ -26,6 +26,10 @@ using llvm::dyn_cast;
 
 void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace, bool xcfa)
 {
+    if (!xcfa) {
+        assert(mSystem.getNumAutomata() == 1 && "CFA supports only one automaton.");
+    }
+
     // Create a closure to test variable names
     auto isValidVarName = [&nameTrace](const std::string& name) -> bool {
       // The variable name should not be present in the variable list.
@@ -43,11 +47,18 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
 
         nameTrace.variables[name] = &variable;
         globalVars.try_emplace(&variable, std::make_unique<ThetaVarDecl>(name, type));
-
     }
 
     os << "main process __gazer_main_process {\n";
-    ThetaCfaProcedureGenerator(mSystem.getMainAutomaton(), isValidVarName, globalVars).write(os, nameTrace, xcfa);
+
+    for (const auto& global : globalVars) {
+        os << "    ";
+        global.second->print(os);
+    }
+
+    for (auto& cfa : mSystem.automata()) {
+        ThetaCfaProcedureGenerator(&cfa, isValidVarName, globalVars).write(os, nameTrace, xcfa);
+    }
     os << "}";
     os.flush();
 }

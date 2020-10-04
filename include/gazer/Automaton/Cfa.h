@@ -357,6 +357,10 @@ public:
     const_iterator begin() const { return mAutomata.begin(); }
     const_iterator end() const { return mAutomata.end(); }
 
+    llvm::iterator_range<iterator> automata() {
+        return llvm::make_range(begin(), end());
+    }
+
     GazerContext& getContext() { return mContext; }
 
     size_t getNumAutomata() const { return mAutomata.size(); }

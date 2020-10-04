@@ -195,6 +195,10 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
     }
 
     if (thetaOutput.startswith("(SafetyResult Unsafe")) {
+        if (mSettings.xcfa) {
+            llvm::errs() << "XCFA counter-examples cannot be parsed yet.\n";
+            return VerificationResult::CreateFail(VerificationResult::GeneralFailureCode, nullptr);
+        }
         // Parse the counterexample
         buffer = llvm::MemoryBuffer::getFile(cexFile);
         if (auto errorCode = buffer.getError()) {

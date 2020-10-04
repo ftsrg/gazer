@@ -74,6 +74,22 @@ void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& 
         locs.try_emplace(loc, std::make_unique<ThetaLocDecl>(locName, flag));
     }
 
+    auto& globals = this->globals;
+
+    auto find_var = [&vars, &globals](Variable* var) -> const std::unique_ptr<ThetaVarDecl>& {
+      auto it = vars.find(var);
+      if (it != vars.end()) {
+          return it->getSecond();
+      }
+
+      auto git = globals.find(var);
+      if (git != globals.end()) {
+          return git->getSecond();
+      }
+
+      llvm_unreachable(("Variable cannot be found: " + var->getName()).c_str());
+    };
+
     // Add edges
     for (Transition* edge : mCfa->edges()) {
         ThetaLocDecl& source = *locs[edge->getSource()];
@@ -87,7 +103,7 @@ void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& 
 
         if (auto assignEdge = dyn_cast<AssignTransition>(edge)) {
             for (auto& assignment : *assignEdge) {
-                auto lhsName = vars[assignment.getVariable()]->getName();
+                auto lhsName = find_var(assignment.getVariable())->getName();
 
                 if (llvm::isa<UndefExpr>(assignment.getValue())) {
                     stmts.push_back(ThetaStmt::Havoc(lhsName));
@@ -98,13 +114,25 @@ void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& 
         } else if (auto* callEdge = dyn_cast<CallTransition>(edge)) {
             ThetaStmt::CallData data;
             assert(callEdge->getNumOutputs() <= 1 && "Only one output is supported for calls");
-            data.functionName = callEdge->getCalledAutomaton()->getName(); // TODO mangling?
+            data.functionName = gazer::theta::thetaName(callEdge->getCalledAutomaton());
+
+            llvm::SmallVector<Variable*, 3> inputTmpVars;
             for (const auto& input : callEdge->inputs()) {
-                auto param = vars[input.getVariable()]->getName();
-                data.parameters.push_back(param);
+                auto* oldVar = input.getVariable();
+                auto* variable = mCfa->createLocal(oldVar->getName(), oldVar->getType());
+                auto name = validName(variable->getName(), isValidVarName);
+                auto type = typeName(variable->getType());
+                nameTrace.variables[name] = variable;
+                vars.try_emplace(variable, std::make_unique<ThetaVarDecl>(name, type));
+                inputTmpVars.emplace_back(variable);
+                stmts.emplace_back(ThetaStmt::Assign(name, input.getValue()));
+            }
+
+            for (auto* variable : inputTmpVars) {
+                data.parameters.push_back(vars[variable]->getName());
             }
             if (callEdge->getNumOutputs() == 1) {
-                auto output = vars[callEdge->output_begin()->getVariable()]->getName();
+                auto output = find_var(callEdge->output_begin()->getVariable())->getName();
                 data.resultVar = output;
             } else {
                 data.resultVar = "";
@@ -116,12 +144,12 @@ void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& 
         edges.emplace_back(std::make_unique<ThetaEdgeDecl>(source, target, std::move(stmts)));
     }
 
-    auto canonizeName = [&vars](Variable* variable) -> std::string {
+    auto canonizeName = [&vars, &find_var](Variable* variable) -> std::string {
       if (vars.count(variable) == 0) {
           return variable->getName();
       }
 
-      return vars[variable]->getName();
+      return find_var(variable)->getName();
     };
 
     auto INDENT  = "    ";
@@ -135,7 +163,7 @@ void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& 
         if (mCfa->getParent().getMainAutomaton() == mCfa) {
             os << "main ";
         }
-        os << "procedure " << mCfa->getName() << "(";
+        os << "procedure " << gazer::theta::thetaName(mCfa) << "(";
         bool first = true;
         for (auto& input: mCfa->inputs()) {
             if (first) {
@@ -151,10 +179,22 @@ void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& 
         os << ") {\n";
     }
 
-    for (auto& variable : llvm::concat<Variable>(mCfa->inputs(), mCfa->locals())) {
-        os << INDENT;
-        vars[&variable]->print(os);
-        os << "\n";
+    if (xcfa) {
+
+        // inputs are already defined
+        for (auto& variable : mCfa->locals()) {
+            os << INDENT;
+            vars[&variable]->print(os);
+            os << "\n";
+        }
+
+    } else {
+        for (auto& variable : llvm::concat<Variable>(mCfa->inputs(), mCfa->locals())) {
+            os << INDENT;
+            vars[&variable]->print(os);
+            os << "\n";
+        }
+
     }
 
     for (Location* loc : mCfa->nodes()) {
