@@ -52,21 +52,21 @@ public:
 
     std::string visitLiteral(const ExprRef<LiteralExpr>& expr)
     {
-        if (auto intLit = llvm::dyn_cast<IntLiteralExpr>(expr)) {
+        if (auto *intLit = llvm::dyn_cast<IntLiteralExpr>(expr)) {
             auto val = intLit->getValue();
             return val < 0 ? "(" + std::to_string(val) + ")" : std::to_string(intLit->getValue());
         }
 
-        if (auto boolLit = llvm::dyn_cast<BoolLiteralExpr>(expr)) {
+        if (auto *boolLit = llvm::dyn_cast<BoolLiteralExpr>(expr)) {
             return boolLit->getValue() ? "true" : "false";
         }
 
-        if (auto realLit = llvm::dyn_cast<RealLiteralExpr>(expr)) {
+        if (auto *realLit = llvm::dyn_cast<RealLiteralExpr>(expr)) {
             auto val = realLit->getValue();
             return std::to_string(val.numerator()) + "%" + std::to_string(val.denominator());
         }
 
-        if (auto bvLit = llvm::dyn_cast<BvLiteralExpr>(expr)) {
+        if (auto *bvLit = llvm::dyn_cast<BvLiteralExpr>(expr)) {
             llvm::SmallString<64> exactString;
             llvm::SmallString<64> paddedString;
 
@@ -79,26 +79,31 @@ public:
             return std::to_string(bvLit->getType().getWidth()) + "'b" + std::string(paddedString.data(), paddedString.data() + paddedString.size());
         }
 
-        if (auto arrLit = llvm::dyn_cast<ArrayLiteralExpr>(expr)) {
-            std::string arrLitStr = "[";
-
-            const auto& kvPairs = arrLit->getMap();
-            if (kvPairs.size() > 0) {
-                for (const auto& [index, elem] : kvPairs) {
-                    arrLitStr += printThetaExpr(index, mReplacedNames) + " <- " + printThetaExpr(elem, mReplacedNames) + ", ";
-                }
-                arrLitStr += "default <- ";
-            } else {
-                arrLitStr += "<" + thetaType(arrLit->getType().getIndexType()) + ">default <- ";
-            }
+        if (auto *arrLit = llvm::dyn_cast<ArrayLiteralExpr>(expr)) {
+            std::string arrLitStr;
 
             if (arrLit->hasDefault()) {
+                arrLitStr += "[";
+
+                const auto& kvPairs = arrLit->getMap();
+                if (!kvPairs.empty()) {
+                    for (const auto& [index, elem] : kvPairs) {
+                        arrLitStr += printThetaExpr(index, mReplacedNames) + " <- " + printThetaExpr(elem, mReplacedNames) + ", ";
+                    }
+                    arrLitStr += "default <- ";
+                } else {
+                    arrLitStr += "<" + thetaType(arrLit->getType().getIndexType()) + ">default <- ";
+                }
+
                 arrLitStr += printThetaExpr(arrLit->getDefault(), mReplacedNames);
+
+                arrLitStr += "]";
             } else {
-                arrLitStr += defaultValueForType(arrLit->getType().getElementType());
+                assert(arrLit->getMap().empty());
+                arrLitStr +=
+                    "__gazer_uninitialized_memory_" + gazer::theta::thetaEscapedType(arrLit->getType());
             }
 
-            arrLitStr += "]";
             return arrLitStr;
         }
 

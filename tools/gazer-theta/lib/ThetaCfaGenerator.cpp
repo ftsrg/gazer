@@ -16,20 +16,22 @@
 //
 //===----------------------------------------------------------------------===//
 #include "ThetaCfaGenerator.h"
+
 #include "ThetaType.h"
 
-#include "gazer/Core/LiteralExpr.h"
 #include "gazer/Automaton/CfaTransforms.h"
+#include "gazer/Core/LiteralExpr.h"
 
-#include <llvm/ADT/Twine.h>
 #include <llvm/ADT/DenseSet.h>
+#include <llvm/ADT/Twine.h>
+#include <llvm/Pass.h>
 
 #include <boost/algorithm/cxx11/any_of.hpp>
 #include <boost/range/join.hpp>
 
 #include <regex>
+#include <unordered_set>
 #include <variant>
-#include <llvm/Pass.h>
 
 using namespace gazer;
 using namespace gazer::theta;
@@ -213,6 +215,7 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
     llvm::DenseMap<Location*, std::unique_ptr<ThetaLocDecl>> locs;
     llvm::DenseMap<Variable*, std::unique_ptr<ThetaVarDecl>> vars;
     std::vector<std::unique_ptr<ThetaEdgeDecl>> edges;
+    std::unordered_set<gazer::ArrayType*> uninitializedMemoryArrays;
 
     // Create a closure to test variable names
     auto isValidVarName = [&vars](const std::string& name) -> bool {
@@ -265,6 +268,15 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
 
         if (edge->getGuard() != BoolLiteralExpr::True(edge->getGuard()->getContext())) {
             stmts.push_back(ThetaStmt::Assume(edge->getGuard()));
+
+            // Collect use of uninitialized memory
+            auto arrayLiterals = gazer::theta::collectArrayLiteralsThetaExpr(edge->getGuard());
+            for (const auto& arrayLiteral : arrayLiterals) {
+                if (!arrayLiteral->hasDefault()) {
+                    assert(arrayLiteral->getMap().empty());
+                    uninitializedMemoryArrays.insert(&ArrayType::Get(arrayLiteral->getType().getIndexType(), arrayLiteral->getType().getElementType()));
+                }
+            }
         }
 
         if (auto assignEdge = dyn_cast<AssignTransition>(edge)) {
@@ -275,6 +287,15 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
                     stmts.push_back(ThetaStmt::Havoc(lhsName));
                 } else {
                     stmts.push_back(ThetaStmt::Assign(lhsName, assignment.getValue()));
+
+                    // Collect use of uninitialized memory
+                    auto arrayLiterals = gazer::theta::collectArrayLiteralsThetaExpr(assignment.getValue());
+                    for (const auto& arrayLiteral : arrayLiterals) {
+                        if (!arrayLiteral->hasDefault()) {
+                            assert(arrayLiteral->getMap().empty());
+                            uninitializedMemoryArrays.insert(&ArrayType::Get(arrayLiteral->getType().getIndexType(), arrayLiteral->getType().getElementType()));
+                        }
+                    }
                 }
             }
         } else if (auto callEdge = dyn_cast<CallTransition>(edge)) {
@@ -282,6 +303,17 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
         }
 
         edges.emplace_back(std::make_unique<ThetaEdgeDecl>(source, target, std::move(stmts)));
+    }
+
+    // Add variables modeling uninitialized memory
+    for (const auto& memoryArrayType : uninitializedMemoryArrays) {
+        auto name = validName("__gazer_uninitialized_memory_" + gazer::theta::thetaEscapedType(*memoryArrayType), isValidVarName);
+        auto type = thetaType(*memoryArrayType);
+
+        auto *variable = main->createLocal(name, *memoryArrayType);
+
+        nameTrace.variables[name] = variable;
+        vars.try_emplace(variable, std::make_unique<ThetaVarDecl>(name, type));
     }
 
     auto INDENT  = "    ";
@@ -325,11 +357,13 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
                 void operator()(const ExprPtr& expr) {
                     mOS << "assume ";
                     mOS << theta::printThetaExpr(expr, mCanonizeName);
+                    assert(theta::collectArrayLiteralsThetaExpr(expr).size() >= 0);
                 }
 
                 void operator()(const std::pair<std::string, ExprPtr>& assign) {
                     mOS << assign.first << " := ";
                     mOS << theta::printThetaExpr(assign.second, mCanonizeName);
+                    assert(theta::collectArrayLiteralsThetaExpr(assign.second).size() >= 0);
                 }
 
                 void operator()(const std::string& variable) {
