@@ -1,6 +1,5 @@
 set(LIB_SOURCE_FILES
-    lib/ThetaType.cpp
-    lib/ThetaCfaGenerator.cpp
+        lib/ThetaCfaGenerator.cpp
     lib/ThetaExpr.cpp
     lib/ThetaVerifier.cpp
     lib/ThetaCfaWriterPass.cpp)
