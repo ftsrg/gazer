@@ -63,14 +63,8 @@ public:
         return ArrayLiteralExpr::Get(arrTy, entries, elze);
     }
 
-    ExprRef<ArrayLiteralExpr> ArrayLit(const ArrayLiteralExpr::MappingT& entries) {
-        assert(entries.size() > 0);
-        const auto& [index, elem] = *entries.begin();
-        return ArrayLit(ArrayType::Get(index->getType(), elem->getType()), entries, nullptr);
-    }
-
-    ExprRef<ArrayLiteralExpr> ArrayLit(const ArrayLiteralExpr::MappingT& entries, const ExprRef<LiteralExpr>& elze) {
-        assert(entries.size() > 0);
+    ExprRef<ArrayLiteralExpr> ArrayLit(const ArrayLiteralExpr::MappingT& entries, const ExprRef<LiteralExpr>& elze = nullptr) {
+        assert(!entries.empty());
         const auto& [index, elem] = *entries.begin();
         return this->ArrayLit(ArrayType::Get(index->getType(), elem->getType()), entries, elze);
     }

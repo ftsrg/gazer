@@ -271,16 +271,25 @@ static auto parseBvLiteral(sexpr::Value* sexpr, BvType& varTy) -> ExprRef<Litera
     llvm::APInt intVal;
 
     if (!value.getAsInteger(10, intVal)) {
+        // Check if we have decimal format
         return BvLiteralExpr::Get(varTy, intVal.zextOrTrunc(varTy.getWidth()));
-    } else if (const auto lit = value.split("'"); std::get<1>(lit) != "") {
-        auto bvSizeStr = std::get<0>(lit);
-        auto bvLitForm = std::get<1>(lit)[0];
-        auto bvLitValueStr = std::get<1>(lit).substr(1);
+    }
+
+    if (const auto lit = value.split("'"); !std::get<1>(lit).empty()) {
+        // Check if we have Theta literal format
+
+        llvm::StringRef bvSizeStr = std::get<0>(lit);
+        char bvLitForm = std::get<1>(lit)[0];
+        llvm::StringRef bvLitValueStr = std::get<1>(lit).substr(1);
 
         unsigned bvSize;
 
         if (!bvSizeStr.getAsInteger(10, bvSize) && bvSize == varTy.getWidth()) {
+            // Check if we have valid bitvector size
+
             switch (std::tolower(bvLitForm)) {
+                // Check if we have valid bitvector literal type
+
                 case 'b':
                     if (!bvLitValueStr.getAsInteger(2, intVal)) {
                         return BvLiteralExpr::Get(varTy, intVal.zextOrTrunc(varTy.getWidth()));
@@ -297,17 +306,10 @@ static auto parseBvLiteral(sexpr::Value* sexpr, BvType& varTy) -> ExprRef<Litera
                     }
                     break;
             }
-
-            // Error while parsing
-            return nullptr;
-        } else {
-            // Error while parsing the size
-            return nullptr;
         }
-    } else {
-        // Not supported format
-        return nullptr;
     }
+
+    return nullptr;
 }
 
 static auto parseArrayLiteral(sexpr::Value* sexpr, ArrayType& varTy) -> ExprRef<LiteralExpr>
@@ -319,9 +321,9 @@ static auto parseArrayLiteral(sexpr::Value* sexpr, ArrayType& varTy) -> ExprRef<
     ArrayLiteralExpr::MappingT entries;
     ExprRef<LiteralExpr> def = nullptr;
 
-    for (auto arrEntryImpl : arrLitImpl) {
-        auto keyImpl = arrEntryImpl->asList()[0];
-        auto valueImpl = arrEntryImpl->asList()[1];
+    for (auto *arrEntryImpl : arrLitImpl) {
+        auto *keyImpl = arrEntryImpl->asList()[0];
+        auto *valueImpl = arrEntryImpl->asList()[1];
 
         if (keyImpl->isAtom() && keyImpl->asAtom() == "default") {
             def = parseLiteral(valueImpl, varTy.getElementType());
@@ -336,21 +338,16 @@ static auto parseArrayLiteral(sexpr::Value* sexpr, ArrayType& varTy) -> ExprRef<
 static auto parseLiteral(sexpr::Value* sexpr, Type& varTy) -> ExprRef<LiteralExpr>
 {
     switch (varTy.getTypeID()) {
-        case Type::BoolTypeID: {
+        case Type::BoolTypeID:
             return parseBoolLiteral(sexpr, cast<BoolType>(varTy));
-        }
-        case Type::IntTypeID: {
+        case Type::IntTypeID:
             return parseIntLiteral(sexpr, cast<IntType>(varTy));
-        }
-        case Type::BvTypeID: {
+        case Type::BvTypeID:
             return parseBvLiteral(sexpr, cast<BvType>(varTy));
-        }
-        case Type::ArrayTypeID: {
+        case Type::ArrayTypeID:
             return parseArrayLiteral(sexpr, cast<ArrayType>(varTy));
-        }
-        default: {
+        default:
             return nullptr;
-        }
     }
 }
 
