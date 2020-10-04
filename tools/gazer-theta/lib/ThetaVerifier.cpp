@@ -125,6 +125,8 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
     std::vector<llvm::StringRef> args = {
         "java",
         javaLibPath,
+        "-Xss8m",
+        "-Xmx4G",
         "-jar",
         thetaPath,
         "--model", input,

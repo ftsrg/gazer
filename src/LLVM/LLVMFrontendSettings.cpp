@@ -101,6 +101,21 @@ namespace
         cl::desc("Print counterexample trace"),
         cl::cat(TraceCategory)
     );
+    
+    cl::opt<std::string> GenerateWitness(
+        "witness",
+        cl::desc("Generate an SV-Comp witness file. The name of the output file and usage of flag --hash is required."),
+        cl::value_desc("filename"),
+        cl::cat(TraceCategory)
+    );
+
+    cl::opt<std::string> Hash(
+        "hash",
+        cl::desc("SHA256 hash of the source program. Required for generating a witness."),
+        cl::value_desc("hash"),
+        cl::cat(TraceCategory)
+    );
+
     cl::opt<std::string> TestHarnessFile(
         "test-harness",
         cl::desc("Write test harness to output file"),
@@ -159,6 +174,8 @@ LLVMFrontendSettings LLVMFrontendSettings::initFromCommandLine()
     settings.debugDumpMemorySSA = DebugDumpMemorySSA;
 
     settings.trace = PrintTrace;
+    settings.witness = GenerateWitness;
+    settings.hash = Hash;
     settings.testHarnessFile = TestHarnessFile;
 
     return settings;
