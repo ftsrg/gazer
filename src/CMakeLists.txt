@@ -2,7 +2,6 @@ add_subdirectory(Core)
 add_subdirectory(Automaton)
 add_subdirectory(LLVM)
 add_subdirectory(Trace)
-add_subdirectory(Witness)
 add_subdirectory(Verifier)
 add_subdirectory(Support)
  

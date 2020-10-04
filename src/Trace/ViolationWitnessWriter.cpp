@@ -17,7 +17,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "gazer/Core/LiteralExpr.h"
-#include "gazer/Witness/WitnessWriter.h"
+#include "gazer/Trace/WitnessWriter.h"
 #include <llvm/ADT/SmallString.h>
 
 #include <fstream>

@@ -24,7 +24,7 @@
 #include "gazer/LLVM/Memory/MemoryModel.h"
 #include "gazer/Trace/TraceWriter.h"
 #include "gazer/LLVM/Trace/TestHarnessGenerator.h"
-#include "gazer/Witness/WitnessWriter.h"
+#include "gazer/Trace/WitnessWriter.h"
 #include "gazer/LLVM/Transform/BackwardSlicer.h"
 #include "gazer/Support/Warnings.h"
 

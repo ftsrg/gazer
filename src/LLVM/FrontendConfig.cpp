@@ -18,7 +18,7 @@
 #include "gazer/LLVM/LLVMFrontend.h"
 #include "gazer/LLVM/Instrumentation/DefaultChecks.h"
 #include "gazer/Support/Warnings.h"
-#include "gazer/Witness/WitnessWriter.h"
+#include "gazer/Trace/WitnessWriter.h"
 #include "gazer/Config/gazer-config.h"
 
 #include <llvm/IR/Module.h>
