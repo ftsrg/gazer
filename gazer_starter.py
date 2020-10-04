@@ -119,9 +119,9 @@ def run_without_timeout(command, env=None, no_print=False):
 # tries to run the test harness, if needed
 # should be given an output from a run with return code 0
 def parse_output(output, task):
+    global result
     # parses in reverse, as the output can be long, but the lines searched are around the end (mostly the last lines)
     for line in reversed(output.decode('utf-8').split('\n')):
-        global result
         if "Verification FAILED" in line:
             result = run_test_harness(task) # FALSE, ERROR or UNKNOWN
         if "Verification SUCCESSFUL" in line:
@@ -181,6 +181,7 @@ def run_test_harness(task): # TODO ide is kellhet -m32, ha a Gazerben is lesz
     
 # if timeout is 0, then it will be run without timeout
 def run_next_config(toolname, flags, task_with_path, timeout):
+    global result
     print_line()
 
     command = tool_directory + toolname + " " + ' '.join(flags) + " " + task_with_path
@@ -222,6 +223,7 @@ def get_version_number():
 
 def main():
     global output_path
+    global result
 
     parser = argparse.ArgumentParser()
 
@@ -260,12 +262,12 @@ def main():
         raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), tool_directory+"/gazer-bmc/gazer-bmc")
     if not os.path.isfile(tool_directory+"/gazer-theta/gazer-theta"):
         raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), tool_directory+"/gazer-theta/gazer-theta")
-    if not os.path.isfile(tool_directory+"/gazer-theta/gazer-theta/theta/theta-cfa-cli.jar"):
-        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), tool_directory+"/gazer-theta/gazer-theta/theta/theta-cfa-cli.jar")
-    if not os.path.isfile(tool_directory+"/gazer-theta/gazer-theta/theta/lib/libz3.so"):
-        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), tool_directory+"/gazer-theta/gazer-theta/theta/lib/libz3.so")
-    if not os.path.isfile(tool_directory+"/gazer-theta/gazer-theta/theta/lib/libz3java.so"):
-        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), tool_directory+"/gazer-theta/gazer-theta/theta/lib/libz3java.so")
+    if not os.path.isfile(tool_directory+"/gazer-theta/theta/theta-cfa-cli.jar"):
+        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), tool_directory+"/gazer-theta/theta/theta-cfa-cli.jar")
+    if not os.path.isfile(tool_directory+"/gazer-theta/theta/lib/libz3.so"):
+        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), tool_directory+"/gazer-theta/theta/lib/libz3.so")
+    if not os.path.isfile(tool_directory+"/gazer-theta/theta/lib/libz3java.so"):
+        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), tool_directory+"/gazer-theta/theta/lib/libz3java.so")
 
     # hash to use in the witness
     print("Hashing taskfile " + taskname)
