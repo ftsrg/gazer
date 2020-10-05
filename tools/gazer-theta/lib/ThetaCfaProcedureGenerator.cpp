@@ -19,6 +19,7 @@
 #include "ThetaCommon.h"
 
 #include "gazer/Automaton/CfaTransforms.h"
+#include "gazer/Core/Expr.h"
 
 #include <llvm/ADT/Twine.h>
 #include <llvm/ADT/DenseSet.h>
@@ -108,7 +109,23 @@ void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& 
                 if (llvm::isa<UndefExpr>(assignment.getValue())) {
                     stmts.push_back(ThetaStmt::Havoc(lhsName));
                 } else {
-                    stmts.push_back(ThetaStmt::Assign(lhsName, assignment.getValue()));
+                    ExprPtr assignmentValue = assignment.getValue();
+                    if (assignment.isStore()) {
+                        // save store result
+                        auto* temp = mCfa->createLocal(lhsName, assignment.getVariable()->getType());
+                        auto name = validName(lhsName, isValidVarName);
+                        auto type = typeName(assignment.getVariable()->getType());
+                        vars.try_emplace(temp, std::make_unique<ThetaVarDecl>(name, type));
+                        stmts.push_back(ThetaStmt::Store(lhsName, name, assignment.getOrdering()));
+                    } else if (assignment.isLoad()) {
+                        assert(assignment.getValue()->getKind() == Expr::VarRef
+                               && "Load should \"load\" into a variable");
+                        auto& var = ((VarRefExpr*)assignment.getValue().get())->getVariable();
+                        auto name = find_var(&var)->getName();
+                        stmts.push_back(ThetaStmt::Load(name, lhsName, assignment.getOrdering()));
+                    } else {
+                        stmts.push_back(ThetaStmt::Assign(lhsName, assignment.getValue()));
+                    }
                 }
             }
         } else if (auto* callEdge = dyn_cast<CallTransition>(edge)) {

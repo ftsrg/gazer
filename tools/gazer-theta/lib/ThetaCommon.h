@@ -93,7 +93,7 @@ struct ThetaStmt : ThetaAst
         VariableAssignment::Ordering ordering;
     };
     struct FenceData {
-        // TODO
+        std::string fencyName;
     };
     using VariantTy = std::variant<
         ExprPtr, // assume
@@ -128,24 +128,21 @@ struct ThetaStmt : ThetaAst
         return VariantTy{pair};
     }
 
-    static ThetaStmt Load(LoadData load)
+    static ThetaStmt Load(std::string ptr, std::string value,
+                          VariableAssignment::Ordering ordering)
     {
-        return VariantTy{load};
+        return VariantTy{LoadData{ptr, value, ordering}};
+    }
+
+    static ThetaStmt Store(std::string ptr, std::string value,
+                          VariableAssignment::Ordering ordering)
+    {
+        return VariantTy{StoreData{ptr, value, ordering}};
     }
 
     static ThetaStmt Fence(FenceData fence)
     {
         return VariantTy{fence};
-    }
-
-    static ThetaStmt Store(StoreData store)
-    {
-        assert(!llvm::isa<UndefExpr>(store.value)
-               && "Cannot assign an undef value to a variable."
-                  "Use ::Havoc() to represent a nondetermistic value assignment."
-        );
-
-        return VariantTy{store};
     }
 
     static ThetaStmt Havoc(std::string variable)
@@ -226,7 +223,6 @@ public:
 
     void operator()(const ThetaStmt::StoreData& store) {
         mOS << store.globalVariableName << " <- " << store.valueVariable;
-        printExpr(store.value);
     }
 
     void operator()(const ThetaStmt::LoadData& load) {

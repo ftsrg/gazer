@@ -9,6 +9,27 @@ using namespace gazer;
 
 namespace {
 
+VariableAssignment::Ordering getOrdering(llvm::AtomicOrdering ordering) {
+    switch(ordering) {
+    case llvm::AtomicOrdering::NotAtomic:
+        return VariableAssignment::Ordering::NotAtomic;
+    case llvm::AtomicOrdering::Acquire:
+        return VariableAssignment::Ordering::Acquire;
+    case llvm::AtomicOrdering::AcquireRelease:
+        return VariableAssignment::Ordering::AcquireRelease;
+    case llvm::AtomicOrdering::Release:
+        return VariableAssignment::Ordering::Release;
+    case llvm::AtomicOrdering::Monotonic:
+        return VariableAssignment::Ordering::Monotonic;
+    case llvm::AtomicOrdering::SequentiallyConsistent:
+        return VariableAssignment::Ordering::SequentiallyConsistent;
+    case llvm::AtomicOrdering::Unordered:
+        return VariableAssignment::Ordering::Unordered;
+    default:
+        llvm_unreachable("Bad memory ordering of load inst");
+    }
+}
+
 class SimpleMemoryModel : public MemoryModel,
                           public MemoryInstructionHandler,
                           public MemoryTypeTranslator
@@ -72,7 +93,9 @@ public:
         // copy value to temporary
         auto* var = ep.createAuxiliaryVariable(load.getName(), mTypes.get(load.getType()));
         const auto* globalVar = variableMapping.find(const_cast<llvm::Value*>(ptr))->second;
-        ep.insertAssignment(var, globalVar->getRefExpr());
+        ep.insertAssignment(var, globalVar->getRefExpr(),
+                            getOrdering(load.getOrdering()),
+                            VariableAssignment::LoadStore::Load);
         return var->getRefExpr();
     }
 
@@ -85,7 +108,9 @@ public:
             && "Variable not present in variable mapping");
 
         auto* globalVar = variableMapping.find(const_cast<llvm::Value*>(ptr))->second;
-        ep.insertAssignment(globalVar, ep.getAsOperand(store.getValueOperand()));
+        ep.insertAssignment(globalVar, ep.getAsOperand(store.getValueOperand()),
+                            getOrdering(store.getOrdering()),
+                            VariableAssignment::LoadStore::Store);
     }
 
     void declareGlobalVariables(llvm::Module& module, llvm2cfa::GlobalVarDeclExtensionPoint& ep)

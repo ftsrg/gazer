@@ -154,7 +154,9 @@ public:
     /// Attempts to inline and eliminate a given variable from the CFA.
     virtual bool tryToEliminate(ValueOrMemoryObject val, Variable* variable, const ExprPtr& expr) = 0;
 
-    virtual void insertAssignment(Variable* variable, const ExprPtr& value) = 0;
+    virtual void insertAssignment(Variable* variable, const ExprPtr& value,
+        VariableAssignment::Ordering memoryOrdering = VariableAssignment::Ordering::NotSpecified,
+        VariableAssignment::LoadStore loadStore = VariableAssignment::LoadStore::Load) = 0;
 
     virtual void splitCurrentTransition(const ExprPtr& guard) = 0;
 };

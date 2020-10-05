@@ -82,22 +82,31 @@ class VariableAssignment final
 {
 public:
     enum Ordering {
+        NotSpecified, // theta will use assignments
         NotAtomic,
         Unordered,
         Monotonic,
         Acquire,
         Release,
         AcquireRelease,
-        SequentiallyConsistent
+        SequentiallyConsistent,
+    };
+
+    enum LoadStore {
+        Load,
+        Store
     };
     VariableAssignment();
-    VariableAssignment(Variable *variable, ExprPtr value, Ordering ordering = NotAtomic);
+    VariableAssignment(Variable *variable, ExprPtr value, Ordering ordering = NotSpecified, LoadStore loadStore = Load);
 
     bool operator==(const VariableAssignment& other) const;
     bool operator!=(const VariableAssignment& other) const;
 
     Variable* getVariable() const;
     ExprPtr getValue() const;
+    Ordering getOrdering() const { return mOrdering; }
+    bool isLoad() const { return mOrdering != NotSpecified && mLoadStore == Load; }
+    bool isStore() const { return mOrdering != NotSpecified && mLoadStore == Store; }
 
     void print(llvm::raw_ostream& os) const;
 
@@ -107,7 +116,8 @@ private:
 
     /// Defines memory ordering. Only applicable for multi-thread programs
     /// with shared variables.
-    Ordering mOrdering;
+    Ordering mOrdering : 31;
+    LoadStore mLoadStore : 1;
 };
 
 llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Variable& variable);
