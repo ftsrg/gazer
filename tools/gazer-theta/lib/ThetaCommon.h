@@ -81,7 +81,29 @@ struct ThetaStmt : ThetaAst
         std::string functionName;
         std::vector<std::string> parameters;
     };
-    using VariantTy = std::variant<ExprPtr, std::pair<std::string, ExprPtr>, std::string, CallData>;
+
+    struct LoadData {
+        std::string globalVariableName;
+        std::string valueVariable;
+        VariableAssignment::Ordering ordering;
+    };
+    struct StoreData {
+        std::string globalVariableName;
+        std::string valueVariable;
+        VariableAssignment::Ordering ordering;
+    };
+    struct FenceData {
+        // TODO
+    };
+    using VariantTy = std::variant<
+        ExprPtr, // assume
+        std::pair<std::string, ExprPtr>, // assign
+        std::string, // havoc
+        CallData, // call
+        StoreData, // store
+        LoadData, // load
+        FenceData
+    >;
 
     /* implicit */ ThetaStmt(VariantTy content)
         : mContent(content)
@@ -104,6 +126,26 @@ struct ThetaStmt : ThetaAst
         std::pair<std::string, ExprPtr> pair = { variableName, value };
 
         return VariantTy{pair};
+    }
+
+    static ThetaStmt Load(LoadData load)
+    {
+        return VariantTy{load};
+    }
+
+    static ThetaStmt Fence(FenceData fence)
+    {
+        return VariantTy{fence};
+    }
+
+    static ThetaStmt Store(StoreData store)
+    {
+        assert(!llvm::isa<UndefExpr>(store.value)
+               && "Cannot assign an undef value to a variable."
+                  "Use ::Havoc() to represent a nondetermistic value assignment."
+        );
+
+        return VariantTy{store};
     }
 
     static ThetaStmt Havoc(std::string variable)
@@ -180,6 +222,19 @@ public:
     void operator()(const std::pair<std::string, ExprPtr>& assign) {
         mOS << assign.first << " := ";
         printExpr(assign.second);
+    }
+
+    void operator()(const ThetaStmt::StoreData& store) {
+        mOS << store.globalVariableName << " <- " << store.valueVariable;
+        printExpr(store.value);
+    }
+
+    void operator()(const ThetaStmt::LoadData& load) {
+        mOS << load.globalVariableName << " -> " << load.valueVariable;
+    }
+
+    void operator()(const ThetaStmt::FenceData& fence) {
+        mOS << "fence"; // TODO
     }
 
     void operator()(const std::string& variable) {

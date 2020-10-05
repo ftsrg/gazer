@@ -81,8 +81,17 @@ private:
 class VariableAssignment final
 {
 public:
+    enum Ordering {
+        NotAtomic,
+        Unordered,
+        Monotonic,
+        Acquire,
+        Release,
+        AcquireRelease,
+        SequentiallyConsistent
+    };
     VariableAssignment();
-    VariableAssignment(Variable *variable, ExprPtr value);
+    VariableAssignment(Variable *variable, ExprPtr value, Ordering ordering = NotAtomic);
 
     bool operator==(const VariableAssignment& other) const;
     bool operator!=(const VariableAssignment& other) const;
@@ -95,6 +104,10 @@ public:
 private:
     Variable* mVariable;
     ExprPtr mValue;
+
+    /// Defines memory ordering. Only applicable for multi-thread programs
+    /// with shared variables.
+    Ordering mOrdering;
 };
 
 llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Variable& variable);

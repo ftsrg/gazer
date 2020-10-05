@@ -49,8 +49,8 @@ VariableAssignment::VariableAssignment()
     : mVariable(nullptr), mValue(nullptr)
 {}
 
-VariableAssignment::VariableAssignment(Variable *variable, ExprPtr value)
-    : mVariable(variable), mValue(std::move(value))
+VariableAssignment::VariableAssignment(Variable *variable, ExprPtr value, Ordering ordering)
+    : mVariable(variable), mValue(std::move(value)), mOrdering(ordering)
 {
     assert(mVariable != nullptr);
     assert(mValue != nullptr);
