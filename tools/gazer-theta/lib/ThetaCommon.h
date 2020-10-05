@@ -206,6 +206,25 @@ class PrintVisitor
         }
     }
 
+    std::string printOrdering(VariableAssignment::Ordering ordering) {
+        switch(ordering) {
+        case VariableAssignment::Acquire:
+            return "acq";
+        case VariableAssignment::AcquireRelease:
+            return "acq_rel";
+        case VariableAssignment::Release:
+            return "rel";
+        case VariableAssignment::SequentiallyConsistent:
+            return "seq_cst";
+        case VariableAssignment::Monotonic:
+            return "mon";
+        case VariableAssignment::Unordered:
+            return "unordered";
+        default:
+            llvm_unreachable("Invalid memory ordering!");
+        }
+    }
+
 public:
     PrintVisitor(llvm::raw_ostream& os, std::function<std::string(Variable*)> canonizeName)
         : mOS(os), mCanonizeName(canonizeName)
@@ -222,15 +241,15 @@ public:
     }
 
     void operator()(const ThetaStmt::StoreData& store) {
-        mOS << store.globalVariableName << " <- " << store.valueVariable;
+        mOS << store.globalVariableName << " <- " << store.valueVariable << " atomic @ " << printOrdering(store.ordering);
     }
 
     void operator()(const ThetaStmt::LoadData& load) {
-        mOS << load.globalVariableName << " -> " << load.valueVariable;
+        mOS << load.globalVariableName << " -> " << load.valueVariable << " atomic @ " << printOrdering(load.ordering);
     }
 
     void operator()(const ThetaStmt::FenceData& fence) {
-        mOS << "fence"; // TODO
+        mOS << "fence " << fence.fencyName;
     }
 
     void operator()(const std::string& variable) {
@@ -239,7 +258,7 @@ public:
 
     void operator()(const ThetaStmt::CallData& function) {
         if (function.resultVar != "") {
-            mOS << function.resultVar << " ";
+            mOS << function.resultVar << " := ";
         }
         mOS << "call " << function.functionName << "(";
         bool first = true;
