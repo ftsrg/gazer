@@ -82,8 +82,8 @@ public:
         return var->getRefExpr();
     }
 
-    ExprPtr
-        handleLoad(const llvm::LoadInst& load, llvm2cfa::GenerationStepExtensionPoint& ep) override
+    ExprPtr handleLoad(const llvm::LoadInst& load,
+                       llvm2cfa::GenerationStepExtensionPoint& ep) override
     {
         const auto* ptr = load.getPointerOperand();
         assert(
@@ -99,8 +99,8 @@ public:
         return var->getRefExpr();
     }
 
-    void handleStore(const llvm::StoreInst& store, llvm2cfa::GenerationStepExtensionPoint& ep)
-        override
+    void handleStore(const llvm::StoreInst& store,
+                     llvm2cfa::GenerationStepExtensionPoint& ep) override
     {
         const auto* ptr = store.getPointerOperand();
         assert(

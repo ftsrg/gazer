@@ -333,7 +333,10 @@ protected:
 
         ExprPtr getAsOperand(ValueOrMemoryObject val) override;
         bool tryToEliminate(ValueOrMemoryObject val, Variable* variable, const ExprPtr& expr) override;
-        void insertAssignment(Variable* variable, const ExprPtr& value) override;
+        virtual void insertAssignment(Variable* variable, const ExprPtr& value,
+                                      VariableAssignment::Ordering memoryOrdering = VariableAssignment::Ordering::NotSpecified,
+                                      VariableAssignment::LoadStore loadStore = VariableAssignment::LoadStore::Load)
+            override;
 
         void splitCurrentTransition(const ExprPtr& guard) override;
 

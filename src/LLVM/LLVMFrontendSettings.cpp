@@ -90,7 +90,7 @@ namespace
         cl::values(
             clEnumValN(MemoryModelSetting::Flat, "flat", "Bit-precise flat memory model"),
             clEnumValN(MemoryModelSetting::Havoc, "havoc", "Dummy havoc model"),
-            clEnumValN(MemoryModelSetting::Simple, "simple", "Naive model")
+            clEnumValN(MemoryModelSetting::Simple, "simple", "A simple model with global variables")
         ),
         cl::init(MemoryModelSetting::Flat),
         cl::cat(IrToCfaCategory)
