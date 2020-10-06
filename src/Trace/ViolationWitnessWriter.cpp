@@ -42,10 +42,12 @@ const std::string keys = R"(
 <key id="endline" attr.name="endline" for="edge"/>
 <key id="enterFunction" attr.name="enterFunction" for="edge"/>
 <key id="startline" attr.name="startline" for="edge"/>
-<key id="returnFrom" attr.name="returnFrom" for="edge"/>
+<key id="returnFromFunction" attr.name="enterFunction" for="edge"/>
+<key id="assumption.resultfunction" attr.name="assumption.resultfunction" for="edge"/>
 <key id="assumption" attr.name="assumption" for="edge"/>
 <key id="control" attr.name="control" for="edge"/>
 <key id="comment" attr.name="comment" for="edge"/>
+
 <key attr.name="specification" attr.type="string" for="graph" id="specification"/>
 <key attr.name="producer" attr.type="string" for="graph" id="producer"/>
 <key attr.name="programFile" attr.type="string" for="graph" id="programfile"/>
