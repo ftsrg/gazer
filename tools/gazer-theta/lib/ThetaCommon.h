@@ -241,11 +241,19 @@ public:
     }
 
     void operator()(const ThetaStmt::StoreData& store) {
-        mOS << store.globalVariableName << " <- " << store.valueVariable << " atomic @ " << printOrdering(store.ordering);
+        assert(store.ordering != VariableAssignment::Ordering::NotSpecified);
+        mOS << store.globalVariableName << " <- " << store.valueVariable;
+        if (store.ordering != VariableAssignment::Ordering::NotAtomic) {
+            mOS << " atomic @ " << printOrdering(store.ordering);
+        }
     }
 
     void operator()(const ThetaStmt::LoadData& load) {
-        mOS << load.globalVariableName << " -> " << load.valueVariable << " atomic @ " << printOrdering(load.ordering);
+        assert(load.ordering != VariableAssignment::Ordering::NotSpecified);
+        mOS << load.globalVariableName << " -> " << load.valueVariable;
+        if (load.ordering != VariableAssignment::Ordering::NotAtomic) {
+            mOS << " atomic @ " << printOrdering(load.ordering);
+        }
     }
 
     void operator()(const ThetaStmt::FenceData& fence) {

@@ -115,7 +115,7 @@ LLVMFrontend::LLVMFrontend(
     llvm::initializeAnalysis(*llvm::PassRegistry::getPassRegistry());
 
     // Force settings to be consistent
-    if (mSettings.ints == IntRepresentation::Integers && mSettings.memoryModel == MemoryModelSetting::Havoc) {
+    if (mSettings.ints == IntRepresentation::Integers && mSettings.memoryModel == MemoryModelSetting::Flat) {
         llvm::errs().changeColor(llvm::raw_ostream::YELLOW, true);
         llvm::errs() << "warning: ";
         llvm::errs().resetColor();
