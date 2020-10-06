@@ -43,6 +43,6 @@ script:
 - make check-unit
 - make check-functional
 notifications:
-  email:
-    on_success: change
-    on_failure: always
+  slack: ftsrg:vNi38fE47RlUDyoVxk64TDWm
+  on_success: change
+  on_failure: always
