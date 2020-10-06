@@ -206,7 +206,7 @@ class PrintVisitor
         }
     }
 
-    std::string printOrdering(VariableAssignment::Ordering ordering) {
+    static std::string printOrdering(VariableAssignment::Ordering ordering) {
         switch(ordering) {
         case VariableAssignment::Acquire:
             return "acq";

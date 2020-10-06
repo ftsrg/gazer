@@ -111,11 +111,17 @@ void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& 
                 } else {
                     ExprPtr assignmentValue = assignment.getValue();
                     if (assignment.isStore()) {
-                        // save store result
-                        auto* temp = mCfa->createLocal(lhsName, assignment.getVariable()->getType());
-                        auto name = validName(lhsName, isValidVarName);
-                        auto type = typeName(assignment.getVariable()->getType());
-                        vars.try_emplace(temp, std::make_unique<ThetaVarDecl>(name, type));
+                        std::string name;
+                        if (assignment.getValue()->getKind() == Expr::VarRef) {
+                            auto& var = ((VarRefExpr*)assignment.getValue().get())->getVariable();
+                            name = find_var(&var)->getName();
+                        } else {
+                            auto* temp =
+                                mCfa->createLocal(lhsName, assignment.getVariable()->getType());
+                            name = validName(lhsName, isValidVarName);
+                            auto type = typeName(assignment.getVariable()->getType());
+                            vars.try_emplace(temp, std::make_unique<ThetaVarDecl>(name, type));
+                        }
                         stmts.push_back(ThetaStmt::Store(lhsName, name, assignment.getOrdering()));
                     } else if (assignment.isLoad()) {
                         assert(assignment.getValue()->getKind() == Expr::VarRef

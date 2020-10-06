@@ -105,8 +105,8 @@ public:
     Variable* getVariable() const;
     ExprPtr getValue() const;
     Ordering getOrdering() const { return mOrdering; }
-    bool isLoad() const { return mOrdering != NotSpecified && mLoadStore == Load; }
-    bool isStore() const { return mOrdering != NotSpecified && mLoadStore == Store; }
+    bool isLoad() const { return mOrdering != NotSpecified && mOrdering != NotAtomic && mLoadStore == Load; }
+    bool isStore() const { return mOrdering != NotSpecified && mOrdering != NotAtomic && mLoadStore == Store; }
 
     void print(llvm::raw_ostream& os) const;
 
