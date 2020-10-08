@@ -106,7 +106,7 @@ void ViolationWitnessWriter::initializeWitness() {
     mOS << schema;
     mOS << keys;
     mOS << graph_data;
-    mOS << "<data key=\"programhash\">" << mHash << "</data>";
+    mOS << "<data key=\"programhash\">" << mHash << "</data>\n";
     mOS << "<data key=\"creationtime\">" << timestamp.str() << "</data>\n";
     mOS << "<data key=\"programfile\">" << SourceFileName << "</data>\n";
     createNode(); // entry node
