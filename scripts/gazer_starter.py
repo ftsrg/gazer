@@ -7,7 +7,6 @@ import re
 import os
 import errno
 import signal
-import psutil
 import sys
 import subprocess
 import hashlib
@@ -28,7 +27,7 @@ bmc_config = ["--inline all", "--bound 1000000"] # bound: We'll kill it after th
 
 # default values
 output_path = os.getcwd()
-tool_directory = os.path.abspath(os.path.dirname(os.path.dirname(__file__)) + "/tools") # gazer/tools
+tool_directory = os.path.abspath(os.path.dirname(os.path.dirname(__file__)) + "/tools") # /tools, if built like the Docker, /build/tools, if built in a build directory
 
 class Result(enum.Enum):
     UNKNOWN = 1
@@ -37,11 +36,6 @@ class Result(enum.Enum):
     FALSE = 4
 
 result = Result.UNKNOWN # should be printed with result.name
-
-def kill():
-    parent = psutil.Process(os.getpid())
-    for child in parent.children(recursive=True):  # or parent.children() for recursive=False
-        child.kill()
 
 def print_bmc():
     print("gazer-bmc:")
@@ -82,10 +76,10 @@ def run_with_timeout(command, timeout, env=None, no_print=False):
                     print('Command returned with 0 after {:.2f} seconds'.format(timer() - start))
                 return stdout_bytes
         except KeyboardInterrupt:
-            os.killpg(process.pid, signal.SIGINT)  # send signal to the process group
+            os.killpg(os.getpgid(process.pid), signal.SIGINT)  # send signal to the process group
             raise KeyboardInterrupt
         except subprocess.TimeoutExpired:
-            os.killpg(process.pid, signal.SIGINT)  # send signal to the process group
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)  # send signal to the process group
             # stdout_bytes, stderr_dummy = process.communicate() - hangs sometimes
             if not no_print:
                 print('Command timeout after {:.2f} seconds'.format(timer() - start))
@@ -111,7 +105,7 @@ def run_without_timeout(command, env=None, no_print=False):
                 if not no_print: print('Command returned with 0 after {:.2f} seconds'.format(timer() - start))
                 return stdout_bytes
         except KeyboardInterrupt:
-            os.killpg(process.pid, signal.SIGINT)  # send signal to the process group
+            os.killpg(os.getpgid(process.pid), signal.SIGINT)  # send signal to the process group
             raise KeyboardInterrupt
         
 # changes the global result parameter based on output of the given bmc/theta run
@@ -132,7 +126,7 @@ def parse_output(output, task):
 
 # We know about the run that it was successful, but if it has a false result, we should run
 # the generated test harness as well to make sure, that the counterexample is correct
-def run_test_harness(task): # TODO ide is kellhet -m32, ha a Gazerben is lesz
+def run_test_harness(task):
     task_name = os.path.basename(task)
     # clang task harness.ll -o task_test
     # ./task_test -> if it outputs Aborted return True, if not return False
@@ -196,6 +190,8 @@ def run_next_config(toolname, flags, task_with_path, timeout):
             print_if_not_empty(err.output)
         except subprocess.TimeoutExpired as err:
             print_if_not_empty(err.output)
+        except KeyboardInterrupt:
+            raise KeyboardInterrupt            
         except: # Shouldn't happen, but just in case
             print("Unexpected error:", sys.exc_info()[0])
             print("Changing result to unknown")
@@ -209,6 +205,8 @@ def run_next_config(toolname, flags, task_with_path, timeout):
             print_line()
         except subprocess.CalledProcessError as err:
             print_if_not_empty(err.output)
+        except KeyboardInterrupt:
+            raise KeyboardInterrupt
         except: # Shouldn't happen, but just in case
             print("Unexpected error:", sys.exc_info()[0])
             print("Changing result to unknown")
