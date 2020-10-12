@@ -16,18 +16,36 @@ from subprocess import Popen, PIPE, TimeoutExpired
 from time import monotonic as timer
 
 # TODO tweak timeouts, should the cartpred config get a timeout?
-bmc_timeout = 200.0 # timeout of bmc run
-theta_explicit_timeout = 200.0 # timeout of explicit theta run
-test_harness_compile_timeout = 50.0 # timeout of compiling test harness/counterexample
-counterexample_run_timeout = 100.0 # timeout of running the generated counterexample
+bmc_timeout = 200.0  # timeout of bmc run
+theta_explicit_timeout = 200.0  # timeout of explicit theta run
+test_harness_compile_timeout = 50.0  # timeout of compiling test harness/counterexample
+counterexample_run_timeout = 100.0  # timeout of running the generated counterexample
 
-theta_explicit_config = ["--search ERR", "--domain EXPL", "--maxenum 100", "--refinement BW_BIN_ITP", "--initprec ALLVARS"]
-theta_cartpred_config = ["--inline all", "--search ERR", "--domain PRED_CART", "--refinement BW_BIN_ITP", "--initprec EMPTY"]
-bmc_config = ["--inline all", "--bound 1000000"] # bound: We'll kill it after the timeout anyway, so it can be really big, why not
+theta_explicit_config = [
+    "--search ERR",
+    "--domain EXPL",
+    "--maxenum 100",
+    "--refinement BW_BIN_ITP",
+    "--initprec ALLVARS",
+]
+theta_cartpred_config = [
+    "--inline all",
+    "--search ERR",
+    "--domain PRED_CART",
+    "--refinement BW_BIN_ITP",
+    "--initprec EMPTY",
+]
+bmc_config = [
+    "--inline all",
+    "--bound 1000000",
+]  # bound: We'll kill it after the timeout anyway, so it can be really big, why not
 
 # default values
 output_path = os.getcwd()
-tool_directory = os.path.abspath(os.path.dirname(os.path.dirname(__file__)) + "/tools") # /tools, if built like the Docker, /build/tools, if built in a build directory
+tool_directory = os.path.abspath(
+    os.path.dirname(os.path.dirname(__file__)) + "/build/tools"
+)  # /tools, if built like the Docker, /build/tools, if built in a build directory
+
 
 class Result(enum.Enum):
     UNKNOWN = 1
@@ -35,24 +53,33 @@ class Result(enum.Enum):
     TRUE = 3
     FALSE = 4
 
-result = Result.UNKNOWN # should be printed with result.name
+
+result = Result.UNKNOWN  # should be printed with result.name
+
 
 def print_bmc():
     print("gazer-bmc:")
 
+
 def print_theta():
     print("gazer-theta:")
+
 
 def print_line():
     print("\n------------------------------------------\n")
 
+
 def print_result():
     print("Result of gazer-theta run: " + result.name)
 
+
 # If output is None, prints "No output"
 def print_if_not_empty(output):
-    if output != None: print(output.decode('utf-8'))
-    else: print("No output")
+    if output != None:
+        print(output.decode("utf-8"))
+    else:
+        print("No output")
+
 
 # raises CalledProcessError, if returncode isn't 0; raises TimeoutExpire, if process times out
 def run_with_timeout(command, timeout, env=None, no_print=False):
@@ -61,29 +88,53 @@ def run_with_timeout(command, timeout, env=None, no_print=False):
     # and kill sub-processes to avoid interference
     # https://stackoverflow.com/a/36955420
     start = timer()
-    with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True, env=env) as process:
+    with subprocess.Popen(
+        command,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+        env=env,
+    ) as process:
         try:
             # note: stderr is forwarded to stdout and they are handled together, so we won't use stderr_dummy
-            stdout_bytes, stderr_dummy = process.communicate(input=None, timeout=timeout)
+            stdout_bytes, stderr_dummy = process.communicate(
+                input=None, timeout=timeout
+            )
             returncode = process.poll()
 
             if returncode:
                 if not no_print:
-                    print('Command returned with ' + str(returncode) + ' after {:.2f} seconds'.format(timer()-start))
-                raise subprocess.CalledProcessError(returncode, process.args, output=stdout_bytes)
+                    print(
+                        "Command returned with "
+                        + str(returncode)
+                        + " after {:.2f} seconds".format(timer() - start)
+                    )
+                raise subprocess.CalledProcessError(
+                    returncode, process.args, output=stdout_bytes
+                )
             else:
                 if not no_print:
-                    print('Command returned with 0 after {:.2f} seconds'.format(timer() - start))
+                    print(
+                        "Command returned with 0 after {:.2f} seconds".format(
+                            timer() - start
+                        )
+                    )
                 return stdout_bytes
         except KeyboardInterrupt:
-            os.killpg(os.getpgid(process.pid), signal.SIGINT)  # send signal to the process group
+            os.killpg(
+                os.getpgid(process.pid), signal.SIGINT
+            )  # send signal to the process group
             raise KeyboardInterrupt
         except subprocess.TimeoutExpired:
-            os.killpg(os.getpgid(process.pid), signal.SIGTERM)  # send signal to the process group
+            os.killpg(
+                os.getpgid(process.pid), signal.SIGTERM
+            )  # send signal to the process group
             # stdout_bytes, stderr_dummy = process.communicate() - hangs sometimes
             if not no_print:
-                print('Command timeout after {:.2f} seconds'.format(timer() - start))
+                print("Command timeout after {:.2f} seconds".format(timer() - start))
             raise TimeoutExpired(process.args, timeout, output=None)
+
 
 # raises CalledProcessError, if returncode isn't 0; no timeout - waits for the process to return infinitely
 def run_without_timeout(command, env=None, no_print=False):
@@ -92,31 +143,53 @@ def run_without_timeout(command, env=None, no_print=False):
     # and kill sub-processes to avoid interference
     # https://stackoverflow.com/a/36955420
     start = timer()
-    with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True, env=env) as process:
+    with subprocess.Popen(
+        command,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+        env=env,
+    ) as process:
         try:
             # note: stderr is forwarded to stdout and they are handled together, so we won't use stderr_dummy
             stdout_bytes, stderr_dummy = process.communicate(input=None)
             returncode = process.poll()
 
             if returncode:
-                if not no_print: print('Command returned with ' + str(returncode) + ' after {:.2f} seconds'.format(timer()-start))
-                raise subprocess.CalledProcessError(returncode, process.args, output=stdout_bytes)
+                if not no_print:
+                    print(
+                        "Command returned with "
+                        + str(returncode)
+                        + " after {:.2f} seconds".format(timer() - start)
+                    )
+                raise subprocess.CalledProcessError(
+                    returncode, process.args, output=stdout_bytes
+                )
             else:
-                if not no_print: print('Command returned with 0 after {:.2f} seconds'.format(timer() - start))
+                if not no_print:
+                    print(
+                        "Command returned with 0 after {:.2f} seconds".format(
+                            timer() - start
+                        )
+                    )
                 return stdout_bytes
         except KeyboardInterrupt:
-            os.killpg(os.getpgid(process.pid), signal.SIGINT)  # send signal to the process group
+            os.killpg(
+                os.getpgid(process.pid), signal.SIGINT
+            )  # send signal to the process group
             raise KeyboardInterrupt
-        
+
+
 # changes the global result parameter based on output of the given bmc/theta run
 # tries to run the test harness, if needed
 # should be given an output from a run with return code 0
 def parse_output(output, task):
     global result
     # parses in reverse, as the output can be long, but the lines searched are around the end (mostly the last lines)
-    for line in reversed(output.decode('utf-8').split('\n')):
+    for line in reversed(output.decode("utf-8").split("\n")):
         if "Verification FAILED" in line:
-            result = run_test_harness(task) # FALSE, ERROR or UNKNOWN
+            result = run_test_harness(task)  # FALSE, ERROR or UNKNOWN
         if "Verification SUCCESSFUL" in line:
             result = Result.TRUE
         if "Verification BOUND REACHED" in line:
@@ -124,13 +197,26 @@ def parse_output(output, task):
         if "Verification INTERNAL ERROR" in line:
             result = Result.ERROR
 
+
 # We know about the run that it was successful, but if it has a false result, we should run
 # the generated test harness as well to make sure, that the counterexample is correct
 def run_test_harness(task):
     task_name = os.path.basename(task)
     # clang task harness.ll -o task_test
     # ./task_test -> if it outputs Aborted return True, if not return False
-    clang_command = "clang " + task + " " + output_path + "/" + task_name + ".ll -o " + output_path + "/" + task_name + "_test"
+    clang_command = (
+        "clang "
+        + task
+        + " "
+        + output_path
+        + "/"
+        + task_name
+        + ".ll -o "
+        + output_path
+        + "/"
+        + task_name
+        + "_test"
+    )
     test_command = output_path + "/" + task_name + "_test"
 
     print("Running " + clang_command + "\n")
@@ -143,7 +229,7 @@ def run_test_harness(task):
     except subprocess.TimeoutExpired as err:
         print("Could not compile test harness, timed out after " + str(err.timeout))
         return Result.ERROR
-    except: # Shouldn't happen, but just in case
+    except:  # Shouldn't happen, but just in case
         print("Unexpected error:", sys.exc_info()[0])
         print("Could not compile test harness")
         return Result.ERROR
@@ -158,7 +244,7 @@ def run_test_harness(task):
         return Result.UNKNOWN
     except subprocess.CalledProcessError as err:
         good_output = r"reach_error(\(\))?: Assertion.*failed"
-        if re.search(good_output, err.output.decode('utf-8')):
+        if re.search(good_output, err.output.decode("utf-8")):
             print("Counterexample ok")
             return Result.FALSE
         else:
@@ -167,19 +253,20 @@ def run_test_harness(task):
     except subprocess.TimeoutExpired as err:
         print("Counterexample timed out after " + str(err.timeout))
         return Result.ERROR
-    except: # Shouldn't happen, but just in case
+    except:  # Shouldn't happen, but just in case
         print("Unexpected error:", sys.exc_info()[0])
         print("Problems while running test harness")
         return Result.ERROR
-    
+
+
 # if timeout is 0, then it will be run without timeout
 def run_next_config(toolname, flags, task_with_path, timeout):
     global result
     print_line()
 
-    command = tool_directory + toolname + " " + ' '.join(flags) + " " + task_with_path
+    command = tool_directory + toolname + " " + " ".join(flags) + " " + task_with_path
     print("Running " + command + "\n")
-    if timeout!=0:
+    if timeout != 0:
         try:
             output = run_with_timeout(command, timeout)
             print_if_not_empty(output)
@@ -191,8 +278,8 @@ def run_next_config(toolname, flags, task_with_path, timeout):
         except subprocess.TimeoutExpired as err:
             print_if_not_empty(err.output)
         except KeyboardInterrupt:
-            raise KeyboardInterrupt            
-        except: # Shouldn't happen, but just in case
+            raise KeyboardInterrupt
+        except:  # Shouldn't happen, but just in case
             print("Unexpected error:", sys.exc_info()[0])
             print("Changing result to unknown")
             result = Result.UNKNOWN
@@ -207,16 +294,32 @@ def run_next_config(toolname, flags, task_with_path, timeout):
             print_if_not_empty(err.output)
         except KeyboardInterrupt:
             raise KeyboardInterrupt
-        except: # Shouldn't happen, but just in case
+        except:  # Shouldn't happen, but just in case
             print("Unexpected error:", sys.exc_info()[0])
             print("Changing result to unknown")
             result = Result.UNKNOWN
-        
+
+
 def get_version_number():
     z3path = tool_directory + "/gazer-theta/theta/lib"
-    gazer_version = run_without_timeout(tool_directory + "/gazer-theta/gazer-theta --version", no_print=True)
-    theta_ver = run_without_timeout("java -Djava.library.path=" + z3path + " -jar " + tool_directory + "/gazer-theta/theta/theta-cfa-cli.jar --version", env={"LD_LIBRARY_PATH": z3path}, no_print=True)
-    return "Theta v" + theta_ver.decode('utf-8') + re.search(r"Gazer v\d*[.]\d*[.]\d*", gazer_version.decode('utf-8')).group()
+    gazer_version = run_without_timeout(
+        tool_directory + "/gazer-theta/gazer-theta --version", no_print=True
+    )
+    theta_ver = run_without_timeout(
+        "java -Djava.library.path="
+        + z3path
+        + " -jar "
+        + tool_directory
+        + "/gazer-theta/theta/theta-cfa-cli.jar --version",
+        env={"LD_LIBRARY_PATH": z3path},
+        no_print=True,
+    )
+    return (
+        "Theta v"
+        + theta_ver.decode("utf-8")
+        + re.search(r"Gazer v\d*[.]\d*[.]\d*", gazer_version.decode("utf-8")).group()
+    )
+
 
 def main():
     global output_path
@@ -227,11 +330,14 @@ def main():
     # optional TODO get_version_number runs in every case, even when --version isn't used - it shouldn't
     parser.add_argument("--version", action="version", version=get_version_number())
     parser.add_argument("task", help="name of the to be verified programfile with path")
-    parser.add_argument("--output", help="output directory (for the witness and test harness), default: working directory")
+    parser.add_argument(
+        "--output",
+        help="output directory (for the witness and test harness), default: working directory",
+    )
 
     args = parser.parse_args()
     print("Parsing arguments done")
-    
+
     # initialize argument values
     taskname = os.path.basename(args.task)
     task_with_path = os.path.abspath(args.task)
@@ -247,49 +353,90 @@ def main():
             # possible race condition here (someone creates the output dir between our check and makedirs), then an incorrect OSError can happen
             # see http://deepix.github.io/2017/02/02/eexists.html
             if err.errno != errno.EEXIST:
-                print ("Creation of the output directory %s failed" % output_path)
+                print("Creation of the output directory %s failed" % output_path)
                 result = Result.ERROR
                 print_result()
                 return
         else:
-            print ("Successfully created the output directory %s" % output_path)
+            print("Successfully created the output directory %s" % output_path)
 
     # check, if the tool directory is correct and has gazer-bmc, gazer-theta, theta and z3 libs as well
-    if not os.path.isfile(tool_directory+"/gazer-bmc/gazer-bmc"):
-        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), tool_directory+"/gazer-bmc/gazer-bmc")
-    if not os.path.isfile(tool_directory+"/gazer-theta/gazer-theta"):
-        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), tool_directory+"/gazer-theta/gazer-theta")
-    if not os.path.isfile(tool_directory+"/gazer-theta/theta/theta-cfa-cli.jar"):
-        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), tool_directory+"/gazer-theta/theta/theta-cfa-cli.jar")
-    if not os.path.isfile(tool_directory+"/gazer-theta/theta/lib/libz3.so"):
-        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), tool_directory+"/gazer-theta/theta/lib/libz3.so")
-    if not os.path.isfile(tool_directory+"/gazer-theta/theta/lib/libz3java.so"):
-        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), tool_directory+"/gazer-theta/theta/lib/libz3java.so")
+    if not os.path.isfile(tool_directory + "/gazer-bmc/gazer-bmc"):
+        raise FileNotFoundError(
+            errno.ENOENT,
+            os.strerror(errno.ENOENT),
+            tool_directory + "/gazer-bmc/gazer-bmc",
+        )
+    if not os.path.isfile(tool_directory + "/gazer-theta/gazer-theta"):
+        raise FileNotFoundError(
+            errno.ENOENT,
+            os.strerror(errno.ENOENT),
+            tool_directory + "/gazer-theta/gazer-theta",
+        )
+    if not os.path.isfile(tool_directory + "/gazer-theta/theta/theta-cfa-cli.jar"):
+        raise FileNotFoundError(
+            errno.ENOENT,
+            os.strerror(errno.ENOENT),
+            tool_directory + "/gazer-theta/theta/theta-cfa-cli.jar",
+        )
+    if not os.path.isfile(tool_directory + "/gazer-theta/theta/lib/libz3.so"):
+        raise FileNotFoundError(
+            errno.ENOENT,
+            os.strerror(errno.ENOENT),
+            tool_directory + "/gazer-theta/theta/lib/libz3.so",
+        )
+    if not os.path.isfile(tool_directory + "/gazer-theta/theta/lib/libz3java.so"):
+        raise FileNotFoundError(
+            errno.ENOENT,
+            os.strerror(errno.ENOENT),
+            tool_directory + "/gazer-theta/theta/lib/libz3java.so",
+        )
 
     # hash to use in the witness
     print("Hashing taskfile " + taskname)
-    with open(task_with_path, 'r') as pgf:
-        hash_of_source = hashlib.sha256(pgf.read().encode('utf-8')).hexdigest()
+    with open(task_with_path, "r") as pgf:
+        hash_of_source = hashlib.sha256(pgf.read().encode("utf-8")).hexdigest()
     print("Hashing done")
 
-    outputfile_flags = ["--witness " + output_path + "/" + taskname + ".witness.graphml", "--hash " + hash_of_source, "--trace", "-test-harness=" + output_path + "/" + taskname + ".ll"]
+    outputfile_flags = [
+        "--witness " + output_path + "/" + taskname + ".witness.graphml",
+        "--hash " + hash_of_source,
+        "--trace",
+        "-test-harness=" + output_path + "/" + taskname + ".ll",
+    ]
 
     print_line()
     print("Starting combined gazer-theta-bmc run...")
-    
-    run_next_config("/gazer-bmc/gazer-bmc", bmc_config + outputfile_flags, task_with_path, bmc_timeout)
+
+    run_next_config(
+        "/gazer-bmc/gazer-bmc",
+        bmc_config + outputfile_flags,
+        task_with_path,
+        bmc_timeout,
+    )
     if result == Result.FALSE or result == Result.TRUE:
         print_result()
         return
 
-    run_next_config("/gazer-theta/gazer-theta", theta_explicit_config + outputfile_flags, task_with_path, theta_explicit_timeout)
+    run_next_config(
+        "/gazer-theta/gazer-theta",
+        theta_explicit_config + outputfile_flags,
+        task_with_path,
+        theta_explicit_timeout,
+    )
     if result == Result.FALSE or result == Result.TRUE:
         print_result()
         return
 
-    run_next_config("/gazer-theta/gazer-theta", theta_cartpred_config + outputfile_flags, task_with_path, 0)
+    run_next_config(
+        "/gazer-theta/gazer-theta",
+        theta_cartpred_config + outputfile_flags,
+        task_with_path,
+        0,
+    )
 
     print_result()
+
 
 if __name__ == "__main__":
     main()
