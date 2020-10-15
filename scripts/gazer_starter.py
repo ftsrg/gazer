@@ -43,7 +43,7 @@ bmc_config = [
 # default values
 output_path = os.getcwd()
 tool_directory = os.path.abspath(
-    os.path.dirname(os.path.dirname(__file__)) + "/build/tools"
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + "/build/tools"
 )  # /tools, if built like the Docker, /build/tools, if built in a build directory
 
 
