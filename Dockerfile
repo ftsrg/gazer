@@ -14,9 +14,7 @@ RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
     apt-get update && \
     add-apt-repository ppa:mhier/libboost-latest && \
     apt-get update && \
-    apt-get install -y clang-9 llvm-9-dev llvm-9-tools llvm-9-runtime libboost1.70-dev && \
-    ln -s `which clang-9` /usr/bin/clang && \
-    ln -s `which llvm-link-9` /usr/bin/llvm-link
+    apt-get install -y clang-9 llvm-9-dev llvm-9-tools llvm-9-runtime libboost1.70-dev
 
 # create a new user `user` with the password `user` and sudo rights
 RUN useradd -m user && \
