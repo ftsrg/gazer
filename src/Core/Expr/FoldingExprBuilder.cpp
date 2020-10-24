@@ -368,7 +368,7 @@ public:
             return this->BoolLit(fpLit->getValue().isNaN());
         }
 
-        return FIsInfExpr::Create(op);
+        return FIsNanExpr::Create(op);
     }
 
     ExprPtr FIsInf(const ExprPtr& op) override
