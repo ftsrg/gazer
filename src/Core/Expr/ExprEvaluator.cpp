@@ -454,11 +454,16 @@ HANDLE_BINARY_COMPARE(BvUGtEq)
 #undef HANDLE_BINARY_COMPARE
 
 // Floating-point queries
-ExprRef<AtomicExpr> ExprEvaluatorBase::visitFIsNan(const ExprRef<FIsNanExpr>& expr) {
-    return this->visitNonNullary(expr);
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitFIsNan(const ExprRef<FIsNanExpr>& expr)
+{
+    auto fpLit = llvm::cast<FloatLiteralExpr>(getOperand(0));
+    return BoolLiteralExpr::Get(BoolType::Get(expr->getContext()), fpLit->getValue().isNaN());
 }
-ExprRef<AtomicExpr> ExprEvaluatorBase::visitFIsInf(const ExprRef<FIsInfExpr>& expr) {
-    return this->visitNonNullary(expr);
+
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitFIsInf(const ExprRef<FIsInfExpr>& expr)
+{
+    auto fpLit = llvm::cast<FloatLiteralExpr>(getOperand(0));
+    return BoolLiteralExpr::Get(BoolType::Get(expr->getContext()), fpLit->getValue().isInfinity());
 }
 
 // Floating-point arithmetic
@@ -490,6 +495,49 @@ ExprRef<AtomicExpr> ExprEvaluatorBase::visitFLt(const ExprRef<FLtExpr>& expr) {
 }
 ExprRef<AtomicExpr> ExprEvaluatorBase::visitFLtEq(const ExprRef<FLtEqExpr>& expr) {
     return this->visitNonNullary(expr);
+}
+
+// Floating-point casts
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitFCast(const ExprRef<FCastExpr>& expr)
+{
+    return this->visitNonNullary(expr);
+}
+
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitSignedToFp(const ExprRef<SignedToFpExpr>& expr)
+{
+    return this->visitNonNullary(expr);
+}
+
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitUnsignedToFp(const ExprRef<UnsignedToFpExpr>& expr)
+{
+    return this->visitNonNullary(expr);
+}
+
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitFpToSigned(const ExprRef<FpToSignedExpr>& expr)
+{
+    return this->visitNonNullary(expr);
+}
+
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitFpToUnsigned(const ExprRef<FpToUnsignedExpr>& expr)
+{
+    return this->visitNonNullary(expr);
+}
+
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitFpToBv(const ExprRef<FpToBvExpr>& expr)
+{
+    auto fpLit = llvm::cast<FloatLiteralExpr>(getOperand(0));
+    auto& bvType = llvm::cast<BvType>(expr->getType());
+
+    return BvLiteralExpr::Get(bvType, fpLit->getValue().bitcastToAPInt());
+}
+
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitBvToFp(const ExprRef<BvToFpExpr>& expr)
+{
+    auto bvLit = llvm::cast<BvLiteralExpr>(getOperand(0));
+    auto& fltTy = llvm::cast<FloatType>(expr->getType());
+
+    llvm::APFloat apFloat(fltTy.getLLVMSemantics(), bvLit->getValue());
+    return FloatLiteralExpr::Get(fltTy, apFloat);
 }
 
 template<class Type, class ExprTy>

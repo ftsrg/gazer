@@ -152,7 +152,13 @@ auto Z3Model::evalFloat(Z3AstHandle ast, FloatType::FloatPrecision prec)
         bool isNegative = Z3_fpa_is_numeral_negative(mZ3Context, ast);
         result = llvm::APFloat::getInf(semantics, isNegative);
     } else {
-        llvm::APInt intVal(fltTy.getWidth(), Z3_get_numeral_string(mZ3Context, ast), 10);
+        Z3_ast newAst;
+        Z3_model_eval(mZ3Context, mModel,
+            Z3_mk_fpa_to_ieee_bv(mZ3Context, ast),
+            false,
+            &newAst);
+
+        llvm::APInt intVal(fltTy.getWidth(), Z3_get_numeral_string(mZ3Context, newAst), 10);
         result = llvm::APFloat(semantics, intVal);
     }
 
