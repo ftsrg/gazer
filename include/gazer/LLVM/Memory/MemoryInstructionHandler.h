@@ -97,6 +97,7 @@ public:
     virtual ExprPtr handleConstantDataArray(
         const llvm::ConstantDataArray* cda, llvm::ArrayRef<ExprRef<LiteralExpr>> elems) = 0;
 
+    virtual ExprPtr handleZeroInitializedAggregate(const llvm::ConstantAggregateZero* caz) = 0;
 
     // Memory definitions and uses
     //==--------------------------------------------------------------------==//
