@@ -359,6 +359,11 @@ private:
     ExprPtr buildMemoryWrite(
         const ExprPtr& array, const ExprPtr& value, const ExprPtr& pointer, unsigned size);
 
+    BvType& bv8ty()
+    {
+        return BvType::Get(mMemoryModel.getContext(), 8);
+    }
+
     memory::MemorySSA& getMemorySSA() const { return *mInfo.memorySSA; }
 
 private:
@@ -399,7 +404,7 @@ auto FlatMemoryModelInstTranslator::handleAlloca(const llvm::AllocaInst& alloc, 
         resArray = mExprBuilder.Write(
             resArray,
             this->pointerOffset(ptr, i),
-            mExprBuilder.Undef(BvType::Get(mExprBuilder.getContext(), 8))
+            mExprBuilder.Undef(bv8ty())
         );
     }
 
@@ -495,7 +500,7 @@ ExprPtr FlatMemoryModelInstTranslator::handleConstantDataArray(
 
     ArrayLiteralExpr::Builder builder(ArrayType::Get(
         mMemoryModel.ptrType(),
-        BvType::Get(mMemoryModel.getContext(), 8)
+        bv8ty()
     ));
 
     llvm::Type* elemTy = cda->getType()->getArrayElementType();
@@ -688,7 +693,7 @@ auto FlatMemoryModelInstTranslator::handleGlobalInitializer(
             array = mExprBuilder.Write(
                 array,
                 this->pointerOffset(pointer, i),
-                mExprBuilder.Undef(BvType::Get(mExprBuilder.getContext(), 8))
+                mExprBuilder.Undef(bv8ty())
             );
         }
 
@@ -763,7 +768,7 @@ auto FlatMemoryModelInstTranslator::buildMemoryWrite(
             return mExprBuilder.Write(
                 array,
                 pointer,
-                mExprBuilder.ZExt(value, BvType::Get(mMemoryModel.getContext(), 8))
+                mExprBuilder.ZExt(value, bv8ty())
             );
         }
 
@@ -786,8 +791,26 @@ auto FlatMemoryModelInstTranslator::buildMemoryWrite(
         );
     }
 
-    // FIXME: Add Float to Bv support
-    
+    if (auto fltTy = llvm::dyn_cast<FloatType>(&value->getType())) {
+        if (fltTy->getWidth() == 8) {
+            return mExprBuilder.Write(array, pointer, mExprBuilder.FpToBv(value, bv8ty()));
+        }
+
+        assert(fltTy->getWidth() > 8);
+        ExprPtr result = array;
+        ExprPtr fpAsBv = mExprBuilder.FpToBv(value, BvType::Get(mMemoryModel.getContext(), fltTy->getWidth()));
+
+        for (unsigned i = 0; i < size; ++i) {
+            result = mExprBuilder.Write(
+                result, this->pointerOffset(pointer, i), mExprBuilder.Extract(fpAsBv, i * 8, 8)
+            );
+        }
+
+        return result;
+    }
+
+    LLVM_DEBUG(llvm::dbgs() << "[Missing feature] Could not represent write for type " << value->getType() << "\n");
+
     // The value is undefined - but even with unknown/unhandled types, we know
     // which bytes we want to modify -- we just do not know the value.
     ExprPtr result = array;
@@ -795,7 +818,7 @@ auto FlatMemoryModelInstTranslator::buildMemoryWrite(
         result = mExprBuilder.Write(
             result,
             this->pointerOffset(pointer, i),
-            mExprBuilder.Undef(BvType::Get(mMemoryModel.getContext(), 8))
+            mExprBuilder.Undef(bv8ty())
         );
     }
 
