@@ -30,8 +30,6 @@
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/Debug.h>
 
-#include <boost/dynamic_bitset.hpp>
-
 #include <sstream>
 
 #define DEBUG_TYPE "BoundedModelChecker"
@@ -119,7 +117,7 @@ auto BoundedModelCheckerImpl::initializeErrorField() -> bool
         // There are no error calls in the system, it is safe by definition.
         return false;
     }
-    
+
 ERROR_TYPE_FOUND:
 
     mError = mRoot->createErrorLocation();
@@ -232,7 +230,7 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
             inlineCallIntoRoot(call, mInlinedVariables, "_call" + llvm::Twine(tmp++), callsToInline);
             mCalls.erase(call);
         }
-    }    
+    }
 
     mStats.NumBeginLocs = mRoot->getNumLocations();
     mStats.NumBeginLocals = mRoot->getNumLocals();
@@ -241,7 +239,7 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
     Location* bottom = mError;
 
     bool skipUnderApprox = false;
-    
+
     // Let's do some verification.
     for (size_t bound = mSettings.eagerUnroll + 1; bound <= mSettings.maxBound; ++bound) {
         llvm::outs() << "Iteration " << bound << "\n";
@@ -271,7 +269,7 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
                 if (mSettings.dumpSolver) {
                     mSolver->dump(llvm::errs());
                 }
-                
+
                 status = this->runSolver();
 
                 if (status == Solver::SAT) {
@@ -305,7 +303,7 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
                 // we can return that the program is safe as all possible error paths will
                 // encode these program parts.
                 status = this->runSolver();
-    
+
                 if (status == Solver::UNSAT) {
                     llvm::outs() << "    Start and target points are inconsitent, no errors are reachable.\n";
                     return VerificationResult::CreateSuccess();
@@ -406,11 +404,11 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
 
                     return VerificationResult::CreateSuccess();
                 }
-                
+
                 if (bound == mSettings.maxBound) {
                     // The maximum bound was reached.
                     llvm::outs() << "Maximum bound is reached.\n";
-                    
+
                     mStats.NumEndLocs = mRoot->getNumLocations();
                     mStats.NumEndLocals = mRoot->getNumLocals();
 
@@ -517,7 +515,7 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
 
     // Clone all local variables into the parent
     for (Variable& local : callee->locals()) {
-        LLVM_DEBUG(llvm::dbgs() << "Callee local " << local.getName() << "\n"); 
+        LLVM_DEBUG(llvm::dbgs() << "Callee local " << local.getName() << "\n");
         if (!callee->isOutput(&local)) {
             auto varname = (local.getName() + suffix).str();
             auto newLocal = mRoot->createLocal(varname, local.getType());
@@ -656,7 +654,7 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     auto& oldTopo = mTopoSortMap[callee];
     auto getInlinedLocation = [&locToLocMap](Location* loc) {
         return locToLocMap[loc];
-    };    
+    };
 
     size_t callIdx = mLocNumbers[call->getTarget()];
     auto callPos = std::next(mTopo.begin(), callIdx);

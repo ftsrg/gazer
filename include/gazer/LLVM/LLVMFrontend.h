@@ -150,6 +150,7 @@ private:
     void registerEarlyOptimizations();
     void registerLateOptimizations();
     void registerInlining();
+    void registerVerificationStep();
 
 private:
     GazerContext& mContext;

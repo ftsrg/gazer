@@ -395,6 +395,23 @@ private:
         ));
     }
 
+    Z3AstHandle visitFpToBv(const ExprRef<FpToBvExpr>& expr)
+    {
+        return createHandle(Z3_mk_fpa_to_ieee_bv(
+            mZ3Context,
+            getOperand(0)
+        ));
+    }
+
+    Z3AstHandle visitBvToFp(const ExprRef<BvToFpExpr>& expr)
+    {
+        return createHandle(Z3_mk_fpa_to_fp_bv(
+            mZ3Context,
+            getOperand(0),
+            typeToSort(expr->getType())
+        ));
+    }
+
     Z3AstHandle visitTupleSelect(const ExprRef<TupleSelectExpr>& expr);
     Z3AstHandle visitTupleConstruct(const ExprRef<TupleConstructExpr>& expr);
 

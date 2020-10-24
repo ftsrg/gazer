@@ -18,10 +18,10 @@
 #include "gazer/LLVM/Memory/MemoryModel.h"
 #include "gazer/LLVM/Memory/MemoryInstructionHandler.h"
 #include "gazer/LLVM/Memory/MemorySSA.h"
-#include "gazer/LLVM/Memory/MemoryUtils.h"
 
 #include "gazer/Core/LiteralExpr.h"
 #include "gazer/Core/Expr/ExprBuilder.h"
+#include "gazer/Support/Warnings.h"
 
 #include <llvm/IR/InstIterator.h>
 #include <llvm/IR/GetElementPtrTypeIterator.h>
@@ -529,6 +529,16 @@ ExprPtr FlatMemoryModelInstTranslator::handleConstantDataArray(
                 boolLit->getValue() ? mExprBuilder.BvLit8(1) : mExprBuilder.BvLit8(0)
             );
             currentOffset += 1;
+        } else if (auto floatLit = llvm::dyn_cast<FloatLiteralExpr>(lit)) {
+            llvm::APInt floatAsIeeeBv = floatLit->getValue().bitcastToAPInt();
+            for (unsigned j = 0; j < size; ++j) {
+                auto byteValue = mExprBuilder.BvLit(floatAsIeeeBv.extractBits(8, j * 8));
+                builder.addValue(
+                    mMemoryModel.ptrConstant(currentOffset),
+                    byteValue
+                );
+                currentOffset += j;
+            }
         } else {
             llvm_unreachable("Unsupported array type!");
         }
@@ -723,12 +733,18 @@ auto FlatMemoryModelInstTranslator::buildMemoryRead(
             return result;
         }
         case Type::FloatTypeID: {
-            // TODO: We will need a bitcast from bitvectors to floats.
-            return mExprBuilder.Undef(targetTy);
+            ExprPtr result = mExprBuilder.Read(array, pointer);
+            for (unsigned i = 1; i < size; ++i) {
+                // TODO: Little/big endian
+                result = mExprBuilder.BvConcat(
+                    mExprBuilder.Read(array, this->pointerOffset(pointer, i)), result);
+            }
+
+            return mExprBuilder.BvToFp(result, llvm::cast<FloatType>(targetTy));
         }
         default:
             // If it is not a convertible type, just undef it.
-            // TODO: We should emit a warning here.
+            emit_warning("Cannot represent result type %s of memory load", targetTy.getName().c_str());
             return mExprBuilder.Undef(targetTy);
     }
 
