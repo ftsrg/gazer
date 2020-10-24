@@ -76,6 +76,11 @@ public:
         return ptrValue();
     }
 
+    ExprPtr handleZeroInitializedAggregate(const llvm::ConstantAggregateZero* caz) override
+    {
+        return ptrValue();
+    }
+
     void handleStore(
         const llvm::StoreInst& store,
         llvm2cfa::GenerationStepExtensionPoint& ep) override {}

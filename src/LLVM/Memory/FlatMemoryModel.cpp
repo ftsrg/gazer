@@ -324,6 +324,8 @@ public:
     ExprPtr handleConstantDataArray(
         const llvm::ConstantDataArray* cda, llvm::ArrayRef<ExprRef<LiteralExpr>> elements) override;
 
+    ExprPtr handleZeroInitializedAggregate(const llvm::ConstantAggregateZero* caz) override;
+
     void handleStore(
         const llvm::StoreInst& store,
         llvm2cfa::GenerationStepExtensionPoint& ep) override;
@@ -514,8 +516,7 @@ ExprPtr FlatMemoryModelInstTranslator::handleConstantDataArray(
             if (bvLit->getType().getWidth() < 8) {
                 builder.addValue(
                     mMemoryModel.ptrConstant(currentOffset),
-                    mExprBuilder.BvLit(bvLit->getValue().zext(8))
-                );
+                    mExprBuilder.BvLit(bvLit->getValue().zext(8)));
                 currentOffset += 1;
             } else {
                 for (unsigned j = 0; j < size; ++j) {
@@ -550,6 +551,11 @@ ExprPtr FlatMemoryModelInstTranslator::handleConstantDataArray(
     }
 
     return builder.build();
+}
+
+ExprPtr FlatMemoryModelInstTranslator::handleZeroInitializedAggregate(const llvm::ConstantAggregateZero *caz)
+{
+    return ArrayLiteralExpr::GetEmpty(ArrayType::Get(mMemoryModel.ptrType(), bv8ty()), mExprBuilder.BvLit8(0));
 }
 
 void FlatMemoryModelInstTranslator::handleBlock(const llvm::BasicBlock& bb, llvm2cfa::GenerationStepExtensionPoint& ep)

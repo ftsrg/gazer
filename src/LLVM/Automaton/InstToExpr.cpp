@@ -874,6 +874,10 @@ ExprPtr InstToExpr::operandValue(const llvm::Value* value)
         return mMemoryInstHandler.handleConstantDataArray(ca, elements);
     }
 
+    if (auto caz = dyn_cast<llvm::ConstantAggregateZero>(value)) {
+        return mMemoryInstHandler.handleZeroInitializedAggregate(caz);
+    }
+
     // Non-instruction pointer values should be resolved using the memory model
     if (value->getType()->isPointerTy()
         && !llvm::isa<llvm::Instruction>(value)
@@ -894,7 +898,7 @@ ExprPtr InstToExpr::operandValue(const llvm::Value* value)
         return mExprBuilder.Undef(this->translateType(value->getType()));
     }
     
-    LLVM_DEBUG(llvm::dbgs() << "  Unhandled value for operand: " << *value << "\n");
+    LLVM_DEBUG(llvm::dbgs() << "  Unhandled value for operand: " << *value << "  " <<  llvm::isa<llvm::ConstantAggregateZero>(value) << " \n");
     llvm_unreachable("Unhandled value type");
 }
 
