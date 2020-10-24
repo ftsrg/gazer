@@ -121,6 +121,17 @@ private:
     ExprRef<AtomicExpr> visitFGtEq(const ExprRef<FGtEqExpr>& expr);
     ExprRef<AtomicExpr> visitFLt(const ExprRef<FLtExpr>& expr);
     ExprRef<AtomicExpr> visitFLtEq(const ExprRef<FLtEqExpr>& expr);
+
+
+    // Floating-point casts
+    ExprRef<AtomicExpr> visitFCast(const ExprRef<FCastExpr>& expr);
+    ExprRef<AtomicExpr> visitSignedToFp(const ExprRef<SignedToFpExpr>& expr);
+    ExprRef<AtomicExpr> visitUnsignedToFp(const ExprRef<UnsignedToFpExpr>& expr);
+    ExprRef<AtomicExpr> visitFpToSigned(const ExprRef<FpToSignedExpr>& expr);
+    ExprRef<AtomicExpr> visitFpToUnsigned(const ExprRef<FpToUnsignedExpr>& expr);
+    ExprRef<AtomicExpr> visitFpToBv(const ExprRef<FpToBvExpr>& expr);
+    ExprRef<AtomicExpr> visitBvToFp(const ExprRef<BvToFpExpr>& expr);
+
     // Ternary
     ExprRef<AtomicExpr> visitSelect(const ExprRef<SelectExpr>& expr);
     // Arrays
