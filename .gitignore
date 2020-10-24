@@ -3,6 +3,7 @@
 /.idea
 /cmake-build-debug
 /cmake-build-release
+/cmake-build-relwithdebinfo
 /clang-sa
 /venv
 *.profraw

@@ -147,8 +147,8 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
         args.push_back("--stacktrace");
     }
     std::string ldLibPathEnv = ("LD_LIBRARY_PATH=" + z3Path).str();
-    llvm::ArrayRef<llvm::StringRef> env = {
-        llvm::StringRef(ldLibPathEnv)
+    std::vector<llvm::StringRef> env = {
+        ldLibPathEnv
     };
 
     llvm::Optional<llvm::StringRef> redirects[] = {
@@ -157,13 +157,15 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
         llvm::None          // stderr
     };
 
-    llvm::outs() << "  Built command: '" << llvm::join(args, " ") << "'.\n";
+    llvm::outs() << "  Built command: '"
+         << llvm::join(env, " ") << " "
+         << llvm::join(args, " ") << "'.\n";
     llvm::outs() << "  Running theta...\n";
     std::string thetaErrors;
     int returnCode = llvm::sys::ExecuteAndWait(
         *java,
         args,
-        env,
+        llvm::Optional<llvm::ArrayRef<llvm::StringRef>>(env),
         redirects,
         mSettings.timeout,
         /*memoryLimit=*/0,
