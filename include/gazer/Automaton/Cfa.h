@@ -366,7 +366,14 @@ public:
     size_t getNumAutomata() const { return mAutomata.size(); }
     Cfa* getAutomatonByName(llvm::StringRef name) const;
 
-    Cfa* getMainAutomaton() const { return mMainAutomaton; }
+    Cfa* getMainAutomaton() const {
+        assert(mMainAutomata.size() == 1 && "The code still asserts a single main automaton");
+        return mMainAutomata[0];
+    }
+
+    llvm::iterator_range<std::vector<Cfa*>::const_iterator> mainAutomata() const {
+        return llvm::make_range(mMainAutomata.cbegin(), mMainAutomata.cend());
+    }
     void setMainAutomaton(Cfa* cfa);
 
     void print(llvm::raw_ostream& os) const;
@@ -405,7 +412,7 @@ public:
 private:
     GazerContext& mContext;
     std::vector<std::unique_ptr<Cfa>> mAutomata;
-    Cfa* mMainAutomaton;
+    std::vector<Cfa*> mMainAutomata;
 
     std::vector<Variable*> mGlobals;
 };

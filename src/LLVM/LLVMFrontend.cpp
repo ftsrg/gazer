@@ -140,6 +140,7 @@ void LLVMFrontend::registerVerificationPipeline()
     //  into nondet function calls.
     mPassManager.add(llvm::createPromoteMemoryToRegisterPass());
     mPassManager.add(gazer::createPromoteUndefsPass());
+    mPassManager.add(gazer::createNormalizeThreadingCallsPass());
 
     // Perform check instrumentation.
     mPassManager.add(gazer::createNormalizeVerifierCallsPass());

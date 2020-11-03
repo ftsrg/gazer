@@ -33,7 +33,7 @@ set(SOURCE_FILES
     Automaton/ValueOrMemoryObject.cpp
     Analysis/PDG.cpp
     Memory/SimpleMemoryModel.cpp
-    )
+    Transform/RegisterThreading.cpp)
 
 llvm_map_components_to_libnames(GAZER_LLVM_LIBS core irreader transformutils scalaropts ipo)
 message(STATUS "Using LLVM libraries: ${GAZER_LLVM_LIBS}")

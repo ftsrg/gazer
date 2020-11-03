@@ -29,9 +29,9 @@ namespace gazer::theta {
 class ThetaCfaProcedureGenerator
 {
 public:
-    ThetaCfaProcedureGenerator(Cfa* cfa, std::function<bool(const std::string&)> isValidVarName,
+    ThetaCfaProcedureGenerator(Cfa* cfa, bool isMain, std::function<bool(const std::string&)> isValidVarName,
                                llvm::DenseMap<Variable*, std::unique_ptr<ThetaVarDecl>>& globals)
-    : mCfa(cfa), isValidVarName(isValidVarName), globals(globals)
+    : mCfa(cfa), isMain(isMain), isValidVarName(isValidVarName), globals(globals)
     {}
 
     void write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace, bool xcfa);
@@ -40,6 +40,7 @@ private:
     Cfa* mCfa;
     llvm::DenseMap<Variable*, std::unique_ptr<ThetaVarDecl>>& globals;
     std::function<bool(const std::string&)> isValidVarName;
+    bool isMain;
 };
 
 } // namespace gazer::theta

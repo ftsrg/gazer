@@ -339,5 +339,5 @@ Cfa* AutomataSystem::getAutomatonByName(llvm::StringRef name) const
 void AutomataSystem::setMainAutomaton(Cfa* cfa)
 {
     assert(&cfa->getParent() == this);
-    mMainAutomaton = cfa;
+    mMainAutomata.push_back(cfa);
 }

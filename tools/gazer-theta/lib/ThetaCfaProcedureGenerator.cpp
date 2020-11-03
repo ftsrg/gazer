@@ -183,7 +183,7 @@ void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& 
         INDENT2 = "            ";
 
         os << "    ";
-        if (mCfa->getParent().getMainAutomaton() == mCfa) {
+        if (isMain) {
             os << "main ";
         }
         os << "procedure " << gazer::theta::thetaName(mCfa) << "(";

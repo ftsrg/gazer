@@ -161,7 +161,7 @@ auto ThetaVerifierImpl::execute(llvm::StringRef input) -> std::unique_ptr<Verifi
     int returnCode = llvm::sys::ExecuteAndWait(
         *java,
         args,
-        env,
+        /*env*/{},
         redirects,
         mSettings.timeout,
         /*memoryLimit=*/0,
