@@ -143,8 +143,6 @@ void LLVMFrontend::registerVerificationPipeline()
     mPassManager.add(llvm::createPromoteMemoryToRegisterPass());
     mPassManager.add(gazer::createPromoteUndefsPass());
     mPassManager.add(gazer::createRegisterThreadingPass(mSettings));
-    mPassManager.add(llvm::createPrintModulePass(llvm::errs()));
-    mPassManager.add(llvm::createVerifierPass());
 
     // Perform check instrumentation.
     mPassManager.add(gazer::createNormalizeVerifierCallsPass());
