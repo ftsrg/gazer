@@ -15,32 +15,17 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
-#ifndef GAZER_CORE_TRANSFORM_PASSES_H
-#define GAZER_CORE_TRANSFORM_PASSES_H
+#ifndef GAZER_CONFIG_GAZER_CONFIG_H
+#define GAZER_CONFIG_GAZER_CONFIG_H
 
-#include "gazer/LLVM/LLVMFrontendSettings.h"
+#define GAZER_VERSION_MAJOR ${GAZER_VERSION_MAJOR}
 
-#include <llvm/Pass.h>
+#define GAZER_VERSION_MINOR ${GAZER_VERSION_MINOR}
 
-namespace gazer
-{
+#define GAZER_VERSION_PATCH ${GAZER_VERSION_PATCH}
 
-/// InlineGlobalVariables - This pass inlines all global variables into
-/// the main function of the program.
-llvm::Pass* createInlineGlobalVariablesPass();
+#define GAZER_VERSION_SUFFIX ${GAZER_VERSION_SUFFIX}
 
-/// This pass combines each 'gazer.error_code' call within the function
-/// into a single one.
-llvm::Pass* createLiftErrorCallsPass(llvm::Function& entry);
-
-/// This pass normalizes some known verifier calls into a uniform format.
-llvm::Pass* createNormalizeVerifierCallsPass();
-
-/// A simpler (and more restricted) inlining pass.
-llvm::Pass* createSimpleInlinerPass(llvm::Function& entry, InlineLevel level);
-
-llvm::Pass* createCanonizeLoopExitsPass();
-
-}
+#define GAZER_VERSION_STRING "${PACKAGE_VERSION}"
 
 #endif

@@ -34,7 +34,8 @@ std::size_t gazer::expr_kind_prime(Expr::ExprKind kind)
         290623u, 241291u, 579499u, 384287u, 125287u, 920273u, 485833u, 326449u,
         972683u, 485167u, 882599u, 535727u, 383651u, 159833u, 796001u, 218479u,
         163993u, 622561u, 938881u, 692467u, 851971u, 478427u, 653969u, 650329u,
-        645187u, 830827u, 431729u, 497663u, 392351u, 715237u
+        645187u, 830827u, 431729u, 497663u, 392351u, 715237u,  111323u,
+        359641u
     };
 
     static_assert(
@@ -252,6 +253,24 @@ auto BvFpCastExpr<Kind>::Create(const ExprPtr& operand, Type& type, const llvm::
 }
 
 template<Expr::ExprKind Kind>
+auto BitCastExpr<Kind>::Create(const ExprPtr& operand, Type& type) -> ExprRef<BitCastExpr<Kind>>
+{
+    assert(operand->getType() != type && "Cast source and target operands must differ!");
+
+    if constexpr (Kind == Expr::FpToBv) { // NOLINT
+        assert(operand->getType().isFloatType() && "Can only do FpToBv cast on float inputs!");
+        assert(type.isBvType() && "Can only do FpToBv cast to bit-vector targets!");
+    } else if constexpr (Kind == Expr::BvToFp) { // NOLINT
+        assert(operand->getType().isBvType() && "Can only do BvToFp on bit-vector inputs!");
+        assert(type.isFloatType() && "Can only do BvToFp cast to floating-point targets!");
+    }
+
+    auto& context = operand->getContext();
+
+    return context.pImpl->Exprs.create<BitCastExpr<Kind>>(type, { operand });
+}
+
+template<Expr::ExprKind Kind>
 auto FpArithmeticExpr<Kind>::Create(const ExprPtr& left, const ExprPtr& right, const llvm::APFloat::roundingMode& rm) -> ExprRef<FpArithmeticExpr<Kind>>
 {
     assert(left->getType().isFloatType() && "Can only define floating-point operations on float types!");
@@ -369,6 +388,9 @@ template class BvFpCastExpr<Expr::SignedToFp>;
 template class BvFpCastExpr<Expr::UnsignedToFp>;
 template class BvFpCastExpr<Expr::FpToSigned>;
 template class BvFpCastExpr<Expr::FpToUnsigned>;
+
+template class BitCastExpr<Expr::FpToBv>;
+template class BitCastExpr<Expr::BvToFp>;
 
 template class FpArithmeticExpr<Expr::FAdd>;
 template class FpArithmeticExpr<Expr::FSub>;

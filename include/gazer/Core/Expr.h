@@ -37,7 +37,7 @@
 
 namespace llvm {
     class raw_ostream;
-}
+} // namespace llvm
 
 namespace gazer
 {
@@ -100,7 +100,7 @@ public:
     static constexpr int LastFp = FLtEq;
 
     static constexpr int FirstFpUnary = FIsNan;
-    static constexpr int LastFpUnary = FpToUnsigned;
+    static constexpr int LastFpUnary = FpToBv;
     static constexpr int FirstFpArithmetic = FAdd;
     static constexpr int LastFpArithmetic = FDiv;
     static constexpr int FirstFpCompare = FEq;
@@ -170,7 +170,6 @@ public:
     virtual void print(llvm::raw_ostream& os) const = 0;
     virtual ~Expr() = default;
 
-public:
     static llvm::StringRef getKindName(ExprKind kind);
 
 private:

@@ -24,6 +24,7 @@
 #include "gazer/LLVM/Memory/MemoryModel.h"
 #include "gazer/Trace/TraceWriter.h"
 #include "gazer/LLVM/Trace/TestHarnessGenerator.h"
+#include "gazer/Trace/WitnessWriter.h"
 #include "gazer/LLVM/Transform/BackwardSlicer.h"
 #include "gazer/Support/Warnings.h"
 
@@ -66,6 +67,9 @@ namespace
     );
     cl::opt<bool> StructurizeCFG(
         "structurize", cl::desc("Try to remove irreducible controlf flow"), cl::cat(LLVMFrontendCategory)
+    );
+    cl::opt<bool> SkipPipeline(
+        "skip-pipeline", cl::desc("Do not execute the verification pipeline; translate and verify the input LLVM module directly")
     );
 
     class RunVerificationBackendPass : public llvm::ModulePass
@@ -116,10 +120,7 @@ LLVMFrontend::LLVMFrontend(
 
     // Force settings to be consistent
     if (mSettings.ints == IntRepresentation::Integers) {
-        llvm::errs().changeColor(llvm::raw_ostream::YELLOW, true);
-        llvm::errs() << "warning: ";
-        llvm::errs().resetColor();
-        llvm::errs() << "-math-int mode forces havoc memory model, analysis may be unsound\n";
+        emit_warning("-math-int mode forces havoc memory model, analysis may be unsound\n");
         mSettings.memoryModel = MemoryModelSetting::Havoc;
     }
 
@@ -136,6 +137,12 @@ LLVMFrontend::LLVMFrontend(
 
 void LLVMFrontend::registerVerificationPipeline()
 {
+    if (SkipPipeline) {
+        mPassManager.add(new llvm::DominatorTreeWrapperPass());
+        this->registerVerificationStep();
+        return;
+    }
+
     // Do basic preprocessing: get rid of alloca's and turn undef's
     //  into nondet function calls.
     mPassManager.add(llvm::createPromoteMemoryToRegisterPass());
@@ -174,19 +181,25 @@ void LLVMFrontend::registerVerificationPipeline()
     // Do an instruction namer pass.
     mPassManager.add(llvm::createInstructionNamerPass());
 
-    if (!PrintFinalModule.empty() && mModuleOutput != nullptr) {
-        mPassManager.add(llvm::createPrintModulePass(mModuleOutput->os()));
-        mModuleOutput->keep();
-    }
-
     // Unify exit nodes again
     mPassManager.add(llvm::createUnifyFunctionExitNodesPass());
+    mPassManager.add(llvm::createInstructionCombiningPass(false));
     
     // Display the final LLVM CFG now.
     if (ShowFinalCFG) {
         mPassManager.add(llvm::createCFGPrinterLegacyPassPass());
     }
 
+    if (mModuleOutput != nullptr) {
+        mPassManager.add(llvm::createPrintModulePass(mModuleOutput->os()));
+        mModuleOutput->keep();
+    }
+
+    this->registerVerificationStep();
+}
+
+void LLVMFrontend::registerVerificationStep()
+{
     // Perform module-to-automata translation.
     mPassManager.add(new gazer::MemoryModelWrapperPass(mContext, mSettings));
     mPassManager.add(new gazer::ModuleToAutomataPass(mContext, mSettings));
@@ -225,6 +238,23 @@ bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
                     llvm::outs() << "Error trace is unavailable.\n";
                 }
             }
+            
+            if (!mSettings.witness.empty() && fail->hasTrace() && !mSettings.hash.empty()) {
+                if (fail->hasTrace()) {
+                    std::error_code EC{};
+                    llvm::raw_fd_ostream fouts{ StringRef{mSettings.witness}, EC };
+                    
+                    ViolationWitnessWriter witnessWriter{ fouts, mSettings.hash };
+                    
+                    witnessWriter.initializeWitness();
+                    witnessWriter.write(fail->getTrace());
+                    witnessWriter.closeWitness();
+                } else if (mSettings.hash.empty()) {
+                    llvm::outs() << "Hash of the source file must be given to produce a witness (--hash)";
+                } else if (!mSettings.witness.empty()) {
+                    llvm::outs() << "Error witness is unavailable.\n";
+                }
+            }
 
             if (!mSettings.testHarnessFile.empty() && fail->hasTrace()) {
                 llvm::outs() << "Generating test harness.\n";
@@ -248,6 +278,16 @@ bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
         }
         case VerificationResult::Success:
             llvm::outs() << "Verification SUCCESSFUL.\n";
+            if (!mSettings.witness.empty() && !mSettings.hash.empty()) {
+                // puts the witness file in the working directory of gazer
+                std::error_code EC{};
+                llvm::raw_fd_ostream fouts{ StringRef{mSettings.witness}, EC };
+                
+                CorrectnessWitnessWriter witnessWriter{ fouts, mSettings.hash };
+                witnessWriter.outputWitness();
+            } else if(!mSettings.witness.empty() && mSettings.hash.empty()) {
+                llvm::outs() << "Hash of the source file must be given to produce a witness (--hash)";
+            }
             break;
         case VerificationResult::Timeout:
             llvm::outs() << "Verification TIMEOUT.\n";
@@ -373,35 +413,6 @@ void LLVMFrontend::registerLateOptimizations()
     // to work properly as it relies on loop preheaders being available.
     mPassManager.add(llvm::createCFGSimplificationPass());
     mPassManager.add(llvm::createLoopSimplifyPass());
+    mPassManager.add(gazer::createCanonizeLoopExitsPass());
 }
 
-auto LLVMFrontend::FromInputFile(
-    llvm::StringRef input,
-    GazerContext& context,
-    llvm::LLVMContext& llvmContext,
-    LLVMFrontendSettings& settings
-) -> std::unique_ptr<LLVMFrontend>
-{
-    llvm::SMDiagnostic err;
-
-    std::unique_ptr<llvm::Module> module = nullptr;
-
-    if (input.endswith(".bc")) {
-        module = llvm::parseIRFile(input, err, llvmContext);
-    } else if (input.endswith(".ll")) {
-        module = llvm::parseAssemblyFile(input, err, llvmContext);
-    } else {
-        err = SMDiagnostic(
-            input,
-            SourceMgr::DK_Error,
-            "Input file must be in LLVM bitcode (.bc) or LLVM assembly (.ll) format."
-        );
-    }
-
-    if (module == nullptr) {
-        err.print(nullptr, llvm::errs());
-        return nullptr;
-    }
-
-    return std::make_unique<LLVMFrontend>(std::move(module), context, settings);
-}

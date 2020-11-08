@@ -85,6 +85,8 @@ public:
 public:
     // Traceability
     bool trace = false;
+    std::string witness;
+    std::string hash;
     std::string testHarnessFile;
 
     // LLVM transformations

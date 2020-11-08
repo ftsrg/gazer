@@ -83,6 +83,7 @@ protected:
     ExprPtr asInt(const ExprPtr& operand);
 
     ExprPtr integerCast(const llvm::CastInst& cast, const ExprPtr& castOperand, Type& expectedType);
+    ExprPtr bitCast(const ExprPtr& castOperand, Type& expectedType);
     ExprPtr castResult(const ExprPtr& expr, const Type& type);
     ExprPtr boolToIntCast(const llvm::CastInst& cast, const ExprPtr& operand, Type& expectedType);
 

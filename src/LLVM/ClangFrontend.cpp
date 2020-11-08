@@ -163,11 +163,13 @@ auto gazer::ClangCompileAndLink(
     llvm::SMDiagnostic err;
 
     // Find clang and llvm-link.
-    auto clang = llvm::sys::findProgramByName("clang");
-    CHECK_ERROR(clang.getError(), "Could not find clang.");
+    auto clang = llvm::sys::findProgramByName("clang-9");
+    if (clang.getError()) clang = llvm::sys::findProgramByName("clang");
+    CHECK_ERROR(clang.getError(), "Could not find clang-9 or clang.");
 
-    auto llvm_link = llvm::sys::findProgramByName("llvm-link");
-    CHECK_ERROR(llvm_link.getError(), "Could not find llvm-link.");
+    auto llvm_link = llvm::sys::findProgramByName("llvm-link-9");
+    if (llvm_link.getError()) llvm_link = llvm::sys::findProgramByName("llvm-link");
+    CHECK_ERROR(llvm_link.getError(), "Could not find llvm-link-9 or llvm-link.");
 
     // Create a temporary working directory
     llvm::SmallString<128> workingDir;
@@ -240,6 +242,9 @@ void ClangOptions::addSanitizerFlag(llvm::StringRef flag)
 void ClangOptions::createArgumentList(std::vector<std::string>& args)
 {
     if (!mSanitizerFlags.empty()) {
-        args.emplace_back("-fsanitize-trap=" + llvm::join(mSanitizerFlags, ","));
+        auto sanitizerNames = llvm::join(mSanitizerFlags, ",");
+
+        args.emplace_back("-fsanitize=" + sanitizerNames);
+        args.emplace_back("-fno-sanitize-recover=" + sanitizerNames);
     }
 }

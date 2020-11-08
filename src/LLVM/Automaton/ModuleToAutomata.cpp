@@ -326,6 +326,7 @@ void ModuleToCfa::createAutomata()
 
             // Create locations for the blocks
             for (BasicBlock* bb : loopOnlyBlocks) {
+                LLVM_DEBUG(llvm::dbgs() << "[LoopOnly] " << bb->getName() << "\n");
                 Location* entry = nested->createLocation();
                 Location* exit = isErrorBlock(bb) ? nested->createErrorLocation() : nested->createLocation();
 
@@ -382,12 +383,14 @@ void ModuleToCfa::createAutomata()
 
         // For the local variables, we only need to add the values not present in any of the loops.
         for (BasicBlock& bb : function) {
+            LLVM_DEBUG(llvm::dbgs() << "Translating function-level block " << bb.getName() << "\n");
             for (Instruction& inst : bb) {
+                LLVM_DEBUG(llvm::dbgs().indent(2) << "Instruction " << inst.getName() << "\n");
                 if (auto loop = loopInfo->getLoopFor(&bb)) {
                     // If the variable is an output of a loop, add it here as a local variable
                     Variable* output = mGenCtx.getLoopCfa(loop).findOutput(&inst);
                     if (output == nullptr && !hasUsesInBlockRange(&inst, functionBlocks)) {
-                        LLVM_DEBUG(llvm::dbgs() << "Not adding " << inst << "\n");
+                        LLVM_DEBUG(llvm::dbgs().indent(4) << "Not adding (no uses in function) " << inst << "\n");
                         continue;
                     }
                 }

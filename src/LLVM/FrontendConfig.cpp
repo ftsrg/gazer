@@ -18,9 +18,12 @@
 #include "gazer/LLVM/LLVMFrontend.h"
 #include "gazer/LLVM/Instrumentation/DefaultChecks.h"
 #include "gazer/Support/Warnings.h"
+#include "gazer/Trace/WitnessWriter.h"
+#include "gazer/Config/gazer-config.h"
 
 #include <llvm/IR/Module.h>
 #include <llvm/ADT/StringExtras.h>
+#include <llvm/Support/Path.h>
 
 #ifndef NDEBUG
 #include <llvm/Support/PrettyStackTrace.h>
@@ -66,6 +69,20 @@ auto FrontendConfig::buildFrontend(
 
     auto frontend = std::make_unique<LLVMFrontend>(std::move(module), context, mSettings);
 
+    // The Witness generator has to get the initial name of the sourcefile
+    // ( witnesses support programs with a single source file only )
+    if (!mSettings.witness.empty()) {
+        if (inputs.size()!=1) {
+            llvm::errs() << "Witnesses support programs with a single source file only. Gazer won't generate a witness, as there were more than one input files";
+            mSettings.witness = "";
+            mSettings.hash = "";
+        } else { // TODO something more elegant?
+            llvm::StringRef filename = llvm::sys::path::filename(inputs[0]);
+            gazer::ViolationWitnessWriter::SourceFileName = filename;
+            CorrectnessWitnessWriter::SourceFileName = filename;
+        }
+    }
+
     for (auto& check : checks) {
         // Release the unique pointer and add it to the check registry
         frontend->getChecks().add(check.release());
@@ -82,7 +99,6 @@ void FrontendConfig::createChecks(std::vector<std::unique_ptr<Check>>& checks)
         // Do the defaults
         fragments.push_back("assertion-fail");
         fragments.push_back("div-by-zero");
-        fragments.push_back("signed-overflow");
     } else if (filter == AllChecksSetting) {
         // Add all registered checks
         for (auto& [name, factory] : mFactories) {
@@ -107,7 +123,5 @@ void FrontendConfig::createChecks(std::vector<std::unique_ptr<Check>>& checks)
 
 void FrontendConfigWrapper::PrintVersion(llvm::raw_ostream& os)
 {
-    os << "gazer - a formal verification frontend\n";
-    os << "   version 0.1\n";
-    os << "   LLVM version 9.0\n";
+    os << "Gazer v" << GAZER_VERSION_STRING << "\nLLVM v" << LLVM_VERSION_STRING;
 }

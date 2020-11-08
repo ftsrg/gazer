@@ -273,6 +273,9 @@ auto LLVMTraceBuilder::build(
                 undefs.insert(call);
             } else if (callee->getName().startswith("gazer.dummy")) {
                 // These functions are the part of an "invisible" instrumentation and should be ignored.
+            } else if (callee->getName().startswith(GazerIntrinsic::NoOverflowPrefix)) {
+               // Do not show the intrinsic functions here
+               // TODO: We could add some information about the overflow (e.g. the unrepresentable value).
             } else if (callee->isDeclaration() && !call->getType()->isVoidTy()) {
                 // This is a function call to a nondetermistic function.
                 auto variable = mCfaToLlvmTrace.getVariableForValue(loc->getAutomaton(), call);

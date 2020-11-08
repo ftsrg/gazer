@@ -108,7 +108,6 @@ llvm::FunctionCallee GazerIntrinsic::GetOrInsertOverflowCheck(llvm::Module& modu
         case Overflow::USub: name = USubNoOverflowPrefix; break;
         case Overflow::SMul: name = SMulNoOverflowPrefix; break;
         case Overflow::UMul: name = UMulNoOverflowPrefix; break;
-        case Overflow::SDiv: name = SDivNoOverflowPrefix; break;
         default:
             llvm_unreachable("Unknown overflow kind!");
     }

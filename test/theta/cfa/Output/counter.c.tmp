@@ -1,7 +1,6 @@
 main process __gazer_main_process {
     var main_RET_VAL : int
     var main_tmp : int
-    var main_error_phi : int
     var main___gazer_error_field : int
     init loc loc0
     final loc loc1
@@ -20,12 +19,11 @@ main process __gazer_main_process {
     }
 
     loc3 -> loc6 {
-        assume ((if (main_tmp <= 0) then 0 else main_tmp) = 0)
-        main_error_phi := 2
+        assume (not (1 <= main_tmp))
     }
 
     loc3 -> loc4 {
-        assume (not ((if (main_tmp <= 0) then 0 else main_tmp) = 0))
+        assume (not (not (1 <= main_tmp)))
     }
 
     loc4 -> loc5 {
@@ -43,7 +41,7 @@ main process __gazer_main_process {
     }
 
     loc7 -> loc8 {
-        main___gazer_error_field := main_error_phi
+        main___gazer_error_field := 2
     }
 
 }

@@ -89,6 +89,8 @@ GAZER_EXPR_KIND(SignedToFp)
 GAZER_EXPR_KIND(UnsignedToFp)
 GAZER_EXPR_KIND(FpToSigned)
 GAZER_EXPR_KIND(FpToUnsigned)
+GAZER_EXPR_KIND(FpToBv) // Bit-cast a floating-point value to a bit-vector
+GAZER_EXPR_KIND(BvToFp) // Bit-cast a bit-vector into a floating-point value
 
 // Floating point binary
 GAZER_EXPR_KIND(FAdd)
