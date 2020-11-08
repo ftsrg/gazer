@@ -1,4 +1,4 @@
-//==-              - Translate LLVM IR to expressions -----------*- C++ -*--==//
+//==-------------------------------------------------------------*- C++ -*--==//
 //
 // Copyright 2020 Contributors to the Gazer project
 //
@@ -30,53 +30,75 @@
 #include <llvm/IR/InstIterator.h>
 #include <llvm/Support/Casting.h>
 
+namespace {
+
 /// Normalizes calls related to creating and joining threads
-class RegisterThreadingPass : public llvm::ModulePass {
+class RegisterThreadingPass : public llvm::ModulePass
+{
     static char ID;
 
 public:
     // might contain duplicates
     std::vector<llvm::Function*> threadFunctions;
-    RegisterThreadingPass() : ModulePass(ID) {}
+    gazer::LLVMFrontendSettings& settings;
+    RegisterThreadingPass(gazer::LLVMFrontendSettings& settings)
+        : ModulePass(ID), settings(settings)
+    {}
+
 private:
-    static llvm::Function* getMainFunction(llvm::Module& m) {
+    static llvm::Function* getMainFunction(llvm::Module& m)
+    {
         for (auto& function : m) {
             // TODO
-            if (function.hasName() && function.getName()=="main") {
+            if (function.hasName() && function.getName() == "main") {
                 return &function;
             }
         }
         return nullptr;
     }
 
-    static llvm::Function* getOrInsertAssumeFunction(llvm::IRBuilder<>& irbuilder,
-                                                llvm::Module& m) {
-        if (auto *res = m.getFunction("llvm.assume")) {
+    static llvm::Function* getOrInsertAssumeFunction(llvm::IRBuilder<>& irbuilder, llvm::Module& m)
+    {
+        if (auto* res = m.getFunction("llvm.assume")) {
             return res;
         }
-        auto* type = llvm::FunctionType::get(irbuilder.getVoidTy(), {irbuilder.getInt1Ty()},false);
-        return llvm::Function::Create(type, llvm::Function::InternalLinkage, "llvm.assume");
+        auto* type = llvm::FunctionType::get(irbuilder.getVoidTy(), {irbuilder.getInt1Ty()}, false);
+        return llvm::Function::Create(type, llvm::Function::ExternalLinkage, "llvm.assume", m);
     }
+
+
     /**
      * assume(v); (void)func(nullptr);
      */
-    static llvm::Function* createThreadFunction(llvm::IRBuilder<>& parentIRBuilder,
-                                                llvm::GlobalValue* flag,
-                                                llvm::Function* functionToCall,
-                                                llvm::Module& m) {
-
+    static llvm::Function* createThreadFunction(
+        llvm::IRBuilder<>& parentIRBuilder,
+        llvm::GlobalValue* flag,
+        llvm::Function* functionToCall,
+        llvm::Module& m)
+    {
+        static int ctr = 0;
         auto* funcType = llvm::FunctionType::get(parentIRBuilder.getVoidTy(), false);
-        auto* func= llvm::Function::Create(funcType, llvm::GlobalValue::InternalLinkage, 0);
+        auto* func = llvm::Function::Create(
+            funcType, llvm::GlobalValue::ExternalLinkage, "__ThreadFunction" + llvm::Twine(++ctr), m);
         auto* bb = llvm::BasicBlock::Create(m.getContext(), "entry", func);
         llvm::IRBuilder<> irbuilder(bb);
-        irbuilder.CreateCall(getOrInsertAssumeFunction(irbuilder, m), {flag});
-        irbuilder.CreateCall(functionToCall);
+        auto* flagLoad = irbuilder.CreateLoad(flag);
+        irbuilder.CreateCall(getOrInsertAssumeFunction(irbuilder, m), {flagLoad});
+
+        auto* nullVal =
+            llvm::Constant::getNullValue(functionToCall->getFunctionType()->getParamType(0));
+        llvm::errs() << functionToCall->getFunctionType();
+        // auto* nullPtr = llvm::ConstantPointerNull::get(llvm::PointerType::get(irbuilder.getVoidTy(),0));
+        irbuilder.CreateCall(functionToCall, {nullVal});
         irbuilder.CreateRetVoid();
         return func;
     }
 
-    static llvm::GlobalVariable* createThreadStateVariable(llvm::IRBuilder<>& irbuilder, llvm::Module& m) {
-        static std::string name = "threading.global";
+    static llvm::GlobalVariable*
+        createThreadStateVariable(llvm::IRBuilder<>& irbuilder, llvm::Module& m)
+    {
+        static int ctr = 0;
+        llvm::Twine name = "threading_global" + llvm::Twine(++ctr);
 
         /**
          *   GlobalVariable(Module &M, Type *Ty, bool isConstant,
@@ -85,17 +107,18 @@ private:
                  ThreadLocalMode = NotThreadLocal, unsigned AddressSpace = 0,
                  bool isExternallyInitialized = false);
          */
-        name += "_";
         auto* falseVal = irbuilder.getInt1(false);
-        return new llvm::GlobalVariable(m, falseVal->getType(), false, llvm::GlobalValue::InternalLinkage, falseVal);
+        return new llvm::GlobalVariable(
+            m, falseVal->getType(), false, llvm::GlobalValue::ExternalLinkage, falseVal, name);
     }
 
 public:
-    bool runOnModule(llvm::Module& m) override {
+    bool runOnModule(llvm::Module& m) override
+    {
         llvm::SmallVector<llvm::CallInst*, 4> toProcess;
         if (auto* mainFunc = getMainFunction(m)) {
-            for (llvm::inst_iterator I = llvm::inst_begin(mainFunc),
-                                     E = llvm::inst_end(mainFunc); I != E; ++I) {
+            for (llvm::inst_iterator I = llvm::inst_begin(mainFunc), E = llvm::inst_end(mainFunc);
+                 I != E; ++I) {
                 auto& inst = *I;
                 if (auto* callInst = llvm::dyn_cast<llvm::CallInst>(&inst)) {
                     if (callInst->getCalledFunction()->getName() == "pthread_create") {
@@ -103,6 +126,7 @@ public:
                         if (auto* threadFunction =
                                 llvm::dyn_cast<llvm::Function>(callInst->getArgOperand(2))) {
                             threadFunctions.push_back(threadFunction);
+                            settings.registerThread(threadFunction);
                         } else {
                             llvm_unreachable("Bad pthread_create call");
                         }
@@ -112,54 +136,28 @@ public:
         }
         bool changed = false;
         for (auto* proc : toProcess) {
-            llvm::IRBuilder<> irbuilder(m.getContext());
-            //irbuilder.get
+            changed = true;
+            llvm::IRBuilder<> irbuilder(proc);
+            // irbuilder.get
             auto* stateVar = createThreadStateVariable(irbuilder, m);
             irbuilder.CreateStore(irbuilder.getInt1(true), stateVar);
-            if (auto* threadFunction =
-                llvm::dyn_cast<llvm::Function>(proc->getArgOperand(2))) {
+            if (auto* threadFunction = llvm::dyn_cast<llvm::Function>(proc->getArgOperand(2))) {
                 createThreadFunction(irbuilder, stateVar, threadFunction, m);
             } else {
                 llvm_unreachable("Bad pthread_create call");
             }
-            //proc->replaceAllUsesWith(???);
-            /*for (auto& use : thread.thrd_id->uses()) {
-                if (auto* loadInst = llvm::dyn_cast<llvm::LoadInst>(use.getUser())) {
-                    for (auto& loadUse : loadInst->uses()) {
-                        if (auto* callInst = llvm::dyn_cast<llvm::CallInst>(loadUse.getUser())) {
-                            if (callInst->getCalledFunction()->getName() == "pthread_join") {
-                                assert(
-                                    callInst->getArgOperand(1) == loadUse
-                                    && "pthread_join wrong use");
-                                changed = true;
-                                llvm::IRBuilder<> builder(m.getContext());
-                                builder.ClearInsertionPoint();
-                                callInst->replaceAllUsesWith(builder.CreateCall(getJoinThreadCallFor(m, thread)));
-                                callInst->dropAllReferences();
-                            } else {
-                                llvm_unreachable("Unknown use of thread info");
-                            }
-                        } else {
-                            llvm_unreachable("Unknown use of thread info");
-                        }
-                    }
-                } else {
-                    if (auto* callInst = llvm::dyn_cast<llvm::CallInst>(use.getUser())) {
-                        if (callInst->getFunction()->getName() != "pthread_create") {
-                            llvm_unreachable("Unkown use of thread info");
-                        }
-                        //changed = true;
-                    } else {
-                        llvm_unreachable("Unknown use of thread info");
-                    }
-                }
-            }*/
+            proc->replaceAllUsesWith(llvm::Constant::getNullValue(proc->getFunctionType()->getReturnType()));
+            proc->dropAllReferences();
+            proc->eraseFromParent();
         }
         return changed;
-        //thrd_id->uses();
     }
 };
 
-llvm::Pass* gazer::createNormalizeThreadingCallsPass() {
-    return new RegisterThreadingPass();
+char RegisterThreadingPass::ID;
+
+} // namespace
+
+llvm::Pass* gazer::createRegisterThreadingPass(gazer::LLVMFrontendSettings& settings) {
+    return new RegisterThreadingPass(settings);
 }

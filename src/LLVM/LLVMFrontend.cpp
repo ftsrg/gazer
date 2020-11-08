@@ -38,7 +38,9 @@
 #include <llvm/Transforms/InstCombine/InstCombine.h>
 #include <llvm/Transforms/AggressiveInstCombine/AggressiveInstCombine.h>
 #include <llvm/Transforms/Utils/UnifyFunctionExitNodes.h>
+#include <llvm/IR/Verifier.h>
 #include <llvm/Support/CommandLine.h>
+#include <llvm/Support/Debug.h>
 #include <llvm/InitializePasses.h>
 
 #include <llvm/IR/IRPrintingPasses.h>
@@ -140,7 +142,9 @@ void LLVMFrontend::registerVerificationPipeline()
     //  into nondet function calls.
     mPassManager.add(llvm::createPromoteMemoryToRegisterPass());
     mPassManager.add(gazer::createPromoteUndefsPass());
-    mPassManager.add(gazer::createNormalizeThreadingCallsPass());
+    mPassManager.add(gazer::createRegisterThreadingPass(mSettings));
+    mPassManager.add(llvm::createPrintModulePass(llvm::errs()));
+    mPassManager.add(llvm::createVerifierPass());
 
     // Perform check instrumentation.
     mPassManager.add(gazer::createNormalizeVerifierCallsPass());
@@ -273,12 +277,16 @@ void LLVMFrontend::registerEnabledChecks()
     mChecks.registerPasses(mPassManager);
 }
 
+#define DEBUG_TYPE "Inlining"
 void LLVMFrontend::registerInlining()
 {
     if (mSettings.inlineLevel != InlineLevel::Off) {
         mPassManager.add(llvm::createInternalizePass([this](auto& gv) {
             if (auto fun = llvm::dyn_cast<llvm::Function>(&gv)) {
-                return mSettings.getEntryFunction(*gv.getParent()) == fun;
+                bool mainFunc = mSettings.getEntryFunction(*gv.getParent()) == fun;
+                bool threadFunc = std::find(mSettings.threads.begin(), mSettings.threads.end(), fun)
+                               != mSettings.threads.end();
+                return mainFunc || threadFunc;
             }
             return false;
         }));
@@ -299,6 +307,7 @@ void LLVMFrontend::registerInlining()
         mPassManager.add(llvm::createPromoteMemoryToRegisterPass());
     }
 }
+#undef DEBUG_TYPE
 
 void LLVMFrontend::registerPass(llvm::Pass* pass)
 {

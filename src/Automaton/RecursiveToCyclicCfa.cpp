@@ -111,7 +111,7 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
             rewrite[&local] = newLocal->getRefExpr();
         }
     }
-    
+
     // Clone input variables as well; we will insert an assign transition
     // with the initial values later.
     for (Variable& input : callee->inputs()) {
@@ -235,7 +235,7 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
             }
         }
     }
-        
+
     std::vector<VariableAssignment> inputArgs;
     for (size_t i = 0; i < callee->getNumInputs(); ++i) {
         Variable* input = callee->getInput(i);
@@ -270,7 +270,7 @@ void RecursiveToCyclicTransformer::addUniqueErrorLocation()
             errors.push_back(loc);
         }
     }
-    
+
     mError = mRoot->createErrorLocation();
     mErrorFieldVariable = mRoot->createLocal("__gazer_error_field", intTy);
 
@@ -279,7 +279,7 @@ void RecursiveToCyclicTransformer::addUniqueErrorLocation()
         // A dummy error location will be used as a goal.
         mRoot->createAssignTransition(mRoot->getEntry(), mError, BoolLiteralExpr::False(ctx), {
             VariableAssignment{ mErrorFieldVariable, IntLiteralExpr::Get(intTy, 0) }
-        });        
+        });
     } else {
         // The error location will be directly reachable from already existing error locations.
         for (Location* err : errors) {
@@ -294,8 +294,17 @@ void RecursiveToCyclicTransformer::addUniqueErrorLocation()
     }
 }
 
+// Results cache for TransformRecursiveToCyclic
+// Needed so the same CFAs are not reiterated (in --xcfa mode).
+llvm::DenseMap<Cfa*, RecursiveToCyclicResult> transformResults;
 RecursiveToCyclicResult gazer::TransformRecursiveToCyclic(Cfa* cfa)
 {
+    auto it = transformResults.find(cfa);
+    if (it != transformResults.end()) {
+        return it->second;
+    }
     RecursiveToCyclicTransformer transformer(cfa);
-    return transformer.transform();
+    auto result = transformer.transform();
+    transformResults.insert({cfa, result});
+    return result;
 }

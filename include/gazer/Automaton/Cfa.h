@@ -367,7 +367,7 @@ public:
     Cfa* getAutomatonByName(llvm::StringRef name) const;
 
     Cfa* getMainAutomaton() const {
-        assert(mMainAutomata.size() == 1 && "The code still asserts a single main automaton");
+        assert(mMainAutomata.size() == 1 && "The code asserts only one main automaton exists");
         return mMainAutomata[0];
     }
 
@@ -375,6 +375,7 @@ public:
         return llvm::make_range(mMainAutomata.cbegin(), mMainAutomata.cend());
     }
     void setMainAutomaton(Cfa* cfa);
+    void addMainAutomaton(Cfa* cfa);
 
     void print(llvm::raw_ostream& os) const;
 

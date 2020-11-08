@@ -39,7 +39,7 @@ llvm::Pass* createNormalizeVerifierCallsPass();
 /// A simpler (and more restricted) inlining pass.
 llvm::Pass* createSimpleInlinerPass(llvm::Function& entry, InlineLevel level);
 
-llvm::Pass* createNormalizeThreadingCallsPass();
+llvm::Pass* createRegisterThreadingPass(gazer::LLVMFrontendSettings& settings);
 
 }
 

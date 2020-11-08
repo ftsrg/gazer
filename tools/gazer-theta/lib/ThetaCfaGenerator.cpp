@@ -49,19 +49,22 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
         globalVars.try_emplace(&variable, std::make_unique<ThetaVarDecl>(name, type));
     }
 
-    for (auto* mainAutomaton : mSystem.mainAutomata()) {
-        os << "main process __gazer_main_process {\n";
+    for (const auto& global : globalVars) {
+        global.second->print(os);
+        os << "\n";
+    }
 
-        for (const auto& global : globalVars) {
-            os << "    ";
-            global.second->print(os);
-        }
+    bool first = true;
+    for (auto* mainAutomaton : mSystem.mainAutomata()) {
+        if (first) { os << "main "; }
+        first = false;
+        os << "process _" << mainAutomaton->getName() << " {\n";
 
         for (auto& cfa : mSystem.automata()) {
             ThetaCfaProcedureGenerator(&cfa, &cfa == mainAutomaton, isValidVarName, globalVars)
                 .write(os, nameTrace, xcfa);
         }
-        os << "}";
+        os << "}\n";
     }
     os.flush();
 }

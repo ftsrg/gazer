@@ -148,7 +148,11 @@ void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& 
                 nameTrace.variables[name] = variable;
                 vars.try_emplace(variable, std::make_unique<ThetaVarDecl>(name, type));
                 inputTmpVars.emplace_back(variable);
-                stmts.emplace_back(ThetaStmt::Assign(name, input.getValue()));
+                if (input.getValue()->isUndef()) {
+                    stmts.emplace_back(ThetaStmt::Havoc(name));
+                } else {
+                    stmts.emplace_back(ThetaStmt::Assign(name, input.getValue()));
+                }
             }
 
             for (auto* variable : inputTmpVars) {

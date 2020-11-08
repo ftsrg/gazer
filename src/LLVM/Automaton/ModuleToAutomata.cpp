@@ -271,6 +271,11 @@ std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
     Cfa* main = mSystem->getAutomatonByName(mSettings.function);
     assert(main != nullptr && "The main automaton must exist!");
     mSystem->setMainAutomaton(main);
+    for (auto* thread : mSettings.getThreads()) {
+        Cfa* threadFunc = mSystem->getAutomatonByName(thread->getName());
+        assert(threadFunc != nullptr && "The main automaton must exist!");
+        mSystem->addMainAutomaton(threadFunc);
+    }
 
     cfaToLlvmTrace = std::move(mGenCtx.getTraceInfo());
 

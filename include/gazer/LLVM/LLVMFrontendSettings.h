@@ -19,6 +19,7 @@
 #define GAZER_LLVM_LLVMFRONTENDSETTINGS_H
 
 #include <string>
+#include <vector>
 
 namespace llvm
 {
@@ -108,6 +109,12 @@ public:
 
     std::string function = "main";
 
+    /// Thread's function. Filled by RegisterThreading.
+    /// TODO move this out from settings (but be able to share it from RegisterThreading to
+    ///      ModuleToCfa
+    /// Does not contain the entry function.
+    std::vector<llvm::Function*> threads;
+
     // Memory models
     bool debugDumpMemorySSA = false;
     MemoryModelSetting memoryModel = MemoryModelSetting::Flat;
@@ -115,6 +122,14 @@ public:
 public:
     /// Returns true if the current settings can be applied to the given module.
     bool validate(const llvm::Module& module, llvm::raw_ostream& os) const;
+
+    void registerThread(llvm::Function* threadFunction) {
+        threads.push_back(threadFunction);
+    }
+
+    const std::vector<llvm::Function*>& getThreads() const {
+        return threads;
+    }
 
     llvm::Function* getEntryFunction(const llvm::Module& module) const;
 
