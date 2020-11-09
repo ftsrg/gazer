@@ -70,8 +70,8 @@ class MemoryModelWrapperPass : public llvm::ModulePass
 public:
     static char ID;
 
-    MemoryModelWrapperPass(GazerContext& context, const LLVMFrontendSettings& settings)
-        : ModulePass(ID), mContext(context), mSettings(settings)
+    MemoryModelWrapperPass(GazerContext& context)
+        : ModulePass(ID), mContext(context)
     {}
 
     void getAnalysisUsage(llvm::AnalysisUsage& au) const override;
@@ -85,10 +85,12 @@ public:
 
 private:
     GazerContext& mContext;
-    const LLVMFrontendSettings& mSettings;
+    //const LLVMFrontendSettings& mSettings;
     std::unique_ptr<MemoryModel> mMemoryModel;
 };
 
+/// not read-only for forcing havoc mem model
+MemoryModelSetting& getMemoryModel();
 
 } // namespace gazer
 #endif //GAZER_MEMORY_MEMORYMODEL_H

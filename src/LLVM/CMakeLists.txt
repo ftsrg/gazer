@@ -37,7 +37,7 @@ set(SOURCE_FILES
     LLVMFrontend.cpp
     ClangFrontend.cpp
     FrontendConfig.cpp
-)
+    LLVMFrontendSettingsProviderPass.cpp)
 
 # module for LLVM opt integration (use like opt -load src/LLVM/libGazerLLVMBare.so -gazer-... test.ll)
 add_library(GazerLLVMBare SHARED ${MODULE_SOURCE_FILES})

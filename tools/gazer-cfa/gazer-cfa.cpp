@@ -40,7 +40,8 @@ namespace
 {
     cl::list<std::string> InputFilenames(cl::Positional, cl::OneOrMore, cl::desc("<input files>"));
     cl::opt<bool> ViewCfa("view", cl::desc("View the CFA in the system's GraphViz viewier."));
-    cl::opt<bool> CyclicCfa("cyclic", cl::desc("Represent LoopRep as cycles instead of recursive calls."));
+    // TODO does not work in this setting
+    //cl::opt<bool> CyclicCfa("cyclic", cl::desc("Represent LoopRep as cycles instead of recursive calls."));
     cl::opt<bool> RunPipeline("run-pipeline", cl::desc("Run the early stages of the verification pipeline, such as instrumentation."));
 }
 
@@ -61,15 +62,15 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    if (CyclicCfa) {
-        frontend->getSettings().loops = LoopRepresentation::Cycle;
-    }
+    //if (CyclicCfa) {
+    //    frontend->getSettings().loops = LoopRepresentation::Cycle;
+    //}
 
     if (RunPipeline) {
         frontend->registerVerificationPipeline();
     } else {
-        frontend->registerPass(new gazer::MemoryModelWrapperPass(config.context, frontend->getSettings()));
-        frontend->registerPass(new gazer::ModuleToAutomataPass(config.context, frontend->getSettings()));
+        frontend->registerPass(new gazer::MemoryModelWrapperPass(config.context));
+        frontend->registerPass(new gazer::ModuleToAutomataPass(config.context));
         frontend->registerPass(gazer::createCfaPrinterPass());
     }
     

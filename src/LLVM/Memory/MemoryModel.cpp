@@ -16,13 +16,27 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "gazer/LLVM/Memory/MemoryModel.h"
+
 #include "gazer/Core/LiteralExpr.h"
 #include "gazer/LLVM/Memory/MemorySSA.h"
-#include "gazer/LLVM/Memory/MemoryModel.h"
+#include "gazer/LLVM/LLVMFrontendSettingsProviderPass.h"
 
 #include <llvm/Transforms/Utils/UnifyFunctionExitNodes.h>
 
+#include <llvm/Support/CommandLine.h>
+
 using namespace gazer;
+using namespace llvm;
+
+cl::opt<MemoryModelSetting> MemoryModelOpt("memory", cl::desc("Memory model to use:"),
+                                           cl::values(
+                                               clEnumValN(MemoryModelSetting::Flat, "flat", "Bit-precise flat memory model"),
+                                               clEnumValN(MemoryModelSetting::Havoc, "havoc", "Dummy havoc model")
+                                           ),
+                                           cl::init(MemoryModelSetting::Flat),
+                                           cl::cat(IrToCfaCategory)
+);
 
 // LLVM pass implementation
 //===----------------------------------------------------------------------===//
@@ -31,7 +45,11 @@ char MemoryModelWrapperPass::ID;
 
 void MemoryModelWrapperPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
 {
-    switch (mSettings.memoryModel) {
+    au.addRequired<LLVMFrontendSettingsProviderPass>();
+
+    // TODO
+    LLVMFrontendSettings settings = LLVMFrontendSettings::initFromCommandLine();
+    switch (settings.memoryModel) {
         case MemoryModelSetting::Flat:
             au.addRequired<llvm::DominatorTreeWrapperPass>();
         case MemoryModelSetting::Havoc:
@@ -45,13 +63,15 @@ void MemoryModelWrapperPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
 
 bool MemoryModelWrapperPass::runOnModule(llvm::Module& module)
 {
-    switch (mSettings.memoryModel) {
+    auto& settings = getAnalysis<LLVMFrontendSettingsProviderPass>()
+        .getSettings();
+    switch (settings.memoryModel) {
         case MemoryModelSetting::Flat: {
             auto dominators = [this](llvm::Function& function) -> llvm::DominatorTree& {
                 return getAnalysis<llvm::DominatorTreeWrapperPass>(function).getDomTree();
             };
 
-            mMemoryModel = CreateFlatMemoryModel(mContext, mSettings, module, dominators);
+            mMemoryModel = CreateFlatMemoryModel(mContext, settings, module, dominators);
             break;
         }
         case MemoryModelSetting::Havoc: {
@@ -63,4 +83,8 @@ bool MemoryModelWrapperPass::runOnModule(llvm::Module& module)
     assert(mMemoryModel != nullptr && "Unknown memory model setting!");
 
     return true;
+}
+
+MemoryModelSetting& gazer::getMemoryModel() {
+    return MemoryModelOpt.getValue();
 }

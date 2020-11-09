@@ -19,6 +19,7 @@
 #include "lib/ThetaCfaGenerator.h"
 
 #include "gazer/LLVM/LLVMFrontend.h"
+#include "gazer/LLVM/Automaton/InstToExpr.h"
 #include "gazer/Support/Runtime.h"
 #include "gazer/Support/Warnings.h"
 
@@ -120,7 +121,8 @@ int main(int argc, char* argv[])
     }
 
     // Force -math-int
-    config.getSettings().ints = IntRepresentation::Integers;
+    gazer::isArithmeticInteger() = true;
+    // config.getSettings().ints = IntRepresentation::Integers;
 
     // Create the frontend object
     auto frontend = config.buildFrontend(InputFilenames);

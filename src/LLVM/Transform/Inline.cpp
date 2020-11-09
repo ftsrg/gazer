@@ -24,6 +24,7 @@
 #include "TransformUtils.h"
 
 #include "gazer/LLVM/Transform/Passes.h"
+#include "gazer/LLVM/LLVMFrontendSettingsProviderPass.h"
 
 #include <llvm/Pass.h>
 #include <llvm/IR/InstIterator.h>
@@ -44,15 +45,15 @@ public:
     static char ID;
 
 public:
-    InlinePass(llvm::Function* entry, InlineLevel level)
-        : ModulePass(ID), mEntryFunction(entry), mLevel(level)
+    InlinePass()
+        : ModulePass(ID)
     {
-        assert(mEntryFunction != nullptr);
     }
 
     void getAnalysisUsage(llvm::AnalysisUsage& au) const override
     {
         au.addRequired<llvm::CallGraphWrapperPass>();
+        au.addRequired<LLVMFrontendSettingsProviderPass>();
     }
 
     bool runOnModule(llvm::Module& module) override;
@@ -64,7 +65,6 @@ public:
 private:
     bool shouldInlineFunction(llvm::CallGraphNode* target, unsigned allowedRefs);
 
-    llvm::Function* mEntryFunction;
     InlineLevel mLevel;
 };
 
@@ -104,6 +104,13 @@ bool InlinePass::shouldInlineFunction(llvm::CallGraphNode* target, unsigned allo
 
 bool InlinePass::runOnModule(llvm::Module& module)
 {
+    auto& settings = getAnalysis<LLVMFrontendSettingsProviderPass>()
+        .getSettings();
+    auto* entryFunction = settings.getEntryFunction(module);
+    assert(entryFunction != nullptr);
+
+    mLevel = settings.inlineLevel;
+
     if (mLevel == InlineLevel::Off) {
         return false;
     }
@@ -114,7 +121,7 @@ bool InlinePass::runOnModule(llvm::Module& module)
     llvm::InlineFunctionInfo ifi(&cg);
     llvm::SmallVector<llvm::CallSite, 16> wl;
 
-    llvm::CallGraphNode* entryCG = cg[mEntryFunction];
+    llvm::CallGraphNode* entryCG = cg[entryFunction];
 
     for (auto& [call, target] : *entryCG) {
         if (this->shouldInlineFunction(target, 1)) {
@@ -145,7 +152,7 @@ bool InlinePass::runOnModule(llvm::Module& module)
     return changed;
 }
 
-llvm::Pass* gazer::createSimpleInlinerPass(llvm::Function& entry, InlineLevel level)
+llvm::Pass* gazer::createSimpleInlinerPass()
 {
-    return new InlinePass(&entry, level);
+    return new InlinePass();
 }

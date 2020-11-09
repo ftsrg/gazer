@@ -16,6 +16,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "gazer/LLVM/LLVMFrontend.h"
+#include "gazer/LLVM/LLVMFrontendSettingsProviderPass.h"
 #include "gazer/LLVM/Instrumentation/DefaultChecks.h"
 #include "gazer/LLVM/InstrumentationPasses.h"
 #include "gazer/LLVM/Transform/Passes.h"
@@ -79,14 +80,14 @@ namespace
 
         RunVerificationBackendPass(
             const CheckRegistry& checks,
-            VerificationAlgorithm& algorithm,
-            const LLVMFrontendSettings& settings
-        ) : ModulePass(ID), mChecks(checks), mAlgorithm(algorithm), mSettings(settings)
+            VerificationAlgorithm& algorithm
+        ) : ModulePass(ID), mChecks(checks), mAlgorithm(algorithm)
         {}
 
         void getAnalysisUsage(llvm::AnalysisUsage& au) const override
         {
             au.addRequired<ModuleToAutomataPass>();
+            au.addRequired<LLVMFrontendSettingsProviderPass>();
             au.setPreservesCFG();
         }
 
@@ -99,7 +100,6 @@ namespace
     private:
         const CheckRegistry& mChecks;
         VerificationAlgorithm& mAlgorithm;
-        const LLVMFrontendSettings& mSettings;
         std::unique_ptr<VerificationResult> mResult;
     };
 
@@ -109,20 +109,12 @@ char RunVerificationBackendPass::ID;
 
 LLVMFrontend::LLVMFrontend(
     std::unique_ptr<llvm::Module> module,
-    GazerContext& context,
-    LLVMFrontendSettings& settings)
+    GazerContext& context)
     : mContext(context),
     mModule(std::move(module)),
-    mChecks(mModule->getContext()),
-    mSettings(settings)
+    mChecks(mModule->getContext())
 {
     llvm::initializeAnalysis(*llvm::PassRegistry::getPassRegistry());
-
-    // Force settings to be consistent
-    if (mSettings.ints == IntRepresentation::Integers) {
-        emit_warning("-math-int mode forces havoc memory model, analysis may be unsound\n");
-        mSettings.memoryModel = MemoryModelSetting::Havoc;
-    }
 
     if (!PrintFinalModule.empty()) {
         std::error_code ec;
@@ -137,6 +129,8 @@ LLVMFrontend::LLVMFrontend(
 
 void LLVMFrontend::registerVerificationPipeline()
 {
+    mPassManager.add(createLLVMFrontendSettingsProviderPass());
+
     if (SkipPipeline) {
         mPassManager.add(new llvm::DominatorTreeWrapperPass());
         this->registerVerificationStep();
@@ -162,10 +156,12 @@ void LLVMFrontend::registerVerificationPipeline()
     // Unify function exit nodes
     mPassManager.add(llvm::createUnifyFunctionExitNodesPass());
 
+    // TODO
+    LLVMFrontendSettings settings = LLVMFrontendSettings::initFromCommandLine();
     // Run assertion lifting.
-    if (mSettings.liftAsserts) {
+    if (settings.liftAsserts) {
         mPassManager.add(new llvm::CallGraphWrapperPass());
-        mPassManager.add(gazer::createLiftErrorCallsPass(*mSettings.getEntryFunction(*mModule)));
+        mPassManager.add(gazer::createLiftErrorCallsPass(/* *settings.getEntryFunction(*mModule)*/));
 
         // Assertion lifting creates a lot of dead code. Run a lightweight DCE pass 
         // and a subsequent CFG simplification to clean up.
@@ -201,17 +197,19 @@ void LLVMFrontend::registerVerificationPipeline()
 void LLVMFrontend::registerVerificationStep()
 {
     // Perform module-to-automata translation.
-    mPassManager.add(new gazer::MemoryModelWrapperPass(mContext, mSettings));
-    mPassManager.add(new gazer::ModuleToAutomataPass(mContext, mSettings));
+    mPassManager.add(new gazer::MemoryModelWrapperPass(mContext/*, mSettings*/));
+    mPassManager.add(new gazer::ModuleToAutomataPass(mContext/*, mSettings*/));
 
     // Execute the verifier backend if there is one.
     if (mBackendAlgorithm != nullptr) {
-        mPassManager.add(new RunVerificationBackendPass(mChecks, *mBackendAlgorithm, mSettings));
+        mPassManager.add(new RunVerificationBackendPass(mChecks, *mBackendAlgorithm/*, mSettings*/));
     }
 }
 
 bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
 {
+    auto& settings = getAnalysis<LLVMFrontendSettingsProviderPass>()
+        .getSettings();
     auto& moduleToCfa = getAnalysis<ModuleToAutomataPass>();
 
     AutomataSystem& system = moduleToCfa.getSystem();
@@ -228,7 +226,7 @@ bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
             llvm::outs() << "Verification FAILED.\n";
             llvm::outs() << "  " << msg << "\n";
 
-            if (mSettings.trace) {
+            if (settings.trace) {
                 auto writer = trace::CreateTextWriter(llvm::outs(), true);
                 llvm::outs() << "Error trace:\n";
                 llvm::outs() << "------------\n";
@@ -239,24 +237,24 @@ bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
                 }
             }
             
-            if (!mSettings.witness.empty() && fail->hasTrace() && !mSettings.hash.empty()) {
+            if (!settings.witness.empty() && fail->hasTrace() && !settings.hash.empty()) {
                 if (fail->hasTrace()) {
                     std::error_code EC{};
-                    llvm::raw_fd_ostream fouts{ StringRef{mSettings.witness}, EC };
+                    llvm::raw_fd_ostream fouts{ StringRef{settings.witness}, EC };
                     
-                    ViolationWitnessWriter witnessWriter{ fouts, mSettings.hash };
+                    ViolationWitnessWriter witnessWriter{ fouts, settings.hash };
                     
                     witnessWriter.initializeWitness();
                     witnessWriter.write(fail->getTrace());
                     witnessWriter.closeWitness();
-                } else if (mSettings.hash.empty()) {
+                } else if (settings.hash.empty()) {
                     llvm::outs() << "Hash of the source file must be given to produce a witness (--hash)";
-                } else if (!mSettings.witness.empty()) {
+                } else if (!settings.witness.empty()) {
                     llvm::outs() << "Error witness is unavailable.\n";
                 }
             }
 
-            if (!mSettings.testHarnessFile.empty() && fail->hasTrace()) {
+            if (!settings.testHarnessFile.empty() && fail->hasTrace()) {
                 llvm::outs() << "Generating test harness.\n";
                 auto test = GenerateTestHarnessModuleFromTrace(
                     fail->getTrace(), 
@@ -264,7 +262,7 @@ bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
                     module
                 );
 
-                llvm::StringRef filename(mSettings.testHarnessFile);
+                llvm::StringRef filename(settings.testHarnessFile);
                 std::error_code osError;
                 llvm::raw_fd_ostream testOS(filename, osError, llvm::sys::fs::OpenFlags::OF_None);
 
@@ -278,14 +276,14 @@ bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
         }
         case VerificationResult::Success:
             llvm::outs() << "Verification SUCCESSFUL.\n";
-            if (!mSettings.witness.empty() && !mSettings.hash.empty()) {
+            if (!settings.witness.empty() && !settings.hash.empty()) {
                 // puts the witness file in the working directory of gazer
                 std::error_code EC{};
-                llvm::raw_fd_ostream fouts{ StringRef{mSettings.witness}, EC };
+                llvm::raw_fd_ostream fouts{ StringRef{settings.witness}, EC };
                 
-                CorrectnessWitnessWriter witnessWriter{ fouts, mSettings.hash };
+                CorrectnessWitnessWriter witnessWriter{ fouts, settings.hash };
                 witnessWriter.outputWitness();
-            } else if(!mSettings.witness.empty() && mSettings.hash.empty()) {
+            } else if(!settings.witness.empty() && settings.hash.empty()) {
                 llvm::outs() << "Hash of the source file must be given to produce a witness (--hash)";
             }
             break;
@@ -314,20 +312,23 @@ void LLVMFrontend::registerEnabledChecks()
 
 void LLVMFrontend::registerInlining()
 {
-    if (mSettings.inlineLevel != InlineLevel::Off) {
+    // TODO ; static because of internalizepass
+    static LLVMFrontendSettings settings = LLVMFrontendSettings::initFromCommandLine();
+    if (settings.inlineLevel != InlineLevel::Off) {
         mPassManager.add(llvm::createInternalizePass([this](auto& gv) {
+            // TODO move to a class, require the analysis pass, etc.
             if (auto fun = llvm::dyn_cast<llvm::Function>(&gv)) {
-                return mSettings.getEntryFunction(*gv.getParent()) == fun;
+                return settings.getEntryFunction(*gv.getParent()) == fun;
             }
             return false;
         }));
-        mPassManager.add(gazer::createSimpleInlinerPass(*mSettings.getEntryFunction(*mModule), mSettings.inlineLevel));
+        mPassManager.add(gazer::createSimpleInlinerPass());
 
         // Remove dead functions
         mPassManager.add(llvm::createGlobalDCEPass());
 
         // Inline eligible global variables
-        if (mSettings.inlineGlobals) {
+        if (settings.inlineGlobals) {
             mPassManager.add(gazer::createInlineGlobalVariablesPass());
         }
 
@@ -351,7 +352,9 @@ void LLVMFrontend::run()
 
 void LLVMFrontend::registerEarlyOptimizations()
 {
-    if (!mSettings.optimize) {
+    // TODO
+    LLVMFrontendSettings settings = LLVMFrontendSettings::initFromCommandLine();
+    if (!settings.optimize) {
         return;
     }
 
@@ -401,7 +404,9 @@ void LLVMFrontend::registerEarlyOptimizations()
 
 void LLVMFrontend::registerLateOptimizations()
 {
-    if (mSettings.optimize) {
+    // TODO
+    LLVMFrontendSettings settings = LLVMFrontendSettings::initFromCommandLine();
+    if (settings.optimize) {
         mPassManager.add(llvm::createBasicAAWrapperPass());
         mPassManager.add(llvm::createLICMPass());
     }
