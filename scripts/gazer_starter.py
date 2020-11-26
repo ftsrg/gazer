@@ -16,8 +16,8 @@ from subprocess import Popen, PIPE, TimeoutExpired
 from time import monotonic as timer
 
 # TODO tweak timeouts, should the cartpred config get a timeout?
-bmc_timeout = 200.0  # timeout of bmc run
-theta_explicit_timeout = 200.0  # timeout of explicit theta run
+bmc_timeout = 150.0  # timeout of bmc run
+theta_explicit_timeout = 100.0  # timeout of explicit theta run
 test_harness_compile_timeout = 50.0  # timeout of compiling test harness/counterexample
 counterexample_run_timeout = 100.0  # timeout of running the generated counterexample
 
