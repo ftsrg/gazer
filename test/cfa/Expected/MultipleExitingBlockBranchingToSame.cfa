@@ -1,0 +1,239 @@
+procedure main() -> (main/RET_VAL : Bv32)
+{
+    var main/RET_VAL : Bv32
+    var main/Memory_0_mem : [Bv64 -> Bv8]
+    var main/Memory_3_mem : [Bv64 -> Bv8]
+    var main/Memory_4_mem : [Bv64 -> Bv8]
+    var main/Memory_5_mem : [Bv64 -> Bv8]
+    var main/Memory_6_mem : [Bv64 -> Bv8]
+    var main/tmp6 : Bv32
+    var main/tmp8 : Bv32
+    var main/__output_selector0 : Int
+
+    loc $0 entry 
+    loc $1 final 
+    loc $2
+    loc $3
+    loc $4
+    loc $5
+    loc $6
+    loc $7
+    loc $8
+    loc $9 error
+    loc $10
+    loc $11
+    loc $12
+
+    transition $0 -> $2
+        assume true
+    {
+    };
+
+    transition $2 -> $3
+        assume true
+    {
+        main/Memory_0_mem := undef;
+    };
+
+    transition $3 -> $12
+        assume true
+        call main/bb3(main/bb3/Memory_5 := main/Memory_0_mem, main/bb3/b.0 := 16fp32, main/bb3/StackPtr_1 := 1073741824bv64, main/bb3/FramePtr_2 := 1073741824bv64, main/tmp6 <= main/bb3/tmp6_out, main/__output_selector0 <= main/bb3/__output_selector);
+
+    transition $12 -> $4
+        assume main/__output_selector0 = 0
+    {
+        main/tmp8 := 12bv32;
+    };
+
+    transition $12 -> $4
+        assume main/__output_selector0 = 1
+    {
+        main/tmp8 := main/tmp6;
+    };
+
+    transition $4 -> $5
+        assume true
+    {
+    };
+
+    transition $5 -> $8
+        assume main/tmp8 = 0bv32
+    {
+    };
+
+    transition $5 -> $6
+        assume not (main/tmp8 = 0bv32)
+    {
+    };
+
+    transition $6 -> $7
+        assume true
+    {
+    };
+
+    transition $7 -> $10
+        assume true
+    {
+    };
+
+    transition $8 -> $9
+        assume true
+    {
+    };
+
+    transition $9 -> $10
+        assume true
+    {
+    };
+
+    transition $10 -> $11
+        assume true
+    {
+    };
+
+    transition $11 -> $1
+        assume false
+    {
+    };
+
+}
+
+procedure main/bb3(main/bb3/Memory_5 : [Bv64 -> Bv8], main/bb3/StackPtr_1 : Bv64, main/bb3/FramePtr_2 : Bv64, main/bb3/b.0 : Float32) -> (main/bb3/tmp6_out : Bv32, main/bb3/__output_selector : Int)
+{
+    var main/bb3/Memory_3 : [Bv64 -> Bv8]
+    var main/bb3/Memory_4 : [Bv64 -> Bv8]
+    var main/bb3/tmp4 : Float32
+    var main/bb3/tmp5 : Bool
+    var main/bb3/tmp6 : Bv32
+    var main/bb3/tmp6_out : Bv32
+    var main/bb3/tmp7 : Bool
+    var main/bb3/__output_selector : Int
+
+    loc $0 entry 
+    loc $1 final 
+    loc $2
+    loc $3
+    loc $4
+    loc $5
+    loc $6
+    loc $7
+    loc $8
+    loc $9
+    loc $10
+    loc $11
+    loc $12
+
+    transition $0 -> $2
+        assume true
+    {
+    };
+
+    transition $2 -> $3
+        assume true
+    {
+        main/bb3/tmp4 := fp.mul(fp.mul(main/bb3/b.0,3fp32),0.25fp32);
+        main/bb3/tmp5 := undef;
+    };
+
+    transition $3 -> $1
+        assume main/bb3/tmp5
+    {
+        main/bb3/__output_selector := 0;
+        main/bb3/tmp6_out := main/bb3/tmp6;
+    };
+
+    transition $3 -> $4
+        assume not main/bb3/tmp5
+    {
+    };
+
+    transition $4 -> $8
+        assume true
+    {
+    };
+
+    transition $8 -> $9
+        assume true
+        call a(a/arg := 12bv32, a/Memory_0_mem := main/bb3/Memory_5, a/StackPtr_1_mem := main/bb3/StackPtr_1, a/FramePtr_2_mem := main/bb3/FramePtr_2, main/bb3/Memory_3 <= a/Memory_0_mem);
+
+    transition $9 -> $5
+        assume true
+    {
+        main/bb3/tmp6 := fp_to_si.float32.bv32(main/bb3/tmp4);
+        main/bb3/tmp7 := undef;
+    };
+
+    transition $5 -> $1
+        assume main/bb3/tmp7
+    {
+        main/bb3/__output_selector := 1;
+        main/bb3/tmp6_out := main/bb3/tmp6;
+    };
+
+    transition $5 -> $6
+        assume not main/bb3/tmp7
+    {
+    };
+
+    transition $6 -> $10
+        assume true
+    {
+    };
+
+    transition $10 -> $11
+        assume true
+        call a(a/arg := main/bb3/tmp6, a/Memory_0_mem := main/bb3/Memory_3, a/StackPtr_1_mem := main/bb3/StackPtr_1, a/FramePtr_2_mem := main/bb3/FramePtr_2, main/bb3/Memory_4 <= a/Memory_0_mem);
+
+    transition $11 -> $7
+        assume true
+    {
+    };
+
+    transition $7 -> $12
+        assume true
+    {
+    };
+
+    transition $12 -> $1
+        assume true
+        call main/bb3(main/bb3/Memory_5 := main/bb3/Memory_4, main/bb3/b.0 := main/bb3/tmp4, main/bb3/StackPtr_1 := main/bb3/StackPtr_1, main/bb3/FramePtr_2 := main/bb3/FramePtr_2, main/bb3/tmp6_out <= main/bb3/tmp6_out, main/bb3/__output_selector <= main/bb3/__output_selector);
+
+}
+
+procedure a(a/arg : Bv32, a/Memory_0_mem : [Bv64 -> Bv8], a/StackPtr_1_mem : Bv64, a/FramePtr_2_mem : Bv64) -> (a/Memory_0_mem : [Bv64 -> Bv8])
+{
+
+    loc $0 entry 
+    loc $1 final 
+    loc $2
+    loc $3
+    loc $4
+    loc $5
+
+    transition $0 -> $2
+        assume true
+    {
+    };
+
+    transition $2 -> $4
+        assume true
+    {
+    };
+
+    transition $4 -> $5
+        assume not (a/arg = 0bv32)
+    {
+    };
+
+    transition $5 -> $3
+        assume true
+    {
+    };
+
+    transition $3 -> $1
+        assume true
+    {
+    };
+
+}
+

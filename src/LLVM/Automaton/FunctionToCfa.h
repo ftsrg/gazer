@@ -64,9 +64,12 @@ public:
     Cfa* Automaton;
     std::variant<llvm::Function*, llvm::Loop*> Source;
 
+    using ExitEdge = std::pair<const llvm::BasicBlock*, const llvm::BasicBlock*>;
+
+
     // For automata with multiple exit paths, this variable tells us which was taken.
     Variable* ExitVariable = nullptr;
-    llvm::SmallDenseMap<const llvm::BasicBlock*, ExprRef<LiteralExpr>, 4> ExitBlocks;
+    llvm::SmallDenseMap<ExitEdge, ExprRef<LiteralExpr>> ExitEdges;
 
     // For functions with return values
     Variable* ReturnVariable = nullptr;
@@ -381,12 +384,12 @@ private:
         Location* exit
     );
 
-    void createExitTransition(const llvm::BasicBlock* target, Location* pred, const ExprPtr& succCondition);
+    void createExitTransition(const llvm::BasicBlock* source, const llvm::BasicBlock* target, Location* pred, const ExprPtr& succCondition);
     void createCallToLoop(
         llvm::Loop* loop, const llvm::BasicBlock* source, const llvm::BasicBlock* target,
         const ExprPtr& condition, Location* exit);
 
-    ExprPtr getExitCondition(const llvm::BasicBlock* target, Variable* exitSelector, CfaGenInfo& nestedInfo);
+    ExprPtr getExitCondition(const llvm::BasicBlock* source, const llvm::BasicBlock* target, Variable* exitSelector, CfaGenInfo& nestedInfo);
     size_t getNumUsesInBlocks(const llvm::Instruction* inst) const;
 
     ExtensionPointImpl createExtensionPoint(

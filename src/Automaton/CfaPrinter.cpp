@@ -76,13 +76,7 @@ struct DOTGraphTraits<Cfa> : public DefaultDOTGraphTraits
 
         const Location* target = *edgeIt;
 
-        const Transition* edge = nullptr;
-        for (const Transition* ei : loc->outgoing()) {
-            if (ei->getTarget() == target) {
-                edge = ei;
-                break;
-            }
-        }
+        const Transition* edge = *(edgeIt.getCurrent());
 
         assert(edge != nullptr);
 
@@ -240,7 +234,7 @@ void Cfa::print(llvm::raw_ostream& os) const
                 os << ", ";
             }
             join_print_as(os, call->output_begin(), call->output_end(), ", ", printCallOutput);
-            os << ");\n";            
+            os << ");\n";
         } else {
             llvm_unreachable("Unknown transition kind.");
         }
