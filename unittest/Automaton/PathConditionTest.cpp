@@ -101,4 +101,53 @@ TEST(PathConditionTest, PredecessorTest)
     ASSERT_EQ(expected, actual);
 }
 
+
+TEST(PathConditionTest, TestParallelEdges)
+{
+    GazerContext ctx;
+    AutomataSystem system(ctx);
+
+    Cfa* cfa = system.createCfa("main");
+    auto x = cfa->createLocal("x", IntType::Get(ctx));
+
+    // l0, l1 are reserved for entry and exit
+    auto l2 = cfa->createLocation();
+    auto le = cfa->createErrorLocation();
+
+    // l0 --> l2 { x := 1 }
+    // l0 --> l2 { x := 1 }
+    cfa->createAssignTransition(cfa->getEntry(), l2, {
+        { x, IntLiteralExpr::Get(ctx, 1) }
+    });
+    cfa->createAssignTransition(cfa->getEntry(), l2, {
+        { x, IntLiteralExpr::Get(ctx, 1) }
+    });
+
+    // l2 --> le
+    cfa->createAssignTransition(l2, le);
+
+    // le --> exit [False]
+    cfa->createAssignTransition(le, cfa->getExit(), BoolLiteralExpr::False(ctx));
+
+    std::vector<Location*> topo;
+    llvm::DenseMap<Location*, size_t> indexMap;
+    createTopologicalSort(*cfa, topo, &indexMap);
+    auto builder = CreateFoldingExprBuilder(ctx);
+
+    PathConditionCalculator pathCond(
+        topo, *builder,
+        [&indexMap](auto l) { return indexMap[l]; },
+        [&ctx](auto t) { return BoolLiteralExpr::True(ctx); },
+        nullptr
+    );
+
+    auto expected = builder->Or({
+        builder->Eq(x->getRefExpr(), builder->IntLit(1)),
+        builder->Eq(x->getRefExpr(), builder->IntLit(1)),
+    });
+
+    auto actual = pathCond.encode(cfa->getEntry(), le);
+    ASSERT_EQ(expected, actual);
+}
+
 }

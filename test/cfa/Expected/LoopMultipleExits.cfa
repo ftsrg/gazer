@@ -5,8 +5,8 @@ procedure main() -> (main/RET_VAL : Bv32)
     var main/sum : Bv32
     var main/__output_selector0 : Bv8
 
-    loc $0 entry 
-    loc $1 final 
+    loc $0 entry
+    loc $1 final
     loc $2
     loc $3
     loc $4
@@ -41,7 +41,7 @@ procedure main() -> (main/RET_VAL : Bv32)
     };
 
     transition $8 -> $4
-        assume main/__output_selector0 = 0bv8
+        assume main/__output_selector0 = 2bv8
     {
     };
 
@@ -68,6 +68,7 @@ procedure main() -> (main/RET_VAL : Bv32)
     };
 
 }
+
 procedure main/loop.header(main/loop.header/i : Bv32, main/loop.header/sum : Bv32, main/loop.header/limit : Bv32) -> (main/loop.header/sum_out : Bv32, main/loop.header/__output_selector : Bv8)
 {
     var main/loop.header/sum_out : Bv32
@@ -80,8 +81,8 @@ procedure main/loop.header(main/loop.header/i : Bv32, main/loop.header/sum : Bv3
     var main/loop.header/c1 : Bool
     var main/loop.header/__output_selector : Bv8
 
-    loc $0 entry 
-    loc $1 final 
+    loc $0 entry
+    loc $1 final
     loc $2
     loc $3
     loc $4
@@ -144,7 +145,7 @@ procedure main/loop.header(main/loop.header/i : Bv32, main/loop.header/sum : Bv3
     transition $7 -> $1
         assume main/loop.header/c1
     {
-        main/loop.header/__output_selector := 0bv8;
+        main/loop.header/__output_selector := 2bv8;
         main/loop.header/sum_out := main/loop.header/sum;
     };
 
@@ -158,3 +159,4 @@ procedure main/loop.header(main/loop.header/i : Bv32, main/loop.header/sum : Bv3
         call main/loop.header(main/loop.header/i := main/loop.header/i1, main/loop.header/sum := main/loop.header/s, main/loop.header/limit := main/loop.header/limit, main/loop.header/sum_out <= main/loop.header/sum_out, main/loop.header/__output_selector <= main/loop.header/__output_selector);
 
 }
+

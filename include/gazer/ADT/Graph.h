@@ -213,7 +213,7 @@ protected:
     EdgeTy* createEdge(NodeTy* source, NodeTy* target)
     {
         auto& edge = mEdges.emplace_back(std::make_unique<EdgeTy>(source, target));
-        
+
         static_cast<GraphNode<NodeTy, EdgeTy>*>(source)->mOutgoing.emplace_back(&*edge);
         static_cast<GraphNode<NodeTy, EdgeTy>*>(target)->mIncoming.emplace_back(&*edge);
 
@@ -226,7 +226,7 @@ protected:
         auto& edge = mEdges.emplace_back(std::make_unique<EdgeTy>(
             source, target, std::forward<Args...>(args...)
         ));
-        
+
         source->mOutgoing.emplace_back(&*edge);
         target->mIncoming.emplace_back(&*edge);
 
