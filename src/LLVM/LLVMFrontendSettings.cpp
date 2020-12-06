@@ -17,6 +17,11 @@
 //===----------------------------------------------------------------------===//
 #include "gazer/LLVM/LLVMFrontendSettings.h"
 #include "gazer/LLVM/Instrumentation/Check.h"
+#include "gazer/Support/Warnings.h"
+
+// TODO these are bad dependencies
+#include "gazer/LLVM/Memory/MemoryModel.h"
+#include "gazer/LLVM/Automaton/InstToExpr.h"
 
 #include <llvm/IR/Module.h>
 #include <llvm/Support/CommandLine.h>
@@ -68,9 +73,6 @@ namespace
         cl::init(ElimVarsLevel::Normal),
         cl::cat(IrToCfaCategory)
     );
-    cl::opt<bool> ArithInts(
-        "math-int", cl::desc("Use mathematical unbounded integers instead of bitvectors"),
-        cl::cat(IrToCfaCategory));
     cl::opt<bool> NoSimplifyExpr(
         "no-simplify-expr", cl::desc("Do not simplify expressions"),
         cl::cat(IrToCfaCategory)
@@ -84,14 +86,6 @@ namespace
     // Memory models
     cl::opt<bool> DebugDumpMemorySSA(
         "dump-memssa", cl::desc("Dump the built MemorySSA information to stderr"),
-        cl::cat(IrToCfaCategory)
-    );
-    cl::opt<MemoryModelSetting> MemoryModelOpt("memory", cl::desc("Memory model to use:"),
-        cl::values(
-            clEnumValN(MemoryModelSetting::Flat, "flat", "Bit-precise flat memory model"),
-            clEnumValN(MemoryModelSetting::Havoc, "havoc", "Dummy havoc model")
-        ),
-        cl::init(MemoryModelSetting::Flat),
         cl::cat(IrToCfaCategory)
     );
 
@@ -158,14 +152,14 @@ LLVMFrontendSettings LLVMFrontendSettings::initFromCommandLine()
 
     settings.inlineLevel = InlineLevelOpt;
     settings.elimVars = ElimVarsLevelOpt;
-    settings.memoryModel = MemoryModelOpt;
+    settings.memoryModel = getMemoryModel();
 
     settings.checks = EnabledChecks;
 
 
     settings.function = EntryFunctionName;
 
-    if (ArithInts) {
+    if (gazer::isArithmeticInteger()) {
         settings.ints = IntRepresentation::Integers;
     } else {
         settings.ints = IntRepresentation::BitVectors;
@@ -177,6 +171,12 @@ LLVMFrontendSettings LLVMFrontendSettings::initFromCommandLine()
     settings.witness = GenerateWitness;
     settings.hash = Hash;
     settings.testHarnessFile = TestHarnessFile;
+
+    // Force settings to be consistent
+    if (settings.ints == IntRepresentation::Integers) {
+        emit_warning("-math-int mode forces havoc memory model, analysis may be unsound\n");
+        settings.memoryModel = MemoryModelSetting::Havoc;
+    }
 
     return settings;
 }

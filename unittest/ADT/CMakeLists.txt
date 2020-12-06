@@ -4,5 +4,5 @@ SET(TEST_SOURCES
 )
 
 add_executable(GazerAdtTest ${TEST_SOURCES})
-target_link_libraries(GazerAdtTest gtest_main GazerSupport)
+target_link_libraries(GazerAdtTest gtest_main GazerLLVM)
 add_test(GazerAdtTest GazerAdtTest)

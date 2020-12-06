@@ -26,6 +26,14 @@
 using namespace gazer;
 using namespace llvm;
 
+namespace {
+
+cl::opt<bool> ArithInts(
+    "math-int", cl::desc("Use mathematical unbounded integers instead of bitvectors"),
+    cl::cat(IrToCfaCategory));
+
+}
+
 ExprPtr InstToExpr::transform(const llvm::Instruction &inst, Type &expectedType)
 {
     ExprPtr result = this->doTransform(inst, expectedType);
@@ -994,4 +1002,9 @@ ExprPtr InstToExpr::castResult(const ExprPtr& expr, const Type& type)
 gazer::Type& InstToExpr::translateType(const llvm::Type* type)
 {
     return mTypes.get(type);
+}
+
+bool& gazer::isArithmeticInteger()
+{
+    return ArithInts.getValue();
 }

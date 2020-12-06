@@ -101,8 +101,11 @@ int main(int argc, char* argv[])
     Z3SolverFactory solverFactory;
 
     auto bmcSettings = initBmcSettingsFromCommandLine();
-    bmcSettings.simplifyExpr = frontend->getSettings().simplifyExpr;
-    bmcSettings.trace = frontend->getSettings().trace;
+
+    // TODO
+    LLVMFrontendSettings settings = LLVMFrontendSettings::initFromCommandLine();
+    bmcSettings.simplifyExpr = settings.simplifyExpr;
+    bmcSettings.trace = settings.trace;
 
     frontend->setBackendAlgorithm(new BoundedModelChecker(solverFactory, bmcSettings));
     frontend->registerVerificationPipeline();

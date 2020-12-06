@@ -34,7 +34,6 @@
 using namespace gazer;
 
 FrontendConfig::FrontendConfig()
-    : mSettings(LLVMFrontendSettings::initFromCommandLine())
 {
     // Insert default checks
     registerCheck("assertion-fail",     &checks::createAssertionFailCheck);
@@ -62,20 +61,22 @@ auto FrontendConfig::buildFrontend(
         return nullptr;
     }
 
-    if (!mSettings.validate(*module, llvm::errs())) {
+    // TODO
+    LLVMFrontendSettings settings = LLVMFrontendSettings::initFromCommandLine();
+    if (!settings.validate(*module, llvm::errs())) {
         llvm::errs() << "Settings could not be applied to the input module.\n";
         return nullptr;
     }
 
-    auto frontend = std::make_unique<LLVMFrontend>(std::move(module), context, mSettings);
+    auto frontend = std::make_unique<LLVMFrontend>(std::move(module), context);
 
     // The Witness generator has to get the initial name of the sourcefile
     // ( witnesses support programs with a single source file only )
-    if (!mSettings.witness.empty()) {
+    if (!settings.witness.empty()) {
         if (inputs.size()!=1) {
             llvm::errs() << "Witnesses support programs with a single source file only. Gazer won't generate a witness, as there were more than one input files";
-            mSettings.witness = "";
-            mSettings.hash = "";
+            settings.witness = "";
+            settings.hash = "";
         } else { // TODO something more elegant?
             llvm::StringRef filename = llvm::sys::path::filename(inputs[0]);
             gazer::ViolationWitnessWriter::SourceFileName = filename;
@@ -93,7 +94,9 @@ auto FrontendConfig::buildFrontend(
 
 void FrontendConfig::createChecks(std::vector<std::unique_ptr<Check>>& checks)
 {
-    std::string filter = llvm::StringRef{mSettings.checks}.lower();
+    // TODO
+    LLVMFrontendSettings settings = LLVMFrontendSettings::initFromCommandLine();
+    std::string filter = llvm::StringRef{settings.checks}.lower();
     llvm::SmallVector<llvm::StringRef, 8> fragments;
     if (filter.empty()) {
         // Do the defaults

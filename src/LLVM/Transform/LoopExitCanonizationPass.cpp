@@ -110,6 +110,11 @@ bool LoopExitCanonizationPass::runOnFunction(llvm::Function& function)
     return changed;
 }
 
+static llvm::RegisterPass<LoopExitCanonizationPass> X("gazer-canonize-loop-exit",
+                                                      "Gazer loop exit canonizer pass",
+                                                      false /* Only looks at CFG */,
+                                                      false /* Analysis Pass */);
+
 llvm::Pass* gazer::createCanonizeLoopExitsPass() {
     return new LoopExitCanonizationPass();
 }

@@ -23,6 +23,7 @@
 #include "gazer/LLVM/Transform/Passes.h"
 #include "gazer/LLVM/Instrumentation/Check.h"
 #include "gazer/LLVM/Transform/BackwardSlicer.h"
+#include "gazer/LLVM/LLVMFrontendSettingsProviderPass.h"
 
 #include <llvm/Analysis/CallGraph.h>
 #include <llvm/IR/IRBuilder.h>
@@ -105,20 +106,24 @@ public:
     static char ID;
 
 public:
-    LiftErrorCallsPass(llvm::Function* function)
-        : ModulePass(ID), mEntryFunction(function)
+    LiftErrorCallsPass()
+        : ModulePass(ID)
     {}
 
     void getAnalysisUsage(AnalysisUsage& au) const override
     {
         au.addRequired<CallGraphWrapperPass>();
+        au.addRequired<LLVMFrontendSettingsProviderPass>();
     }
 
     bool runOnModule(Module& module) override
     {
         auto& cg = getAnalysis<CallGraphWrapperPass>();
+        auto* entryFunction = getAnalysis<LLVMFrontendSettingsProviderPass>()
+            .getSettings()
+            .getEntryFunction(module);
 
-        LiftErrorCalls impl(module, cg.getCallGraph(), *mEntryFunction);
+        LiftErrorCalls impl(module, cg.getCallGraph(), *entryFunction);
         return impl.run();
     }
 
@@ -318,7 +323,7 @@ bool LiftErrorCalls::run()
     return true;
 }
 
-llvm::Pass* gazer::createLiftErrorCallsPass(llvm::Function& entry)
+llvm::Pass* gazer::createLiftErrorCallsPass()
 {
-    return new LiftErrorCallsPass(&entry);
+    return new LiftErrorCallsPass();
 }

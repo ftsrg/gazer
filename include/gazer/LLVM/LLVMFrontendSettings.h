@@ -19,6 +19,7 @@
 #define GAZER_LLVM_LLVMFRONTENDSETTINGS_H
 
 #include <string>
+#include <llvm/Support/CommandLine.h>
 
 namespace llvm
 {
@@ -28,6 +29,17 @@ class Module;
 class Function;
 
 } // namespace llvm
+
+// settings getting sinked to their respective classes, etc.
+// this helps appending a settings to their respective category without
+// having to be in the same file
+namespace gazer
+{
+extern llvm::cl::OptionCategory LLVMFrontendCategory;
+extern llvm::cl::OptionCategory IrToCfaCategory;
+extern llvm::cl::OptionCategory TraceCategory;
+extern llvm::cl::OptionCategory ChecksCategory;
+} // end namespace gazer
 
 namespace gazer
 {

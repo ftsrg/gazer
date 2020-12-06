@@ -118,6 +118,8 @@ protected:
     const LLVMFrontendSettings& mSettings;
 };
 
+bool& isArithmeticInteger();
+
 } // end namespace gazer
 
 #endif

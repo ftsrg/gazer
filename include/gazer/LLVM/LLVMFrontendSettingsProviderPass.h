@@ -1,6 +1,6 @@
 //==-------------------------------------------------------------*- C++ -*--==//
 //
-// Copyright 2019 Contributors to the Gazer project
+// Copyright 2020 Contributors to the Gazer project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,32 +15,28 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
-#ifndef GAZER_CORE_TRANSFORM_PASSES_H
-#define GAZER_CORE_TRANSFORM_PASSES_H
+#ifndef GAZER_LLVMFRONTENDSETTINGSPROVIDERPASS_H
+#define GAZER_LLVMFRONTENDSETTINGSPROVIDERPASS_H
 
 #include "gazer/LLVM/LLVMFrontendSettings.h"
 
 #include <llvm/Pass.h>
 
-namespace gazer
-{
+namespace gazer {
 
-/// InlineGlobalVariables - This pass inlines all global variables into
-/// the main function of the program.
-llvm::Pass* createInlineGlobalVariablesPass();
+class LLVMFrontendSettingsProviderPass final : public llvm::ImmutablePass {
+    LLVMFrontendSettings mSettings;
+public:
+    void initializePass() override;
 
-/// This pass combines each 'gazer.error_code' call within the function
-/// into a single one.
-llvm::Pass* createLiftErrorCallsPass();
+    static char ID;
+    LLVMFrontendSettingsProviderPass() : llvm::ImmutablePass(ID) { }
 
-/// This pass normalizes some known verifier calls into a uniform format.
-llvm::Pass* createNormalizeVerifierCallsPass();
+    virtual gazer::LLVMFrontendSettings& getSettings() { return mSettings; }
+};
 
-/// A simpler (and more restricted) inlining pass.
-llvm::Pass* createSimpleInlinerPass();
+llvm::Pass* createLLVMFrontendSettingsProviderPass();
 
-llvm::Pass* createCanonizeLoopExitsPass();
+} // namespace gazer
 
-}
-
-#endif
+#endif // GAZER_LLVMFRONTENDSETTINGSPROVIDERPASS_H

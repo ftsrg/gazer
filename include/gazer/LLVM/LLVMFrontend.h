@@ -63,14 +63,14 @@ public:
         llvm::LLVMContext& llvmContext
     );
 
-    LLVMFrontendSettings& getSettings() { return mSettings; }
+    //LLVMFrontendSettings& getSettings() { return mSettings; }
 
 private:
     void createChecks(std::vector<std::unique_ptr<Check>>& checks);
 
 private:
     ClangOptions mClangSettings;
-    LLVMFrontendSettings mSettings;
+    //LLVMFrontendSettings mSettings;
     std::map<std::string, CheckFactory> mFactories;
 };
 
@@ -88,7 +88,7 @@ public:
         return config.buildFrontend(inputs, context, llvmContext);
     }
 
-    LLVMFrontendSettings& getSettings() { return config.getSettings(); }
+    //LLVMFrontendSettings& getSettings() { return config.getSettings(); }
 
 private:
     llvm::llvm_shutdown_obj mShutdown; // This should be kept as first, will be destroyed last
@@ -103,8 +103,7 @@ class LLVMFrontend
 public:
     LLVMFrontend(
         std::unique_ptr<llvm::Module> module,
-        GazerContext& context,
-        LLVMFrontendSettings& settings
+        GazerContext& context
     );
 
     LLVMFrontend(const LLVMFrontend&) = delete;
@@ -140,7 +139,7 @@ public:
     void run();
 
     CheckRegistry& getChecks() { return mChecks; }
-    LLVMFrontendSettings& getSettings() { return mSettings; }
+    //LLVMFrontendSettings& getSettings() { return mSettings; }
 
     GazerContext& getContext() const { return mContext; }
     llvm::Module& getModule() const { return *mModule; }
@@ -159,8 +158,7 @@ private:
     CheckRegistry mChecks;
     llvm::legacy::PassManager mPassManager;
 
-    LLVMFrontendSettings& mSettings;
-    std::unique_ptr<VerificationAlgorithm> mBackendAlgorithm = nullptr; 
+    std::unique_ptr<VerificationAlgorithm> mBackendAlgorithm = nullptr;
 
     std::unique_ptr<llvm::ToolOutputFile> mModuleOutput = nullptr;
 };

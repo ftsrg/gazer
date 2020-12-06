@@ -1,4 +1,4 @@
-set(SOURCE_FILES
+set(MODULE_SOURCE_FILES
     Transform/InlineGlobalVariablesPass.cpp
     Transform/UndefToNondet.cpp
     Transform/LiftErrorsPass.cpp
@@ -14,12 +14,6 @@ set(SOURCE_FILES
     Automaton/InstToExpr.cpp
     Automaton/TranslationSupport.cpp
     Automaton/SpecialFunctions.cpp
-    LLVMTraceBuilder.cpp
-    TypeTranslator.cpp
-    LLVMFrontendSettings.cpp
-    LLVMFrontend.cpp
-    ClangFrontend.cpp
-    FrontendConfig.cpp
     Memory/MemoryObject.cpp
     Memory/FlatMemoryModel.cpp
     Memory/HavocMemoryModel.cpp
@@ -31,12 +25,28 @@ set(SOURCE_FILES
     Automaton/ExtensionPoints.cpp
     Automaton/ValueOrMemoryObject.cpp
     Analysis/PDG.cpp
+    TypeTranslator.cpp
     Instrumentation/Checks/AssertionFailCheck.cpp
     Instrumentation/Checks/DivisionByZeroCheck.cpp
-    Instrumentation/Checks/SignedIntegerOverflowCheck.cpp Transform/LoopExitCanonizationPass.cpp)
+    Instrumentation/Checks/SignedIntegerOverflowCheck.cpp Transform/LoopExitCanonizationPass.cpp
+)
+
+set(SOURCE_FILES
+    LLVMTraceBuilder.cpp
+    LLVMFrontendSettings.cpp
+    LLVMFrontend.cpp
+    ClangFrontend.cpp
+    FrontendConfig.cpp
+    LLVMFrontendSettingsProviderPass.cpp)
+
+# module for LLVM opt integration (use like opt -load src/LLVM/libGazerLLVMBare.so -gazer-... test.ll)
+add_library(GazerLLVMBare SHARED ${MODULE_SOURCE_FILES})
+target_link_libraries(GazerLLVMBare GazerCore GazerAutomaton GazerTrace GazerSupport)
 
 llvm_map_components_to_libnames(GAZER_LLVM_LIBS core irreader transformutils scalaropts ipo)
 message(STATUS "Using LLVM libraries: ${GAZER_LLVM_LIBS}")
 
+# original target, with libraries linked
+# add_library must have options
 add_library(GazerLLVM SHARED ${SOURCE_FILES})
-target_link_libraries(GazerLLVM ${GAZER_LLVM_LIBS} GazerCore GazerTrace GazerZ3Solver GazerAutomaton GazerVerifier)
+target_link_libraries(GazerLLVM GazerLLVMBare ${GAZER_LLVM_LIBS})

@@ -209,6 +209,10 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
 
 } // end anonymous namespace
 
+static llvm::RegisterPass<InlineGlobalVariablesPass> X("gazer-inline-global-vars", "Gazer Inline Global Variables",
+                             false /* Only looks at CFG */,
+                             false /* Analysis Pass */);
+
 namespace gazer
 {
 

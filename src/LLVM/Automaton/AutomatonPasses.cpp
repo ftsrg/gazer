@@ -27,6 +27,8 @@
 #include "gazer/LLVM/Automaton/SpecialFunctions.h"
 #include "gazer/LLVM/Memory/MemoryModel.h"
 
+#include <gazer/LLVM/LLVMFrontendSettingsProviderPass.h>
+
 using namespace gazer;
 using namespace gazer::llvm2cfa;
 
@@ -56,6 +58,7 @@ char ModuleToAutomataPass::ID;
 
 void ModuleToAutomataPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
 {
+    au.addRequired<LLVMFrontendSettingsProviderPass>();
     au.addRequired<llvm::DominatorTreeWrapperPass>();
     au.addRequired<MemoryModelWrapperPass>();
     au.setPreservesAll();
@@ -63,6 +66,8 @@ void ModuleToAutomataPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
 
 bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
 {
+    auto& settings = getAnalysis<LLVMFrontendSettingsProviderPass>()
+        .getSettings();
     // We need to save loop information here as a on-the-fly LoopInfo pass would delete
     // the acquired loop information when the lambda function exits.
     llvm::DenseMap<const llvm::Function*, std::unique_ptr<llvm::LoopInfo>> loopInfos;
@@ -86,9 +91,9 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
     auto specialFunctions = SpecialFunctions::get();
 
     mSystem = translateModuleToAutomata(
-        module, mSettings, loops, mContext, memoryModel, mVariables, mTraceInfo, specialFunctions.get());
+        module, settings, loops, mContext, memoryModel, mVariables, mTraceInfo, specialFunctions.get());
 
-    if (mSettings.loops == LoopRepresentation::Cycle) {
+    if (settings.loops == LoopRepresentation::Cycle) {
         // Transform the main automaton into a cyclic CFA if requested.
         // Note: This yields an invalid CFA, which will not be recognizable by
         // most built-in analysis algorithms. Use it only if you are going to
