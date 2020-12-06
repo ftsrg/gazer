@@ -37,24 +37,19 @@ class RegisterThreadingPass : public llvm::ModulePass
 {
     static char ID;
 
-public:
     // might contain duplicates
     std::vector<llvm::Function*> threadFunctions;
     gazer::LLVMFrontendSettings& settings;
+
+public:
     RegisterThreadingPass(gazer::LLVMFrontendSettings& settings)
         : ModulePass(ID), settings(settings)
     {}
 
 private:
-    static llvm::Function* getMainFunction(llvm::Module& m)
+    llvm::Function* getMainFunction(llvm::Module& m)
     {
-        for (auto& function : m) {
-            // TODO
-            if (function.hasName() && function.getName() == "main") {
-                return &function;
-            }
-        }
-        return nullptr;
+        return settings.getEntryFunction(m);
     }
 
     static llvm::Function* getOrInsertAssumeFunction(llvm::IRBuilder<>& irbuilder, llvm::Module& m)
@@ -98,8 +93,6 @@ private:
         createThreadStateVariable(llvm::IRBuilder<>& irbuilder, llvm::Module& m)
     {
         static int ctr = 0;
-        llvm::Twine name = "threading_global" + llvm::Twine(++ctr);
-
         /**
          *   GlobalVariable(Module &M, Type *Ty, bool isConstant,
                  LinkageTypes Linkage, Constant *Initializer,
@@ -109,7 +102,7 @@ private:
          */
         auto* falseVal = irbuilder.getInt1(false);
         return new llvm::GlobalVariable(
-            m, falseVal->getType(), false, llvm::GlobalValue::ExternalLinkage, falseVal, name);
+            m, falseVal->getType(), false, llvm::GlobalValue::ExternalLinkage, falseVal, "threading_global" + llvm::Twine(++ctr));
     }
 
 public:
@@ -123,13 +116,6 @@ public:
                 if (auto* callInst = llvm::dyn_cast<llvm::CallInst>(&inst)) {
                     if (callInst->getCalledFunction()->getName() == "pthread_create") {
                         toProcess.push_back(callInst);
-                        if (auto* threadFunction =
-                                llvm::dyn_cast<llvm::Function>(callInst->getArgOperand(2))) {
-                            threadFunctions.push_back(threadFunction);
-                            settings.registerThread(threadFunction);
-                        } else {
-                            llvm_unreachable("Bad pthread_create call");
-                        }
                     }
                 }
             }
@@ -142,7 +128,8 @@ public:
             auto* stateVar = createThreadStateVariable(irbuilder, m);
             irbuilder.CreateStore(irbuilder.getInt1(true), stateVar);
             if (auto* threadFunction = llvm::dyn_cast<llvm::Function>(proc->getArgOperand(2))) {
-                createThreadFunction(irbuilder, stateVar, threadFunction, m);
+                auto* threadMain = createThreadFunction(irbuilder, stateVar, threadFunction, m);
+                settings.registerThread(threadMain);
             } else {
                 llvm_unreachable("Bad pthread_create call");
             }
