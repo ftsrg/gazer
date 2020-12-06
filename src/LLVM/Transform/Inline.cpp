@@ -152,6 +152,11 @@ bool InlinePass::runOnModule(llvm::Module& module)
     return changed;
 }
 
+static llvm::RegisterPass<InlinePass> X("gazer-inline",
+                                                        "Gazer Simple inline pass",
+                                                        false /* Only looks at CFG */,
+                                                        false /* Analysis Pass */);
+
 llvm::Pass* gazer::createSimpleInlinerPass()
 {
     return new InlinePass();

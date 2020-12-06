@@ -147,6 +147,12 @@ public:
 
 char MarkFunctionEntriesPass::ID = 0;
 
+
+static llvm::RegisterPass<MarkFunctionEntriesPass> X("gazer-mark-function-entries",
+                                                      "Gazer function entry marker pass",
+                                                      false /* Only looks at CFG */,
+                                                      false /* Analysis Pass */);
+
 namespace gazer {
     llvm::Pass* createMarkFunctionEntriesPass() {
         return new MarkFunctionEntriesPass();

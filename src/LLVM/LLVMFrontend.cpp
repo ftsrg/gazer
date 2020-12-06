@@ -161,7 +161,7 @@ void LLVMFrontend::registerVerificationPipeline()
     // Run assertion lifting.
     if (settings.liftAsserts) {
         mPassManager.add(new llvm::CallGraphWrapperPass());
-        mPassManager.add(gazer::createLiftErrorCallsPass(/* *settings.getEntryFunction(*mModule)*/));
+        mPassManager.add(gazer::createLiftErrorCallsPass());
 
         // Assertion lifting creates a lot of dead code. Run a lightweight DCE pass 
         // and a subsequent CFG simplification to clean up.
