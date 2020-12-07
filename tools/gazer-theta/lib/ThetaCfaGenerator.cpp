@@ -19,6 +19,8 @@
 #include "ThetaCfaProcedureGenerator.h"
 #include "ThetaCommon.h"
 
+#include <queue>
+
 using namespace gazer;
 using namespace gazer::theta;
 
@@ -60,9 +62,23 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
         first = false;
         os << "process _" << mainAutomaton->getName() << " {\n";
 
-        for (auto& cfa : mSystem.automata()) {
-            ThetaCfaProcedureGenerator(&cfa, &cfa == mainAutomaton, isValidVarName, globalVars)
-                .write(os, nameTrace, xcfa);
+        auto* firstNode = mCallGraph.lookupNode(mainAutomaton);
+
+        ThetaCfaProcedureGenerator(mainAutomaton, true, isValidVarName, globalVars)
+            .write(os, nameTrace, xcfa);
+
+        std::queue<decltype(firstNode)> bfsStack;
+        bfsStack.push(firstNode);
+        while (!bfsStack.empty()) {
+            auto* node = bfsStack.front();
+            bfsStack.pop();
+            for (auto [_, child] : *node) {
+                auto* cfa = child->getCfa();
+                ThetaCfaProcedureGenerator(cfa, false, isValidVarName, globalVars)
+                    .write(os, nameTrace, xcfa);
+
+                bfsStack.push(child);
+            }
         }
         os << "}\n";
     }
