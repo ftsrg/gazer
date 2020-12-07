@@ -20,6 +20,7 @@
 #include "ThetaCommon.h"
 
 #include <queue>
+#include <unordered_set>
 
 using namespace gazer;
 using namespace gazer::theta;
@@ -64,18 +65,26 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
 
         auto* firstNode = mCallGraph.lookupNode(mainAutomaton);
 
-        ThetaCfaProcedureGenerator(mainAutomaton, true, isValidVarName, globalVars)
-            .write(os, nameTrace, xcfa);
-
         std::queue<decltype(firstNode)> bfsStack;
+        std::unordered_set<decltype(firstNode)> present;
         bfsStack.push(firstNode);
         while (!bfsStack.empty()) {
             auto* node = bfsStack.front();
             bfsStack.pop();
+            if (present.find(node) != present.end()) {
+                continue;
+            }
+
+            // process node, only once
+            present.insert(node);
+            auto* cfa = node->getCfa();
+            ThetaCfaProcedureGenerator(cfa, firstNode == node, isValidVarName, globalVars)
+                .write(os, nameTrace, xcfa);
+
             for (auto [_, child] : *node) {
-                auto* cfa = child->getCfa();
-                ThetaCfaProcedureGenerator(cfa, false, isValidVarName, globalVars)
-                    .write(os, nameTrace, xcfa);
+                if (present.find(child) != present.end()) { // fast-path
+                    continue;
+                }
 
                 bfsStack.push(child);
             }
