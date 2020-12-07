@@ -28,8 +28,6 @@ auto SpecialFunctions::get() -> std::unique_ptr<SpecialFunctions>
     // Verifier assumptions
     result->registerHandler("verifier.assume",   &SpecialFunctions::handleAssume, SpecialFunctionHandler::Memory_Pure);
     result->registerHandler("llvm.assume",       &SpecialFunctions::handleAssume, SpecialFunctionHandler::Memory_Pure);
-    result->registerHandler("pthread_create",       &SpecialFunctions::handleThreadCreate, SpecialFunctionHandler::Memory_Default);
-    result->registerHandler("pthread_join",       &SpecialFunctions::handleThreadJoin, SpecialFunctionHandler::Memory_Default);
 
     return result;
 }
@@ -62,22 +60,6 @@ auto SpecialFunctions::handle(llvm::ImmutableCallSite cs, llvm2cfa::GenerationSt
 //===----------------------------------------------------------------------===//
 
 void SpecialFunctions::handleAssume(llvm::ImmutableCallSite cs, llvm2cfa::GenerationStepExtensionPoint& ep)
-{
-    const llvm::Value* arg = cs.getArgOperand(0);
-    ExprPtr assumeExpr = ep.getAsOperand(arg);
-
-    ep.splitCurrentTransition(assumeExpr);
-}
-
-void SpecialFunctions::handleThreadCreate(llvm::ImmutableCallSite cs, llvm2cfa::GenerationStepExtensionPoint& ep)
-{
-    const llvm::Value* arg = cs.getArgOperand(0);
-    ExprPtr assumeExpr = ep.getAsOperand(arg);
-
-    ep.splitCurrentTransition(assumeExpr);
-}
-
-void SpecialFunctions::handleThreadJoin(llvm::ImmutableCallSite cs, llvm2cfa::GenerationStepExtensionPoint& ep)
 {
     const llvm::Value* arg = cs.getArgOperand(0);
     ExprPtr assumeExpr = ep.getAsOperand(arg);
