@@ -38,9 +38,9 @@ public:
 
 private:
     Cfa* mCfa;
-    llvm::DenseMap<Variable*, std::unique_ptr<ThetaVarDecl>>& globals;
-    std::function<bool(const std::string&)> isValidVarName;
     bool isMain;
+    std::function<bool(const std::string&)> isValidVarName;
+    llvm::DenseMap<Variable*, std::unique_ptr<ThetaVarDecl>>& globals;
 };
 
 } // namespace gazer::theta
