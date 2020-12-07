@@ -204,9 +204,11 @@ auto BlocksToCfa::createExtensionPoint(
 void BlocksToCfa::ExtensionPointImpl::splitCurrentTransition(const ExprPtr& guard)
 {
     Location* aux = mGenInfo.Automaton->createLocation();
+    Location* aux2 = mGenInfo.Automaton->createLocation();
 
-    mGenInfo.Automaton->createAssignTransition(*mEntry, aux, guard, mAssigns);
+    mGenInfo.Automaton->createAssignTransition(*mEntry, aux, mAssigns);
+    mGenInfo.Automaton->createAssignTransition(aux, aux2, guard, {});
     mAssigns.clear();
 
-    *mEntry = aux;
+    *mEntry = aux2;
 }
