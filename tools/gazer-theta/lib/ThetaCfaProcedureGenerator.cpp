@@ -119,6 +119,7 @@ void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& 
                             auto* temp =
                                 mCfa->createLocal(lhsName, assignment.getVariable()->getType());
                             name = validName(lhsName, isValidVarName);
+                            stmts.push_back(ThetaStmt::Assign(name, assignment.getValue()));
                             auto type = typeName(assignment.getVariable()->getType());
                             vars.try_emplace(temp, std::make_unique<ThetaVarDecl>(name, type));
                         }
