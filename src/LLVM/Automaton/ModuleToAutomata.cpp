@@ -64,7 +64,7 @@ static bool isDefinedInCaller(llvm::Value* value, llvm::ArrayRef<llvm::BasicBloc
 }
 
 template<class AccessKind, class Range>
-static void memoryAccessOfKind(Range&& range, llvm::SmallVectorImpl<AccessKind*>& vec)
+static void memoryAccessOfKind(Range& range, llvm::SmallVectorImpl<AccessKind*>& vec)
 {
     static_assert(std::is_base_of_v<MemoryAccess, AccessKind>, "AccessKind must be a subclass of MemoryAccess!");
 
@@ -90,7 +90,7 @@ size_t BlocksToCfa::getNumUsesInBlocks(const llvm::Instruction* inst) const
 }
 
 template<class Range>
-static bool hasUsesInBlockRange(const llvm::Instruction* inst, Range&& range)
+static bool hasUsesInBlockRange(const llvm::Instruction* inst, Range& range)
 {
     for (auto user : inst->users()) {
         if (auto i = llvm::dyn_cast<Instruction>(user)) {
@@ -104,7 +104,7 @@ static bool hasUsesInBlockRange(const llvm::Instruction* inst, Range&& range)
 }
 
 template<class Range>
-static bool checkUsesInBlockRange(const MemoryObjectDef* def, Range&& range, bool searchInside)
+static bool checkUsesInBlockRange(const MemoryObjectDef* def, Range& range, bool searchInside)
 {
     // Currently the memory object interface does not support querying the uses of a particular def.
     // What we do instead is we query all uses of the underlying abstract memory object, and check
@@ -128,13 +128,13 @@ static bool checkUsesInBlockRange(const MemoryObjectDef* def, Range&& range, boo
 }
 
 template<class Range>
-static bool hasUsesInBlockRange(const MemoryObjectDef* def, Range&& range)
+static bool hasUsesInBlockRange(const MemoryObjectDef* def, Range& range)
 {
     return checkUsesInBlockRange(def, range, true);
 }
 
 template<class Range>
-static bool hasUsesOutsideOfBlockRange(const MemoryObjectDef* def, Range&& range)
+static bool hasUsesOutsideOfBlockRange(const MemoryObjectDef* def, Range& range)
 {
     return checkUsesInBlockRange(def, range, false);
 }
@@ -180,7 +180,7 @@ static llvm::Loop* getNestedLoopOf(GenerationContext& genCtx, CfaGenInfo& genInf
 
         return nullptr;
     }
-    
+
     if (genInfo.isSourceFunction()) {
         assert(nested->getParentLoop() == nullptr && "Function are only allowed to enter into top-level loops");
         assert(nested->getHeader() == bb && "There is a jump into a loop block which is not its header. Perhaps the CFG is irreducible?");
@@ -190,21 +190,9 @@ static llvm::Loop* getNestedLoopOf(GenerationContext& genCtx, CfaGenInfo& genInf
     llvm_unreachable("A CFA source should either be a function or a loop.");
 }
 
-static gazer::Type& getExitSelectorType(IntRepresentation ints, GazerContext& context)
-{         
-    switch (ints) {
-        case IntRepresentation::BitVectors:
-            return BvType::Get(context, 8);
-        case IntRepresentation::Integers:
-            return IntType::Get(context);
-    }
-    
-    llvm_unreachable("Invalid int representation strategy!");
-}
-
-static std::string getLoopName(llvm::Loop* loop, unsigned& loopCount, llvm::StringRef prefix)
+static std::string getLoopName(const llvm::Loop* loop, unsigned& loopCount, llvm::StringRef prefix)
 {
-    BasicBlock* header = loop->getHeader();
+    const BasicBlock* header = loop->getHeader();
     assert(header != nullptr && "Loop without a loop header?");
 
     std::string name = prefix;
@@ -240,10 +228,8 @@ ModuleToCfa::ModuleToCfa(
     }
 }
 
-std::unique_ptr<AutomataSystem> ModuleToCfa::generate(
-    llvm::DenseMap<llvm::Value*, Variable*>& variables,
-    CfaToLLVMTrace& cfaToLlvmTrace
-) {
+std::unique_ptr<AutomataSystem> ModuleToCfa::generate(CfaToLLVMTrace& cfaToLlvmTrace)
+{
     // Create all automata and interfaces.
     this->createAutomata();
 
@@ -338,14 +324,11 @@ void ModuleToCfa::createAutomata()
             loop->getExitEdges(exitEdges);
 
             if (exitEdges.size() != 1) {
-                Type& selectorTy = getExitSelectorType(mSettings.ints, mContext);
-                loopGenInfo.ExitVariable = nested->createLocal(LoopOutputSelectorName, selectorTy);
+                loopGenInfo.ExitVariable = nested->createLocal(LoopOutputSelectorName, IntType::Get(mContext));
                 nested->addOutput(loopGenInfo.ExitVariable);
                 for (size_t i = 0; i < exitEdges.size(); ++i) {
                     LLVM_DEBUG(llvm::dbgs() << " Registering exit edge " << exitEdges[i].first->getName() << " --> " << exitEdges[i].second->getName() << "\n");
-                    loopGenInfo.ExitEdges[exitEdges[i]] = selectorTy.isBvType()
-                        ? expr_cast<LiteralExpr>(mExprBuilder->BvLit(i, 8))
-                        : mExprBuilder->IntLit(i);
+                    loopGenInfo.ExitEdges[exitEdges[i]] = mExprBuilder->IntLit(i);
                 }
             }
 
@@ -563,7 +546,7 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
         // We do not support indirect calls yet.
         return false;
     }
-    
+
     // Create an extension point to handle the call
     auto callerEP = this->createExtensionPoint(previousAssignments, entry, &exit);
 
@@ -571,7 +554,7 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
         CfaGenInfo& calledAutomatonInfo = mGenCtx.getFunctionCfa(callee);
         Cfa* calledCfa = calledAutomatonInfo.Automaton;
         assert(calledCfa != nullptr && "The callee automaton must exist in a function call!");
-        
+
         // Split the current transition here and create a call.
         Location* callBegin = mCfa->createLocation();
         Location* callEnd = mCfa->createLocation();
@@ -608,10 +591,10 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
         if (!callee->getReturnType()->isVoidTy()) {
             Variable* variable = getVariable(call);
 
-            // Find the return variable of this function.                        
+            // Find the return variable of this function.
             Variable* retval = mGenCtx.getFunctionCfa(callee).ReturnVariable;
             assert(retval != nullptr && "A non-void function must have a return value!");
-            
+
             outputs.emplace_back(variable, retval->getRefExpr());
         }
 
@@ -623,10 +606,10 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
         // Do not generate an assignment for this call.
         return false;
     }
-    
+
     if (callee->getName() == CheckRegistry::ErrorFunctionName) {
         assert(exit->isError() && "The target location of a 'gazer.error_code' call must be an error location!");
-        
+
         llvm::Value* arg = call->getArgOperand(0);
         ExprPtr errorCodeExpr = operand(arg);
         mCfa->addErrorCode(exit, errorCodeExpr);
@@ -819,15 +802,14 @@ void BlocksToCfa::handleSuccessor(const BasicBlock* succ, const ExprPtr& succCon
 
         mCfa->createAssignTransition(exit, to, succCondition, phiAssignments);
     } else if (auto loop = getNestedLoopOf(mGenCtx, mGenInfo, succ)) {
-        this->createCallToLoop(loop, parent, succ, succCondition, exit);
+        assert(loop->getHeader() == succ && "Target successor in a loop must be the loop header; maybe the CFG is irreducible?");
+        this->createCallToLoop(loop, parent, succCondition, exit);
     } else {
         createExitTransition(parent, succ, exit, succCondition);
     }
 }
 
-void BlocksToCfa::createCallToLoop(
-    llvm::Loop* loop, const llvm::BasicBlock* source, const llvm::BasicBlock* target,
-    const ExprPtr& condition, Location* exit)
+void BlocksToCfa::createCallToLoop(llvm::Loop* loop, const llvm::BasicBlock* source, const ExprPtr& condition, Location* exit)
 {
     LLVM_DEBUG(llvm::dbgs() << " Building call for loop " << loop->getName() << "\n");
     // If this is a nested loop, create a call to the corresponding automaton.
@@ -859,11 +841,9 @@ void BlocksToCfa::createCallToLoop(
 
     Variable* exitSelector = nullptr;
     if (nestedLoopInfo.ExitVariable != nullptr) {
-        Type& selectorTy = getExitSelectorType(mSettings.ints, mContext);
-
         exitSelector = mCfa->createLocal(
             Twine(ModuleToCfa::LoopOutputSelectorName).concat(Twine(mCounter++)).str(),
-            selectorTy
+            IntType::Get(mContext)
         );
         outputArgs.emplace_back(exitSelector, nestedLoopInfo.ExitVariable->getRefExpr());
     }
@@ -877,7 +857,7 @@ void BlocksToCfa::createCallToLoop(
 
     for (llvm::Loop::Edge& exitEdge : exitEdges) {
         LLVM_DEBUG(llvm::dbgs() << "  Handling exit edge " << exitEdge.first->getName()
-            << " to " << exitEdge.second->getName() << "\n"); 
+            << " to " << exitEdge.second->getName() << "\n");
         const llvm::BasicBlock* inBlock = exitEdge.first;
         const llvm::BasicBlock* exitBlock = exitEdge.second;
         std::vector<VariableAssignment> phiAssignments;

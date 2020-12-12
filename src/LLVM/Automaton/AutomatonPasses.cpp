@@ -36,7 +36,6 @@ std::unique_ptr<AutomataSystem> gazer::translateModuleToAutomata(
     LoopInfoFuncTy loopInfos,
     GazerContext& context,
     MemoryModel& memoryModel,
-    llvm::DenseMap<llvm::Value*, Variable*>& variables,
     CfaToLLVMTrace& blockEntries,
     const SpecialFunctions* specialFunctions)
 {
@@ -46,7 +45,7 @@ std::unique_ptr<AutomataSystem> gazer::translateModuleToAutomata(
 
     LLVMTypeTranslator types(memoryModel.getMemoryTypeTranslator(), settings);
     ModuleToCfa transformer(module, std::move(loopInfos), context, memoryModel, types, *specialFunctions, settings);
-    return transformer.generate(variables, blockEntries);
+    return transformer.generate(blockEntries);
 }
 
 // LLVM pass implementation
@@ -86,7 +85,7 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
     auto specialFunctions = SpecialFunctions::get();
 
     mSystem = translateModuleToAutomata(
-        module, mSettings, loops, mContext, memoryModel, mVariables, mTraceInfo, specialFunctions.get());
+        module, mSettings, loops, mContext, memoryModel, mTraceInfo, specialFunctions.get());
 
     if (mSettings.loops == LoopRepresentation::Cycle) {
         // Transform the main automaton into a cyclic CFA if requested.

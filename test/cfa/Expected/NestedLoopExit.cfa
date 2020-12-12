@@ -1,8 +1,8 @@
 procedure main() -> (main/RET_VAL : Bv32)
 {
     var main/RET_VAL : Bv32
-    var main/__output_selector0 : Bv8
-    var main/__output_selector1 : Bv8
+    var main/__output_selector0 : Int
+    var main/__output_selector1 : Int
 
     loc $0 entry 
     loc $1 final 
@@ -30,12 +30,12 @@ procedure main() -> (main/RET_VAL : Bv32)
         call main/bb5(main/__output_selector0 <= main/bb5/__output_selector);
 
     transition $8 -> $6
-        assume main/__output_selector0 = 0bv8
+        assume main/__output_selector0 = 0
     {
     };
 
     transition $8 -> $4
-        assume main/__output_selector0 = 1bv8
+        assume main/__output_selector0 = 1
     {
     };
 
@@ -61,10 +61,10 @@ procedure main() -> (main/RET_VAL : Bv32)
 
 }
 
-procedure main/bb5() -> (main/bb5/__output_selector : Bv8)
+procedure main/bb5() -> (main/bb5/__output_selector : Int)
 {
-    var main/bb5/__output_selector : Bv8
-    var main/bb5/__output_selector0 : Bv8
+    var main/bb5/__output_selector : Int
+    var main/bb5/__output_selector0 : Int
 
     loc $0 entry 
     loc $1 final 
@@ -90,14 +90,14 @@ procedure main/bb5() -> (main/bb5/__output_selector : Bv8)
         call main/bb6(main/bb5/__output_selector0 <= main/bb6/__output_selector);
 
     transition $6 -> $4
-        assume main/bb5/__output_selector0 = 0bv8
+        assume main/bb5/__output_selector0 = 0
     {
     };
 
     transition $3 -> $1
         assume true
     {
-        main/bb5/__output_selector := 1bv8;
+        main/bb5/__output_selector := 1;
     };
 
     transition $4 -> $5
@@ -117,14 +117,14 @@ procedure main/bb5() -> (main/bb5/__output_selector : Bv8)
     transition $5 -> $1
         assume not undef
     {
-        main/bb5/__output_selector := 0bv8;
+        main/bb5/__output_selector := 0;
     };
 
 }
 
-procedure main/bb6() -> (main/bb6/__output_selector : Bv8)
+procedure main/bb6() -> (main/bb6/__output_selector : Int)
 {
-    var main/bb6/__output_selector : Bv8
+    var main/bb6/__output_selector : Int
 
     loc $0 entry 
     loc $1 final 
@@ -152,7 +152,7 @@ procedure main/bb6() -> (main/bb6/__output_selector : Bv8)
     transition $3 -> $1
         assume not undef
     {
-        main/bb6/__output_selector := 0bv8;
+        main/bb6/__output_selector := 0;
     };
 
     transition $4 -> $5
@@ -172,14 +172,14 @@ procedure main/bb6() -> (main/bb6/__output_selector : Bv8)
     transition $5 -> $1
         assume not undef
     {
-        main/bb6/__output_selector := 1bv8;
+        main/bb6/__output_selector := 1;
     };
 
 }
 
-procedure main/.preheader() -> (main/.preheader/__output_selector : Bv8)
+procedure main/.preheader() -> (main/.preheader/__output_selector : Int)
 {
-    var main/.preheader/__output_selector : Bv8
+    var main/.preheader/__output_selector : Int
 
     loc $0 entry 
     loc $1 final 
