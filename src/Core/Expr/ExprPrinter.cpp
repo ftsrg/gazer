@@ -20,6 +20,8 @@
 #include "gazer/ADT/StringUtils.h"
 
 #include <llvm/ADT/Twine.h>
+#include <llvm/ADT/StringExtras.h>
+#include <llvm/ADT/SmallString.h>
 #include <llvm/Support/raw_ostream.h>
 
 #include <boost/algorithm/string.hpp>
@@ -108,42 +110,8 @@ private:
     }
 
     std::string visitLiteral(const ExprRef<LiteralExpr>& expr)
-    {        
-        llvm::SmallVector<char, 32> buffer;
-
-        switch (expr->getType().getTypeID()) {
-            case Type::BoolTypeID: {
-                auto bl = llvm::cast<BoolLiteralExpr>(expr);
-                return bl->getValue() ? "true" : "false";
-            }
-            case Type::BvTypeID: {
-                auto bv = llvm::cast<BvLiteralExpr>(expr);
-                bv->getValue().toStringSigned(buffer, mRadix);
-
-                return (
-                    getRadixPrefix() + Twine{buffer}
-                    + "bv" + Twine{bv->getType().getWidth()}
-                ).str();
-            }
-            case Type::FloatTypeID: {
-                auto fl = llvm::cast<FloatLiteralExpr>(expr);
-                fl->getValue().toString(buffer);
-
-                return (Twine{buffer} + "fp" + Twine{fl->getType().getWidth()}).str();
-            }
-            case Type::IntTypeID: {
-                auto il = llvm::cast<IntLiteralExpr>(expr);
-                return std::to_string(il->getValue());
-            }
-            case Type::RealTypeID: {
-                auto rl = llvm::cast<RealLiteralExpr>(expr);
-
-                return (Twine(rl->getValue().numerator()) + "%" + Twine(rl->getValue().denominator())).str();
-            }
-            // TODO: Tuples, ArrayType
-        }
-
-        llvm_unreachable("Unknown literal expression kind.");
+    {
+        return printLiteral(expr);
     }
 
     // Define some helper macros
@@ -289,7 +257,7 @@ private:
     }
 
     // Arrays
-    std::string visitArrayRead(const ExprRef<ArrayReadExpr>& expr) 
+    std::string visitArrayRead(const ExprRef<ArrayReadExpr>& expr)
     {
         return this->visitNonNullary(expr);
     }
@@ -298,6 +266,8 @@ private:
     {
         return this->visitNonNullary(expr);
     }
+
+    // Helpers
 
     llvm::StringRef getRadixPrefix() const
     {
@@ -309,6 +279,67 @@ private:
         }
 
         llvm_unreachable("Radix may only be 2, 8, 10, or 16");
+    }
+
+    std::string printLiteral(const ExprRef<LiteralExpr>& expr)
+    {
+        if (auto bl = llvm::dyn_cast<BoolLiteralExpr>(expr)) {
+            return bl->getValue() ? "true" : "false";
+        }
+
+        if (auto il = llvm::dyn_cast<IntLiteralExpr>(expr)) {
+            return std::to_string(il->getValue());
+        }
+
+        llvm::SmallString<64> buffer;
+        llvm::raw_svector_ostream rso(buffer);
+
+        if (auto bv = llvm::dyn_cast<BvLiteralExpr>(expr)) {
+            rso << getRadixPrefix();
+            bv->getValue().toStringSigned(buffer, mRadix);
+            rso << "bv" << bv->getType().getWidth();
+
+            return rso.str();
+        }
+
+        if (auto fl = llvm::dyn_cast<FloatLiteralExpr>(expr)) {
+            fl->getValue().toString(buffer);
+            rso << "fp" << fl->getType().getWidth();
+
+            return rso.str();
+        }
+
+        if (auto rl = llvm::dyn_cast<RealLiteralExpr>(expr)) {
+            rso << rl->getValue().numerator() << "%" << rl->getValue().denominator();
+
+            return rso.str();
+        }
+
+        if (auto al = llvm::dyn_cast<ArrayLiteralExpr>(expr)) {
+            const ArrayLiteralExpr::MappingT& map = al->getMap();
+
+            rso << "[(Default: " << printLiteral(al->getDefault()) << ")";
+            if (!map.empty()) {
+                rso << " ";
+            }
+
+            // As we are using these printers in tests, we want a reliable lexiographic order
+            std::vector<std::string> orderedElems;
+            orderedElems.reserve(map.size());
+
+            std::transform(map.begin(), map.end(), std::back_inserter(orderedElems), [this](auto& pair) {
+                auto& [k, v] = pair;
+                return printLiteral(k) + " -> " + printLiteral(v);
+            });
+            std::sort(orderedElems.begin(), orderedElems.end());
+
+            rso << llvm::join(orderedElems, ", ");
+            rso << "]";
+
+            return rso.str();
+        }
+
+        llvm_unreachable("Unknown literal expression kind.");
     }
 
 private:

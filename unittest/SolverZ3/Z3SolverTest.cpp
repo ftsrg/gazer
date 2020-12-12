@@ -110,7 +110,6 @@ TEST(SolverZ3Test, ArrayLiterals)
     Z3SolverFactory factory;
     auto solver = factory.createSolver(ctx);
 
-    // Array literal with a default value.
     auto a1 = ArrayLiteralExpr::Get(
         ArrayType::Get(IntType::Get(ctx), IntType::Get(ctx)),
         {
@@ -120,18 +119,13 @@ TEST(SolverZ3Test, ArrayLiterals)
         IntLiteralExpr::Get(ctx, 0)
     );
 
-    // Array literal without a default value
-    auto a2 = ArrayLiteralExpr::Get(
-        ArrayType::Get(IntType::Get(ctx), IntType::Get(ctx)),
-        {
-            { IntLiteralExpr::Get(ctx, 1), IntLiteralExpr::Get(ctx, 1) },
-            { IntLiteralExpr::Get(ctx, 2), IntLiteralExpr::Get(ctx, 2) }
-        }
-    );
+    auto v = ctx.createVariable("v", ArrayType::Get(IntType::Get(ctx), IntType::Get(ctx)));
 
-    solver->add(EqExpr::Create(a1, a2));
+    solver->add(EqExpr::Create(a1, v->getRefExpr()));
     auto result = solver->run();
+
     ASSERT_EQ(result, Solver::SAT);
+    ASSERT_EQ(solver->getModel()->evaluate(v->getRefExpr()), a1);
 }
 
 TEST(SolverZ3Test, Tuples)

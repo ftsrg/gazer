@@ -246,12 +246,13 @@ public:
     class Builder
     {
     public:
-        explicit Builder(ArrayType& type)
-            : mType(type)
-        {}
+        explicit Builder(ArrayType& type, ExprRef<LiteralExpr> defaultValue)
+            : mType(type), mElse(defaultValue)
+        {
+            assert(mElse != nullptr);
+        }
 
-        void addValue(const ExprRef<LiteralExpr>& index, ExprRef<LiteralExpr> element);
-        void setDefault(const ExprRef<LiteralExpr>& expr);
+        Builder& addValue(const ExprRef<LiteralExpr>& index, ExprRef<LiteralExpr> element);
 
         ExprRef<ArrayLiteralExpr> build();
 
@@ -271,12 +272,12 @@ public:
     static ExprRef<ArrayLiteralExpr> Get(
         ArrayType& type,
         const MappingT& value,
-        const ExprRef<LiteralExpr>& elze = nullptr
+        const ExprRef<LiteralExpr>& elze
     );
 
     static ExprRef<ArrayLiteralExpr> GetEmpty(
         ArrayType& type,
-        const ExprRef<LiteralExpr>& elze = nullptr) {
+        const ExprRef<LiteralExpr>& elze) {
         MappingT map;
         return Get(type, map, elze);
     }
@@ -285,7 +286,6 @@ public:
 
     const MappingT& getMap() const { return mMap; }
 
-    bool hasDefault() const { return mElse != nullptr; }
     ExprRef<LiteralExpr> getDefault() const { return mElse; }
 
     ArrayType& getType() const {

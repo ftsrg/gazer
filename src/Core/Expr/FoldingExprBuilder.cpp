@@ -497,7 +497,7 @@ public:
         if (match(condition, then, elze, m_Expr(c1), m_Select(m_Expr(c2), m_Expr(e1), m_Expr(e2)), m_Specific(e1))) {
             return SelectExpr::Create(this->And({c1, this->Not(c2)}), e1, e2);
         }
-    
+
         // Select(C1, Select(C2, E1, E2), E2) --> Select(C1 and C2, E1, E2)
         if (match(condition, then, elze, m_Expr(c1), m_Select(m_Expr(c2), m_Expr(e1), m_Expr(e2)), m_Specific(e2))) {
             return SelectExpr::Create(AndExpr::Create({c1, c2}), e1, e2);
@@ -514,25 +514,19 @@ public:
     ExprPtr Write(const ExprPtr& array, const ExprPtr& index, const ExprPtr& value) override
     {
         if (auto lit = llvm::dyn_cast<ArrayLiteralExpr>(array)) {
-            if (lit->getMap().empty()) {
-                if ((!lit->hasDefault() && value->isUndef()) || lit->getDefault() == value) {
-                    return lit;
-                }
+            if (lit->getMap().empty() && lit->getDefault() == value) {
+                return lit;
             }
         }
 
         return ArrayWriteExpr::Create(array, index, value);
     }
-    
+
     ExprPtr Read(const ExprPtr& array, const ExprPtr& index) override
     {
         if (auto lit = llvm::dyn_cast<ArrayLiteralExpr>(array)) {
             if (lit->getMap().empty()) {
-                if (lit->hasDefault()) {
-                    return lit->getDefault();
-                }
-
-                return UndefExpr::Get(lit->getType().getElementType());
+                return lit->getDefault();
             }
         }
 

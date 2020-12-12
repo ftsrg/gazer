@@ -571,7 +571,7 @@ ExprRef<AtomicExpr> ExprEvaluatorBase::visitSelect(const ExprRef<SelectExpr>& ex
         case Type::RealTypeID:
             return EvalSelect<RealType, RealLiteralExpr>(cond, then, elze);
     }
-    
+
     llvm_unreachable("Invalid SelectExpr type!");
 }
 
@@ -587,11 +587,7 @@ ExprRef<AtomicExpr> ExprEvaluatorBase::visitArrayRead(const ExprRef<ArrayReadExp
 
     auto index = getOperand(1);
     if (index->isUndef()) {
-        if (litArray->getMap().empty() && litArray->hasDefault()) {
-            return litArray->getDefault();
-        }
-
-        return UndefExpr::Get(expr->getType());
+        return litArray->getDefault();
     }
 
     return litArray->getValue(llvm::cast<LiteralExpr>(index));
