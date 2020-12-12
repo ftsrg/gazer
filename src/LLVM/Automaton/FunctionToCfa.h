@@ -287,10 +287,7 @@ public:
         const LLVMFrontendSettings& settings
     );
 
-    std::unique_ptr<AutomataSystem> generate(
-        llvm::DenseMap<llvm::Value*, Variable*>& variables,
-        CfaToLLVMTrace& cfaToLlvmTrace
-    );
+    std::unique_ptr<AutomataSystem> generate(CfaToLLVMTrace& cfaToLlvmTrace);
 
 protected:
     void createAutomata();
@@ -385,9 +382,8 @@ private:
     );
 
     void createExitTransition(const llvm::BasicBlock* source, const llvm::BasicBlock* target, Location* pred, const ExprPtr& succCondition);
-    void createCallToLoop(
-        llvm::Loop* loop, const llvm::BasicBlock* source, const llvm::BasicBlock* target,
-        const ExprPtr& condition, Location* exit);
+
+    void createCallToLoop(llvm::Loop* loop, const llvm::BasicBlock* source, const ExprPtr& condition, Location* exit);
 
     ExprPtr getExitCondition(const llvm::BasicBlock* source, const llvm::BasicBlock* target, Variable* exitSelector, CfaGenInfo& nestedInfo);
     size_t getNumUsesInBlocks(const llvm::Instruction* inst) const;

@@ -204,12 +204,10 @@ public:
     }
 
     AutomataSystem& getSystem() { return *mSystem; }
-    llvm::DenseMap<llvm::Value*, Variable*>& getVariableMap() { return mVariables; }
     CfaToLLVMTrace& getTraceInfo() { return mTraceInfo; }
 
 private:
     std::unique_ptr<AutomataSystem> mSystem;
-    llvm::DenseMap<llvm::Value*, Variable*> mVariables;
     CfaToLLVMTrace mTraceInfo;
     GazerContext& mContext;
     LLVMFrontendSettings& mSettings;
@@ -223,7 +221,6 @@ std::unique_ptr<AutomataSystem> translateModuleToAutomata(
     llvm2cfa::LoopInfoFuncTy loopInfos,
     GazerContext& context,
     MemoryModel& memoryModel,
-    llvm::DenseMap<llvm::Value*, Variable*>& variables,
     CfaToLLVMTrace& blockEntries,
     const SpecialFunctions* specialFunctions = nullptr
 );

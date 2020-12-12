@@ -2,7 +2,7 @@ procedure main() -> (main/RET_VAL : Bv32)
 {
     var main/RET_VAL : Bv32
     var main/call : Bv32
-    var main/__output_selector0 : Bv8
+    var main/__output_selector0 : Int
 
     loc $0 entry 
     loc $1 final 
@@ -30,12 +30,12 @@ procedure main() -> (main/RET_VAL : Bv32)
         call main/while.cond(main/while.cond/call := main/call, main/__output_selector0 <= main/while.cond/__output_selector);
 
     transition $8 -> $4
-        assume main/__output_selector0 = 0bv8
+        assume main/__output_selector0 = 0
     {
     };
 
     transition $8 -> $6
-        assume main/__output_selector0 = 1bv8
+        assume main/__output_selector0 = 1
     {
     };
 
@@ -61,7 +61,7 @@ procedure main() -> (main/RET_VAL : Bv32)
     };
 
 }
-procedure main/while.cond(main/while.cond/call : Bv32) -> (main/while.cond/__output_selector : Bv8)
+procedure main/while.cond(main/while.cond/call : Bv32) -> (main/while.cond/__output_selector : Int)
 {
     var main/while.cond/call10 : Bv32
     var main/while.cond/cmp : Bool
@@ -70,7 +70,7 @@ procedure main/while.cond(main/while.cond/call : Bv32) -> (main/while.cond/__out
     var main/while.cond/cmp51 : Bool
     var main/while.cond/cmp53 : Bool
     var main/while.cond/or.cond : Bool
-    var main/while.cond/__output_selector : Bv8
+    var main/while.cond/__output_selector : Int
 
     loc $0 entry 
     loc $1 final 
@@ -95,7 +95,7 @@ procedure main/while.cond(main/while.cond/call : Bv32) -> (main/while.cond/__out
     transition $3 -> $1
         assume main/while.cond/cmp
     {
-        main/while.cond/__output_selector := 0bv8;
+        main/while.cond/__output_selector := 0;
     };
 
     transition $3 -> $4
@@ -116,7 +116,7 @@ procedure main/while.cond(main/while.cond/call : Bv32) -> (main/while.cond/__out
     transition $5 -> $1
         assume main/while.cond/or.cond
     {
-        main/while.cond/__output_selector := 1bv8;
+        main/while.cond/__output_selector := 1;
     };
 
     transition $5 -> $6

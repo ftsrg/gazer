@@ -57,7 +57,7 @@ void bmc::cex_iterator::advance()
 
 // FIXME: Move this to BoundedModelChecker.cpp?
 std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::createFailResult()
-{               
+{
     auto model = mSolver->getModel();
 
     if (mSettings.dumpSolverModel) {

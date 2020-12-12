@@ -3,7 +3,7 @@ procedure main() -> (main/RET_VAL : Bv32)
     var main/RET_VAL : Bv32
     var main/limit : Bv32
     var main/sum : Bv32
-    var main/__output_selector0 : Bv8
+    var main/__output_selector0 : Int
 
     loc $0 entry
     loc $1 final
@@ -31,17 +31,17 @@ procedure main() -> (main/RET_VAL : Bv32)
         call main/loop.header(main/loop.header/i := 0bv32, main/loop.header/sum := 0bv32, main/loop.header/limit := main/limit, main/sum <= main/loop.header/sum_out, main/__output_selector0 <= main/loop.header/__output_selector);
 
     transition $8 -> $4
-        assume main/__output_selector0 = 0bv8
+        assume main/__output_selector0 = 0
     {
     };
 
     transition $8 -> $6
-        assume main/__output_selector0 = 1bv8
+        assume main/__output_selector0 = 1
     {
     };
 
     transition $8 -> $4
-        assume main/__output_selector0 = 2bv8
+        assume main/__output_selector0 = 2
     {
     };
 
@@ -69,7 +69,7 @@ procedure main() -> (main/RET_VAL : Bv32)
 
 }
 
-procedure main/loop.header(main/loop.header/i : Bv32, main/loop.header/sum : Bv32, main/loop.header/limit : Bv32) -> (main/loop.header/sum_out : Bv32, main/loop.header/__output_selector : Bv8)
+procedure main/loop.header(main/loop.header/i : Bv32, main/loop.header/sum : Bv32, main/loop.header/limit : Bv32) -> (main/loop.header/sum_out : Bv32, main/loop.header/__output_selector : Int)
 {
     var main/loop.header/sum_out : Bv32
     var main/loop.header/cond : Bool
@@ -79,7 +79,7 @@ procedure main/loop.header(main/loop.header/i : Bv32, main/loop.header/sum : Bv3
     var main/loop.header/s : Bv32
     var main/loop.header/c : Bv32
     var main/loop.header/c1 : Bool
-    var main/loop.header/__output_selector : Bv8
+    var main/loop.header/__output_selector : Int
 
     loc $0 entry
     loc $1 final
@@ -110,7 +110,7 @@ procedure main/loop.header(main/loop.header/i : Bv32, main/loop.header/sum : Bv3
     transition $3 -> $1
         assume not main/loop.header/cond
     {
-        main/loop.header/__output_selector := 0bv8;
+        main/loop.header/__output_selector := 0;
         main/loop.header/sum_out := main/loop.header/sum;
     };
 
@@ -124,7 +124,7 @@ procedure main/loop.header(main/loop.header/i : Bv32, main/loop.header/sum : Bv3
     transition $5 -> $1
         assume main/loop.header/error.cond
     {
-        main/loop.header/__output_selector := 1bv8;
+        main/loop.header/__output_selector := 1;
         main/loop.header/sum_out := main/loop.header/sum;
     };
 
@@ -145,7 +145,7 @@ procedure main/loop.header(main/loop.header/i : Bv32, main/loop.header/sum : Bv3
     transition $7 -> $1
         assume main/loop.header/c1
     {
-        main/loop.header/__output_selector := 2bv8;
+        main/loop.header/__output_selector := 2;
         main/loop.header/sum_out := main/loop.header/sum;
     };
 
