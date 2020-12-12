@@ -126,3 +126,35 @@ TEST(InfixPrintExpr, TestPrintNot)
     EXPECT_TRUE(printEquals("not true", e1));
     EXPECT_TRUE(printEquals("not (true and false)", e2));
 }
+
+TEST(InfixPrintExpr, TestPrintArray)
+{
+    GazerContext ctx;
+    ArrayType& intToBool = ArrayType::Get(IntType::Get(ctx), BoolType::Get(ctx));
+
+    ArrayLiteralExpr::Builder al1(intToBool, BoolLiteralExpr::True(ctx));
+
+    al1.addValue(IntLiteralExpr::Get(ctx, 0), BoolLiteralExpr::True(ctx));
+    al1.addValue(IntLiteralExpr::Get(ctx, 1), BoolLiteralExpr::False(ctx));
+    al1.addValue(IntLiteralExpr::Get(ctx, 2), BoolLiteralExpr::True(ctx));
+    EXPECT_TRUE(
+        printEquals("[(Default: true) 0 -> true, 1 -> false, 2 -> true]", al1.build())
+    );
+
+    // Try with a 2-dimensional array
+    ArrayLiteralExpr::Builder al2_1(intToBool, BoolLiteralExpr::True(ctx));
+    al2_1.addValue(IntLiteralExpr::Get(ctx, 0), BoolLiteralExpr::True(ctx));
+
+    ArrayLiteralExpr::Builder al2_2(intToBool, BoolLiteralExpr::False(ctx));
+    al2_2.addValue(IntLiteralExpr::Get(ctx, 1), BoolLiteralExpr::True(ctx));
+
+    ArrayLiteralExpr::Builder al2(
+        ArrayType::Get(IntType::Get(ctx), intToBool), ArrayLiteralExpr::GetEmpty(intToBool, BoolLiteralExpr::False(ctx)));
+    al2
+        .addValue(IntLiteralExpr::Get(ctx, 2), al2_1.build())
+        .addValue(IntLiteralExpr::Get(ctx, 3), al2_2.build());
+
+    EXPECT_TRUE(
+        printEquals("[(Default: [(Default: false)]) 2 -> [(Default: true) 0 -> true], 3 -> [(Default: false) 1 -> true]]", al2.build())
+    );
+}

@@ -500,10 +500,7 @@ ExprPtr FlatMemoryModelInstTranslator::handleConstantDataArray(
 {
     assert(elements.size() == cda->getNumElements());
 
-    ArrayLiteralExpr::Builder builder(ArrayType::Get(
-        mMemoryModel.ptrType(),
-        bv8ty()
-    ));
+    ArrayLiteralExpr::Builder builder(ArrayType::Get(mMemoryModel.ptrType(), bv8ty()), BvLiteralExpr::Get(bv8ty(), 0));
 
     llvm::Type* elemTy = cda->getType()->getArrayElementType();
     unsigned size = mDataLayout.getTypeAllocSize(elemTy);
@@ -560,7 +557,7 @@ ExprPtr FlatMemoryModelInstTranslator::handleZeroInitializedAggregate(const llvm
 
 void FlatMemoryModelInstTranslator::handleBlock(const llvm::BasicBlock& bb, llvm2cfa::GenerationStepExtensionPoint& ep)
 {
-    // We only consider the entry block of 'main' 
+    // We only consider the entry block of 'main'
     if (mMemoryModel.getSettings().getEntryFunction(*bb.getModule()) != bb.getParent()) {
         return;
     }
@@ -582,8 +579,6 @@ void FlatMemoryModelInstTranslator::handleBlock(const llvm::BasicBlock& bb, llvm
             if (def.getObject() == mInfo.stackPointer || def.getObject() == mInfo.framePointer) {
                 // TODO: 64 bit
                 initVal = mMemoryModel.ptrConstant(FlatMemoryModel::StackBegin32);
-            } else if (defVariable->getType().isArrayType()) {
-                initVal = ArrayLiteralExpr::GetEmpty(llvm::cast<ArrayType>(defVariable->getType()));
             } else {
                 initVal = mExprBuilder.Undef(defVariable->getType());
             }

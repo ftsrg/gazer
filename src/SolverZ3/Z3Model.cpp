@@ -173,7 +173,7 @@ auto Z3Model::evalConstantArray(Z3AstHandle ast, ArrayType& type) -> ExprRef<Ato
         Z3Handle<Z3_func_decl> decl(mZ3Context, Z3_get_app_decl(mZ3Context, app));
 
         auto declKind = Z3_get_decl_kind(mZ3Context, decl);
-        ArrayLiteralExpr::Builder builder(type);
+        ArrayLiteralExpr::MappingT map;
 
         while (declKind == Z3_OP_STORE) {
             Z3AstHandle index(mZ3Context, Z3_get_app_arg(mZ3Context, app, 1));
@@ -189,21 +189,27 @@ auto Z3Model::evalConstantArray(Z3AstHandle ast, ArrayType& type) -> ExprRef<Ato
 
             if (!llvm::isa<LiteralExpr>(indexExpr) || !llvm::isa<LiteralExpr>(valueExpr)) {
                 // Something went wrong here, return an Undef expression
-                UndefExpr::Get(type);
+                return UndefExpr::Get(type);
             }
 
-            builder.addValue(llvm::cast<LiteralExpr>(indexExpr), llvm::cast<LiteralExpr>(valueExpr));
+            map[llvm::cast<LiteralExpr>(indexExpr)] = llvm::cast<LiteralExpr>(valueExpr);
         }
-        
+
+        ExprRef<LiteralExpr> arrayDefault = nullptr;
         if (declKind == Z3_OP_CONST_ARRAY) {
             Z3AstHandle defaultValue(mZ3Context, Z3_get_app_arg(mZ3Context, app, 0));
             auto defaultExpr = this->evalAst(defaultValue);
-            if (auto lit = llvm::dyn_cast<LiteralExpr>(defaultExpr)) {
-                builder.setDefault(lit);
+            if (llvm::isa<LiteralExpr>(defaultExpr)) {
+                arrayDefault = expr_cast<LiteralExpr>(defaultExpr);
             }
         }
 
-        return builder.build();
+        if (arrayDefault == nullptr) {
+            // We do not have a default value, just bail out and return an undef.
+            return UndefExpr::Get(type);
+        }
+
+        return ArrayLiteralExpr::Get(type, map, arrayDefault);
     }
 
 

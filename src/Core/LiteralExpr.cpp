@@ -72,7 +72,7 @@ ExprRef<ArrayLiteralExpr> ArrayLiteralExpr::Get(
         return pair.first->getType() == type.getIndexType()
             && pair.second->getType() == type.getElementType();
     }));
-    assert(elze == nullptr || elze->getType() == type.getElementType());
+    assert(elze != nullptr && elze->getType() == type.getElementType());
 
     auto& pImpl = type.getContext().pImpl;
 
@@ -116,11 +116,8 @@ void ArrayLiteralExpr::print(llvm::raw_ostream& os) const
     for (auto& [index, elem] : mMap) {
         os << *index << " -> " << *elem << ", ";
     }
-    
-    if (mElse != nullptr) {
-        os << " else " << *mElse;
-    }
 
+    os << " else " << *mElse;
     os << "]";
 }
 
@@ -135,14 +132,10 @@ ExprRef<AtomicExpr> ArrayLiteralExpr::getValue(const ExprRef<LiteralExpr>& key) 
     return it->second;
 }
 
-void ArrayLiteralExpr::Builder::addValue(const ExprRef<LiteralExpr>& index, ExprRef<LiteralExpr> element)
+auto ArrayLiteralExpr::Builder::addValue(const ExprRef<LiteralExpr>& index, ExprRef<LiteralExpr> element) -> Builder&
 {
     mValues[index] = std::move(element);
-}
-
-void ArrayLiteralExpr::Builder::setDefault(const ExprRef<LiteralExpr>& expr)
-{
-    mElse = expr;
+    return *this;
 }
 
 auto ArrayLiteralExpr::Builder::build() -> ExprRef<ArrayLiteralExpr>

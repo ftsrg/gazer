@@ -248,7 +248,7 @@ auto Z3ExprTransformer::visitNotEq(const ExprRef<NotEqExpr>& expr) -> Z3AstHandl
 auto Z3ExprTransformer::visitTupleSelect(const ExprRef<TupleSelectExpr>& expr) -> Z3AstHandle
 {
     auto& tupTy = llvm::cast<TupleType>(expr->getOperand(0)->getType());
-    
+
     assert(mTupleInfo.count(&tupTy) != 0 && "Tuple types should have been handled before!");
     auto& info = mTupleInfo[&tupTy];
 
@@ -261,7 +261,7 @@ auto Z3ExprTransformer::visitTupleSelect(const ExprRef<TupleSelectExpr>& expr) -
 auto Z3ExprTransformer::visitTupleConstruct(const ExprRef<TupleConstructExpr>& expr) -> Z3AstHandle
 {
     auto& tupTy = llvm::cast<TupleType>(expr->getOperand(0)->getType());
-    
+
     assert(mTupleInfo.count(&tupTy) != 0 && "Tuple types should have been handled before!");
     auto& info = mTupleInfo[&tupTy];
 
@@ -387,22 +387,22 @@ Z3AstHandle Z3ExprTransformer::translateLiteral(const ExprRef<LiteralExpr>& expr
         bvLit->getValue().toStringUnsigned(buffer, 10);
         return createHandle(Z3_mk_numeral(mZ3Context, buffer.c_str(), typeToSort(bvLit->getType())));
     }
-    
+
     if (auto bl = llvm::dyn_cast<BoolLiteralExpr>(expr)) {
         return createHandle(bl->getValue() ? Z3_mk_true(mZ3Context) : Z3_mk_false(mZ3Context));
     }
-    
+
     if (auto il = llvm::dyn_cast<IntLiteralExpr>(expr)) {
         return createHandle(Z3_mk_int64(mZ3Context, il->getValue(), Z3_mk_int_sort(mZ3Context)));
     }
-    
-    if (auto fl = llvm::dyn_cast<FloatLiteralExpr>(expr)) {        
+
+    if (auto fl = llvm::dyn_cast<FloatLiteralExpr>(expr)) {
         if (fl->getType().getPrecision() == FloatType::Single) {
             return createHandle(Z3_mk_fpa_numeral_float(
                 mZ3Context, fl->getValue().convertToFloat(), typeToSort(fl->getType())
             ));
         }
-        
+
         if (fl->getType().getPrecision() == FloatType::Double) {
             return createHandle(Z3_mk_fpa_numeral_double(
                 mZ3Context, fl->getValue().convertToDouble(), typeToSort(fl->getType())
@@ -411,20 +411,11 @@ Z3AstHandle Z3ExprTransformer::translateLiteral(const ExprRef<LiteralExpr>& expr
     }
 
     if (auto arrayLit = llvm::dyn_cast<ArrayLiteralExpr>(expr)) {
-        Z3AstHandle ast;            
-        if (arrayLit->hasDefault()) {
-            ast = createHandle(Z3_mk_const_array(
-                mZ3Context,
-                typeToSort(arrayLit->getType().getIndexType()),
-                this->translateLiteral(arrayLit->getDefault())
-            ));
-        } else {
-            ast = createHandle(Z3_mk_fresh_const(
-                mZ3Context,
-                "",
-                typeToSort(arrayLit->getType())
-            ));
-        }
+        Z3AstHandle ast = createHandle(Z3_mk_const_array(
+            mZ3Context,
+            typeToSort(arrayLit->getType().getIndexType()),
+            this->translateLiteral(arrayLit->getDefault())
+        ));
 
         Z3AstHandle result = ast;
         for (auto& [index, elem] : arrayLit->getMap()) {
