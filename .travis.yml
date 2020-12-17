@@ -18,6 +18,8 @@ addons:
     - python3-psutil
   sonarcloud:
     organization: "ftsrg"
+cache:
+  - $HOME/.sonar-cache
 env:
 - THETA_VERSION="v2.8.0"
 script:
