@@ -46,7 +46,7 @@ script:
 - cmake --build build --target check-unit
 - cmake --build build --target check-functional
 # run SonarCloud analysis
-- sonar-scanner -Dsonar.cfamily.build-wrapper-output=bw-output
+- sonar-scanner -Dsonar.cfamily.build-wrapper-output=bw-output -Dsonar.cfamily.cache.path=$HOME/.sonar-cache
 notifications:
   slack: ftsrg:vNi38fE47RlUDyoVxk64TDWm
   on_success: change
