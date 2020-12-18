@@ -24,7 +24,8 @@ jobs:
         wget "https://github.com/ftsrg/theta/releases/download/$THETA_VERSION/theta-cfa-cli.jar" -O tools/gazer-theta/theta/theta-cfa-cli.jar
         wget "https://github.com/ftsrg/theta/raw/$THETA_VERSION/lib/libz3.so" -P tools/gazer-theta/theta/lib/
         wget "https://github.com/ftsrg/theta/raw/$THETA_VERSION/lib/libz3java.so" -P tools/gazer-theta/theta/lib/
-      env: THETA_VERSION="v2.8.0"
+      env:
+        THETA_VERSION: v2.8.0
     - name: Run unit tests
       run: make check-unit
     - name: Run functional tests
