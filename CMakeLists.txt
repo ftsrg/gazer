@@ -67,7 +67,7 @@ add_definitions(${LLVM_DEFINITIONS})
 list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
 
 # Get boost
-find_package(Boost REQUIRED)
+find_package(Boost 1.70 REQUIRED)
 include_directories(${Boost_INCLUDE_DIR})
 
 add_definitions(-DBOOST_NO_RTTI -DBOOST_EXCEPTION_DISABLE -DBOOST_NO_EXCEPTIONS)
