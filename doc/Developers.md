@@ -21,6 +21,7 @@
    In addition to the standard cmake flags, Gazer builds may be configured with the following Gazer-specific flags:
    * **GAZER_ENABLE_UNIT_TESTS:** Build Gazer unit tests. Defaults to ON.
    * **GAZER_ENABLE_SANITIZER:** Enable the address and undefined behavior sanitizers. Defaults to OFF.
+   * **GAZER_SHARED_LLVM:** Link LLVM components dynamically (e.g. using `libLLVM.so`). Only recommended for debug builds, defaults to OFF.
 
 ## Test
 

@@ -2,7 +2,7 @@ set(SOURCE_FILES
     SExpr.cpp
     Runtime.cpp)
 
-llvm_map_components_to_libnames(LLVM_LIBS support)
+require_llvm_libraries(GAZER_LLVM_LIBS support)
 
 add_library(GazerSupport ${SOURCE_FILES})
-target_link_libraries(GazerSupport ${LLVM_LIBS})
+target_link_libraries(GazerSupport ${GAZER_LLVM_LIBS})

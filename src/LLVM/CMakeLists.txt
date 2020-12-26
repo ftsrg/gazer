@@ -32,10 +32,10 @@ set(SOURCE_FILES
     Analysis/PDG.cpp
     Instrumentation/Checks/AssertionFailCheck.cpp
     Instrumentation/Checks/DivisionByZeroCheck.cpp
-    Instrumentation/Checks/SignedIntegerOverflowCheck.cpp Transform/LoopExitCanonizationPass.cpp)
-
-llvm_map_components_to_libnames(GAZER_LLVM_LIBS core irreader transformutils scalaropts ipo)
-message(STATUS "Using LLVM libraries: ${GAZER_LLVM_LIBS}")
+    Instrumentation/Checks/SignedIntegerOverflowCheck.cpp
+    Transform/LoopExitCanonizationPass.cpp)
 
 add_library(GazerLLVM SHARED ${SOURCE_FILES})
-target_link_libraries(GazerLLVM ${GAZER_LLVM_LIBS} GazerCore GazerTrace GazerZ3Solver GazerAutomaton)
+
+require_llvm_libraries(GAZER_LLVM_LIBS core irreader transformutils scalaropts ipo)
+target_link_libraries(GazerLLVM ${GAZER_LLVM_LIBS} GazerCore GazerTrace GazerAutomaton)

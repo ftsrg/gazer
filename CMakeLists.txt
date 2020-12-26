@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.13)
 project(gazer)
 
 # Set version information
@@ -65,6 +65,28 @@ message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
+
+# If `GAZER_SHARED_LLVM` is on, we want to link against LLVM dynamically.
+# If it is set to off, we want to map components to static library names
+# and link against those.
+option(GAZER_SHARED_LLVM "Link against shared libLLVM.so" OFF)
+
+function(require_llvm_libraries outVar)
+  if (GAZER_SHARED_LLVM)
+    message(STATUS "Searching for shared libLLVM in ${LLVM_LIBRARY_DIR}")
+    find_library(
+      LLVM_LIBS
+      NAMES LLVM-9
+      PATHS ${LLVM_LIBRARY_DIRS}
+      NO_DEFAULT_PATH
+    )
+    message(STATUS "Found shared libLLVM in ${LLVM_LIBS}")
+    set(${outVar} ${LLVM_LIBS} PARENT_SCOPE)
+  else()
+    llvm_map_components_to_libnames(LLVM_LIBRARY_NAMES ${ARGN})
+    set(${outVar} ${LLVM_LIBRARY_NAMES} PARENT_SCOPE)
+  endif()
+endfunction()
 
 # Get boost
 find_package(Boost 1.70 REQUIRED)
