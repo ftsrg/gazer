@@ -6,13 +6,13 @@ do
   clang -c -emit-llvm "$INPUTF" -o "$TEMP_DIR/$(basename $INPUTF).bc"
 done
 
-if command -v llvm-link &> /dev/null
+if command -v llvm-link-9 &> /dev/null
 then
-  LLVMLINK="llvm-link"
-  LLI="lli"
-else
   LLVMLINK="llvm-link-9"
   LLI="lli-9"
+else
+  LLVMLINK="llvm-link"
+  LLI="lli"
 fi
 
 "$LLVMLINK" "$TEMP_DIR"/*.bc -o - | "$LLI"
