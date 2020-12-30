@@ -18,22 +18,22 @@
 #ifndef GAZER_SRC_VERIFIER_BOUNDEDMODELCHECKERIMPL_H
 #define GAZER_SRC_VERIFIER_BOUNDEDMODELCHECKERIMPL_H
 
-#include "gazer/Verifier/BoundedModelChecker.h"
-#include "gazer/Core/Expr/ExprEvaluator.h"
-#include "gazer/Core/Expr/ExprBuilder.h"
-#include "gazer/Core/Solver/Solver.h"
-#include "gazer/Core/Solver/Model.h"
-#include "gazer/Automaton/Cfa.h"
-#include "gazer/Trace/Trace.h"
-
-#include "gazer/Support/Stopwatch.h"
 #include "gazer/ADT/ScopedCache.h"
+#include "gazer/Automaton/Cfa.h"
+#include "gazer/Core/Expr/ExprBuilder.h"
+#include "gazer/Core/Expr/ExprEvaluator.h"
+#include "gazer/Core/Solver/Model.h"
+#include "gazer/Core/Solver/Solver.h"
+#include "gazer/Support/Stopwatch.h"
+#include "gazer/Trace/Trace.h"
+#include "gazer/Verifier/BoundedModelChecker.h"
 
-#include <llvm/ADT/iterator.h>
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/DenseSet.h>
+#include <llvm/ADT/iterator.h>
 
 #include <chrono>
+#include <gazer/Automaton/CfaUtils.h>
 
 namespace gazer
 {
@@ -120,18 +120,18 @@ class BoundedModelCheckerImpl
         std::vector<Cfa*> callChain;
 
         unsigned getCost() const {
-            return std::count(callChain.begin(), callChain.end(), callChain.back());            
+            return std::count(callChain.begin(), callChain.end(), callChain.back());
         }
     };
 public:
     struct Stats
     {
         std::chrono::milliseconds SolverTime{0};
-        unsigned NumInlined = 0;
-        unsigned NumBeginLocs = 0;
-        unsigned NumEndLocs = 0;
-        unsigned NumBeginLocals = 0;
-        unsigned NumEndLocals = 0;
+        size_t NumInlined = 0;
+        size_t NumBeginLocs = 0;
+        size_t NumEndLocs = 0;
+        size_t NumBeginLocals = 0;
+        size_t NumEndLocals = 0;
     };
 
     BoundedModelCheckerImpl(
@@ -144,12 +144,15 @@ public:
 
     std::unique_ptr<VerificationResult> check();
 
-    void printStats(llvm::raw_ostream& os);
+    void printStats(llvm::raw_ostream& os) const;
 
 private:
     void createTopologicalSorts();
-    bool initializeErrorField();
     void removeIrrelevantLocations();
+    void initializeCallApproximations();
+    void performEagerUnrolling();
+
+    bool initializeErrorField();
 
     void inlineCallIntoRoot(
         CallTransition* call,
@@ -157,12 +160,12 @@ private:
         const llvm::Twine& suffix,
         llvm::SmallVectorImpl<CallTransition*>& newCalls
     );
-    
+
     /// Finds the closest common (post-)dominating node for all call transitions.
     /// If no call transitions are present in the CFA, this function returns nullptr.
     std::pair<Location*, Location*> findCommonCallAncestor(Location* fwd, Location* bwd);
 
-    std::function<size_t(Location*)> createLocNumberFunc();
+    void inlineOpenCalls(Model& model, size_t bound);
 
     void findOpenCallsInCex(Model& model, llvm::SmallVectorImpl<CallTransition*>& callsInCex);
 
@@ -188,14 +191,15 @@ private:
     BmcSettings mSettings;
 
     Cfa* mRoot;
-    std::vector<Location*> mTopo;
+    //std::vector<Location*> mTopo;
+    CfaTopoSort mTopo;
 
     Location* mError = nullptr;
 
     llvm::DenseMap<Location*, size_t> mLocNumbers;
     llvm::DenseSet<CallTransition*> mOpenCalls;
     std::unordered_map<CallTransition*, CallInfo> mCalls;
-    std::unordered_map<Cfa*, std::vector<Location*>> mTopoSortMap;
+    std::unordered_map<Cfa*, CfaTopoSort> mTopoSortMap;
 
     bmc::PredecessorMapT mPredecessors;
 

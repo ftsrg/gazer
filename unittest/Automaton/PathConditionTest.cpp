@@ -77,13 +77,9 @@ TEST(PathConditionTest, PredecessorTest)
 
     auto builder = CreateFoldingExprBuilder(ctx);
 
-    std::vector<Location*> topo;
-    llvm::DenseMap<Location*, size_t> indexMap;
-    createTopologicalSort(*cfa, topo, &indexMap);
-
+    CfaTopoSort topo(*cfa);
     PathConditionCalculator pathCond(
         topo, *builder,
-        [&indexMap](auto l) { return indexMap[l]; },
         [&ctx](auto t) { return BoolLiteralExpr::True(ctx); },
         nullptr
     );
@@ -129,14 +125,11 @@ TEST(PathConditionTest, TestParallelEdges)
     // le --> exit [False]
     cfa->createAssignTransition(le, cfa->getExit(), BoolLiteralExpr::False(ctx));
 
-    std::vector<Location*> topo;
-    llvm::DenseMap<Location*, size_t> indexMap;
-    createTopologicalSort(*cfa, topo, &indexMap);
+    CfaTopoSort topo(*cfa);
     auto builder = CreateFoldingExprBuilder(ctx);
 
     PathConditionCalculator pathCond(
         topo, *builder,
-        [&indexMap](auto l) { return indexMap[l]; },
         [&ctx](auto t) { return BoolLiteralExpr::True(ctx); },
         nullptr
     );

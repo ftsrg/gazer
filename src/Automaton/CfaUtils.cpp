@@ -22,16 +22,48 @@
 
 using namespace gazer;
 
+// Topological sorts
+//===----------------------------------------------------------------------===//
+CfaTopoSort::CfaTopoSort(Cfa &cfa)
+{
+    auto poBegin = llvm::po_begin(cfa.getEntry());
+    auto poEnd = llvm::po_end(cfa.getEntry());
+
+    mLocations.reserve(cfa.getNumLocations());
+    mLocations.insert(mLocations.end(), poBegin, poEnd);
+    std::reverse(mLocations.begin(), mLocations.end());
+
+    mLocNumbers.reserve(mLocations.size());
+    for (size_t i = 0; i < mLocations.size(); ++i) {
+        mLocNumbers[mLocations[i]] = i;
+    }
+}
+
+Location* CfaTopoSort::operator[](size_t idx) const
+{
+    assert(idx > 0 && idx < mLocations.size() && "Out of bounds access on a topological sort!");
+    return mLocations[idx];
+}
+
+size_t CfaTopoSort::indexOf(Location *location) const
+{
+    auto it = mLocNumbers.find(location);
+    assert(it != mLocNumbers.end() && "Attempting to fetch a non-existing index from a topological sort!");
+
+    return it->second;
+}
+
+
 // Calculating path conditions
 //===----------------------------------------------------------------------===//
 
 PathConditionCalculator::PathConditionCalculator(
-    const std::vector<Location*>& topo,
+    const CfaTopoSort& topo,
     ExprBuilder& builder,
-    std::function<size_t(Location*)> index,
     std::function<ExprPtr(CallTransition*)> calls,
     std::function<void(Location*, ExprPtr)> preds
-) : mTopo(topo), mExprBuilder(builder), mIndex(index), mCalls(calls), mPredecessors(preds)
+) : mTopo(topo), mExprBuilder(builder), mCalls(calls),
+    mPredecessors(preds)
 {}
 
 namespace
@@ -58,8 +90,8 @@ ExprPtr PathConditionCalculator::encode(Location* source, Location* target)
         return mExprBuilder.True();
     }
 
-    size_t startIdx = mIndex(source);
-    size_t targetIdx = mIndex(target);
+    size_t startIdx = mTopo.indexOf(source);
+    size_t targetIdx = mTopo.indexOf(target);
 
     auto& ctx = mExprBuilder.getContext();
     assert(startIdx < targetIdx && "The source location must be before the target in a topological sort!");
@@ -78,7 +110,7 @@ ExprPtr PathConditionCalculator::encode(Location* source, Location* target)
 
         llvm::SmallVector<PathPredecessor, 16> preds;
         for (Transition* edge : loc->incoming()) {
-            size_t predIdx = mIndex(edge->getSource());
+            size_t predIdx = mTopo.indexOf(edge->getSource());
             assert(predIdx < i + startIdx
                 && "Predecessors must be before block in a topological sort. "
                 "Maybe there is a loop in the automaton?");
@@ -185,8 +217,7 @@ ExprPtr PathConditionCalculator::encode(Location* source, Location* target)
 
 Location* gazer::findLowestCommonDominator(
     const std::vector<Transition*>& targets,
-    const std::vector<Location*>& topo,
-    std::function<size_t(Location*)> index,
+    const CfaTopoSort& topo,
     Location* start)
 {
     if (targets.empty()) {
@@ -199,12 +230,12 @@ Location* gazer::findLowestCommonDominator(
     }
 
     // Find the last interesting index in the topological sort.
-    auto end = std::max_element(targets.begin(), targets.end(), [index](auto& a, auto& b) {
-        return index(a->getSource()) < index(b->getSource());
+    auto end = std::max_element(targets.begin(), targets.end(), [&topo](auto& a, auto& b) {
+      return topo.indexOf(a->getSource()) < topo.indexOf(b->getSource());
     });
 
-    size_t startIdx = index(start);
-    size_t lastIdx  = index((*end)->getTarget());
+    size_t startIdx = topo.indexOf(start);
+    size_t lastIdx  = topo.indexOf((*end)->getTarget());
 
     assert(lastIdx > startIdx && "The last interesting index must be larger than the start index!");
 
@@ -226,7 +257,7 @@ Location* gazer::findLowestCommonDominator(
         boost::dynamic_bitset<> bs(numLocs);
         bs.set();
         for (Transition* edge : loc->incoming()) {
-            size_t predIdx = index(edge->getSource());
+            size_t predIdx = topo.indexOf(edge->getSource());
             assert(predIdx < i + startIdx
                 && "Predecessors must be before node in a topological sort. "
                 "Maybe there is a loop in the automaton?");
@@ -249,7 +280,7 @@ Location* gazer::findLowestCommonDominator(
     boost::dynamic_bitset<> commonDominators(numLocs);
     commonDominators.set();
     for (Transition* edge : targets) {
-        size_t idx = index(edge->getSource());
+        size_t idx = topo.indexOf(edge->getSource());
         commonDominators = commonDominators & dominators[idx - startIdx];
     }
 
@@ -270,8 +301,7 @@ Location* gazer::findLowestCommonDominator(
 
 Location* gazer::findHighestCommonPostDominator(
     const std::vector<Transition*>& targets,
-    const std::vector<Location*>& topo,
-    std::function<size_t(Location*)> index,
+    const CfaTopoSort& topo,
     Location* start
 ) {
 
@@ -285,12 +315,12 @@ Location* gazer::findHighestCommonPostDominator(
     }
 
     // Find the last interesting index in the topological sort.
-    auto end = std::min_element(targets.begin(), targets.end(), [index](auto& a, auto& b) {
-        return index(a->getSource()) < index(b->getSource());
+    auto end = std::min_element(targets.begin(), targets.end(), [&topo](auto& a, auto& b) {
+      return topo.indexOf(a->getSource()) < topo.indexOf(b->getSource());
     });
 
-    size_t startIdx = index(start);
-    size_t lastIdx  = index((*end)->getSource());
+    size_t startIdx = topo.indexOf(start);
+    size_t lastIdx  = topo.indexOf((*end)->getSource());
 
     assert(lastIdx < startIdx && "The last interesting index must be larger than the start index!");
 
@@ -312,7 +342,7 @@ Location* gazer::findHighestCommonPostDominator(
         boost::dynamic_bitset<> bs(numLocs);
         bs.set();
         for (Transition* edge : loc->outgoing()) {
-            size_t succIdx = index(edge->getTarget());
+            size_t succIdx = topo.indexOf(edge->getTarget());
 
             if (succIdx > startIdx) {
                 // We are skipping the predecessors we are not interested in.
@@ -332,7 +362,7 @@ Location* gazer::findHighestCommonPostDominator(
     boost::dynamic_bitset<> commonDominators(numLocs);
     commonDominators.set();
     for (Transition* edge : targets) {
-        size_t idx = index(edge->getTarget());
+        size_t idx = topo.indexOf(edge->getTarget());
         commonDominators = commonDominators & dominators[startIdx - idx];
     }
 

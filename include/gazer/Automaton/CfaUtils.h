@@ -23,35 +23,56 @@
 #include <llvm/ADT/DenseSet.h>
 #include <llvm/ADT/PostOrderIterator.h>
 
+#include <boost/dynamic_bitset.hpp>
+
 namespace gazer
 {
 
 class ExprBuilder;
 
-template<class Seq = std::vector<Location*>, class Map = llvm::DenseMap<Location*, size_t>>
-void createTopologicalSort(Cfa& cfa, Seq& topoVec, Map* locNumbers = nullptr)
+class CfaTopoSort
 {
-    auto poBegin = llvm::po_begin(cfa.getEntry());
-    auto poEnd = llvm::po_end(cfa.getEntry());
+public:
+    CfaTopoSort() = default;
+    explicit CfaTopoSort(Cfa& cfa);
 
-    topoVec.insert(topoVec.end(), poBegin, poEnd);
-    std::reverse(topoVec.begin(), topoVec.end());
+    CfaTopoSort(const CfaTopoSort&) = default;
+    CfaTopoSort& operator=(const CfaTopoSort&) = default;
 
-    if (locNumbers != nullptr) {
-        for (size_t i = 0; i < topoVec.size(); ++i) {
-            (*locNumbers)[topoVec[i]] = i;
+    Location* operator[](size_t idx) const;
+    size_t indexOf(Location* location) const;
+    size_t size() const { return mLocations.size(); }
+
+    using iterator = std::vector<Location*>::const_iterator;
+    iterator begin() const { return mLocations.begin(); }
+    iterator end() const { return mLocations.end(); }
+
+    template<class LocationIterator>
+    iterator insert(size_t idx, LocationIterator first, LocationIterator second)
+    {
+        auto pos = std::next(mLocations.begin(), idx);
+        auto insertPos = mLocations.insert(pos, first, second);
+
+        for (auto it = insertPos, ie = mLocations.end(); it != ie; ++it) {
+            size_t currIdx = std::distance(mLocations.begin(), it);
+            mLocNumbers[*it] = currIdx;
         }
+
+        return insertPos;
     }
-}
+
+private:
+    std::vector<Location*> mLocations;
+    llvm::DenseMap<Location*, size_t> mLocNumbers;
+};
 
 /// Class for calculating verification path conditions.
 class PathConditionCalculator
 {
 public:
     PathConditionCalculator(
-        const std::vector<Location*>& topo,
+        const CfaTopoSort& topo,
         ExprBuilder& builder,
-        std::function<size_t(Location*)> index,
         std::function<ExprPtr(CallTransition*)> calls,
         std::function<void(Location*, ExprPtr)> preds = nullptr
     );
@@ -60,9 +81,8 @@ public:
     ExprPtr encode(Location* source, Location* target);
 
 private:
-    const std::vector<Location*>& mTopo;
+    const CfaTopoSort& mTopo;
     ExprBuilder& mExprBuilder;
-    std::function<size_t(Location*)> mIndex;
     std::function<ExprPtr(CallTransition*)> mCalls;
     std::function<void(Location*, ExprPtr)> mPredecessors;
     unsigned mPredIdx = 0;
@@ -77,16 +97,14 @@ private:
 ///     entry location if empty.
 Location* findLowestCommonDominator(
     const std::vector<Transition*>& targets,
-    const std::vector<Location*>& topo,
-    std::function<size_t(Location*)> index,
+    const CfaTopoSort& topo,
     Location* start = nullptr
 );
 
 /// Returns the highest common post-dominator of each transition in \p targets.
 Location* findHighestCommonPostDominator(
     const std::vector<Transition*>& targets,
-    const std::vector<Location*>& topo,
-    std::function<size_t(Location*)> index,
+    const CfaTopoSort& topo,
     Location* start
 );
 
