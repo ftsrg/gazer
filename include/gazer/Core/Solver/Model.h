@@ -28,14 +28,13 @@ class LiteralExpr;
 class Model : public ExprEvaluator
 {
 public:
-    // Inherited from ExprEvaluator:
-    virtual ExprRef<AtomicExpr> evaluate(const ExprPtr& expr) = 0;
-
-    virtual ~Model() = default;
+    // 'evaluate' is inherited from ExprEvaluator
 
     virtual void dump(llvm::raw_ostream& os) = 0;
+
+    virtual ~Model() = default;
 };
 
-}
+} // namespace gazer
 
 #endif

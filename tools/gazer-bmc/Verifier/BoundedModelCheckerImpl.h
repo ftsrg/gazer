@@ -86,7 +86,6 @@ namespace bmc
     private:
         void advance();
 
-    private:
         BmcCex& mCex;
         CexState mState;
     };
@@ -110,7 +109,7 @@ namespace bmc
         ExprEvaluator& mEval;
         PredecessorMapT& mPredecessors;
     };
-}
+} // namespace bmc
 
 class BoundedModelCheckerImpl
 {
@@ -161,6 +160,8 @@ private:
         llvm::SmallVectorImpl<CallTransition*>& newCalls
     );
 
+    Solver::SolverStatus underApproximationStep();
+
     /// Finds the closest common (post-)dominating node for all call transitions.
     /// If no call transitions are present in the CFA, this function returns nullptr.
     std::pair<Location*, Location*> findCommonCallAncestor(Location* fwd, Location* bwd);
@@ -170,6 +171,7 @@ private:
     void findOpenCallsInCex(Model& model, llvm::SmallVectorImpl<CallTransition*>& callsInCex);
 
     std::unique_ptr<VerificationResult> createFailResult();
+    std::unique_ptr<Trace> constructTrace(Model& model);
 
     void push() {
         mSolver->push();
@@ -183,7 +185,7 @@ private:
 
     Solver::SolverStatus runSolver();
 
-private:
+    // Fields
     AutomataSystem& mSystem;
     ExprBuilder& mExprBuilder;
     std::unique_ptr<Solver> mSolver;
@@ -191,32 +193,29 @@ private:
     BmcSettings mSettings;
 
     Cfa* mRoot;
-    //std::vector<Location*> mTopo;
     CfaTopoSort mTopo;
 
     Location* mError = nullptr;
+    Location* mTopLoc = nullptr;
+    Location* mBottomLoc = nullptr;
 
-    llvm::DenseMap<Location*, size_t> mLocNumbers;
     llvm::DenseSet<CallTransition*> mOpenCalls;
     std::unordered_map<CallTransition*, CallInfo> mCalls;
     std::unordered_map<Cfa*, CfaTopoSort> mTopoSortMap;
 
+    std::unique_ptr<PathConditionCalculator> mPathConditions;
     bmc::PredecessorMapT mPredecessors;
 
     llvm::DenseMap<Location*, Location*> mInlinedLocations;
     llvm::DenseMap<Variable*, Variable*> mInlinedVariables;
 
     size_t mTmp = 0;
+    bool mSkipUnderApprox = false;
 
     Stats mStats;
     Stopwatch<> mTimer;
     Variable* mErrorFieldVariable = nullptr;
 };
-
-std::unique_ptr<Trace> buildBmcTrace(
-    const std::vector<Location*>& states,
-    const std::vector<std::vector<VariableAssignment>>& actions
-);
 
 } // end namespace gazer
 

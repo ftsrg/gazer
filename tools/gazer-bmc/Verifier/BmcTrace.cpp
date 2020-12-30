@@ -55,7 +55,58 @@ void bmc::cex_iterator::advance()
     mState = { source, *edge };
 }
 
-// FIXME: Move this to BoundedModelChecker.cpp?
+std::unique_ptr<Trace> BoundedModelCheckerImpl::constructTrace(Model& model)
+{
+    if (!mSettings.trace) {
+        return std::make_unique<Trace>(std::vector<std::unique_ptr<TraceEvent>>());
+    }
+
+    std::vector<Location*> states;
+    std::vector<std::vector<VariableAssignment>> actions;
+
+    bmc::BmcCex cex{mError, *mRoot, model, mPredecessors};
+    for (auto state : cex) {
+        Location* loc = state.getLocation();
+        Transition* edge = state.getOutgoingTransition();
+
+        Location* origLoc = mInlinedLocations.lookup(loc);
+        states.push_back(origLoc != nullptr ? origLoc : loc);
+
+        if (edge == nullptr) {
+            continue;
+        }
+
+        auto* assignEdge = llvm::dyn_cast<AssignTransition>(edge);
+        assert(assignEdge != nullptr && "BMC traces must contain only assign transitions!");
+
+        std::vector<VariableAssignment> traceAction;
+        for (const VariableAssignment& assignment : *assignEdge) {
+            Variable* variable = assignment.getVariable();
+            Variable* origVariable = mInlinedVariables.lookup(assignment.getVariable());
+            if (origVariable == nullptr) {
+                // This variable was not inlined, just use the original one.
+                origVariable = variable;
+            }
+
+            ExprRef<AtomicExpr> value;
+            if (auto lit = model.evaluate(assignment.getVariable()->getRefExpr())) {
+                value = lit;
+            } else {
+                value = UndefExpr::Get(variable->getType());
+            }
+
+            traceAction.emplace_back(origVariable, value);
+        }
+
+        actions.push_back(traceAction);
+    }
+
+    std::reverse(states.begin(), states.end());
+    std::reverse(actions.begin(), actions.end());
+
+    return mTraceBuilder.build(states, actions);
+}
+
 std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::createFailResult()
 {
     auto model = mSolver->getModel();
@@ -64,56 +115,7 @@ std::unique_ptr<VerificationResult> BoundedModelCheckerImpl::createFailResult()
         model->dump(llvm::errs());
     }
 
-    std::unique_ptr<Trace> trace;
-    if (mSettings.trace) {
-        std::vector<Location*> states;
-        std::vector<std::vector<VariableAssignment>> actions;
-
-        bmc::BmcCex cex{mError, *mRoot, *model, mPredecessors};
-        for (auto state : cex) {
-            Location* loc = state.getLocation();
-            Transition* edge = state.getOutgoingTransition();
-
-            Location* origLoc = mInlinedLocations.lookup(loc);
-
-            states.push_back(origLoc != nullptr ? origLoc : loc);
-
-            if (edge == nullptr) {
-                continue;
-            }
-
-            auto assignEdge = llvm::dyn_cast<AssignTransition>(edge);
-            assert(assignEdge != nullptr && "BMC traces must contain only assign transitions!");
-
-            std::vector<VariableAssignment> traceAction;
-            for (const VariableAssignment& assignment : *assignEdge) {
-                Variable* variable = assignment.getVariable();
-                Variable* origVariable = mInlinedVariables.lookup(assignment.getVariable());
-                if (origVariable == nullptr) {
-                    // This variable was not inlined, just use the original one.
-                    origVariable = variable;
-                }
-
-                ExprRef<AtomicExpr> value;
-                if (auto lit = model->evaluate(assignment.getVariable()->getRefExpr())) {
-                    value = lit;
-                } else {
-                    value = UndefExpr::Get(variable->getType());
-                }
-
-                traceAction.emplace_back(origVariable, value);
-            }
-
-            actions.push_back(traceAction);
-        }
-
-        std::reverse(states.begin(), states.end());
-        std::reverse(actions.begin(), actions.end());
-
-        trace = mTraceBuilder.build(states, actions);
-    } else {
-        trace = std::make_unique<Trace>(std::vector<std::unique_ptr<TraceEvent>>());
-    }
+    std::unique_ptr<Trace> trace = this->constructTrace(*model);
 
     ExprRef<AtomicExpr> errorExpr = model->evaluate(mErrorFieldVariable->getRefExpr());
     assert(!errorExpr->isUndef() && "The error field must be present in the model as a literal expression!");
