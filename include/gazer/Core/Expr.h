@@ -338,6 +338,8 @@ struct simplify_type<const gazer::ExprRef<T>> {
 
 } // end namespace llvm
 
+#if BOOST_VERSION < 107400
+// Boost 1.74 introduced std::hash specialization for smart pointers, but we officially support 1.70.
 namespace std
 {
 
@@ -358,5 +360,6 @@ struct hash<gazer::ExprRef<T>>
 };
 
 } // end namespace std
+#endif
 
 #endif
