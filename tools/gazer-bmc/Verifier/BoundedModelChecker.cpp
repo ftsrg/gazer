@@ -22,6 +22,7 @@
 #include "gazer/Automaton/CfaUtils.h"
 
 #include "gazer/Support/Stopwatch.h"
+#include "gazer/Support/Warnings.h"
 
 #include <llvm/ADT/DenseSet.h>
 #include <llvm/ADT/PostOrderIterator.h>
@@ -81,16 +82,10 @@ BoundedModelCheckerImpl::BoundedModelCheckerImpl(
 void BoundedModelCheckerImpl::createTopologicalSorts()
 {
     for (Cfa& cfa : mSystem) {
-        auto& topoVec = mTopoSortMap[&cfa];
-        createTopologicalSort(cfa, topoVec);
+        mTopoSortMap.try_emplace(&cfa, cfa);
     }
 
-    auto& mainTopo = mTopoSortMap[mRoot];
-    mTopo.insert(mTopo.end(), mainTopo.begin(), mainTopo.end());
-
-    for (size_t i = 0; i < mTopo.size(); ++i) {
-        mLocNumbers[mTopo[i]] = i;
-    }
+    mTopo = CfaTopoSort(*mRoot);
 }
 
 auto BoundedModelCheckerImpl::initializeErrorField() -> bool
@@ -98,27 +93,26 @@ auto BoundedModelCheckerImpl::initializeErrorField() -> bool
     // Set the verification goal - a single error location.
     llvm::SmallVector<Location*, 1> errors;
     Type* errorFieldType = nullptr;
-    for (Location* loc : mRoot->nodes()) {
-        if (loc->isError()) {
-            errors.push_back(loc);
-            errorFieldType = &mRoot->getErrorFieldExpr(loc)->getType();
-        }
+    for (auto& [location, errExpr] : mRoot->errors()) {
+        errors.push_back(location);
+        errorFieldType = &errExpr->getType();
     }
 
+    // Try to find the error field type from using another CFA.
     if (errorFieldType == nullptr) {
-        // Try to find the error field type from using another CFA.
-        for (Cfa& cfa : mSystem) {
-            for (auto& [location, errExpr] : cfa.errors()) {
+        for (const Cfa& cfa : mSystem) {
+            if (cfa.error_begin() != cfa.error_end()) {
+                auto errExpr = cfa.error_begin()->second;
                 errorFieldType = &errExpr->getType();
-                goto ERROR_TYPE_FOUND;
             }
         }
-
-        // There are no error calls in the system, it is safe by definition.
-        return false;
     }
 
-ERROR_TYPE_FOUND:
+    // If the error field type is still not known, there are no errors present in the system,
+    // the program is safe by defintition
+    if (errorFieldType == nullptr) {
+        return false;
+    }
 
     mError = mRoot->createErrorLocation();
     mErrorFieldVariable = mRoot->createLocal("__error_field", *errorFieldType);
@@ -141,6 +135,16 @@ ERROR_TYPE_FOUND:
     mRoot->createAssignTransition(mError, mRoot->getExit(), mExprBuilder.False());
 
     return true;
+}
+
+void BoundedModelCheckerImpl::initializeCallApproximations()
+{
+    for (Transition* edge : mRoot->edges()) {
+        if (auto call = llvm::dyn_cast<CallTransition>(edge)) {
+            mCalls[call].overApprox = mExprBuilder.False();
+            mCalls[call].callChain.push_back(call->getCalledAutomaton());
+        }
+    }
 }
 
 void BoundedModelCheckerImpl::removeIrrelevantLocations()
@@ -169,53 +173,8 @@ void BoundedModelCheckerImpl::removeIrrelevantLocations()
     mRoot->clearDisconnectedElements();
 }
 
-auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
+void BoundedModelCheckerImpl::performEagerUnrolling()
 {
-    // Initialize error field
-    bool hasErrorLocation = this->initializeErrorField();
-    if (!hasErrorLocation) {
-        llvm::outs() << "No error location is present or it was discarded by the frontend.\n";
-        return VerificationResult::CreateSuccess();
-    }
-
-    // Do a pre-processing step: remove all locations from which the error
-    // location is not reachable.
-    this->removeIrrelevantLocations();
-
-    // Create the topological sorts
-    this->createTopologicalSorts();
-
-    // Insert initial call approximations.
-    for (Transition* edge : mRoot->edges()) {
-        if (auto call = llvm::dyn_cast<CallTransition>(edge)) {
-            mCalls[call].overApprox = mExprBuilder.False();
-            mCalls[call].callChain.push_back(call->getCalledAutomaton());
-        }
-    }
-
-    if (mSettings.debugDumpCfa) {
-        for (Cfa& cfa : mSystem) { cfa.view(); }
-    }
-
-    // Initialize the path condition calculator
-    PathConditionCalculator pathConditions(
-        mTopo, mExprBuilder,
-        this->createLocNumberFunc(),
-        [this](CallTransition* call) -> ExprPtr {
-            return mCalls[call].overApprox;
-        },
-        [this](Location* l, ExprPtr e) {
-            mPredecessors.insert(l, e);
-        }
-    );
-
-    // Do eager unrolling, if requested
-    if (mSettings.eagerUnroll > mSettings.maxBound) {
-        llvm::errs() << "ERROR: Eager unrolling bound is larger than maximum bound.\n";
-        return VerificationResult::CreateUnknown();
-    }
-
-    unsigned tmp = 0;
     for (size_t bound = 1; bound <= mSettings.eagerUnroll; ++bound) {
         llvm::outs() << "Eager iteration " << bound << "\n";
         mOpenCalls.clear();
@@ -227,10 +186,56 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
 
         llvm::SmallVector<CallTransition*, 16> callsToInline;
         for (CallTransition* call : mOpenCalls) {
-            inlineCallIntoRoot(call, mInlinedVariables, "_call" + llvm::Twine(tmp++), callsToInline);
+            inlineCallIntoRoot(call, mInlinedVariables, "_call" + llvm::Twine(mTmp++), callsToInline);
             mCalls.erase(call);
         }
     }
+}
+
+auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
+{
+    // Initialize error field
+    bool hasErrorLocation = this->initializeErrorField();
+    if (!hasErrorLocation) {
+        llvm::outs() << "No error location is present or it was discarded by the frontend.\n";
+        return VerificationResult::CreateSuccess();
+    }
+
+    // Do some basic pre-processing step: remove all locations from which the error
+    // location is not reachable.
+    this->removeIrrelevantLocations();
+
+    // Create the topological sorts
+    this->createTopologicalSorts();
+
+    // Insert initial call approximations.
+    this->initializeCallApproximations();
+
+    if (mSettings.debugDumpCfa) {
+        for (const Cfa& cfa : mSystem) {
+            cfa.view();
+        }
+    }
+
+    // Initialize the path condition calculator
+    PathConditionCalculator pathConditions(
+        mTopo,
+        mExprBuilder,
+        [this](CallTransition* call) {
+            return mCalls[call].overApprox;
+        },
+        [this](Location* l, ExprPtr e) {
+            mPredecessors.insert(l, e);
+        }
+    );
+
+    // Do eager unrolling, if requested
+    if (mSettings.eagerUnroll > mSettings.maxBound) {
+        emit_error("eager unrolling bound (%d) is larger than maximum bound (%d)", mSettings.eagerUnroll, mSettings.maxBound);
+        return VerificationResult::CreateUnknown();
+    }
+
+    this->performEagerUnrolling();
 
     mStats.NumBeginLocs = mRoot->getNumLocations();
     mStats.NumBeginLocals = mRoot->getNumLocals();
@@ -252,8 +257,8 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
             if (!skipUnderApprox) {
                 llvm::outs() << "  Under-approximating.\n";
 
-                for (auto& entry : mCalls) {
-                    entry.second.overApprox = mExprBuilder.False();
+                for (auto& [_, callInfo] : mCalls) {
+                    callInfo.overApprox = mExprBuilder.False();
                 }
 
                 formula = pathConditions.encode(top, bottom);
@@ -357,39 +362,7 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
 
                 // We have a counterexample, but it may be spurious.
                 auto model = mSolver->getModel();
-
-                llvm::SmallVector<CallTransition*, 16> callsToInline;
-                this->findOpenCallsInCex(*model, callsToInline);
-
-                llvm::outs() << "    Inlining calls...\n";
-                while (!callsToInline.empty()) {
-                    CallTransition* call = callsToInline.pop_back_val();
-                    llvm::outs() << "      Inlining " << call->getSource()->getId() << " --> "
-                        << call->getTarget()->getId() << " "
-                        << call->getCalledAutomaton()->getName() << "\n";
-                    mStats.NumInlined++;
-
-                    llvm::SmallVector<CallTransition*, 4> newCalls;
-                    this->inlineCallIntoRoot(
-                        call, mInlinedVariables, "_call" + llvm::Twine(tmp++), newCalls
-                    );
-                    mCalls.erase(call);
-                    mOpenCalls.erase(call);
-
-                    for (CallTransition* newCall : newCalls) {
-                        if (mCalls[newCall].getCost() <= bound) {
-                            callsToInline.push_back(newCall);
-                        }
-                    }
-                }
-
-                mRoot->clearDisconnectedElements();
-
-                mStats.NumEndLocs = mRoot->getNumLocations();
-                mStats.NumEndLocals = mRoot->getNumLocals();
-                if (mSettings.debugDumpCfa) {
-                    mRoot->view();
-                }
+                this->inlineOpenCalls(*model, bound);
 
                 this->pop();
                 top = lca.first;
@@ -435,16 +408,40 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
     return VerificationResult::CreateBoundReached();
 }
 
-auto BoundedModelCheckerImpl::createLocNumberFunc()
-    -> std::function<size_t(Location*)>
+void BoundedModelCheckerImpl::inlineOpenCalls(Model& model, size_t bound)
 {
-    return [this](Location* loc) {
-        auto predIt = mLocNumbers.find(loc);
-        assert(predIt != mLocNumbers.end()
-            && "All locations must be present in the location map!");
+    llvm::SmallVector<CallTransition*, 16> callsToInline;
+    this->findOpenCallsInCex(model, callsToInline);
 
-        return predIt->second;
-    };
+    llvm::outs() << "    Inlining calls...\n";
+    while (!callsToInline.empty()) {
+        CallTransition* call = callsToInline.pop_back_val();
+        llvm::outs() << "      Inlining " << call->getSource()->getId() << " --> "
+            << call->getTarget()->getId() << " "
+            << call->getCalledAutomaton()->getName() << "\n";
+        mStats.NumInlined++;
+
+        llvm::SmallVector<CallTransition*, 4> newCalls;
+        this->inlineCallIntoRoot(
+            call, mInlinedVariables, "_call" + llvm::Twine(mTmp++), newCalls
+        );
+        mCalls.erase(call);
+        mOpenCalls.erase(call);
+
+        for (CallTransition* newCall : newCalls) {
+            if (mCalls[newCall].getCost() <= bound) {
+                callsToInline.push_back(newCall);
+            }
+        }
+    }
+
+    mRoot->clearDisconnectedElements();
+
+    mStats.NumEndLocs = mRoot->getNumLocations();
+    mStats.NumEndLocals = mRoot->getNumLocals();
+    if (mSettings.debugDumpCfa) {
+        mRoot->view();
+    }
 }
 
 auto BoundedModelCheckerImpl::findCommonCallAncestor(Location* fwd, Location* bwd)
@@ -460,13 +457,13 @@ auto BoundedModelCheckerImpl::findCommonCallAncestor(Location* fwd, Location* bw
     Location* pdom;
 
     if (!NoDomPush) {
-        dom = findLowestCommonDominator(targets, mTopo, this->createLocNumberFunc(), fwd);
+        dom = findLowestCommonDominator(targets, mTopo, fwd);
     } else {
         dom = fwd;
     }
 
     if (!NoPostDomPush) {
-        pdom = findHighestCommonPostDominator(targets, mTopo, this->createLocNumberFunc(), bwd);
+        pdom = findHighestCommonPostDominator(targets, mTopo, bwd);
     } else {
         pdom = bwd;
     }
@@ -503,7 +500,7 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
             << "\n";
     );
 
-    CallInfo& info = mCalls[call];
+    const CallInfo& info = mCalls[call];
     auto callee = call->getCalledAutomaton();
 
     llvm::DenseMap<Location*, Location*> locToLocMap;
@@ -593,22 +590,19 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
             std::transform(
                 nestedCall->input_begin(), nestedCall->input_end(),
                 std::back_inserter(newArgs),
-                [&rewrite](const VariableAssignment& assign) {
-                    return VariableAssignment{assign.getVariable(), rewrite.walk(assign.getValue())};
+                [&rewrite](const VariableAssignment& a) {
+                    return VariableAssignment{a.getVariable(), rewrite.walk(a.getValue())};
                 }
             );
             std::transform(
                 nestedCall->output_begin(), nestedCall->output_end(),
                 std::back_inserter(newOuts),
                 [&oldVarToNew](const VariableAssignment& origAssign) {
-                    //llvm::errs() << origAssign.getVariable()->getName() << "\n";
-
                     Variable* newVar = oldVarToNew.lookup(origAssign.getVariable());
                     assert(newVar != nullptr && "All variables should be present in the variable map!");
 
                     return VariableAssignment{
                         newVar,
-                        //rewrite.visit(origAssign.getValue())
                         origAssign.getValue()
                     };
                 }
@@ -651,23 +645,16 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     // Add the new locations to the topological sort.
     // As every inlined location should come between the source and target of the original call transition,
     // we will insert them there in the topo sort.
-    auto& oldTopo = mTopoSortMap[callee];
+    auto oldTopo = mTopoSortMap.find(callee);
+    assert(oldTopo != mTopoSortMap.end());
+
     auto getInlinedLocation = [&locToLocMap](Location* loc) {
         return locToLocMap[loc];
     };
 
-    size_t callIdx = mLocNumbers[call->getTarget()];
-    auto callPos = std::next(mTopo.begin(), callIdx);
-    auto insertPos = mTopo.insert(callPos,
-        llvm::map_iterator(oldTopo.begin(), getInlinedLocation),
-        llvm::map_iterator(oldTopo.end(), getInlinedLocation)
-    );
-
-    // Update the location numbers
-    for (auto it = insertPos, ie = mTopo.end(); it != ie; ++it) {
-        size_t idx = std::distance(mTopo.begin(), it);
-        mLocNumbers[*it] = idx;
-    }
+    mTopo.insert(mTopo.indexOf(call->getTarget()),
+         llvm::map_iterator(oldTopo->second.begin(), getInlinedLocation),
+         llvm::map_iterator(oldTopo->second.end(), getInlinedLocation));
 
     mRoot->disconnectEdge(call);
 }
@@ -687,7 +674,7 @@ auto BoundedModelCheckerImpl::runSolver() -> Solver::SolverStatus
     return status;
 }
 
-void BoundedModelCheckerImpl::printStats(llvm::raw_ostream& os)
+void BoundedModelCheckerImpl::printStats(llvm::raw_ostream& os) const
 {
     os << "--------- Statistics ---------\n";
     os << "Total solver time: ";
@@ -704,4 +691,3 @@ void BoundedModelCheckerImpl::printStats(llvm::raw_ostream& os)
     }
     os << "\n";
 }
-
