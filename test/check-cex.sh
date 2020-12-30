@@ -8,14 +8,14 @@ done
 
 if command -v llvm-link &> /dev/null
 then
-    LLVMLINK="llvm-link"
-	LLI="lli"
+  LLVMLINK="llvm-link"
+  LLI="lli"
 else
-    LLVMLINK="llvm-link-9"
-	LLI="lli-9"
+  LLVMLINK="llvm-link-9"
+  LLI="lli-9"
 fi
 
-eval "$LLVMLINK $TEMP_DIR/*.bc -o - | $LLI"
+eval "$LLVMLINK" "$TEMP_DIR"/*.bc -o - | "$LLI"
 RESULT=$?
 rm -r "$TEMP_DIR"
 exit $RESULT
