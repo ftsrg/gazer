@@ -30,6 +30,8 @@ namespace gazer
 
 class ExprBuilder;
 
+/// A class which contains the topological sort of a recursive CFA. The mapping is bi-directional:
+/// the class knows the index of each location stored in the topological sort.
 class CfaTopoSort
 {
 public:
@@ -70,6 +72,15 @@ private:
 class PathConditionCalculator
 {
 public:
+    /// Constructs a new path condition calculator.
+    ///
+    /// \param topo The topological sort to use.
+    /// \param builder An expression builder instance.
+    /// \param calls A function which tells the translation process how to represent call
+    ///  transitions in the formula.
+    /// \param preds If non-null, the formula generation process will insert predecessor information
+    ///  into the generated formula. The function passed here will be invoked on each generated
+    ///  predecessor expression, so the caller may handle it (e.g. insert it into a map).
     PathConditionCalculator(
         const CfaTopoSort& topo,
         ExprBuilder& builder,
@@ -77,7 +88,7 @@ public:
         std::function<void(Location*, ExprPtr)> preds = nullptr
     );
 
-public:
+    /// Calculates the reachability condition between \p source and \p target.
     ExprPtr encode(Location* source, Location* target);
 
 private:
@@ -108,6 +119,6 @@ Location* findHighestCommonPostDominator(
     Location* start
 );
 
-}
+} // namespace gazer
 
 #endif

@@ -93,7 +93,7 @@ auto BoundedModelCheckerImpl::initializeErrorField() -> bool
     // Set the verification goal - a single error location.
     llvm::SmallVector<Location*, 1> errors;
     Type* errorFieldType = nullptr;
-    for (auto& [location, errExpr] : mRoot->errors()) {
+    for (const auto& [location, errExpr] : mRoot->errors()) {
         errors.push_back(location);
         errorFieldType = &errExpr->getType();
     }
@@ -140,7 +140,7 @@ auto BoundedModelCheckerImpl::initializeErrorField() -> bool
 void BoundedModelCheckerImpl::initializeCallApproximations()
 {
     for (Transition* edge : mRoot->edges()) {
-        if (auto call = llvm::dyn_cast<CallTransition>(edge)) {
+        if (auto* call = llvm::dyn_cast<CallTransition>(edge)) {
             mCalls[call].overApprox = mExprBuilder.False();
             mCalls[call].callChain.push_back(call->getCalledAutomaton());
         }
@@ -218,14 +218,14 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
     }
 
     // Initialize the path condition calculator
-    PathConditionCalculator pathConditions(
+    mPathConditions = std::make_unique<PathConditionCalculator>(
         mTopo,
         mExprBuilder,
         [this](CallTransition* call) {
-            return mCalls[call].overApprox;
+          return mCalls[call].overApprox;
         },
-        [this](Location* l, ExprPtr e) {
-            mPredecessors.insert(l, e);
+        [this](Location* l, const ExprPtr& e) {
+          mPredecessors.insert(l, e);
         }
     );
 
@@ -240,10 +240,9 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
     mStats.NumBeginLocs = mRoot->getNumLocations();
     mStats.NumBeginLocals = mRoot->getNumLocals();
 
-    Location* top = mRoot->getEntry();
-    Location* bottom = mError;
-
-    bool skipUnderApprox = false;
+    mTopLoc = mRoot->getEntry();
+    mBottomLoc = mError;
+    mSkipUnderApprox = false;
 
     // Let's do some verification.
     for (size_t bound = mSettings.eagerUnroll + 1; bound <= mSettings.maxBound; ++bound) {
@@ -254,38 +253,15 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
             ExprPtr formula;
             Solver::SolverStatus status = Solver::UNKNOWN;
 
-            if (!skipUnderApprox) {
-                llvm::outs() << "  Under-approximating.\n";
-
-                for (auto& [_, callInfo] : mCalls) {
-                    callInfo.overApprox = mExprBuilder.False();
-                }
-
-                formula = pathConditions.encode(top, bottom);
-
-                this->push();
-                llvm::outs() << "    Transforming formula...\n";
-                if (mSettings.dumpFormula) {
-                    formula->print(llvm::errs());
-                }
-
-                mSolver->add(formula);
-
-                if (mSettings.dumpSolver) {
-                    mSolver->dump(llvm::errs());
-                }
-
-                status = this->runSolver();
-
-                if (status == Solver::SAT) {
-                    llvm::outs() << "  Under-approximated formula is SAT.\n";
-                    return this->createFailResult();
-                }
-
-                this->pop();
+            // Start with an under-approximation step: remove all calls from the automaton
+            // (by replacing them with 'assume false') and check if the error location is
+            // reachable. If it is reachable, we have found a true counterexample.
+            status = this->underApproximationStep();
+            if (status == Solver::SAT) {
+                llvm::outs() << "  Under-approximated formula is SAT.\n";
+                return this->createFailResult();
             }
-
-            skipUnderApprox = false;
+            mSkipUnderApprox = false;
 
             // If the under-approximated formula was UNSAT, there is no feasible path from start
             // to the error location which does not involve a call. Find the lowest common dominator
@@ -293,16 +269,15 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
             // highest common post-dominator for the error location of all calls to update the
             // target state. These nodes are the lowest common ancestors (LCA) of the calls in
             // the (post-)dominator trees.
-            llvm::outs() << "  Attempting to set new starting and target points...\n";
-            auto lca = this->findCommonCallAncestor(top, bottom);
+            auto lca = this->findCommonCallAncestor(mTopLoc, mBottomLoc);
 
             this->push();
             if (lca.first != nullptr) {
                 LLVM_DEBUG(llvm::dbgs() << "Found LCA, " << lca.first->getId() << ".\n");
                 assert(lca.second != nullptr);
 
-                mSolver->add(pathConditions.encode(top, lca.first));
-                mSolver->add(pathConditions.encode(lca.second, bottom));
+                mSolver->add(mPathConditions->encode(mTopLoc, lca.first));
+                mSolver->add(mPathConditions->encode(lca.second, mBottomLoc));
 
                 // Run the solver and check whether top and bottom are consistent -- if not,
                 // we can return that the program is safe as all possible error paths will
@@ -313,10 +288,9 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
                     llvm::outs() << "    Start and target points are inconsitent, no errors are reachable.\n";
                     return VerificationResult::CreateSuccess();
                 }
-
             } else {
-                LLVM_DEBUG(llvm::dbgs() << "No calls present, LCA is " << top->getId() << ".\n");
-                lca = { top, bottom };
+                LLVM_DEBUG(llvm::dbgs() << "No calls present, LCA is " << mTopLoc->getId() << ".\n");
+                lca = { mTopLoc, mBottomLoc };
             }
 
             // Now try to over-approximate.
@@ -342,7 +316,7 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
             this->push();
 
             llvm::outs() << "    Calculating verification condition...\n";
-            formula = pathConditions.encode(lca.first, lca.second);
+            formula = mPathConditions->encode(lca.first, lca.second);
             if (mSettings.dumpFormula) {
                 formula->print(llvm::errs());
             }
@@ -365,8 +339,8 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
                 this->inlineOpenCalls(*model, bound);
 
                 this->pop();
-                top = lca.first;
-                bottom = lca.second;
+                mTopLoc = lca.first;
+                mBottomLoc = lca.second;
             } else if (status == Solver::UNSAT) {
                 llvm::outs() << "  Over-approximated formula is UNSAT.\n";
                 if (numUnhandledCallSites == 0) {
@@ -391,13 +365,13 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
                 // Try with an increased bound.
                 llvm::outs() << "    Open call sites still present. Increasing bound.\n";
                 this->pop();
-                top = lca.first;
-                bottom = lca.second;
+                mTopLoc = lca.first;
+                mBottomLoc = lca.second;
 
                 // Skip redundant under-approximation step - all calls in the system are
                 // under-approximated with 'False', which will not change when we jump
                 // back to the under-approximation step.
-                skipUnderApprox = true;
+                mSkipUnderApprox = true;
                 break;
             } else {
                 llvm_unreachable("Unknown solver status.");
@@ -406,6 +380,38 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
     }
 
     return VerificationResult::CreateBoundReached();
+}
+
+auto BoundedModelCheckerImpl::underApproximationStep() -> Solver::SolverStatus
+{
+    if (mSkipUnderApprox) {
+        return Solver::UNKNOWN;
+    }
+
+    llvm::outs() << "  Under-approximating.\n";
+
+    for (auto& [_, callInfo] : mCalls) {
+        callInfo.overApprox = mExprBuilder.False();
+    }
+
+    ExprPtr formula = mPathConditions->encode(mTopLoc, mBottomLoc);
+
+    this->push();
+    llvm::outs() << "    Transforming formula...\n";
+    if (mSettings.dumpFormula) {
+        formula->print(llvm::errs());
+    }
+
+    mSolver->add(formula);
+
+    if (mSettings.dumpSolver) {
+        mSolver->dump(llvm::errs());
+    }
+
+    auto status = this->runSolver();
+
+    this->pop();
+    return status;
 }
 
 void BoundedModelCheckerImpl::inlineOpenCalls(Model& model, size_t bound)
@@ -447,7 +453,7 @@ void BoundedModelCheckerImpl::inlineOpenCalls(Model& model, size_t bound)
 auto BoundedModelCheckerImpl::findCommonCallAncestor(Location* fwd, Location* bwd)
     -> std::pair<Location*, Location*>
 {
-    // Calculate the closest common dominator for all call nodes
+    // Calculate the closest common (post-)dominator for all call nodes
     std::vector<Transition*> targets;
     std::transform(mCalls.begin(), mCalls.end(), std::back_inserter(targets), [](auto& pair) {
         return pair.first;
@@ -476,7 +482,7 @@ void BoundedModelCheckerImpl::findOpenCallsInCex(Model& model, llvm::SmallVector
     auto cex = bmc::BmcCex{mError, *mRoot, model, mPredecessors};
 
     for (auto state : cex) {
-        auto call = llvm::dyn_cast_or_null<CallTransition>(state.getOutgoingTransition());
+        auto* call = llvm::dyn_cast_or_null<CallTransition>(state.getOutgoingTransition());
         if (call != nullptr && mOpenCalls.count(call) != 0) {
             callsInCex.push_back(call);
             if (callsInCex.size() == mOpenCalls.size()) {
