@@ -15,7 +15,7 @@ else
   LLI="lli-9"
 fi
 
-eval "$LLVMLINK" "$TEMP_DIR"/*.bc -o - | "$LLI"
+"$LLVMLINK" "$TEMP_DIR"/*.bc -o - | "$LLI"
 RESULT=$?
 rm -r "$TEMP_DIR"
 exit $RESULT
