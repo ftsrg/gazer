@@ -17,6 +17,7 @@
 //===----------------------------------------------------------------------===//
 #include "gazer/LLVM/InstrumentationPasses.h"
 #include "gazer/LLVM/Instrumentation/Intrinsics.h"
+#include "gazer/ADT/Iterator.h"
 
 #include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/IRBuilder.h>
@@ -81,11 +82,7 @@ public:
 
             // Also mark call returns to other functions
             std::vector<ReturnInst*> returns;
-            for (Instruction& inst : llvm::instructions(function)) {
-                if (auto ret = dyn_cast<ReturnInst>(&inst)) {
-                    returns.push_back(ret);
-                }
-            }
+            llvm::copy(llvm::make_pointer_range(classof_range<ReturnInst>(llvm::instructions(function))), std::back_inserter(returns));
 
             for (ReturnInst* ret : returns) {
                 builder.SetInsertPoint(ret);

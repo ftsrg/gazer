@@ -68,35 +68,24 @@ static void memoryAccessOfKind(Range& range, llvm::SmallVectorImpl<AccessKind*>&
 {
     static_assert(std::is_base_of_v<MemoryAccess, AccessKind>, "AccessKind must be a subclass of MemoryAccess!");
 
-    for (auto& access : range) {
-        if (auto casted = llvm::dyn_cast<AccessKind>(&access)) {
-            vec.push_back(casted);
-        }
-    }
+    llvm::for_each(classof_range<AccessKind>(range), [&vec](auto& v) {
+       vec.push_back(&v);
+    });
 }
 
 size_t BlocksToCfa::getNumUsesInBlocks(const llvm::Instruction* inst) const
 {
-    size_t cnt = 0;
-    for (auto user : inst->users()) {
-        if (auto i = llvm::dyn_cast<Instruction>(user)) {
-            if (mGenInfo.Blocks.count(i->getParent()) != 0 ) {
-                cnt += 1;
-            }
-        }
-    }
-
-    return cnt;
+    return llvm::count_if(classof_range<llvm::Instruction>(inst->users()), [this](auto* i) {
+        return mGenInfo.Blocks.count(i->getParent()) != 0;
+    });
 }
 
 template<class Range>
 static bool hasUsesInBlockRange(const llvm::Instruction* inst, Range& range)
 {
-    for (auto user : inst->users()) {
-        if (auto i = llvm::dyn_cast<Instruction>(user)) {
-            if (std::find(std::begin(range), std::end(range), i->getParent()) != std::end(range)) {
-                return true;
-            }
+    for (auto i : classof_range<llvm::Instruction>(inst->users())) {
+        if (llvm::find(range, i->getParent()) != std::end(range)) {
+            return true;
         }
     }
 

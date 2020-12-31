@@ -63,11 +63,9 @@ RecursiveToCyclicResult RecursiveToCyclicTransformer::transform()
 {
     this->addUniqueErrorLocation();
 
-    for (Transition* edge : mRoot->edges()) {
-        if (auto call = llvm::dyn_cast<CallTransition>(edge)) {
-            if (mCallGraph.isTailRecursive(call->getCalledAutomaton())) {
-                mTailRecursiveCalls.push_back(call);
-            }
+    for (auto* call : classof_range<CallTransition>(mRoot->edges())) {
+        if (mCallGraph.isTailRecursive(call->getCalledAutomaton())) {
+            mTailRecursiveCalls.push_back(call);
         }
     }
 

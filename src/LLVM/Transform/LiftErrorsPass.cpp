@@ -22,7 +22,7 @@
 //===----------------------------------------------------------------------===//
 #include "gazer/LLVM/Transform/Passes.h"
 #include "gazer/LLVM/Instrumentation/Check.h"
-#include "gazer/LLVM/Transform/BackwardSlicer.h"
+#include "gazer/ADT/Iterator.h"
 
 #include <llvm/Analysis/CallGraph.h>
 #include <llvm/IR/IRBuilder.h>
@@ -173,12 +173,10 @@ bool LiftErrorCalls::run()
             }
 
             // Find error calls in this function.
-            for (auto& inst : llvm::instructions(function)) {
-                if (auto call = llvm::dyn_cast<CallInst>(&inst)) {
-                    llvm::Function* callee = call->getCalledFunction();
-                    if (callee != nullptr && callee->getName() == CheckRegistry::ErrorFunctionName) {
-                        mInfos[function].selfFails.push_back(call);
-                    }
+            for (auto& call : classof_range<CallInst>(llvm::instructions(function))) {
+                llvm::Function* callee = call.getCalledFunction();
+                if (callee != nullptr && callee->getName() == CheckRegistry::ErrorFunctionName) {
+                    mInfos[function].selfFails.push_back(&call);
                 }
             }
 
