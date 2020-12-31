@@ -21,6 +21,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "gazer/LLVM/Transform/Passes.h"
+#include "gazer/ADT/Iterator.h"
 
 #include <llvm/IR/Module.h>
 #include <llvm/IR/CallSite.h>
@@ -86,15 +87,11 @@ char NormalizeVerifierCallsPass::ID;
 void NormalizeVerifierCallsPass::runOnFunction(llvm::Function& function)
 {
     llvm::SmallVector<llvm::Instruction*, 16> toKill;
-    for (llvm::Instruction& inst : llvm::instructions(function)) {
-        if (!llvm::isa<llvm::CallInst>(&inst)) {
-            continue;
-        }
-
-        llvm::CallSite cs(llvm::cast<llvm::CallInst>(&inst));
+    for (llvm::CallInst& call : classof_range<llvm::CallInst>(llvm::instructions(function))) {
+        llvm::CallSite cs(&call);
 
         llvm::IRBuilder<> builder(function.getContext());
-        builder.SetInsertPoint(&inst);
+        builder.SetInsertPoint(&call);
 
         llvm::Function* callee = cs.getCalledFunction();
         if (callee == nullptr) {
@@ -122,7 +119,7 @@ void NormalizeVerifierCallsPass::runOnFunction(llvm::Function& function)
             }
 
             builder.CreateCall(mAssume.getCallee(), { condition });
-            toKill.emplace_back(&inst);
+            toKill.emplace_back(&call);
         }
     }
 

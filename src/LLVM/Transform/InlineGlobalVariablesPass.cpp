@@ -20,6 +20,7 @@
 
 #include "gazer/LLVM/Transform/Passes.h"
 #include "gazer/LLVM/Instrumentation/Intrinsics.h"
+#include "gazer/ADT/Iterator.h"
 
 #include <llvm/IR/DIBuilder.h>
 #include <llvm/IR/Module.h>
@@ -105,10 +106,8 @@ void transformConstantUsersToInstructions(llvm::Constant& constant)
 {
     // Based on the similar utility found in SeaHorn
     llvm::SmallVector<llvm::ConstantExpr*, 4> ceUsers;
-    for (llvm::User* user : constant.users()) {
-        if (auto ce = llvm::dyn_cast<llvm::ConstantExpr>(user)) {
-            ceUsers.emplace_back(ce);
-        }
+    for (auto* ce : classof_range<llvm::ConstantExpr>(constant.users())) {
+        ceUsers.emplace_back(ce);
     }
 
     for (llvm::ConstantExpr* user : ceUsers) {
@@ -125,6 +124,20 @@ void transformConstantUsersToInstructions(llvm::Constant& constant)
         }
         user->dropAllReferences();
     }
+}
+
+llvm::DIGlobalVariableExpression* findDIGlobalVariableExpression(llvm::GlobalVariable& gv)
+{
+    llvm::SmallVector<std::pair<unsigned, MDNode*>, 2> md;
+    gv.getAllMetadata(md);
+
+    for (auto& [_, node] : md) {
+        if (auto* gve = llvm::dyn_cast<llvm::DIGlobalVariableExpression>(node)) {
+            return gve;
+        }
+    }
+
+    return nullptr;
 }
 
 bool InlineGlobalVariablesPass::runOnModule(Module& module)
@@ -166,36 +179,25 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
         // TODO: We should check external calls and clobber the alloca with a nondetermistic
         // store if the ExternFuncGlobalBehavior setting requires this.
 
-        // Add some metadata stuff
-        auto mark = GazerIntrinsic::GetOrInsertInlinedGlobalWrite(module, gv.getType()->getPointerElementType());
-        cg.getOrInsertFunction(llvm::cast<llvm::Function>(mark.getCallee()));
-
-        // FIXME: There should be a more intelligent way for finding the DIGlobalVariable
-        llvm::SmallVector<std::pair<unsigned, MDNode*>, 2> md;
-        gv.getAllMetadata(md);
-
-        llvm::DIGlobalVariableExpression* diGlobalExpr = nullptr;
-        std::for_each(md.begin(), md.end(), [&diGlobalExpr](auto pair) {
-            if (auto ge = dyn_cast<DIGlobalVariableExpression>(pair.second)) {
-                diGlobalExpr = ge;
-            }
-        });
-
+        // Add `inlined_global.write` traceability if we have the original inlined variable
+        llvm::DIGlobalVariableExpression* diGlobalExpr = findDIGlobalVariableExpression(gv);
         if (diGlobalExpr != nullptr) {
-            auto diGlobalVariable = diGlobalExpr->getVariable();
-            for (llvm::Value* user : gv.users()) {
-                if (auto inst = llvm::dyn_cast<StoreInst>(user)) {
-                    llvm::Value* value = inst->getOperand(0);
+            DIGlobalVariable* diGlobalVariable = diGlobalExpr->getVariable();
 
-                    CallInst* call = CallInst::Create(
-                        mark.getFunctionType(), mark.getCallee(), {
-                            value, MetadataAsValue::get(module.getContext(), diGlobalVariable)
-                        }
-                    );
+            auto mark = GazerIntrinsic::GetOrInsertInlinedGlobalWrite(module, gv.getType()->getPointerElementType());
+            cg.getOrInsertFunction(llvm::cast<llvm::Function>(mark.getCallee()));
 
-                    call->setDebugLoc(inst->getDebugLoc());
-                    call->insertAfter(inst);
-                }
+            for (auto* store : classof_range<llvm::StoreInst>(gv.users())) {
+                llvm::Value* value = store->getOperand(0);
+
+                CallInst* call = CallInst::Create(
+                    mark.getFunctionType(), mark.getCallee(), {
+                        value, MetadataAsValue::get(module.getContext(), diGlobalVariable)
+                    }
+                );
+
+                call->setDebugLoc(store->getDebugLoc());
+                call->insertAfter(store);
             }
         }
 

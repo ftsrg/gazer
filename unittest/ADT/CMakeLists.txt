@@ -1,6 +1,7 @@
 SET(TEST_SOURCES
     IntersectionDifferenceTest.cpp
     GraphTest.cpp
+    IteratorTest.cpp
 )
 
 add_executable(GazerAdtTest ${TEST_SOURCES})
