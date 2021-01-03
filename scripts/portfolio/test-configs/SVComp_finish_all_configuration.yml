@@ -1,0 +1,23 @@
+---
+generate-witness: Yes
+finish-all-configurations: Yes
+
+check-harness: # should it be a local (/config) or global attribute?
+    execute-harness-timeout: 50
+    compile-harness-timeout: 100
+
+configurations: # list of configs to be run. For every configuration a tool is mandatory, all others have default values.
+    # tool valid values: gazer-bmc, gazer-theta
+    - name: bmc-inline
+      tool: gazer-bmc
+      timeout: 150 # sec
+      flags: --inline all --bound 1000000
+    
+    - name: theta-expl
+      tool: gazer-theta
+      timeout: 100 # sec
+      flags: --search ERR --domain EXPL --maxenum 100 --refinement BW_BIN_ITP --initprec ALLVARS
+    
+    - name: theta-pred
+      tool: gazer-theta
+      flags: --inline all --search ERR --domain PRED_CART --refinement BW_BIN_ITP --initprec EMPTY
