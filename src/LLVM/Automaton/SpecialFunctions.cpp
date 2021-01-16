@@ -21,20 +21,26 @@ using namespace gazer;
 
 const SpecialFunctions SpecialFunctions::EmptyInstance;
 
+static constexpr std::array AssumeFunctionNames = {
+    "__VERIFIER_assume",
+    "klee_assume",
+    "__llbmc_assume",
+    "llvm.assume"
+};
+
 auto SpecialFunctions::get() -> std::unique_ptr<SpecialFunctions>
 {
     auto result = std::make_unique<SpecialFunctions>();
 
     // Verifier assumptions
-    result->registerHandler("verifier.assume",   &SpecialFunctions::handleAssume, SpecialFunctionHandler::Memory_Pure);
-    result->registerHandler("llvm.assume",       &SpecialFunctions::handleAssume, SpecialFunctionHandler::Memory_Pure);    
+    result->registerMultipleHandlers(AssumeFunctionNames, &SpecialFunctions::handleAssume, SpecialFunctionHandler::Memory_Pure);
 
     return result;
 }
 
 void SpecialFunctions::registerHandler(
     llvm::StringRef name,
-    SpecialFunctionHandler::HandlerFuncTy function,
+    const SpecialFunctionHandler::HandlerFuncTy& function,
     SpecialFunctionHandler::MemoryBehavior memory)
 {
     auto result = mHandlers.try_emplace(name, function, memory);
@@ -62,7 +68,7 @@ auto SpecialFunctions::handle(llvm::ImmutableCallSite cs, llvm2cfa::GenerationSt
 void SpecialFunctions::handleAssume(llvm::ImmutableCallSite cs, llvm2cfa::GenerationStepExtensionPoint& ep)
 {
     const llvm::Value* arg = cs.getArgOperand(0);
-    ExprPtr assumeExpr = ep.getAsOperand(arg);
+    ExprPtr assumeExpr = ep.getAsOperand(arg, BoolType::Get(ep.getContext()));
 
     ep.splitCurrentTransition(assumeExpr);
 }

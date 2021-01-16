@@ -149,7 +149,6 @@ void LLVMFrontend::registerVerificationPipeline()
     mPassManager.add(gazer::createPromoteUndefsPass());
 
     // Perform check instrumentation.
-    mPassManager.add(gazer::createNormalizeVerifierCallsPass());
     registerEnabledChecks();
 
     // Execute early optimization passes.

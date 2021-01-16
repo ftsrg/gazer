@@ -38,19 +38,19 @@ ExprPtr InstToExpr::doTransform(const llvm::Instruction& inst, Type& expectedTyp
 {
     LLVM_DEBUG(llvm::dbgs() << "  Transforming instruction " << inst << "\n");
 
-    if (auto binOp = llvm::dyn_cast<llvm::BinaryOperator>(&inst)) {
+    if (const auto* binOp = llvm::dyn_cast<llvm::BinaryOperator>(&inst)) {
         return visitBinaryOperator(*binOp, expectedType);
     }
 
-    if (auto cast = llvm::dyn_cast<llvm::CastInst>(&inst)) {
+    if (const auto* cast = llvm::dyn_cast<llvm::CastInst>(&inst)) {
         return visitCastInst(*cast, expectedType);
     }
 
-    if (auto select = llvm::dyn_cast<llvm::SelectInst>(&inst)) {
+    if (const auto* select = llvm::dyn_cast<llvm::SelectInst>(&inst)) {
         return visitSelectInst(*select, expectedType);
     }
 
-    if (auto gep = llvm::dyn_cast<llvm::GetElementPtrInst>(&inst)) {
+    if (const auto* gep = llvm::dyn_cast<llvm::GetElementPtrInst>(&inst)) {
         std::vector<ExprPtr> ops;
         ops.reserve(gep->getNumOperands());
 
@@ -66,11 +66,11 @@ ExprPtr InstToExpr::doTransform(const llvm::Instruction& inst, Type& expectedTyp
             return visit##NAME(*llvm::cast<llvm::NAME>(&inst));         \
         }
 
-    HANDLE_INST(Instruction::ICmp,      ICmpInst)
-    HANDLE_INST(Instruction::Call,      CallInst)
-    HANDLE_INST(Instruction::FCmp,      FCmpInst)
-    HANDLE_INST(Instruction::InsertValue,        InsertValueInst)
-    HANDLE_INST(Instruction::ExtractValue,        ExtractValueInst)
+    HANDLE_INST(Instruction::ICmp,          ICmpInst)
+    HANDLE_INST(Instruction::Call,          CallInst)
+    HANDLE_INST(Instruction::FCmp,          FCmpInst)
+    HANDLE_INST(Instruction::InsertValue,   InsertValueInst)
+    HANDLE_INST(Instruction::ExtractValue,  ExtractValueInst)
 
     #undef HANDLE_INST
 
@@ -86,11 +86,6 @@ static bool isLogicInstruction(unsigned opcode) {
     return opcode == Instruction::And || opcode == Instruction::Or || opcode == Instruction::Xor;
 }
 
-static bool isFloatInstruction(unsigned opcode) {
-    return opcode == Instruction::FAdd || opcode == Instruction::FSub
-           || opcode == Instruction::FMul || opcode == Instruction::FDiv;
-}
-
 static bool isNonConstValue(const llvm::Value* value) {
     return isa<Instruction>(value) || isa<Argument>(value) || isa<GlobalVariable>(value);
 }
@@ -99,13 +94,18 @@ ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop, Type&
 {
     auto lhs = operand(binop.getOperand(0));
     auto rhs = operand(binop.getOperand(1));
-    
-    auto opcode = binop.getOpcode();
-    if (isLogicInstruction(opcode) && binop.getType()->isIntegerTy(1)) {
+
+    assert(lhs->getType() == rhs->getType() && "Binary operator operand types must match!");
+
+    unsigned opcode = binop.getOpcode();
+
+    if (expectedType.isBoolType()) {
+        assert(binop.getType()->isIntegerTy(1) && "Can only represent boolean operations with 1-bit integer types!");
+
         auto boolLHS = asBool(lhs);
         auto boolRHS = asBool(rhs);
 
-        switch (binop.getOpcode()) {
+        switch (opcode) {
             case Instruction::And:
                 return mExprBuilder.And(boolLHS, boolRHS);
             case Instruction::Or:
@@ -116,9 +116,8 @@ ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop, Type&
                 llvm_unreachable("Unknown logic instruction opcode");
         }
     }
-    
-    if (isFloatInstruction(opcode)) {
-        ExprPtr expr;
+
+    if (expectedType.isFloatType()) {
         switch (binop.getOpcode()) {
             case Instruction::FAdd:
                 return mExprBuilder.FAdd(lhs, rhs, llvm::APFloat::rmNearestTiesToEven);
@@ -131,23 +130,18 @@ ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop, Type&
             default:
                 llvm_unreachable("Invalid floating-point operation");
         }
-
-        return expr;
     }
 
-    assert(expectedType.isIntType() || expectedType.isBvType());
-    
     if (expectedType.isBvType()) {
-        BvType& bvType = llvm::cast<BvType>(expectedType);
+        auto& bvType = llvm::cast<BvType>(expectedType);
 
-        auto intLHS = asBv(lhs, bvType.getWidth());
-        auto intRHS = asBv(rhs, bvType.getWidth());
+        auto bvLHS = asBv(lhs, bvType.getWidth());
+        auto bvRHS = asBv(rhs, bvType.getWidth());
 
-        #define HANDLE_INSTCASE(OPCODE, EXPRNAME)                   \
-            case OPCODE:                                            \
-                return mExprBuilder.EXPRNAME(intLHS, intRHS);       \
+        #define HANDLE_INSTCASE(OPCODE, EXPRNAME)                 \
+            case OPCODE:                                          \
+                return mExprBuilder.EXPRNAME(bvLHS, bvRHS);       \
 
-        ExprPtr expr;
         switch (binop.getOpcode()) {
             HANDLE_INSTCASE(Instruction::Add,   Add)
             HANDLE_INSTCASE(Instruction::Sub,   Sub)
@@ -200,14 +194,14 @@ ExprPtr InstToExpr::visitBinaryOperator(const llvm::BinaryOperator& binop, Type&
         }
     }
 
-    llvm_unreachable("Invalid binary operation kind");
+    llvm_unreachable("Invalid expected type for binary operation!");
 }
 
 ExprPtr InstToExpr::visitSelectInst(const llvm::SelectInst& select, Type& expectedType)
 {
-    auto cond = asBool(operand(select.getCondition()));
-    auto then = castResult(operand(select.getTrueValue()), expectedType);
-    auto elze = castResult(operand(select.getFalseValue()), expectedType);
+    auto cond = operand(select.getCondition(), BoolType::Get(mContext));
+    auto then = operand(select.getTrueValue(), expectedType);
+    auto elze = operand(select.getFalseValue(), expectedType);
 
     return mExprBuilder.Select(cond, then, elze);
 }
@@ -243,6 +237,58 @@ ExprPtr InstToExpr::unsignedLessThan(const ExprPtr& left, const ExprPtr& right)
     );
 }
 
+ExprPtr InstToExpr::translateICmpBv(llvm::CmpInst::Predicate predicate, const ExprPtr& left, const ExprPtr& right)
+{
+    #define HANDLE_PREDICATE(PREDNAME, EXPRNAME)            \
+        case PREDNAME:                                      \
+            return mExprBuilder.EXPRNAME(left, right);      \
+
+    switch (predicate) {
+        HANDLE_PREDICATE(CmpInst::ICMP_UGT, BvUGt)
+        HANDLE_PREDICATE(CmpInst::ICMP_UGE, BvUGtEq)
+        HANDLE_PREDICATE(CmpInst::ICMP_ULT, BvULt)
+        HANDLE_PREDICATE(CmpInst::ICMP_ULE, BvULtEq)
+        HANDLE_PREDICATE(CmpInst::ICMP_SGT, BvSGt)
+        HANDLE_PREDICATE(CmpInst::ICMP_SGE, BvSGtEq)
+        HANDLE_PREDICATE(CmpInst::ICMP_SLT, BvSLt)
+        HANDLE_PREDICATE(CmpInst::ICMP_SLE, BvSLtEq)
+        default:
+            llvm_unreachable("Unknown ICMP predicate.");
+    }
+
+    #undef HANDLE_PREDICATE
+}
+
+ExprPtr InstToExpr::translateICmpInt(llvm::CmpInst::Predicate predicate, const ExprPtr& left, const ExprPtr& right)
+{
+    switch (predicate) {
+        case CmpInst::ICMP_UGT:
+            return unsignedLessThan(right, left);
+        case CmpInst::ICMP_SGT:
+            return mExprBuilder.Gt(left, right);
+        case CmpInst::ICMP_UGE:
+            return mExprBuilder.Or(
+                mExprBuilder.Eq(left, right),
+                unsignedLessThan(right, left)
+            );
+        case CmpInst::ICMP_SGE:
+            return mExprBuilder.GtEq(left, right);
+        case CmpInst::ICMP_ULT:
+            return unsignedLessThan(left, right);
+        case CmpInst::ICMP_SLT:
+            return mExprBuilder.Lt(left, right);
+        case CmpInst::ICMP_ULE:
+            return mExprBuilder.Or(
+                mExprBuilder.Eq(left, right),
+                unsignedLessThan(left, right)
+            );
+        case CmpInst::ICMP_SLE:
+            return mExprBuilder.LtEq(left, right);
+        default:
+            llvm_unreachable("Unknown ICMP predicate.");
+    }
+}
+
 ExprPtr InstToExpr::visitICmpInst(const llvm::ICmpInst& icmp)
 {
     using llvm::CmpInst;
@@ -259,54 +305,12 @@ ExprPtr InstToExpr::visitICmpInst(const llvm::ICmpInst& icmp)
         return mExprBuilder.NotEq(left, right);
     }
 
-    #define HANDLE_PREDICATE(PREDNAME, EXPRNAME)                \
-        case PREDNAME:                                          \
-            return mExprBuilder.EXPRNAME(left, right);          \
-
     if (left->getType().isBvType()) {
-        switch (pred) {
-            HANDLE_PREDICATE(CmpInst::ICMP_UGT, BvUGt)
-            HANDLE_PREDICATE(CmpInst::ICMP_UGE, BvUGtEq)
-            HANDLE_PREDICATE(CmpInst::ICMP_ULT, BvULt)
-            HANDLE_PREDICATE(CmpInst::ICMP_ULE, BvULtEq)
-            HANDLE_PREDICATE(CmpInst::ICMP_SGT, BvSGt)
-            HANDLE_PREDICATE(CmpInst::ICMP_SGE, BvSGtEq)
-            HANDLE_PREDICATE(CmpInst::ICMP_SLT, BvSLt)
-            HANDLE_PREDICATE(CmpInst::ICMP_SLE, BvSLtEq)
-            default:
-                llvm_unreachable("Unknown ICMP predicate.");
-        }
+        return this->translateICmpBv(pred, left, right);
     }
 
-    #undef HANDLE_PREDICATE
-
     if (left->getType().isIntType()) {
-        switch (pred) {
-            case CmpInst::ICMP_UGT:
-                return unsignedLessThan(right, left);
-            case CmpInst::ICMP_SGT:
-                return mExprBuilder.Gt(left, right);
-            case CmpInst::ICMP_UGE:
-                return mExprBuilder.Or(
-                    mExprBuilder.Eq(left, right),
-                    unsignedLessThan(right, left)
-                );
-            case CmpInst::ICMP_SGE:
-                return mExprBuilder.GtEq(left, right);
-            case CmpInst::ICMP_ULT:
-                return unsignedLessThan(left, right);
-            case CmpInst::ICMP_SLT:
-                return mExprBuilder.Lt(left, right);
-            case CmpInst::ICMP_ULE:
-                return mExprBuilder.Or(
-                    mExprBuilder.Eq(left, right),
-                    unsignedLessThan(left, right)
-                );
-            case CmpInst::ICMP_SLE:
-                return mExprBuilder.LtEq(left, right);
-            default:
-                llvm_unreachable("Unknown ICMP predicate.");
-        }
+        return this->translateICmpInt(pred, left, right);
     }
 
     llvm_unreachable("Invalid type for comparison instruction!");
@@ -323,6 +327,22 @@ ExprPtr InstToExpr::visitFCmpInst(const llvm::FCmpInst& fcmp)
 
     ExprPtr cmpExpr = nullptr;
     switch (pred) {
+        case CmpInst::FCMP_FALSE:
+            return mExprBuilder.False();
+        case CmpInst::FCMP_TRUE:
+            return mExprBuilder.True();
+        case CmpInst::FCMP_ORD:
+            // Both operands must be not-NaN
+            return mExprBuilder.And(
+                mExprBuilder.Not(mExprBuilder.FIsNan(left)),
+                mExprBuilder.Not(mExprBuilder.FIsNan(right))
+            );
+        case CmpInst::FCMP_UNO:
+            // True if either operand is NaN
+            return mExprBuilder.Or(
+                mExprBuilder.FIsNan(left),
+                mExprBuilder.FIsNan(right)
+            );
         case CmpInst::FCMP_OEQ:
         case CmpInst::FCMP_UEQ:
             cmpExpr = mExprBuilder.FEq(left, right);
@@ -351,38 +371,23 @@ ExprPtr InstToExpr::visitFCmpInst(const llvm::FCmpInst& fcmp)
             break;
     }
 
-    ExprPtr expr = nullptr;
-    if (pred == CmpInst::FCMP_FALSE) {
-        expr = mExprBuilder.False();
-    } else if (pred == CmpInst::FCMP_TRUE) {
-        expr = mExprBuilder.True();
-    } else if (pred == CmpInst::FCMP_ORD) {
-        expr = mExprBuilder.And(
-            mExprBuilder.Not(mExprBuilder.FIsNan(left)),
-            mExprBuilder.Not(mExprBuilder.FIsNan(right))
-        );
-    } else if (pred == CmpInst::FCMP_UNO) {
-        expr = mExprBuilder.Or(
-            mExprBuilder.FIsNan(left),
-            mExprBuilder.FIsNan(right)
-        );
-    } else if (CmpInst::isOrdered(pred)) {
+    if (CmpInst::isOrdered(pred)) {
         // An ordered instruction can only be true if it has no NaN operands.
         // As our comparison operators are defined to be false if either
         // argument is NaN, we can just return the compare expression.
-        expr = cmpExpr;
-    } else if (CmpInst::isUnordered(pred)) {
+        return cmpExpr;
+    }
+
+    if (CmpInst::isUnordered(pred)) {
         // An unordered instruction may be true if either operand is NaN
-        expr = mExprBuilder.Or({
+        return mExprBuilder.Or({
             mExprBuilder.FIsNan(left),
             mExprBuilder.FIsNan(right),
             cmpExpr
         });
-    } else {
-        llvm_unreachable("Invalid FCmp predicate");
     }
 
-    return expr;
+    llvm_unreachable("Unknown FCMP predicate");
 }
 
 ExprPtr InstToExpr::visitCastInst(const llvm::CastInst& cast, Type& expectedType)
@@ -449,10 +454,10 @@ ExprPtr InstToExpr::tryToRepresentBitOperator(const llvm::BinaryOperator& binOp,
     assert(binOp.isBitwiseLogicOp() || llvm::BinaryOperator::isShift(binOp.getOpcode()));
     unsigned width = binOp.getType()->getIntegerBitWidth();
 
-    if (auto rhs = llvm::dyn_cast<IntLiteralExpr>(right)) {
+    if (auto* rhs = llvm::dyn_cast<IntLiteralExpr>(right)) {
         llvm::APInt rightBv(width, static_cast<uint64_t>(rhs->getValue()));
 
-        if (auto lhs = llvm::dyn_cast<IntLiteralExpr>(left)) {
+        if (auto* lhs = llvm::dyn_cast<IntLiteralExpr>(left)) {
             // If both operands are constants, calculate their value and represent them as arithmetic ints.
             llvm::APInt leftBv(width, static_cast<uint64_t>(lhs->getValue()));
 
@@ -482,10 +487,7 @@ ExprPtr InstToExpr::tryToRepresentBitOperator(const llvm::BinaryOperator& binOp,
                     break;
             }
         }
-
-        // FIXME: Some additional magic may be applied here to handle certain AND, OR and shift values,
-        //  such as a single one/zero in the bit mask, etc.
-    } else if (auto lhs = llvm::dyn_cast<IntLiteralExpr>(left)) {
+    } else if (auto* lhs = llvm::dyn_cast<IntLiteralExpr>(left)) {
         llvm::APInt leftBv(width, static_cast<uint64_t>(lhs->getValue()));
         if (lhs->isZero()) {
             switch (binOp.getOpcode()) {
@@ -517,7 +519,7 @@ ExprPtr InstToExpr::tryToRepresentBitOperator(const llvm::BinaryOperator& binOp,
 
 ExprPtr InstToExpr::integerCast(const llvm::CastInst& cast, const ExprPtr& castOperand, Type& expectedType)
 {
-    if (auto bvTy = llvm::dyn_cast<gazer::BvType>(&expectedType)) {
+    if (auto* bvTy = llvm::dyn_cast<gazer::BvType>(&expectedType)) {
         ExprPtr intOp = asBv(castOperand, bvTy->getWidth());
 
         switch (cast.getOpcode()) {
@@ -586,7 +588,7 @@ ExprPtr InstToExpr::integerCast(const llvm::CastInst& cast, const ExprPtr& castO
 
 ExprPtr InstToExpr::boolToIntCast(const llvm::CastInst& cast, const ExprPtr& operand, Type& expectedType)
 {
-    if (auto bvTy = dyn_cast<gazer::BvType>(&expectedType)) {
+    if (auto* bvTy = dyn_cast<gazer::BvType>(&expectedType)) {
         auto one  = llvm::APInt{1, 1};
         auto zero = llvm::APInt{1, 0};
 
@@ -633,15 +635,15 @@ ExprPtr InstToExpr::bitCast(const ExprPtr &castOperand, Type &expectedType)
 {
     Type& srcType = castOperand->getType();
 
-    if (auto floatTy = llvm::dyn_cast<FloatType>(&srcType)) {
-        if (auto bvTy = llvm::dyn_cast<BvType>(&expectedType)) {
+    if (auto* floatTy = llvm::dyn_cast<FloatType>(&srcType)) {
+        if (auto* bvTy = llvm::dyn_cast<BvType>(&expectedType)) {
             assert(floatTy->getWidth() == bvTy->getWidth() && "Can only perform bit-cast between types of equal width!");
             return mExprBuilder.FpToBv(castOperand, *bvTy);
         }
     }
 
-    if (auto bvTy = llvm::dyn_cast<BvType>(&srcType)) {
-        if (auto floatTy = llvm::dyn_cast<FloatType>(&expectedType)) {
+    if (auto* bvTy = llvm::dyn_cast<BvType>(&srcType)) {
+        if (auto* floatTy = llvm::dyn_cast<FloatType>(&expectedType)) {
             assert(floatTy->getWidth() == bvTy->getWidth() && "Can only perform bit-cast between types of equal width!");
             return mExprBuilder.BvToFp(castOperand, *floatTy);
         }
@@ -653,7 +655,7 @@ ExprPtr InstToExpr::bitCast(const ExprPtr &castOperand, Type &expectedType)
 
 static GazerIntrinsic::Overflow getOverflowKind(llvm::StringRef name)
 {
-    #define HANDLE_PREFIX(PREFIX, KIND)                                           \
+    #define HANDLE_PREFIX(PREFIX, KIND)                                         \
         if (name.startswith(PREFIX)) { return GazerIntrinsic::Overflow::KIND; } \
 
     HANDLE_PREFIX(GazerIntrinsic::SAddNoOverflowPrefix, SAdd)
@@ -832,9 +834,14 @@ ExprPtr InstToExpr::operand(ValueOrMemoryObject value)
     llvm_unreachable("Invalid ValueOrMemoryObject state!");
 }
 
+ExprPtr InstToExpr::operand(ValueOrMemoryObject value, Type& expectedType)
+{
+    return castResult(operand(value), expectedType);
+}
+
 ExprPtr InstToExpr::operandValue(const llvm::Value* value)
 {
-    if (auto ci = dyn_cast<ConstantInt>(value)) {
+    if (auto* ci = dyn_cast<ConstantInt>(value)) {
         // Check for boolean literals
         if (ci->getType()->isIntegerTy(1)) {
             return ci->isZero() ? mExprBuilder.False() : mExprBuilder.True();
@@ -853,11 +860,11 @@ ExprPtr InstToExpr::operandValue(const llvm::Value* value)
         llvm_unreachable("Invalid int representation strategy!");
     }
     
-    if (auto cfp = dyn_cast<llvm::ConstantFP>(value)) {
+    if (auto* cfp = dyn_cast<llvm::ConstantFP>(value)) {
         return mExprBuilder.FloatLit(cfp->getValueAPF());
     }
 
-    if (auto ca = dyn_cast<llvm::ConstantDataArray>(value)) {
+    if (auto* ca = dyn_cast<llvm::ConstantDataArray>(value)) {
         // Translate each element in the array
         std::vector<ExprRef<LiteralExpr>> elements;
         elements.reserve(ca->getNumElements());
@@ -874,7 +881,7 @@ ExprPtr InstToExpr::operandValue(const llvm::Value* value)
         return mMemoryInstHandler.handleConstantDataArray(ca, elements);
     }
 
-    if (auto caz = dyn_cast<llvm::ConstantAggregateZero>(value)) {
+    if (auto* caz = dyn_cast<llvm::ConstantAggregateZero>(value)) {
         return mMemoryInstHandler.handleZeroInitializedAggregate(caz);
     }
 
@@ -919,8 +926,8 @@ ExprPtr InstToExpr::asBool(const ExprPtr& operand)
     }
     
     if (operand->getType().isBvType()) {
-        auto bvTy = cast<BvType>(&operand->getType());
-        unsigned bits = bvTy->getWidth();
+        auto& bvTy = cast<BvType>(operand->getType());
+        unsigned bits = bvTy.getWidth();
 
         return mExprBuilder.Select(
             mExprBuilder.Eq(operand, mExprBuilder.BvLit(0, bits)),

@@ -66,7 +66,6 @@ protected:
         return nullptr;
     }
 
-protected:
     ExprPtr visitBinaryOperator(const llvm::BinaryOperator& binop, Type& expectedType);
     ExprPtr visitSelectInst(const llvm::SelectInst& select, Type& expectedType);
     ExprPtr visitCastInst(const llvm::CastInst& cast, Type& expectedType);
@@ -77,6 +76,7 @@ protected:
     ExprPtr visitExtractValueInst(const llvm::ExtractValueInst& extract);
 
     ExprPtr operand(ValueOrMemoryObject value);
+    ExprPtr operand(ValueOrMemoryObject value, Type& expectedType);
     
     ExprPtr asBool(const ExprPtr& operand);
     ExprPtr asBv(const ExprPtr& operand, unsigned int bits);
@@ -101,6 +101,9 @@ protected:
 private:
     ExprPtr doTransform(const llvm::Instruction& inst, Type& expectedType);
     ExprPtr unsignedLessThan(const ExprPtr& left, const ExprPtr& right);
+
+    ExprPtr translateICmpBv(llvm::CmpInst::Predicate predicate, const ExprPtr& left, const ExprPtr& right);
+    ExprPtr translateICmpInt(llvm::CmpInst::Predicate predicate, const ExprPtr& left, const ExprPtr& right);
 
     ExprPtr operandValue(const llvm::Value* value);
     ExprPtr operandMemoryObject(const MemoryObjectDef* def);

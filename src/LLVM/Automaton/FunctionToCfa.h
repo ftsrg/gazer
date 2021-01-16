@@ -331,7 +331,7 @@ protected:
             mBlocksToCfa(blocksToCfa), mAssigns(assigns), mEntry(entry), mExit(exit)
         {}
 
-        ExprPtr getAsOperand(ValueOrMemoryObject val) override;
+        ExprPtr getAsOperand(ValueOrMemoryObject val, Type* type) override;
         bool tryToEliminate(ValueOrMemoryObject val, Variable* variable, const ExprPtr& expr) override;
         void insertAssignment(Variable* variable, const ExprPtr& value) override;
 
