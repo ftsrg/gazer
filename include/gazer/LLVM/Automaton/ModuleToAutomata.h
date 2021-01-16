@@ -61,7 +61,7 @@ class CfaGenInfo;
 class ExtensionPoint
 {
 protected:
-    ExtensionPoint(CfaGenInfo& genInfo)
+    explicit ExtensionPoint(CfaGenInfo& genInfo)
         : mGenInfo(genInfo)
     {}
 
@@ -70,6 +70,7 @@ public:
     ExtensionPoint& operator=(const ExtensionPoint&) = delete;
 
     const Cfa& getCfa() const;
+    GazerContext& getContext() const;
 
     llvm::Loop* getSourceLoop() const;
     llvm::Function* getSourceFunction() const;
@@ -100,7 +101,7 @@ public:
 class VariableDeclExtensionPoint : public AutomatonInterfaceExtensionPoint
 {
 public:
-    VariableDeclExtensionPoint(CfaGenInfo& genInfo)
+    explicit VariableDeclExtensionPoint(CfaGenInfo& genInfo)
         : AutomatonInterfaceExtensionPoint(genInfo)
     {}
 
@@ -137,7 +138,15 @@ public:
     /// Creates a new local variable into the current automaton.
     Variable* createAuxiliaryVariable(const std::string& name, Type& type);
 
-    virtual ExprPtr getAsOperand(ValueOrMemoryObject val) = 0;
+    ExprPtr getAsOperand(ValueOrMemoryObject val) {
+        return this->getAsOperand(val, nullptr);
+    }
+
+    /// Represents 'val' as an expression of the given type.
+    /// If the expression cannot be represented in the given type, returns nullptr.
+    ExprPtr getAsOperand(ValueOrMemoryObject val, Type& type) {
+        return this->getAsOperand(val, &type);
+    }
 
     /// Attempts to inline and eliminate a given variable from the CFA.
     virtual bool tryToEliminate(ValueOrMemoryObject val, Variable* variable, const ExprPtr& expr) = 0;
@@ -145,6 +154,9 @@ public:
     virtual void insertAssignment(Variable* variable, const ExprPtr& value) = 0;
 
     virtual void splitCurrentTransition(const ExprPtr& guard) = 0;
+
+protected:
+    virtual ExprPtr getAsOperand(ValueOrMemoryObject val, Type* type) = 0;
 };
 
 } // end namespace llvm2cfa

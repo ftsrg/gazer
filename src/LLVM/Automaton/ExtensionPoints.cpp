@@ -64,6 +64,11 @@ const Cfa& ExtensionPoint::getCfa() const
     return *mGenInfo.Automaton;
 }
 
+GazerContext& ExtensionPoint::getContext() const
+{
+    return mGenInfo.Automaton->getParent().getContext();
+}
+
 llvm::Loop* ExtensionPoint::getSourceLoop() const
 {
     return mGenInfo.getSourceLoop();
@@ -76,11 +81,11 @@ llvm::Function* ExtensionPoint::getSourceFunction() const
 
 llvm::Function* ExtensionPoint::getParent() const
 {
-    if (auto fun = getSourceFunction()) {
+    if (llvm::Function* fun = getSourceFunction()) {
         return fun;
     }
 
-    if (auto loop = getSourceLoop()) {
+    if (llvm::Loop* loop = getSourceLoop()) {
         return loop->getHeader()->getParent();
     }
 
@@ -151,13 +156,13 @@ Variable* AutomatonInterfaceExtensionPoint::getVariableFor(ValueOrMemoryObject v
 void LoopVarDeclExtensionPoint::createLoopOutput(ValueOrMemoryObject val, Variable* output, const llvm::Twine& suffix)
 {
     std::string name = (val.getName() + suffix).str();
-    auto copyOfVar = mGenInfo.Automaton->createLocal(name, output->getType());
+    auto* copyOfVar = mGenInfo.Automaton->createLocal(name, output->getType());
 
     this->markOutput(val, copyOfVar);
     mGenInfo.LoopOutputs[val] = VariableAssignment(copyOfVar, output->getRefExpr());
 }
 
-// Genaration step extension point
+// Generation step extension point
 //===----------------------------------------------------------------------===//
 
 auto GenerationStepExtensionPoint::createAuxiliaryVariable(const std::string& name, Type& type)
@@ -166,9 +171,13 @@ auto GenerationStepExtensionPoint::createAuxiliaryVariable(const std::string& na
     return mGenInfo.Automaton->createLocal(name, type);
 }
 
-auto BlocksToCfa::ExtensionPointImpl::getAsOperand(ValueOrMemoryObject val) -> ExprPtr
+auto BlocksToCfa::ExtensionPointImpl::getAsOperand(ValueOrMemoryObject val, Type* type) -> ExprPtr
 {
-    return mBlocksToCfa.operand(val);
+    if (type == nullptr) {
+        return mBlocksToCfa.operand(val);
+    }
+
+    return mBlocksToCfa.operand(val, *type);
 }
 
 bool BlocksToCfa::ExtensionPointImpl::tryToEliminate(ValueOrMemoryObject val, Variable* variable, const ExprPtr& expr)

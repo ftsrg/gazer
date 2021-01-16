@@ -2,7 +2,6 @@ set(SOURCE_FILES
     Transform/InlineGlobalVariablesPass.cpp
     Transform/UndefToNondet.cpp
     Transform/LiftErrorsPass.cpp
-    Transform/NormalizeVerifierCalls.cpp
     Transform/BackwardSlicer.cpp
     Transform/Inline.cpp
     Transform/TransformUtils.cpp
