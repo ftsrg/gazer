@@ -32,11 +32,14 @@ namespace
 class Z3Model : public Model
 {
 public:
-    Z3Model(GazerContext& context, Z3_context& z3Context, Z3_model model, Z3DeclMapTy& decls, Z3ExprTransformer& exprs)
-        : mContext(context), mZ3Context(z3Context), mModel(model), mDecls(decls), mExprTransformer(exprs)
+    Z3Model(GazerContext& context, Z3_context& z3Context, Z3_model model, Z3ExprTransformer& exprs)
+        : mContext(context), mZ3Context(z3Context), mModel(model), mExprTransformer(exprs)
     {
         Z3_model_inc_ref(mZ3Context, mModel);
     }
+
+    Z3Model(const Z3Model&) = delete;
+    Z3Model& operator=(const Z3Model&) = delete;
 
     ExprRef<AtomicExpr> evaluate(const ExprPtr& expr) override;
 
@@ -50,7 +53,6 @@ public:
 
 private:
     ExprRef<AtomicExpr> evalAst(Z3AstHandle ast);
-private:
     ExprRef<BoolLiteralExpr> evalBoolean(Z3AstHandle ast);
     ExprRef<BvLiteralExpr> evalBv(Z3AstHandle ast, unsigned width);
     ExprRef<FloatLiteralExpr> evalFloat(Z3AstHandle ast, FloatType::FloatPrecision prec);
@@ -65,7 +67,6 @@ private:
     GazerContext& mContext;
     Z3_context& mZ3Context;
     Z3_model mModel;
-    Z3DeclMapTy& mDecls;
     Z3ExprTransformer& mExprTransformer;
 };
 
@@ -74,12 +75,12 @@ private:
 auto Z3Solver::getModel() -> std::unique_ptr<Model>
 {
     return std::make_unique<Z3Model>(
-        mContext, mZ3Context, Z3_solver_get_model(mZ3Context, mSolver), mDecls, mTransformer);
+        mContext, mZ3Context, Z3_solver_get_model(mZ3Context, mSolver), mTransformer);
 }
 
 auto Z3Model::evaluate(const ExprPtr& expr) -> ExprRef<AtomicExpr>
 {
-    auto ast = mExprTransformer.walk(expr);
+    auto ast = mExprTransformer.translate(expr);
     return this->evalAst(ast);
 }
 
@@ -105,9 +106,9 @@ auto Z3Model::evalAst(Z3AstHandle ast) -> ExprRef<AtomicExpr>
             return this->evalFloat(result, this->getFloatPrecision(sort));
         case Z3_ARRAY_SORT:
             return this->evalConstantArray(result, llvm::cast<ArrayType>(this->sortToType(sort)));
+        default:
+            llvm_unreachable("Unknown Z3 sort!");
     }
-
-    llvm_unreachable("Unknown Z3 sort!");
 }
 
 auto Z3Model::evalBoolean(Z3AstHandle ast) -> ExprRef<BoolLiteralExpr> 
@@ -259,7 +260,7 @@ auto Z3Model::sortToType(Z3Handle<Z3_sort> sort) -> Type&
 
             return ArrayType::Get(sortToType(domain), sortToType(range));
         }
+        default:
+            llvm_unreachable("Unknown/unsupported Z3 sort!");
     }
-
-    llvm_unreachable("Unknown Z3 sort!");
 }

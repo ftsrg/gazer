@@ -37,9 +37,6 @@ public:
     std::unique_ptr<Solver> createSolver(GazerContext& context) override;
 };
 
-/// Utility function which transforms an arbitrary Z3 bitvector into LLVM's APInt.
-llvm::APInt z3_bv_to_apint(z3::context& context, z3::model& model, const z3::expr& expr);
-
 } // end namespace gazer
 
 #endif

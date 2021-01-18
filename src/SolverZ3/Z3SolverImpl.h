@@ -171,7 +171,7 @@ using Z3DeclMapTy = ScopedCache<
 >;
 
 /// Translates expressions into Z3 nodes.
-class Z3ExprTransformer : public ExprWalker<Z3ExprTransformer, Z3AstHandle>
+class Z3ExprTransformer : private ExprWalker<Z3ExprTransformer, Z3AstHandle>
 {
     friend class ExprWalker<Z3ExprTransformer, Z3AstHandle>;
 
@@ -189,6 +189,11 @@ public:
     )
         : mZ3Context(context), mTmpCount(tmpCount), mCache(cache), mDecls(decls)
     {}
+
+    Z3AstHandle translate(const ExprPtr& expr)
+    {
+        return this->walk(expr);
+    }
 
     /// Free up all data owned by this object.
     void clear() {
@@ -244,7 +249,15 @@ private:
     // Nullary
     Z3AstHandle visitVarRef(const ExprRef<VarRefExpr>& expr);
 
-    Z3AstHandle visitUndef(const ExprRef<UndefExpr>& expr) {
+    Z3AstHandle visitUndef(const ExprRef<UndefExpr>& expr)
+    {
+        // Undef has special semantics here: as we only translate a formula only once and the result
+        // is cached, should an undef reach the solver, the fresh constant created with it is cached
+        // along the parent formula. This contradicts the general semantics of Undef, however, this
+        // way we do not have cases where given a formula F1 containing and undef, the formula
+        // And(F1, Not(F1)) is satisfiable.
+
+        // TODO(sallaigy): Fix this behavior (maybe display an error?) if undef lifting is implemented for CFA.
         return createHandle(Z3_mk_fresh_const(mZ3Context, "", typeToSort(expr->getType())));
     }
 
@@ -415,8 +428,9 @@ private:
     Z3AstHandle visitTupleSelect(const ExprRef<TupleSelectExpr>& expr);
     Z3AstHandle visitTupleConstruct(const ExprRef<TupleConstructExpr>& expr);
 
-protected:
+private:
     Z3AstHandle transformRoundingMode(llvm::APFloat::roundingMode rm);
+    Z3AstHandle translateAPInt(const llvm::APInt& value, Z3Handle<Z3_sort> z3Sort);
 
 protected:
     Z3_context& mZ3Context;
@@ -432,23 +446,26 @@ class Z3Solver : public Solver
 public:
     explicit Z3Solver(GazerContext& context);
 
+    Z3Solver(const Z3Solver&) = delete;
+    Z3Solver& operator=(const Z3Solver&) = delete;
+
     void printStats(llvm::raw_ostream& os) override;
     void dump(llvm::raw_ostream& os) override;
     SolverStatus run() override;
     
     std::unique_ptr<Model> getModel() override;
 
-    void reset() override;
-
-    void push() override;
-    void pop() override;
-
-    ~Z3Solver();
+    ~Z3Solver() override;
 
 protected:
     void addConstraint(ExprPtr expr) override;
 
-protected:
+    void doReset() override;
+
+    void doPush() override;
+    void doPop() override;
+
+private:
     Z3_config mConfig;
     Z3_context mZ3Context;
     Z3_solver mSolver;
