@@ -446,7 +446,8 @@ public:
     ExprRef<BoolLiteralExpr> TrueLit, FalseLit;
     llvm::StringMap<std::unique_ptr<Variable>> VariableTable;
 
-private:
+    //------------------ Other helpers ------------------//
+    unsigned UniqueNameCounter = 0;
 };
 
 } // end namespace gazer
