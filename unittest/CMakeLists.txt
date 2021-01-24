@@ -1,4 +1,3 @@
-enable_testing()
 
 set(GOOGLETEST_SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/googletest-src")
 set(GOOGLETEST_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/googletest-build")
@@ -39,6 +38,7 @@ add_subdirectory(Core)
 add_subdirectory(Automaton)
 add_subdirectory(LLVM)
 add_subdirectory(Support)
+add_subdirectory(Verifier)
 add_subdirectory(tools/gazer-theta)
 
 # Only add tests for requested targets
@@ -57,5 +57,6 @@ add_dependencies(check-unit
     GazerAutomatonTest
     GazerSolverZ3Test
     GazerToolsBackendThetaTest
+    GazerVerifierTest
     GazerSupportTest
 )

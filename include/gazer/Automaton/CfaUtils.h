@@ -21,9 +21,7 @@
 #include "gazer/Automaton/Cfa.h"
 
 #include <llvm/ADT/DenseSet.h>
-#include <llvm/ADT/PostOrderIterator.h>
-
-#include <boost/dynamic_bitset.hpp>
+#include <llvm/ADT/Twine.h>
 
 namespace gazer
 {
@@ -118,6 +116,24 @@ Location* findHighestCommonPostDominator(
     const CfaTopoSort& topo,
     Location* start
 );
+
+struct CfaCloneResult
+{
+    CfaCloneResult(
+        Cfa* clonedCfa,
+        llvm::DenseMap<Location*, Location*>&& locToLocMap,
+        llvm::DenseMap<Variable*, Variable*>&& varToVarMap
+    ) : clonedCfa(clonedCfa), locToLocMap(locToLocMap), varToVarMap(varToVarMap)
+    {}
+
+    Cfa* clonedCfa;
+    llvm::DenseMap<Location*, Location*> locToLocMap;
+    llvm::DenseMap<Variable*, Variable*> varToVarMap;
+};
+
+/// Creates a clone of \p cfa and inserts it into its parent automaton system.
+CfaCloneResult CloneCfa(Cfa& cfa, const std::string& nameSuffix = "_clone");
+
 
 } // namespace gazer
 

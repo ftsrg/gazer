@@ -70,9 +70,16 @@ std::unique_ptr<Trace> BoundedModelCheckerImpl::constructTrace(Model& model)
         Transition* edge = state.getOutgoingTransition();
 
         Location* origLoc = mInlinedLocations.lookup(loc);
-        states.push_back(origLoc != nullptr ? origLoc : loc);
+        if (origLoc == nullptr || edge == nullptr) {
+            // All meaningful locations should be inlined - we are either in the clone of the main
+            // automaton or in an inlined procedure. However, the algorithm may insert some auxiliary
+            // locations, we'll have to skip those.
+            continue;
+        }
 
-        if (edge == nullptr) {
+        states.push_back(origLoc);
+        if (LLVM_UNLIKELY(mInlinedLocations.count(edge->getTarget()) == 0)) {
+            // In rare cases, it is possible that the edge points to an auxiliary location
             continue;
         }
 
