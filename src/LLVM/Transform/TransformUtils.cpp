@@ -40,4 +40,4 @@ bool isRecursive(llvm::CallGraphNode* target)
     return false;
 }
 
-}
+} // namespace gazer

@@ -104,6 +104,8 @@ class SolverFactory
 public:
     /// Creates a new solver instance with a given symbol table.
     virtual std::unique_ptr<Solver> createSolver(GazerContext& symbols) = 0;
+
+    virtual ~SolverFactory() = default;
 };
 
 } // namespace gazer

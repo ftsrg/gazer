@@ -74,9 +74,17 @@ BoundedModelCheckerImpl::BoundedModelCheckerImpl(
     mTraceBuilder(traceBuilder),
     mSettings(settings)
 {
-    // TODO: Clone the main automaton instead of modifying the original.
-    mRoot = mSystem.getMainAutomaton();
-    assert(mRoot != nullptr && "The main automaton must exist!");
+    Cfa* main = mSystem.getMainAutomaton();
+    assert(main != nullptr && "The main automaton must exist!");
+
+    CfaCloneResult cloneResult = CloneCfa(*main);
+    mRoot = cloneResult.clonedCfa;
+    for (auto& [oldLoc, newLoc] : cloneResult.locToLocMap) {
+        mInlinedLocations[newLoc] = oldLoc;
+    }
+    for (auto& [oldVar, newVar] : cloneResult.varToVarMap) {
+        mInlinedVariables[newVar] = oldVar;
+    }
 }
 
 void BoundedModelCheckerImpl::createTopologicalSorts()
@@ -109,13 +117,16 @@ auto BoundedModelCheckerImpl::initializeErrorField() -> bool
     }
 
     // If the error field type is still not known, there are no errors present in the system,
-    // the program is safe by defintition
+    // the program is safe by definition
     if (errorFieldType == nullptr) {
         return false;
     }
 
     mError = mRoot->createErrorLocation();
     mErrorFieldVariable = mRoot->createLocal("__error_field", *errorFieldType);
+
+    assert(errors.size() != 0);
+
     if (errors.empty()) {
         // If there are no error locations in the main automaton, they might still exist in a called CFA.
         // A dummy error location will be used as a goal.
@@ -175,7 +186,7 @@ void BoundedModelCheckerImpl::removeIrrelevantLocations()
 
 void BoundedModelCheckerImpl::performEagerUnrolling()
 {
-    for (size_t bound = 1; bound <= mSettings.eagerUnroll; ++bound) {
+    for (size_t bound = 0; bound < mSettings.eagerUnroll; ++bound) {
         llvm::outs() << "Eager iteration " << bound << "\n";
         mOpenCalls.clear();
         for (auto& [call, info] : mCalls) {
@@ -230,8 +241,8 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
     );
 
     // Do eager unrolling, if requested
-    if (mSettings.eagerUnroll > mSettings.maxBound) {
-        emit_error("eager unrolling bound (%d) is larger than maximum bound (%d)", mSettings.eagerUnroll, mSettings.maxBound);
+    if (mSettings.eagerUnroll >= mSettings.maxBound) {
+        emit_error("maximum bound (%d) must be larger than eager unrolling bound (%d)", mSettings.maxBound, mSettings.eagerUnroll);
         return VerificationResult::CreateUnknown();
     }
 
@@ -581,13 +592,13 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
                 [&oldVarToNew, &rewrite] (const VariableAssignment& origAssign) {
                     return VariableAssignment {
                         oldVarToNew[origAssign.getVariable()],
-                        rewrite.walk(origAssign.getValue())
+                        rewrite.rewrite(origAssign.getValue())
                     };
                 }
             );
 
             newEdge = mRoot->createAssignTransition(
-                source, target, rewrite.walk(assign->getGuard()), newAssigns
+                source, target, rewrite.rewrite(assign->getGuard()), newAssigns
             );
         } else if (auto nestedCall = llvm::dyn_cast<CallTransition>(origEdge)) {
             std::vector<VariableAssignment> newArgs;
@@ -597,7 +608,7 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
                 nestedCall->input_begin(), nestedCall->input_end(),
                 std::back_inserter(newArgs),
                 [&rewrite](const VariableAssignment& a) {
-                    return VariableAssignment{a.getVariable(), rewrite.walk(a.getValue())};
+                    return VariableAssignment{a.getVariable(), rewrite.rewrite(a.getValue())};
                 }
             );
             std::transform(
@@ -616,7 +627,7 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
 
             auto callEdge = mRoot->createCallTransition(
                 source, target,
-                rewrite.walk(nestedCall->getGuard()),
+                rewrite.rewrite(nestedCall->getGuard()),
                 nestedCall->getCalledAutomaton(),
                 newArgs,
                 newOuts

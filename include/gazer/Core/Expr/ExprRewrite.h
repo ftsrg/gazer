@@ -28,7 +28,7 @@ namespace gazer
 class ExprRewriteBase
 {
 protected:
-    ExprRewriteBase(ExprBuilder& builder)
+    explicit ExprRewriteBase(ExprBuilder& builder)
         : mExprBuilder(builder)
     {}
 
@@ -39,13 +39,17 @@ protected:
 
 /// Base class for expression rewrite implementations.
 template<class DerivedT>
-class ExprRewrite : public ExprWalker<DerivedT, ExprPtr>, public ExprRewriteBase
+class ExprRewrite : protected ExprWalker<DerivedT, ExprPtr>, public ExprRewriteBase
 {
     friend class ExprWalker<DerivedT, ExprPtr>;
 public:
     explicit ExprRewrite(ExprBuilder& builder)
         : ExprRewriteBase(builder)
     {}
+
+    ExprPtr rewrite(const ExprPtr& expr) {
+        return this->walk(expr);
+    }
 
 protected:
     ExprPtr visitExpr(const ExprPtr& expr) { return expr; }

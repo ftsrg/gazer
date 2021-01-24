@@ -45,8 +45,8 @@ namespace bmc
     class CexState
     {
     public:
-        CexState(Location* location, Transition* incoming)
-            : mLocation(location), mOutgoing(incoming)
+        CexState(Location* location, Transition* outgoingTransition)
+            : mLocation(location), mOutgoing(outgoingTransition)
         {}
 
         bool operator==(const CexState& rhs) const {
