@@ -16,6 +16,9 @@ addons:
     - python3-pip
     - python3-setuptools
     - python3-psutil
+    - perl 
+    - libyaml-tiny-perl 
+    - libproc-processtable-perl
   sonarcloud:
     organization: "ftsrg"
 cache:
@@ -29,6 +32,7 @@ script:
 - sudo add-apt-repository ppa:mhier/libboost-latest -y
 - sudo apt-get update
 - sudo apt-get install -y clang-9 llvm-9-dev llvm-9-tools llvm-9-runtime libboost1.70-dev
+- sudo ln -sf /usr/bin/clang-9 /usr/bin/clang
 - sudo ln -s `which opt-9` /usr/bin/opt -f
 - sudo ln -s `which FileCheck-9` /usr/bin/FileCheck
 - sudo pip3 install lit

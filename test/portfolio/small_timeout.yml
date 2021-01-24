@@ -1,0 +1,17 @@
+---
+generate-witness: Yes
+finish-all-configurations: No # if turned on, it will finish/kill after timeout all given configurations (possible endless loop!)
+# Note: Currently finish all configs has no "final result" - it just lists the results from the configurations
+
+check-harness: # should it be a local (/config) or global attribute?
+    execute-harness-timeout: 200
+    compile-harness-timeout: 150
+
+configurations:
+    - name: config2
+      tool: gazer-bmc
+      timeout: 5 # sec
+    - name: config3
+      tool: gazer-theta
+      timeout: 5 # sec
+      flags: --domain EXPL --search ERR

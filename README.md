@@ -8,6 +8,9 @@ Currently we support two verification backends:
   * Currently, [v2.8.0](https://github.com/ftsrg/theta/releases/tag/v2.8.0) is tested, but newer releases might also work.
 * `gazer-bmc` is gazer's built-in bounded model checking engine.
 
+Furthermore, it is also possible to run multiple backends with different options as a portfolio.
+See [doc/Portfolio.md](doc/Portfolio.md) for more information.
+
 # Usage
 
 Consider the following C program (`example.c`):
