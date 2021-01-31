@@ -30,14 +30,51 @@
 namespace gazer
 {
 
+// Cloning
 //===----------------------------------------------------------------------===//
-/// Creates a clone of the given CFA with the given name.
-/// Note that the clone shall be shallow one: automata called by the source
-/// CFA shall be the same in the cloned one.
-Cfa* CloneAutomaton(Cfa* cfa, llvm::StringRef name);
+struct CfaCloneResult
+{
+    CfaCloneResult(
+        Cfa* clonedCfa,
+        llvm::DenseMap<Location*, Location*>&& locToLocMap,
+        llvm::DenseMap<Variable*, Variable*>&& varToVarMap
+    ) : clonedCfa(clonedCfa), locToLocMap(locToLocMap), varToVarMap(varToVarMap)
+    {}
+
+    Cfa* clonedCfa;
+    llvm::DenseMap<Location*, Location*> locToLocMap;
+    llvm::DenseMap<Variable*, Variable*> varToVarMap;
+};
+
+/// Creates a clone of \p cfa and inserts it into its parent automaton system.
+CfaCloneResult CloneCfa(Cfa& cfa, const std::string& nameSuffix = "_clone");
+
+// Inlining
+//===----------------------------------------------------------------------===//
+
+struct CfaInlineResult
+{
+    llvm::DenseMap<Location*, Location*> locToLocMap;
+    llvm::DenseMap<Transition*, Transition*> edgeToEdgeMap;
+    llvm::DenseMap<Variable*, Variable*> oldVarToNew;
+    std::vector<CallTransition*> newCalls;
+    llvm::DenseMap<Variable*, Variable*> inlinedVariables;
+    llvm::DenseMap<Location*, Location*> inlinedLocations;
+};
+
+/// Inlines the callee of a given call transition into the caller automaton and returns all the
+/// necessary mappings to track the inlining result. Note that this function does *NOT* clean up
+/// possibly removed components, you need to clean-up afterwards using `clearDisconnectedElements`.
+CfaInlineResult InlineCall(
+    CallTransition* call,
+    Location* errorLoc,
+    Variable* errorFieldVariable,
+    const std::string& nameSuffix = "_inlined");
 
 
+// Translate recursive automata into cyclic
 //===----------------------------------------------------------------------===//
+
 struct RecursiveToCyclicResult
 {
     Location* errorLocation = nullptr;
@@ -52,17 +89,6 @@ struct RecursiveToCyclicResult
 /// transformed into the input format of a different verifier.
 RecursiveToCyclicResult TransformRecursiveToCyclic(Cfa* cfa);
 
-//===----------------------------------------------------------------------===//
-struct InlineResult
-{
-    llvm::DenseMap<Variable*, Variable*> VariableMap;
-    llvm::DenseMap<Location*, Location*> InlinedLocations;
-    llvm::SmallVector<Location*, 8> NewErrors;
-    std::vector<Location*> NewLocations;
-};
-
-//void InlineCall(CallTransition* call, InlineResult& result, ExprBuilder& exprBuilder, llvm::Twine suffix = "_inlined");
-
-}
+} // namespace gazer
 
 #endif

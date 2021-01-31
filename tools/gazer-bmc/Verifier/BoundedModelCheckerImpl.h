@@ -155,7 +155,6 @@ private:
 
     void inlineCallIntoRoot(
         CallTransition* call,
-        llvm::DenseMap<Variable*, Variable*>& vmap,
         const llvm::Twine& suffix,
         llvm::SmallVectorImpl<CallTransition*>& newCalls
     );

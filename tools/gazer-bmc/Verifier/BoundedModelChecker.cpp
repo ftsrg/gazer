@@ -20,11 +20,11 @@
 #include "gazer/Core/Expr/ExprRewrite.h"
 #include "gazer/Core/Expr/ExprUtils.h"
 #include "gazer/Automaton/CfaUtils.h"
+#include "gazer/Automaton/CfaTransforms.h"
 
 #include "gazer/Support/Stopwatch.h"
 #include "gazer/Support/Warnings.h"
 
-#include <llvm/ADT/DenseSet.h>
 #include <llvm/ADT/PostOrderIterator.h>
 #include <llvm/ADT/DepthFirstIterator.h>
 
@@ -125,8 +125,6 @@ auto BoundedModelCheckerImpl::initializeErrorField() -> bool
     mError = mRoot->createErrorLocation();
     mErrorFieldVariable = mRoot->createLocal("__error_field", *errorFieldType);
 
-    assert(errors.size() != 0);
-
     if (errors.empty()) {
         // If there are no error locations in the main automaton, they might still exist in a called CFA.
         // A dummy error location will be used as a goal.
@@ -197,7 +195,7 @@ void BoundedModelCheckerImpl::performEagerUnrolling()
 
         llvm::SmallVector<CallTransition*, 16> callsToInline;
         for (CallTransition* call : mOpenCalls) {
-            inlineCallIntoRoot(call, mInlinedVariables, "_call" + llvm::Twine(mTmp++), callsToInline);
+            inlineCallIntoRoot(call, "_call" + llvm::Twine(mTmp++), callsToInline);
             mCalls.erase(call);
         }
     }
@@ -262,7 +260,7 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
         while (true) {
             unsigned numUnhandledCallSites = 0;
             ExprPtr formula;
-            Solver::SolverStatus status = Solver::UNKNOWN;
+            Solver::SolverStatus status;
 
             // Start with an under-approximation step: remove all calls from the automaton
             // (by replacing them with 'assume false') and check if the error location is
@@ -440,7 +438,7 @@ void BoundedModelCheckerImpl::inlineOpenCalls(Model& model, size_t bound)
 
         llvm::SmallVector<CallTransition*, 4> newCalls;
         this->inlineCallIntoRoot(
-            call, mInlinedVariables, "_call" + llvm::Twine(mTmp++), newCalls
+            call, "_call" + llvm::Twine(mTmp++), newCalls
         );
         mCalls.erase(call);
         mOpenCalls.erase(call);
@@ -506,7 +504,6 @@ void BoundedModelCheckerImpl::findOpenCallsInCex(Model& model, llvm::SmallVector
 
 void BoundedModelCheckerImpl::inlineCallIntoRoot(
     CallTransition* call,
-    llvm::DenseMap<Variable*, Variable*>& vmap,
     const llvm::Twine& suffix,
     llvm::SmallVectorImpl<CallTransition*>& newCalls
 ) {
@@ -518,162 +515,33 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     );
 
     const CallInfo& info = mCalls[call];
-    auto callee = call->getCalledAutomaton();
+    size_t topoIdx = mTopo.indexOf(call->getTarget());
 
-    llvm::DenseMap<Location*, Location*> locToLocMap;
-    llvm::DenseMap<Variable*, Variable*> oldVarToNew;
+    auto oldTopo = mTopoSortMap.find(call->getCalledAutomaton());
+    assert(oldTopo != mTopoSortMap.end());
 
-    llvm::DenseMap<Transition*, Transition*> edgeToEdgeMap;
-
-    VariableExprRewrite rewrite(mExprBuilder);
-
-    // Clone all local variables into the parent
-    for (Variable& local : callee->locals()) {
-        LLVM_DEBUG(llvm::dbgs() << "Callee local " << local.getName() << "\n");
-        if (!callee->isOutput(&local)) {
-            auto varname = (local.getName() + suffix).str();
-            auto newLocal = mRoot->createLocal(varname, local.getType());
-            oldVarToNew[&local] = newLocal;
-            vmap[newLocal] = &local;
-            rewrite[&local] = newLocal->getRefExpr();
-        }
-    }
-
-    for (Variable& input : callee->inputs()) {
-        LLVM_DEBUG(llvm::dbgs() << "Callee input " << input.getName() << "\n");
-        if (!callee->isOutput(&input)) {
-            auto varname = (input.getName() + suffix).str();
-            auto newInput = mRoot->createLocal(varname, input.getType());
-            oldVarToNew[&input] = newInput;
-            vmap[newInput] = &input;
-
-            auto arg = call->getInputArgument(input);
-            assert(arg.has_value()
-                && "Each call input assignment must map to an input variable in callee!");
-            rewrite[&input] = arg->getValue();
-            //rewrite[&input] = newInput->getRefExpr();
-        }
-    }
-
-    for (Variable& output : callee->outputs()) {
-        auto argument = call->getOutputArgument(output);
-        assert(argument.has_value() && "Every callee output should be assigned in a call transition!");
-
-        auto newOutput = argument->getVariable();
-        oldVarToNew[&output] = newOutput;
-        vmap[newOutput] = &output;
-        rewrite[&output] = newOutput->getRefExpr();
-    }
-
-    // Insert the locations
-    for (Location* origLoc : callee->nodes()) {
-        auto newLoc = mRoot->createLocation();
-        locToLocMap[origLoc] = newLoc;
-        mInlinedLocations[newLoc] = origLoc;
-
-        if (origLoc->isError()) {
-            mRoot->createAssignTransition(newLoc, mError, mExprBuilder.True(), {
-                { mErrorFieldVariable, callee->getErrorFieldExpr(origLoc) }
-            });
-        }
-    }
-
-    // Transform the edges
-    for (auto origEdge : callee->edges()) {
-        Transition* newEdge = nullptr;
-        Location* source = locToLocMap[origEdge->getSource()];
-        Location* target = locToLocMap[origEdge->getTarget()];
-
-        if (auto assign = llvm::dyn_cast<AssignTransition>(origEdge)) {
-            // Transform the assignments of this edge to use the new variables.
-            std::vector<VariableAssignment> newAssigns;
-            std::transform(
-                assign->begin(), assign->end(), std::back_inserter(newAssigns),
-                [&oldVarToNew, &rewrite] (const VariableAssignment& origAssign) {
-                    return VariableAssignment {
-                        oldVarToNew[origAssign.getVariable()],
-                        rewrite.rewrite(origAssign.getValue())
-                    };
-                }
-            );
-
-            newEdge = mRoot->createAssignTransition(
-                source, target, rewrite.rewrite(assign->getGuard()), newAssigns
-            );
-        } else if (auto nestedCall = llvm::dyn_cast<CallTransition>(origEdge)) {
-            std::vector<VariableAssignment> newArgs;
-            std::vector<VariableAssignment> newOuts;
-
-            std::transform(
-                nestedCall->input_begin(), nestedCall->input_end(),
-                std::back_inserter(newArgs),
-                [&rewrite](const VariableAssignment& a) {
-                    return VariableAssignment{a.getVariable(), rewrite.rewrite(a.getValue())};
-                }
-            );
-            std::transform(
-                nestedCall->output_begin(), nestedCall->output_end(),
-                std::back_inserter(newOuts),
-                [&oldVarToNew](const VariableAssignment& origAssign) {
-                    Variable* newVar = oldVarToNew.lookup(origAssign.getVariable());
-                    assert(newVar != nullptr && "All variables should be present in the variable map!");
-
-                    return VariableAssignment{
-                        newVar,
-                        origAssign.getValue()
-                    };
-                }
-            );
-
-            auto callEdge = mRoot->createCallTransition(
-                source, target,
-                rewrite.rewrite(nestedCall->getGuard()),
-                nestedCall->getCalledAutomaton(),
-                newArgs,
-                newOuts
-            );
-
-            newEdge = callEdge;
-            mCalls[callEdge].callChain = info.callChain;
-            mCalls[callEdge].callChain.push_back(callEdge->getCalledAutomaton());
-            mCalls[callEdge].overApprox = mExprBuilder.False();
-            newCalls.push_back(callEdge);
-        } else {
-            llvm_unreachable("Unknown transition kind!");
-        }
-
-        edgeToEdgeMap[origEdge] = newEdge;
-    }
-
-    Location* before = call->getSource();
-    Location* after  = call->getTarget();
-
-    std::vector<VariableAssignment> inputAssigns;
-    for (auto& input : call->inputs()) {
-        VariableAssignment inputAssignment(oldVarToNew[input.getVariable()], input.getValue());
-        LLVM_DEBUG(llvm::dbgs() << "Added input assignment " << inputAssignment <<
-            " for variable " << *input.getVariable() << "n");
-        inputAssigns.push_back(inputAssignment);
-    }
-
-    mRoot->createAssignTransition(before, locToLocMap[callee->getEntry()], call->getGuard(), inputAssigns);
-    mRoot->createAssignTransition(locToLocMap[callee->getExit()], after , mExprBuilder.True());
+    CfaInlineResult result = InlineCall(call, mError, mErrorFieldVariable, suffix.str());
 
     // Add the new locations to the topological sort.
     // As every inlined location should come between the source and target of the original call transition,
     // we will insert them there in the topo sort.
-    auto oldTopo = mTopoSortMap.find(callee);
-    assert(oldTopo != mTopoSortMap.end());
-
-    auto getInlinedLocation = [&locToLocMap](Location* loc) {
-        return locToLocMap[loc];
+    auto getInlinedLocation = [&result](Location* loc) {
+        return result.locToLocMap[loc];
     };
-
-    mTopo.insert(mTopo.indexOf(call->getTarget()),
+    mTopo.insert(topoIdx,
          llvm::map_iterator(oldTopo->second.begin(), getInlinedLocation),
          llvm::map_iterator(oldTopo->second.end(), getInlinedLocation));
 
-    mRoot->disconnectEdge(call);
+    // Add information for the newly inserted calls
+    for (CallTransition* callEdge : result.newCalls) {
+        mCalls[callEdge].callChain = info.callChain;
+        mCalls[callEdge].callChain.push_back(callEdge->getCalledAutomaton());
+        mCalls[callEdge].overApprox = mExprBuilder.False();
+        newCalls.push_back(callEdge);
+    }
+
+    mInlinedLocations.insert(result.inlinedLocations.begin(), result.inlinedLocations.end());
+    mInlinedVariables.insert(result.inlinedVariables.begin(), result.inlinedVariables.end());
 }
 
 auto BoundedModelCheckerImpl::runSolver() -> Solver::SolverStatus
