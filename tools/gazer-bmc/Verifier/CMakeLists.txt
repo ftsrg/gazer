@@ -1,6 +1,6 @@
 set(SOURCE_FILES
-    BoundedModelChecker.cpp
-    BmcTrace.cpp
+        BoundedModelChecker.cpp
+        BmcTrace.cpp
 )
 
 add_library(GazerVerifier SHARED ${SOURCE_FILES})
