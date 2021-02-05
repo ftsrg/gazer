@@ -6,7 +6,7 @@ my $log;
 
 sub initialize_logfile {
     my ($timestamp) = @_;
-    open( $log, ">>", "$Options::output_directory." / ".$timestamp.log" )
+    open( $log, ">>", "$Options::output_directory/$timestamp.log" )
       or die "Can't open logfile: $!\nTerminating...";
 }
 

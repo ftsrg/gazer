@@ -11,7 +11,3 @@ configurations:
     - name: config2
       tool: gazer-bmc
       timeout: 5 # sec
-    - name: config3
-      tool: gazer-theta
-      timeout: 5 # sec
-      flags: --domain EXPL --search ERR
