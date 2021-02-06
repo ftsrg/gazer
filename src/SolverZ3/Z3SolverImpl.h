@@ -171,10 +171,8 @@ using Z3DeclMapTy = ScopedCache<
 >;
 
 /// Translates expressions into Z3 nodes.
-class Z3ExprTransformer : private ExprWalker<Z3ExprTransformer, Z3AstHandle>
+class Z3ExprTransformer : private ExprWalker<Z3AstHandle>
 {
-    friend class ExprWalker<Z3ExprTransformer, Z3AstHandle>;
-
     struct TupleInfo
     {
         Z3Handle<Z3_sort> sort;
@@ -211,10 +209,10 @@ protected:
     Z3AstHandle translateLiteral(const ExprRef<LiteralExpr>& expr);
 
 private:
-    bool shouldSkip(const ExprPtr& expr, Z3AstHandle* ret);  
-    void handleResult(const ExprPtr& expr, Z3AstHandle& ret);
+    bool shouldSkip(const ExprPtr& expr, Z3AstHandle* ret) override;
+    void handleResult(const ExprPtr& expr, Z3AstHandle& ret) override;
 
-    Z3AstHandle visitExpr(const ExprPtr& expr) // NOLINT(readability-convert-member-functions-to-static)
+    Z3AstHandle visitExpr(const ExprPtr& expr) override // NOLINT(readability-convert-member-functions-to-static)
     {
         llvm::errs() << *expr << "\n";
         llvm_unreachable("Unhandled expression type in Z3ExprTransformer.");
@@ -223,23 +221,23 @@ private:
 
     // Use some helper macros to translate trivial cases
     #define TRANSLATE_UNARY_OP(NAME, Z3_METHOD)                                     \
-    Z3AstHandle visit##NAME(const ExprRef<NAME##Expr>& expr) {                      \
+    Z3AstHandle visit##NAME(const ExprRef<NAME##Expr>& expr) override {             \
         return createHandle(Z3_METHOD(mZ3Context, getOperand(0)));                  \
     }                                                                               \
 
     #define TRANSLATE_BINARY_OP(NAME, Z3_METHOD)                                    \
-    Z3AstHandle visit##NAME(const ExprRef<NAME##Expr>& expr) {                      \
+    Z3AstHandle visit##NAME(const ExprRef<NAME##Expr>& expr) override {             \
         return createHandle(Z3_METHOD(mZ3Context, getOperand(0), getOperand(1)));   \
     }                                                                               \
 
     #define TRANSLATE_TERNARY_OP(NAME, Z3_METHOD)                                   \
-    Z3AstHandle visit##NAME(const ExprRef<NAME##Expr>& expr) {                      \
+    Z3AstHandle visit##NAME(const ExprRef<NAME##Expr>& expr) override {             \
         return createHandle(Z3_METHOD(                                              \
             mZ3Context, getOperand(0), getOperand(1), getOperand(2)));              \
     }                                                                               \
 
     #define TRANSLATE_BINARY_FPA_RM(NAME, Z3_METHOD)                                \
-    Z3AstHandle visit##NAME(const ExprRef<NAME##Expr>& expr) {                      \
+    Z3AstHandle visit##NAME(const ExprRef<NAME##Expr>& expr) override {             \
         return createHandle(Z3_METHOD(mZ3Context,                                   \
             transformRoundingMode(expr->getRoundingMode()),                         \
             getOperand(0), getOperand(1)                                            \
@@ -247,9 +245,9 @@ private:
     }                                                                               \
 
     // Nullary
-    Z3AstHandle visitVarRef(const ExprRef<VarRefExpr>& expr);
+    Z3AstHandle visitVarRef(const ExprRef<VarRefExpr>& expr) override;
 
-    Z3AstHandle visitUndef(const ExprRef<UndefExpr>& expr)
+    Z3AstHandle visitUndef(const ExprRef<UndefExpr>& expr) override
     {
         // Undef has special semantics here: as we only translate a formula only once and the result
         // is cached, should an undef reach the solver, the fresh constant created with it is cached
@@ -261,7 +259,7 @@ private:
         return createHandle(Z3_mk_fresh_const(mZ3Context, "", typeToSort(expr->getType())));
     }
 
-    Z3AstHandle visitLiteral(const ExprRef<LiteralExpr>& expr) {
+    Z3AstHandle visitLiteral(const ExprRef<LiteralExpr>& expr) override {
         return this->translateLiteral(expr);
     }
 
@@ -269,9 +267,9 @@ private:
     TRANSLATE_UNARY_OP(Not,         Z3_mk_not)
 
     // Arithmetic operators
-    Z3AstHandle visitAdd(const ExprRef<AddExpr>& expr);
-    Z3AstHandle visitSub(const ExprRef<SubExpr>& expr);
-    Z3AstHandle visitMul(const ExprRef<MulExpr>& expr);
+    Z3AstHandle visitAdd(const ExprRef<AddExpr>& expr) override;
+    Z3AstHandle visitSub(const ExprRef<SubExpr>& expr) override;
+    Z3AstHandle visitMul(const ExprRef<MulExpr>& expr) override;
 
     TRANSLATE_BINARY_OP(Div,        Z3_mk_div)
     TRANSLATE_BINARY_OP(Mod,        Z3_mk_mod)
@@ -281,8 +279,8 @@ private:
     TRANSLATE_BINARY_OP(Imply,      Z3_mk_implies)
 
     // Multiary logic
-    Z3AstHandle visitAnd(const ExprRef<AndExpr>& expr);
-    Z3AstHandle visitOr(const ExprRef<OrExpr>& expr);
+    Z3AstHandle visitAnd(const ExprRef<AndExpr>& expr) override;
+    Z3AstHandle visitOr(const ExprRef<OrExpr>& expr) override;
 
     // Bit-vectors
     TRANSLATE_BINARY_OP(BvSDiv,     Z3_mk_bvsdiv)
@@ -304,7 +302,7 @@ private:
     TRANSLATE_BINARY_OP(Gt,         Z3_mk_gt)
     TRANSLATE_BINARY_OP(GtEq,       Z3_mk_ge)
 
-    Z3AstHandle visitNotEq(const ExprRef<NotEqExpr>& expr);
+    Z3AstHandle visitNotEq(const ExprRef<NotEqExpr>& expr) override;
 
     // Bit-vector comparisons
     TRANSLATE_BINARY_OP(BvSLt,      Z3_mk_bvslt)
@@ -346,15 +344,15 @@ private:
     #undef TRANSLATE_BINARY_FPA_RM
 
     // Bit-vector casts
-    Z3AstHandle visitZExt(const ExprRef<ZExtExpr>& expr) {
+    Z3AstHandle visitZExt(const ExprRef<ZExtExpr>& expr) override {
         return createHandle(Z3_mk_zero_ext(mZ3Context, expr->getWidthDiff(), getOperand(0)));
     }
 
-    Z3AstHandle visitSExt(const ExprRef<SExtExpr>& expr) {
+    Z3AstHandle visitSExt(const ExprRef<SExtExpr>& expr) override {
         return createHandle(Z3_mk_sign_ext(mZ3Context, expr->getWidthDiff(), getOperand(0)));
     }
 
-    Z3AstHandle visitExtract(const ExprRef<ExtractExpr>& expr)
+    Z3AstHandle visitExtract(const ExprRef<ExtractExpr>& expr) override
     {
         unsigned hi = expr->getOffset() + expr->getWidth() - 1;
         unsigned lo = expr->getOffset();
@@ -363,7 +361,7 @@ private:
     }
 
     // Floating-point casts
-    Z3AstHandle visitFCast(const ExprRef<FCastExpr>& expr)
+    Z3AstHandle visitFCast(const ExprRef<FCastExpr>& expr) override
     {
         return createHandle(Z3_mk_fpa_to_fp_float(mZ3Context,
             transformRoundingMode(expr->getRoundingMode()),
@@ -372,7 +370,7 @@ private:
         ));
     }
 
-    Z3AstHandle visitSignedToFp(const ExprRef<SignedToFpExpr>& expr)
+    Z3AstHandle visitSignedToFp(const ExprRef<SignedToFpExpr>& expr) override
     {
         return createHandle(Z3_mk_fpa_to_fp_signed(mZ3Context,
             transformRoundingMode(expr->getRoundingMode()),
@@ -381,7 +379,7 @@ private:
         ));
     }
 
-    Z3AstHandle visitUnsignedToFp(const ExprRef<UnsignedToFpExpr>& expr)
+    Z3AstHandle visitUnsignedToFp(const ExprRef<UnsignedToFpExpr>& expr) override
     {
         return createHandle(Z3_mk_fpa_to_fp_unsigned(mZ3Context,
             transformRoundingMode(expr->getRoundingMode()),
@@ -390,7 +388,7 @@ private:
         ));
     }
 
-    Z3AstHandle visitFpToSigned(const ExprRef<FpToSignedExpr>& expr)
+    Z3AstHandle visitFpToSigned(const ExprRef<FpToSignedExpr>& expr) override
     {
         return createHandle(Z3_mk_fpa_to_sbv(mZ3Context,
             transformRoundingMode(expr->getRoundingMode()),
@@ -399,7 +397,7 @@ private:
         ));
     }
 
-    Z3AstHandle visitFpToUnsigned(const ExprRef<FpToUnsignedExpr>& expr)
+    Z3AstHandle visitFpToUnsigned(const ExprRef<FpToUnsignedExpr>& expr) override
     {
         return createHandle(Z3_mk_fpa_to_ubv(mZ3Context,
             transformRoundingMode(expr->getRoundingMode()),
@@ -408,7 +406,7 @@ private:
         ));
     }
 
-    Z3AstHandle visitFpToBv(const ExprRef<FpToBvExpr>& expr)
+    Z3AstHandle visitFpToBv(const ExprRef<FpToBvExpr>& expr) override
     {
         return createHandle(Z3_mk_fpa_to_ieee_bv(
             mZ3Context,
@@ -416,7 +414,7 @@ private:
         ));
     }
 
-    Z3AstHandle visitBvToFp(const ExprRef<BvToFpExpr>& expr)
+    Z3AstHandle visitBvToFp(const ExprRef<BvToFpExpr>& expr) override
     {
         return createHandle(Z3_mk_fpa_to_fp_bv(
             mZ3Context,
@@ -425,10 +423,9 @@ private:
         ));
     }
 
-    Z3AstHandle visitTupleSelect(const ExprRef<TupleSelectExpr>& expr);
-    Z3AstHandle visitTupleConstruct(const ExprRef<TupleConstructExpr>& expr);
+    Z3AstHandle visitTupleSelect(const ExprRef<TupleSelectExpr>& expr) override;
+    Z3AstHandle visitTupleConstruct(const ExprRef<TupleConstructExpr>& expr) override;
 
-private:
     Z3AstHandle transformRoundingMode(llvm::APFloat::roundingMode rm);
     Z3AstHandle translateAPInt(const llvm::APInt& value, Z3Handle<Z3_sort> z3Sort);
 

@@ -27,21 +27,27 @@ using namespace gazer;
 namespace
 {
 
-class PrintKindWalker : public ExprWalker<PrintKindWalker, void*>
+class PrintKindWalker : public ExprWalker<void*>
 {
 public:
-    void* visitExpr(const ExprPtr& expr)
+    void* print(const ExprPtr& expr) {
+        return this->walk(expr);
+    }
+
+protected:
+    void* visitExpr(const ExprPtr& expr) override
     {
         Res += Expr::getKindName(expr->getKind()).str() + " ";
         return nullptr;
     }
     
-    void* visitVarRef(const ExprRef<VarRefExpr>& expr)
+    void* visitVarRef(const ExprRef<VarRefExpr>& expr) override
     {
         Res += expr->getVariable().getName() + " ";
         return nullptr;
     }
 
+public:
     std::string Res;
 };
 
@@ -72,15 +78,20 @@ TEST(ExprWalkerTest, TestTraversal)
     );
 
     PrintKindWalker walker;
-    walker.walk(expr);
+    walker.print(expr);
 
     ASSERT_EQ(walker.Res, "X A B ZExt Eq And A B ZExt Eq Y Or Imply Not ");
 }
 
-class PrintAndOperandsWalker : public ExprWalker<PrintAndOperandsWalker, std::string>
+class PrintAndOperandsWalker : public ExprWalker<std::string>
 {
 public:
-    std::string visitAnd(const ExprRef<AndExpr>& expr)
+    std::string visit(const ExprPtr& expr) {
+        return this->walk(expr);
+    }
+
+protected:
+    std::string visitAnd(const ExprRef<AndExpr>& expr) override
     {
         std::string buff;
         llvm::raw_string_ostream rso{buff};
@@ -93,12 +104,12 @@ public:
         return rso.str();
     }
 
-    std::string visitVarRef(const ExprRef<VarRefExpr>& expr)
+    std::string visitVarRef(const ExprRef<VarRefExpr>& expr) override
     {
         return expr->getVariable().getName();
     }
 
-    std::string visitExpr(const ExprPtr& expr)
+    std::string visitExpr(const ExprPtr& expr) override
     {
         return "";
     }
@@ -118,7 +129,7 @@ TEST(ExprWalkerTest, TestGetOperand)
     });
 
     PrintAndOperandsWalker walker;
-    auto res = walker.walk(expr);
+    auto res = walker.visit(expr);
 
     ASSERT_EQ(res, "And(0: A 1: B 2: C 3: D )");
 }
