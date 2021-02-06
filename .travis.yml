@@ -34,7 +34,7 @@ script:
 - sudo pip3 install lit
 # build
 - mkdir build && cd build
-- cmake -DCMAKE_CXX_COMPILER=clang++-9 -DGAZER_ENABLE_UNIT_TESTS=On -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=On ..
+- cmake -DCMAKE_CXX_COMPILER=clang++-9 -DGAZER_ENABLE_UNIT_TESTS=On -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=On -DGAZER_ENABLE_COVERAGE=On ..
 - cd ..
 - build-wrapper-linux-x86-64 --out-dir bw-output cmake --build build/
 # download theta (and related libs) to gazer subdirectory
@@ -45,8 +45,12 @@ script:
 # run tests
 - cmake --build build --target check-unit
 - cmake --build build --target check-functional
+# collect coverage data
+- mkdir -p build/ccov
+- llvm-profdata merge -sparse unittest/**/default.profraw -o default.profdata
+- llvm-cov show unittest/ADT/GazerAdtTest -object unittest/Core/GazerCoreTest -object unittest/LLVM/GazerLLVMTest -object unittest/SolverZ3/GazerSolverZ3Test -object unittest/Automaton/GazerAutomatonTest -object unittest/Support/GazerSupportTest  -object unittest/Verifier/GazerVerifierTest  -instr-profile=default.profdata ../src/**/*.cpp ../include/**/*.h ../src/**/*.h > build/ccov/coverage.txt
 # run SonarCloud analysis
-- sonar-scanner -Dsonar.cfamily.build-wrapper-output=bw-output -Dsonar.cfamily.cache.path=$HOME/.sonar-cache
+- sonar-scanner -Dsonar.cfamily.build-wrapper-output=bw-output -Dsonar.cfamily.cache.path=$HOME/.sonar-cache -Dsonar.cfamily.llvm-cov.reportPath=build/ccov/coverage.txt
 notifications:
   slack: ftsrg:vNi38fE47RlUDyoVxk64TDWm
   on_success: change
