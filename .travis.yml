@@ -48,7 +48,7 @@ script:
 # collect coverage data
 - mkdir -p build/ccov
 - llvm-profdata merge -sparse unittest/**/default.profraw -o default.profdata
-- llvm-cov show unittest/ADT/GazerAdtTest -object unittest/Core/GazerCoreTest -object unittest/LLVM/GazerLLVMTest -object unittest/SolverZ3/GazerSolverZ3Test -object unittest/Automaton/GazerAutomatonTest -object unittest/Support/GazerSupportTest  -object unittest/Verifier/GazerVerifierTest  -instr-profile=default.profdata ../src/**/*.cpp ../include/**/*.h ../src/**/*.h > build/ccov/coverage.txt
+- llvm-cov show unittest/ADT/GazerAdtTest -object unittest/Core/GazerCoreTest -object unittest/LLVM/GazerLLVMTest -object unittest/SolverZ3/GazerSolverZ3Test -object unittest/Automaton/GazerAutomatonTest -object unittest/Support/GazerSupportTest  -object unittest/Verifier/GazerVerifierTest  -instr-profile=default.profdata src/**/*.cpp include/**/*.h src/**/*.h > build/ccov/coverage.txt
 # run SonarCloud analysis
 - sonar-scanner -Dsonar.cfamily.build-wrapper-output=bw-output -Dsonar.cfamily.cache.path=$HOME/.sonar-cache -Dsonar.cfamily.llvm-cov.reportPath=build/ccov/coverage.txt
 notifications:
