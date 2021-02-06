@@ -48,7 +48,7 @@ ExprRef<AtomicExpr> ExprEvaluatorBase::visitExpr(const ExprPtr& expr)
     llvm_unreachable("Unhandled expression type in ExprEvaluatorBase");
 }
 
-ExprRef<AtomicExpr> ExprEvaluatorBase::visitLiteral(const ExprRef<AtomicExpr>& expr) {
+ExprRef<AtomicExpr> ExprEvaluatorBase::visitLiteral(const ExprRef<LiteralExpr>& expr) {
     return expr;
 }
 
