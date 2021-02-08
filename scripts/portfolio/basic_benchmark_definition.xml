@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<!DOCTYPE benchmark PUBLIC "+//IDN sosy-lab.org//DTD BenchExec benchmark 1.9//EN" "https://www.sosy-lab.org/benchexec/benchmark-2.3.dtd">
+<benchmark tool="gazer-theta" timelimit="5 min" hardtimelimit="6 min" memlimit="4 GB" cpuCores="2">
+
+  <resultfiles>**.graphml</resultfiles>
+  <resultfiles>**.log</resultfiles>
+  <!-- If you want to store the test harnesses too, include them here as well (*.ll) -->
+
+  <!-- ${benchmark_path} is the path to this file - change the option according to this -->
+  <option name="-c">${benchmark_path}/preconfigured-portfolios/small_timeout.yml</option>
+  <option name="-o">.</option>
+  <option name="-l">verbose</option>
+  <!-- more on the flags in doc/Portfolio.md -->
+  <!-- -t <task-file> will be automatically added -->
+  
+<rundefinition name="locks_test">
+  <tasks name="locks">
+    <includesfile>./test-tasks/benchexec_tasks/locks/locks.set</includesfile>
+    <propertyfile>./test-tasks/benchexec_tasks/properties/unreach-call.prp</propertyfile>
+  </tasks>
+</rundefinition>
+
+</benchmark>
+ 

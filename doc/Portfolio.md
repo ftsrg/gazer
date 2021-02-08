@@ -87,7 +87,7 @@ configurations:
 - Giving a `timeout` is optional, however it is recommended to avoid configurations getting stuck (e.g., an infinite loop in the verifier backend).
 - The `flags` describe the additional flags given to the particular backend. See the documentation of [Gazer](https://github.com/ftsrg/gazer/blob/master/README.md) and [Theta](https://github.com/ftsrg/theta/blob/master/doc/CEGAR-algorithms.md) for the available options.
 
-For more detailed examples, see `scripts/portfolio/test-configs`.
+For more detailed examples, see `scripts/portfolio/preconfigured-portfolios`.
 
 ### Flags
 
@@ -102,5 +102,5 @@ The portfolio script has the following flags.
 
 ### Example
 ```
-./Portfolio.pl -c test-files/config-file-example.yml -t test-files/test_locks_14-2.c -l minimal -o test_output/
+./Portfolio.pl -c preconfigured-portfolios/config-file-example.yml -t test-files/test_locks_14-2.c -l minimal -o test_output/
 ```
