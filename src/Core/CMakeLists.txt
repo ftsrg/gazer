@@ -15,3 +15,7 @@ set(SOURCE_FILES
 
 add_library(GazerCore SHARED ${SOURCE_FILES})
 target_link_libraries(GazerCore GazerSupport)
+
+set_target_properties(GazerCore PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/src/lib"
+)
