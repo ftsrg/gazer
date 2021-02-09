@@ -1,0 +1,15 @@
+name: Build dockerfile
+
+on: [push, pull_request]
+
+jobs:
+  gazer-docker:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build Gazer Docker image
+      run: docker build -t gazer -f Dockerfile .
+    - name: Run Gazer-BMC in docker
+      run: docker run --rm --name gazer_docker gazer:latest ./tools/gazer-bmc/gazer-bmc test/verif/svcomp/locks/test_locks_12_true.c
+    - name: Run Gazer-Theta in docker
+      run: docker run --rm --name gazer_docker gazer:latest ./tools/gazer-theta/gazer-theta test/verif/svcomp/locks/test_locks_12_true.c
