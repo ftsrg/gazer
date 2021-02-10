@@ -52,7 +52,7 @@ std::string gazer::theta::validName(std::string name, std::function<bool(const s
 
 void gazer::theta::ThetaStmt::print(llvm::raw_ostream& os) const
 {
-    PrintVisitor visitor(os, nullptr);
+    StmtPrintVisitor visitor(os, nullptr);
 
     std::visit(visitor, mContent);
 }

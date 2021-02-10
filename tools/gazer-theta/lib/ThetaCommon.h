@@ -153,7 +153,7 @@ private:
     std::string mType;
 };
 
-class PrintVisitor
+class StmtPrintVisitor
 {
     llvm::raw_ostream& mOS;
     std::function<std::string(Variable*)> mCanonizeName;
@@ -167,7 +167,7 @@ class PrintVisitor
     }
 
 public:
-    PrintVisitor(llvm::raw_ostream& os, std::function<std::string(Variable*)> canonizeName)
+    StmtPrintVisitor(llvm::raw_ostream& os, std::function<std::string(Variable*)> canonizeName)
         : mOS(os), mCanonizeName(canonizeName)
     {}
 

@@ -145,7 +145,7 @@ void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& 
         for (auto& stmt : edge->mStmts) {
             os.indent(INNER_INDENT_SIZE);
 
-            PrintVisitor visitor(os, canonizeName);
+            StmtPrintVisitor visitor(os, canonizeName);
             std::visit(visitor, stmt.mContent);
             os << "\n";
         }
