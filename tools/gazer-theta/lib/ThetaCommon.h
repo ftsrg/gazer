@@ -25,7 +25,8 @@
 #include <regex>
 #include <variant>
 
-namespace gazer::theta {
+namespace gazer::theta
+{
 
 std::string printThetaExpr(const ExprPtr& expr);
 

@@ -16,7 +16,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ThetaCfaProcedureGenerator.h"
+#include "ThetaCfaGenerator.h"
 #include "ThetaCommon.h"
 
 using namespace gazer;

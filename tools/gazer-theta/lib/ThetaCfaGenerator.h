@@ -62,6 +62,20 @@ private:
     CallGraph mCallGraph;
 };
 
+class ThetaCfaProcedureGenerator
+{
+public:
+    ThetaCfaProcedureGenerator(Cfa* cfa, std::function<bool(const std::string&)> isValidVarName)
+        : mCfa(cfa), mIsValidVarName(isValidVarName)
+    {}
+
+    void write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace);
+
+private:
+    Cfa* mCfa;
+    std::function<bool(const std::string&)> mIsValidVarName;
+};
+
 llvm::Pass* createThetaCfaWriterPass(llvm::raw_ostream& os);
 
 } // end namespace gazer::theta

@@ -15,7 +15,7 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
-#include "ThetaCfaProcedureGenerator.h"
+#include "ThetaCfaGenerator.h"
 #include "ThetaCommon.h"
 
 #include "gazer/Automaton/CfaTransforms.h"
@@ -42,7 +42,7 @@ void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& 
 
     // Add variables
     for (auto& variable : mCfa->locals()) {
-        auto name = validName(variable.getName(), isValidVarName);
+        auto name = validName(variable.getName(), mIsValidVarName);
         auto type = typeName(variable.getType());
 
         nameTrace.variables[name] = &variable;
@@ -50,7 +50,7 @@ void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& 
     }
 
     for (auto& variable : mCfa->inputs()) {
-        auto name = validName(variable.getName(), isValidVarName);
+        auto name = validName(variable.getName(), mIsValidVarName);
         auto type = typeName(variable.getType());
 
         nameTrace.variables[name] = &variable;
@@ -116,8 +116,8 @@ void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& 
         edges.emplace_back(std::make_unique<ThetaEdgeDecl>(source, target, std::move(stmts)));
     }
 
-    auto INDENT  = "    ";
-    auto INDENT2 = "        ";
+    auto INDENT_SIZE  = 4;
+    auto INNER_INDENT_SIZE = 8;
 
     auto canonizeName = [&vars](Variable* variable) -> std::string {
       if (vars.count(variable) == 0) {
@@ -128,27 +128,29 @@ void ThetaCfaProcedureGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& 
     };
 
     for (auto& variable : llvm::concat<Variable>(mCfa->inputs(), mCfa->locals())) {
-        os << INDENT;
+        os.indent(INDENT_SIZE);
         vars[&variable]->print(os);
         os << "\n";
     }
 
     for (Location* loc : mCfa->nodes()) {
-        os << INDENT;
+        os.indent(INDENT_SIZE);
         locs[loc]->print(os);
         os << "\n";
     }
 
     for (auto& edge : edges) {
-        os << INDENT << edge->mSource.mName << " -> " << edge->mTarget.mName << " {\n";
+        os.indent(INDENT_SIZE);
+        os << edge->mSource.mName << " -> " << edge->mTarget.mName << " {\n";
         for (auto& stmt : edge->mStmts) {
-            os << INDENT2;
+            os.indent(INNER_INDENT_SIZE);
 
             PrintVisitor visitor(os, canonizeName);
             std::visit(visitor, stmt.mContent);
             os << "\n";
         }
-        os << INDENT << "}\n";
+        os.indent(INDENT_SIZE);
+        os << "}\n";
         os << "\n";
     }
 }

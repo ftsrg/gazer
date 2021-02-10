@@ -18,7 +18,8 @@
 
 #include "ThetaCommon.h"
 
-namespace {
+namespace
+{
 
 constexpr std::array ThetaKeywords = {
     "main", "process", "var", "loc",
@@ -33,7 +34,8 @@ int tmpCount = 0;
 
 } // namespace
 
-std::string gazer::theta::validName(std::string name, std::function<bool(const std::string&)> isUnique) {
+std::string gazer::theta::validName(std::string name, std::function<bool(const std::string&)> isUnique)
+{
     name = std::regex_replace(name, std::regex("[^a-zA-Z0-9_]"), "_");
 
     if (std::find(ThetaKeywords.begin(), ThetaKeywords.end(), name) != ThetaKeywords.end()) {
@@ -83,4 +85,3 @@ std::string gazer::theta::typeName(Type& type)
         llvm_unreachable("Types which are unsupported by theta should have been eliminated earlier!");
     }
 }
-
