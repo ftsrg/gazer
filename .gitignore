@@ -7,3 +7,6 @@
 /clang-sa
 /venv
 *.profraw
+
+# Lit test output directory
+Output/
