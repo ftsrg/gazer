@@ -30,12 +30,11 @@ constexpr std::array ThetaKeywords = {
     "mod", "rem", "true", "false"
 };
 
-int tmpCount = 0;
-
 } // namespace
 
 std::string gazer::theta::validName(std::string name, std::function<bool(const std::string&)> isUnique)
 {
+    static int counter = 0;
     name = std::regex_replace(name, std::regex("[^a-zA-Z0-9_]"), "_");
 
     if (std::find(ThetaKeywords.begin(), ThetaKeywords.end(), name) != ThetaKeywords.end()) {
@@ -43,7 +42,7 @@ std::string gazer::theta::validName(std::string name, std::function<bool(const s
     }
 
     while (!isUnique(name)) {
-        llvm::Twine nextTry = name + llvm::Twine(tmpCount++);
+        llvm::Twine nextTry = name + llvm::Twine(counter++);
         name = nextTry.str();
     }
 
