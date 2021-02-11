@@ -28,7 +28,7 @@ jobs:
         wget "https://github.com/ftsrg/theta/raw/$THETA_VERSION/lib/libz3.so" -P tools/gazer-theta/theta/lib/
         wget "https://github.com/ftsrg/theta/raw/$THETA_VERSION/lib/libz3java.so" -P tools/gazer-theta/theta/lib/
       env:
-        THETA_VERSION: v2.8.0
+        THETA_VERSION: v2.10.0
     - name: Run unit tests
       run: make check-unit
     - name: Run functional tests
