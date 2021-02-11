@@ -1,6 +1,6 @@
 FROM ubuntu:18.04
 
-ENV THETA_VERSION v2.8.0
+ENV THETA_VERSION v2.10.0
 
 RUN apt-get update && \
     apt-get install -y build-essential git cmake \

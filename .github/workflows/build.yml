@@ -7,6 +7,8 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
+    - name: Update apt
+      run: sudo apt-get update
     - name: Set up dependencies
       run: sudo apt-get install build-essential cmake wget lsb-release software-properties-common zlib1g-dev openjdk-11-jre python3 python3-pip python3-setuptools python3-psutil
     - name: Set up some more dependencies
@@ -28,7 +30,7 @@ jobs:
         wget "https://github.com/ftsrg/theta/raw/$THETA_VERSION/lib/libz3.so" -P tools/gazer-theta/theta/lib/
         wget "https://github.com/ftsrg/theta/raw/$THETA_VERSION/lib/libz3java.so" -P tools/gazer-theta/theta/lib/
       env:
-        THETA_VERSION: v2.8.0
+        THETA_VERSION: v2.10.0
     - name: Run unit tests
       run: make check-unit
     - name: Run functional tests
