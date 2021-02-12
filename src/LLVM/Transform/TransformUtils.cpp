@@ -32,7 +32,7 @@ bool isRecursive(llvm::CallGraphNode* target)
     auto end = llvm::scc_end(target);
 
     for (auto it = begin; it != end; ++it) {
-        if (it.hasLoop()) {
+        if (it.hasCycle()) {
             return true;
         }
     }

@@ -172,11 +172,11 @@ memory::StoreDef* MemorySSABuilder::createStoreDef(MemoryObject* object, llvm::S
     return def;
 }
 
-memory::CallDef* MemorySSABuilder::createCallDef(gazer::MemoryObject* object, llvm::CallSite call)
+memory::CallDef* MemorySSABuilder::createCallDef(gazer::MemoryObject* object, llvm::CallBase* call)
 {
     auto def = new memory::CallDef(object, mVersionNumber++, call);
-    mObjectInfo[object].defBlocks.insert(call.getInstruction()->getParent());
-    mValueDefs[call.getInstruction()].push_back(def);
+    mObjectInfo[object].defBlocks.insert(call->getParent());
+    mValueDefs[call].push_back(def);
     object->addDefinition(def);
 
     return def;
@@ -203,10 +203,10 @@ memory::LoadUse* MemorySSABuilder::createLoadUse(MemoryObject* object, llvm::Loa
     return use;
 }
 
-memory::CallUse* MemorySSABuilder::createCallUse(MemoryObject* object, llvm::CallSite call)
+memory::CallUse* MemorySSABuilder::createCallUse(MemoryObject* object, llvm::CallBase* call)
 {
     auto use = new memory::CallUse(object, call);
-    mValueUses[call.getInstruction()].push_back(use);
+    mValueUses[call].push_back(use);
     object->addUse(use);
 
     return use;
@@ -305,7 +305,7 @@ void MemorySSABuilder::renameBlock(llvm::BasicBlock* block)
     }
 
     // Handle successors
-    for (llvm::DomTreeNode* child : mDominatorTree.getNode(block)->getChildren()) {
+    for (llvm::DomTreeNode* child : mDominatorTree.getNode(block)->children()) {
         renameBlock(child->getBlock());
     }
 

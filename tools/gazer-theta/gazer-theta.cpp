@@ -24,6 +24,7 @@
 
 #include <llvm/IR/Module.h>
 #include <llvm/Support/Path.h>
+#include <llvm/Support/CommandLine.h>
 
 #ifndef NDEBUG
 #include <llvm/Support/Debug.h>
@@ -185,7 +186,7 @@ bool lookupTheta(llvm::StringRef argvZero, theta::ThetaSettings* settings)
         return false;
     }
 
-    std::string parentPath = llvm::sys::path::parent_path(pathToBinary.get());
+    std::string parentPath = llvm::sys::path::parent_path(pathToBinary.get()).str();
 
     if (settings->thetaCfaPath.empty()) {
         settings->thetaCfaPath = parentPath + "/theta/theta-cfa-cli.jar";

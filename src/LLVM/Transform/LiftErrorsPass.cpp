@@ -26,6 +26,7 @@
 
 #include <llvm/Analysis/CallGraph.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/AbstractCallSite.h>
 #include <llvm/IR/InstIterator.h>
 #include <llvm/ADT/PostOrderIterator.h>
 #include <llvm/ADT/SCCIterator.h>
@@ -46,14 +47,14 @@ public:
     struct FunctionInfo
     {
         std::vector<llvm::CallInst*> selfFails;
-        std::vector<llvm::CallSite> mayFailCalls;
+        std::vector<llvm::CallBase*> mayFailCalls;
         llvm::PHINode* uniqueErrorPhi = nullptr;
         llvm::CallInst* uniqueErrorCall = nullptr;
 
         llvm::Function* alwaysFailClone = nullptr;
         llvm::BasicBlock* failCopyEntry = nullptr;
         std::vector<llvm::PHINode*> failCopyArgumentPHIs;
-        
+
         llvm::PHINode* failCloneErrorPhi = nullptr;
 
         bool canFail() const
@@ -69,7 +70,7 @@ public:
 
 private:
     void combineErrorsInFunction(llvm::Function* function, FunctionInfo& info);
-    
+
     llvm::FunctionCallee getDummyBoolFunc()
     {
         return mModule.getOrInsertFunction("gazer.dummy_nondet.i1", llvm::FunctionType::get(
@@ -85,8 +86,8 @@ private:
         );
     }
 
-    llvm::Value* getErrorFunction()
-    { return CheckRegistry::GetErrorFunction(mModule).getCallee(); }
+    llvm::FunctionCallee getErrorFunction()
+    { return CheckRegistry::GetErrorFunction(mModule); }
 
     llvm::Type* getErrorCodeType()
     { return CheckRegistry::GetErrorCodeType(mModule.getContext()); }
@@ -194,7 +195,7 @@ bool LiftErrorCalls::run()
                     continue;
                 }
 
-                if (auto call = llvm::dyn_cast<CallInst>(callRecord.first)) {
+                if (auto *call = llvm::dyn_cast<CallBase>(*callRecord.first)) {
                     mInfos[function].mayFailCalls.emplace_back(call);
                 }
             }
@@ -219,7 +220,7 @@ bool LiftErrorCalls::run()
     }
 
     // Do the interprocedural transformation.
-    std::vector<llvm::CallSite> mayFailCallsInMain = mInfos[mEntryFunction].mayFailCalls;
+    std::vector<llvm::CallBase*> mayFailCallsInMain = mInfos[mEntryFunction].mayFailCalls;
 
     // Copy the bodies of the possibly-failing functions into main.
     for (auto& [function, info] : mInfos) {
@@ -276,7 +277,7 @@ bool LiftErrorCalls::run()
         // Add all possible calls into main
         mayFailCallsInMain.reserve(mayFailCallsInMain.size() + info.mayFailCalls.size());
         for (auto cs : info.mayFailCalls) {
-            mayFailCallsInMain.emplace_back(vmap[cs.getInstruction()]);
+            mayFailCallsInMain.emplace_back(llvm::dyn_cast<llvm::CallInst>(vmap[cs]));
         }
 
         // Remove the error call from the original function
@@ -290,13 +291,13 @@ bool LiftErrorCalls::run()
         mBuilder.CreateBr(clonedEntry);
     }
 
-    for (llvm::CallSite call : mayFailCallsInMain) {
-        assert(call.getCalledFunction() != nullptr);
-        auto& calleeInfo = mInfos[call.getCalledFunction()];
+    for (llvm::CallBase* call : mayFailCallsInMain) {
+        assert(call->getCalledFunction() != nullptr);
+        auto& calleeInfo = mInfos[call->getCalledFunction()];
 
         // Split the block for each call, create a nondet branch.
         llvm::BasicBlock* origBlock = call->getParent();
-        llvm::BasicBlock* successBlock = llvm::SplitBlock(origBlock, call.getInstruction());
+        llvm::BasicBlock* successBlock = llvm::SplitBlock(origBlock, call);
         llvm::BasicBlock* errorBlock = llvm::BasicBlock::Create(mModule.getContext(), "", mEntryFunction);
 
         // Create the nondetermistic branch between the success and error.
@@ -310,8 +311,8 @@ bool LiftErrorCalls::run()
         mBuilder.SetInsertPoint(errorBlock);
         mBuilder.CreateBr(calleeInfo.failCopyEntry);
 
-        for (size_t i = 0; i < call.arg_size(); ++i) {
-            calleeInfo.failCopyArgumentPHIs[i]->addIncoming(call.getArgOperand(i), errorBlock);
+        for (size_t i = 0; i < call->getNumArgOperands(); ++i) {
+            calleeInfo.failCopyArgumentPHIs[i]->addIncoming(call->getArgOperand(i), errorBlock);
         }
     }
 

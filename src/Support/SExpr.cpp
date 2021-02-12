@@ -73,7 +73,7 @@ std::unique_ptr<sexpr::Value> gazer::sexpr::parse(llvm::StringRef input)
 
 auto gazer::sexpr::atom(llvm::StringRef data) -> sexpr::Value*
 {
-    return new sexpr::Value(data);
+    return new sexpr::Value(data.str());
 }
 
 auto gazer::sexpr::list(std::vector<Value*> data) -> sexpr::Value*

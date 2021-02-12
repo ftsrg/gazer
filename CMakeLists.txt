@@ -58,7 +58,7 @@ if (GAZER_ENABLE_COVERAGE)
 endif()
 
 # Get LLVM
-find_package(LLVM 9.0 REQUIRED CONFIG)
+find_package(LLVM REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
