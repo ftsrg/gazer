@@ -180,7 +180,7 @@ auto gazer::ClangCompileAndLink(
 
     for (llvm::StringRef inputFile : files) {
         if (inputFile.endswith_lower(".bc") || inputFile.endswith_lower(".ll")) {
-            bitcodeFiles.push_back(inputFile);
+            bitcodeFiles.push_back(inputFile.str());
             continue;
         }
         
@@ -210,7 +210,7 @@ auto gazer::ClangCompileAndLink(
             return nullptr;
         }
 
-        bitcodeFiles.push_back(outputPath.str());
+        bitcodeFiles.push_back(outputPath.str().str());
     }
 
     // Run llvm-link
@@ -236,7 +236,7 @@ using namespace gazer;
 
 void ClangOptions::addSanitizerFlag(llvm::StringRef flag)
 {
-    mSanitizerFlags.insert(flag);
+    mSanitizerFlags.insert(flag.str());
 }
 
 void ClangOptions::createArgumentList(std::vector<std::string>& args)

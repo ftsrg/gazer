@@ -26,6 +26,7 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/CommandLine.h>
 
 #ifndef NDEBUG
 #include <llvm/Support/PrettyStackTrace.h>

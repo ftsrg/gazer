@@ -92,7 +92,7 @@ void MemoryObjectDef::print(llvm::raw_ostream& os) const
 
 std::string MemoryObjectDef::getName() const
 {
-    std::string objName = getObject()->getName();
+    std::string objName = getObject()->getName().str();
     if (objName.empty()) {
         objName = std::to_string(getObject()->getId());
     }

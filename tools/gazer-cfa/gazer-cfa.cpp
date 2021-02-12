@@ -24,6 +24,7 @@
 #include "gazer/LLVM/Automaton/ModuleToAutomata.h"
 #include "gazer/LLVM/ClangFrontend.h"
 #include "gazer/LLVM/Memory/MemoryModel.h"
+#include <llvm/Support/CommandLine.h>
 
 #include <llvm/IR/Module.h>
 

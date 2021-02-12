@@ -34,6 +34,7 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/Analysis/LoopInfo.h>
 #include <llvm/ADT/MapVector.h>
+#include <llvm/Support/CommandLine.h>
 
 #include <variant>
 

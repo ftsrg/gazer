@@ -278,7 +278,7 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
 
         if (auto assignEdge = dyn_cast<AssignTransition>(edge)) {
             for (auto& assignment : *assignEdge) {
-                auto lhsName = vars[assignment.getVariable()]->getName();
+                auto lhsName = vars[assignment.getVariable()]->getName().str();
 
                 if (llvm::isa<UndefExpr>(assignment.getValue())) {
                     stmts.push_back(ThetaStmt::Havoc(lhsName));
@@ -301,7 +301,7 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
             return variable->getName();
         }
 
-        return vars[variable]->getName();
+        return vars[variable]->getName().str();
     };
 
     os << "main process __gazer_main_process {\n";

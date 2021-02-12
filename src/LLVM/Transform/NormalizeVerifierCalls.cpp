@@ -23,7 +23,7 @@
 #include "gazer/LLVM/Transform/Passes.h"
 
 #include <llvm/IR/Module.h>
-#include <llvm/IR/CallSite.h>
+#include <llvm/IR/AbstractCallSite.h>
 #include <llvm/IR/InstIterator.h>
 #include <llvm/IR/IRBuilder.h>
 
@@ -91,12 +91,12 @@ void NormalizeVerifierCallsPass::runOnFunction(llvm::Function& function)
             continue;
         }
 
-        llvm::CallSite cs(llvm::cast<llvm::CallInst>(&inst));
+        llvm::CallBase* cs = llvm::cast<llvm::CallInst>(&inst);
 
         llvm::IRBuilder<> builder(function.getContext());
         builder.SetInsertPoint(&inst);
 
-        llvm::Function* callee = cs.getCalledFunction();
+        llvm::Function* callee = cs->getCalledFunction();
         if (callee == nullptr) {
             // TODO: This should be handled for simple cases.
             continue;
@@ -106,7 +106,7 @@ void NormalizeVerifierCallsPass::runOnFunction(llvm::Function& function)
             callee->getName() == "klee_assume" ||
             callee->getName() == "__llbmc_assume"
         ) {
-            llvm::Value* condition = cs.getArgument(0);
+            llvm::Value* condition = cs->getArgOperand(0);
 
             // These functions may have differing input argument types, such
             // as i1, i32 or i64. Strip possible ZExt casts and convert to
@@ -121,7 +121,7 @@ void NormalizeVerifierCallsPass::runOnFunction(llvm::Function& function)
                 ));
             }
 
-            builder.CreateCall(mAssume.getCallee(), { condition });
+            builder.CreateCall(mAssume, { condition });
             toKill.emplace_back(&inst);
         }
     }

@@ -23,9 +23,11 @@
 #include "gazer/LLVM/LLVMFrontendSettings.h"
 #include "gazer/Verifier/VerificationAlgorithm.h"
 
+#include "llvm/Analysis/CallGraph.h"
 #include <llvm/Pass.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Support/ToolOutputFile.h>
+#include "llvm/Support/ManagedStatic.h"
 
 namespace gazer
 {

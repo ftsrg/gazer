@@ -49,7 +49,8 @@ public:
 
     LLVM_ATTRIBUTE_RETURNS_NONNULL void* Allocate(size_t size, size_t alignment)
     {
-        size_t adjustment = llvm::alignmentAdjustment(slab().Current, alignment);
+        //size_t adjustment = llvm::alignmentAdjustment(slab().Current, alignment);
+        size_t adjustment = llvm::offsetToAlignedAddr(slab().Current, llvm::Align(alignment));
         assert(adjustment + size >= size);
 
         if (size > SlabSize) {
