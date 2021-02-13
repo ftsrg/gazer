@@ -1,4 +1,4 @@
-// This test failed if gazer-bmc was invoked without the "-inline=all" flag.
+// This test failed if gazer-bmc was invoked without the "-inline-level=all" flag.
 // The underlying issue was that the translation process did not handle PHI nodes correctly when jumping out of loops.
 
 // RUN: %bmc -bound 10 -inline-level=all "%s" | FileCheck "%s"
