@@ -38,7 +38,7 @@ namespace
 
     // LLVM frontend and transformation options
     // LLVM IR to CFA translation options
-    cl::opt<InlineLevel> InlineLevelOpt("inline", cl::desc("Level for variable elimination:"),
+    cl::opt<InlineLevel> InlineLevelOpt("inline-level", cl::desc("Level for variable elimination:"),
         cl::values(
             clEnumValN(InlineLevel::Off, "off", "Do not eliminate variables"),
             clEnumValN(InlineLevel::Default, "default", "Eliminate variables having only one use"),
