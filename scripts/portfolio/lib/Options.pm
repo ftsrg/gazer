@@ -44,8 +44,8 @@ sub initialize_flags {
         }
         else
         { # if an output directory was given, than we create the portfolio-output-timestamp dir there
-            $Options::output_directory =
-              abs_path($Options::output_directory); # chop of /, if there is one
+            $Options::output_directory =~ s/\/$//; # cut the ending / down (abs_path cannot handle it) 
+            $Options::output_directory = abs_path($Options::output_directory);
             $Options::output_directory = $Options::output_directory
               . "/portfolio-output-$iso8601_timestamp";
         }

@@ -1,0 +1,98 @@
+---
+generate-witness: No
+finish-all-configurations: Yes
+
+check-harness:
+    execute-harness-timeout: 50
+    compile-harness-timeout: 100
+
+configurations:
+    - name: bmc1
+      tool: gazer-bmc
+      timeout: 150 # sec
+      flags: --inline default --bound=1000000 --elim-vars=normal
+    
+    - name: bmc2
+      tool: gazer-bmc
+      timeout: 150 # sec
+      flags: --inline all --bound=1000000 --elim-vars=normal
+
+    - name: bmc3
+      tool: gazer-bmc
+      timeout: 150 # sec
+      flags: --inline off --bound=1000000 --elim-vars=normal
+    
+    - name: bmc4
+      tool: gazer-bmc
+      timeout: 150 # sec
+      flags: --inline default --bound=1000000 --no-optimize --elim-vars=normal
+    
+    - name: bmc5
+      tool: gazer-bmc
+      timeout: 150 # sec
+      flags: --inline all --bound=1000000 --no-optimize --elim-vars=normal
+
+    - name: bmc6
+      tool: gazer-bmc
+      timeout: 150 # sec
+      flags: --inline off --bound=1000000 --no-optimize --elim-vars=normal
+
+    - name: bmc7
+      tool: gazer-bmc
+      timeout: 150 # sec
+      flags: --inline default --bound=1000000 --elim-vars=off
+    
+    - name: bmc8
+      tool: gazer-bmc
+      timeout: 150 # sec
+      flags: --inline all --bound=1000000 --elim-vars=off
+
+    - name: bmc9
+      tool: gazer-bmc
+      timeout: 150 # sec
+      flags: --inline off --bound=1000000 --elim-vars=off
+    
+    - name: bmc10
+      tool: gazer-bmc
+      timeout: 150 # sec
+      flags: --inline default --bound=1000000 --no-optimize --elim-vars=off
+    
+    - name: bmc11
+      tool: gazer-bmc
+      timeout: 150 # sec
+      flags: --inline all --bound=1000000 --no-optimize --elim-vars=off
+
+    - name: bmc12
+      tool: gazer-bmc
+      timeout: 150 # sec
+      flags: --inline off --bound=1000000 --no-optimize --elim-vars=off
+      
+    - name: bmc13
+      tool: gazer-bmc
+      timeout: 150 # sec
+      flags: --inline default --bound=1000000 --elim-vars=aggressive
+    
+    - name: bmc14
+      tool: gazer-bmc
+      timeout: 150 # sec
+      flags: --inline all --bound=1000000 --elim-vars=aggressive
+
+    - name: bmc15
+      tool: gazer-bmc
+      timeout: 150 # sec
+      flags: --inline off --bound=1000000 --elim-vars=aggressive
+    
+    - name: bmc16
+      tool: gazer-bmc
+      timeout: 150 # sec
+      flags: --inline default --bound=1000000 --no-optimize --elim-vars=aggressive
+    
+    - name: bmc17
+      tool: gazer-bmc
+      timeout: 150 # sec
+      flags: --inline all --bound=1000000 --no-optimize --elim-vars=aggressive
+
+    - name: bmc18
+      tool: gazer-bmc
+      timeout: 150 # sec
+      flags: --inline off --bound=1000000 --no-optimize --elim-vars=aggressive
