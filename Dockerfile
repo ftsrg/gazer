@@ -2,8 +2,8 @@ FROM ubuntu:20.04
 
 ENV THETA_VERSION v2.10.0
 
-RUN apt-get update && \
-    apt-get install -y build-essential git cmake \
+RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential git cmake \
     wget sudo vim lsb-release \
     software-properties-common zlib1g-dev \
     openjdk-11-jre
