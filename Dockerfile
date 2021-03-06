@@ -11,10 +11,10 @@ RUN apt-get update && \
 # fetch LLVM and other dependencies
 RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
     add-apt-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main" && \
-    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get update && \
     add-apt-repository ppa:mhier/libboost-latest && \
-    apt-get update && \
-    apt-get install -y clang-9 llvm-9-dev llvm-9-tools llvm-9-runtime libboost1.70-dev perl libyaml-tiny-perl
+    DEBIAN_FRONTEND=noninteractive apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y clang-9 llvm-9-dev llvm-9-tools llvm-9-runtime libboost1.70-dev perl libyaml-tiny-perl
 
 # create a new user `user` with the password `user` and sudo rights
 RUN useradd -m user && \
