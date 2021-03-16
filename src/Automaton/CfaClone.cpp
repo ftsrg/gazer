@@ -23,6 +23,8 @@ using namespace gazer;
 
 CfaCloneResult gazer::CloneCfa(Cfa& cfa, const std::string& nameSuffix)
 {
+    CfaCloneResult result;
+
     AutomataSystem& system = cfa.getParent();
     Cfa* newCfa = system.createCfa(cfa.getName().str() + nameSuffix);
 
@@ -112,5 +114,9 @@ CfaCloneResult gazer::CloneCfa(Cfa& cfa, const std::string& nameSuffix)
         newCfa->addErrorCode(locToLocMap[loc], exprRewrite.rewrite(expr));
     }
 
-    return CfaCloneResult{newCfa, std::move(locToLocMap), std::move(variablesMap)};
+    result.clonedCfa = newCfa;
+    result.locToLocMap = locToLocMap;
+    result.varToVarMap = variablesMap;
+
+    return result;
 }

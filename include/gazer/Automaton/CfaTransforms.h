@@ -34,13 +34,6 @@ namespace gazer
 //===----------------------------------------------------------------------===//
 struct CfaCloneResult
 {
-    CfaCloneResult(
-        Cfa* clonedCfa,
-        llvm::DenseMap<Location*, Location*>&& locToLocMap,
-        llvm::DenseMap<Variable*, Variable*>&& varToVarMap
-    ) : clonedCfa(clonedCfa), locToLocMap(locToLocMap), varToVarMap(varToVarMap)
-    {}
-
     Cfa* clonedCfa;
     llvm::DenseMap<Location*, Location*> locToLocMap;
     llvm::DenseMap<Variable*, Variable*> varToVarMap;

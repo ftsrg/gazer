@@ -83,7 +83,7 @@ CfaInlineResult gazer::InlineCall(
     // Insert all locations
     for (Location* origLoc : callee->nodes()) {
         auto* newLoc = target->createLocation();
-        result.locToLocMap[&*origLoc] = newLoc;
+        result.locToLocMap[origLoc] = newLoc;
         result.inlinedLocations[newLoc] = origLoc;
         if (origLoc->isError()) {
             target->createAssignTransition(newLoc, errorLoc, exprBuilder->True(), {

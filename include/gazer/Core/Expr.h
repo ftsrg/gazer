@@ -248,6 +248,7 @@ public:
     }
 };
 
+/// Represents a reference to a named (or unnamed) variable.
 class VarRefExpr final : public Expr
 {
     friend class Variable;

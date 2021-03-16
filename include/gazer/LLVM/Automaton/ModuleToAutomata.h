@@ -101,9 +101,7 @@ public:
 class VariableDeclExtensionPoint : public AutomatonInterfaceExtensionPoint
 {
 public:
-    explicit VariableDeclExtensionPoint(CfaGenInfo& genInfo)
-        : AutomatonInterfaceExtensionPoint(genInfo)
-    {}
+    using AutomatonInterfaceExtensionPoint::AutomatonInterfaceExtensionPoint;
 
     Variable* createInput(ValueOrMemoryObject val, Type& type, const std::string& suffix = "");
     Variable* createLocal(ValueOrMemoryObject val, Type& type, const std::string& suffix = "");

@@ -16,8 +16,12 @@
 //
 //===----------------------------------------------------------------------===//
 ///
-/// \file This file defines the LiftErrorsPass, which lifts error calls
-/// from loops and subroutines into the main module.
+/// \file This file defines the LiftErrorsPass, which lifts error calls from
+/// loops and subroutines into the main module. The algorithm is based on the
+/// transformation presented in the paper:
+///     Akash Lal and Shaz Qadeer.
+///     A program transformation for faster goal-directed search.
+///     DOI: https://doi.org/10.1109/FMCAD.2014.6987607
 ///
 //===----------------------------------------------------------------------===//
 #include "gazer/LLVM/Transform/Passes.h"
@@ -50,17 +54,15 @@ public:
         llvm::PHINode* uniqueErrorPhi = nullptr;
         llvm::CallInst* uniqueErrorCall = nullptr;
 
-        llvm::Function* alwaysFailClone = nullptr;
         llvm::BasicBlock* failCopyEntry = nullptr;
         std::vector<llvm::PHINode*> failCopyArgumentPHIs;
-        
-        llvm::PHINode* failCloneErrorPhi = nullptr;
 
         bool canFail() const
-        { return !selfFails.empty() || !mayFailCalls.empty(); }
+        {
+            return !selfFails.empty() || !mayFailCalls.empty();
+        }
     };
 
-public:
     LiftErrorCalls(llvm::Module& module, llvm::CallGraph& cg, llvm::Function& entryFunction)
         : mModule(module), mCallGraph(cg), mEntryFunction(&entryFunction), mBuilder(module.getContext())
     {}
@@ -69,6 +71,10 @@ public:
 
 private:
     void combineErrorsInFunction(llvm::Function* function, FunctionInfo& info);
+    void collectFailingCalls(const llvm::CallGraphNode* cgNode);
+    void replaceReturnsWithUnreachable(const llvm::SmallVectorImpl<llvm::ReturnInst*>& returns);
+    void representArgumentsAsPhiNodes(llvm::Function* function, llvm::BasicBlock* failEntry, FunctionInfo& info, ValueToValueMapTy& vmap);
+    void createBranchToFail(CallSite& call);
     
     llvm::FunctionCallee getDummyBoolFunc()
     {
@@ -86,10 +92,14 @@ private:
     }
 
     llvm::Value* getErrorFunction()
-    { return CheckRegistry::GetErrorFunction(mModule).getCallee(); }
+    {
+        return CheckRegistry::GetErrorFunction(mModule).getCallee();
+    }
 
     llvm::Type* getErrorCodeType()
-    { return CheckRegistry::GetErrorCodeType(mModule.getContext()); }
+    {
+        return CheckRegistry::GetErrorCodeType(mModule.getContext());
+    }
 
 private:
     llvm::Module& mModule;
@@ -104,8 +114,7 @@ class LiftErrorCallsPass : public llvm::ModulePass
 public:
     static char ID;
 
-public:
-    LiftErrorCallsPass(llvm::Function* function)
+    explicit LiftErrorCallsPass(llvm::Function* function)
         : ModulePass(ID), mEntryFunction(function)
     {}
 
@@ -123,7 +132,9 @@ public:
     }
 
     llvm::StringRef getPassName() const override
-    { return "Lift error calls into main."; }
+    {
+        return "Lift error calls into main.";
+    }
 
 private:
     llvm::Function* mEntryFunction;
@@ -135,11 +146,11 @@ char LiftErrorCallsPass::ID;
 
 void LiftErrorCalls::combineErrorsInFunction(llvm::Function* function, FunctionInfo& info)
 {
-    auto errorBlock = llvm::BasicBlock::Create(function->getContext(), "error", function);
+    auto* errorBlock = llvm::BasicBlock::Create(function->getContext(), "error", function);
     mBuilder.SetInsertPoint(errorBlock);
 
-    auto phi = mBuilder.CreatePHI(getErrorCodeType(), info.selfFails.size(), "error_phi");
-    auto err = mBuilder.CreateCall(getErrorFunction(), {phi});
+    auto* phi = mBuilder.CreatePHI(getErrorCodeType(), info.selfFails.size(), "error_phi");
+    auto* err = mBuilder.CreateCall(getErrorFunction(), {phi});
     mBuilder.CreateUnreachable();
 
     for (llvm::CallInst* errorCall : info.selfFails) {
@@ -158,46 +169,63 @@ void LiftErrorCalls::combineErrorsInFunction(llvm::Function* function, FunctionI
     info.uniqueErrorCall = err;
 }
 
+void LiftErrorCalls::collectFailingCalls(const llvm::CallGraphNode* cgNode)
+{
+    llvm::Function* function = cgNode->getFunction();
+    if (function == nullptr || function->isDeclaration()) {
+        return;
+    }
+
+    // Find error calls in this function.
+    llvm::copy_if(
+        classof_range<CallInst>(llvm::make_pointer_range(llvm::instructions(function))),
+        std::back_inserter(mInfos[function].selfFails),
+        [](llvm::CallInst* call) {
+          const llvm::Function* callee = call->getCalledFunction();
+          return callee != nullptr && callee->getName() == CheckRegistry::ErrorFunctionName;
+        }
+    );
+
+    // Find possibly failing calls to other infos.
+    for (const auto& callRecord : *cgNode) {
+        llvm::Function* callee = callRecord.second->getFunction();
+        if (callee == nullptr) {
+            // TODO: Indirect function calls are unsupported at the moment.
+            continue;
+        }
+
+        if (callee->isDeclaration() || !mInfos[callee].canFail()) {
+            continue;
+        }
+
+        if (auto* call = llvm::dyn_cast<CallInst>(callRecord.first)) {
+            mInfos[function].mayFailCalls.emplace_back(call);
+        }
+    }
+}
+
+void LiftErrorCalls::replaceReturnsWithUnreachable(const llvm::SmallVectorImpl<llvm::ReturnInst*>& returns)
+{
+    for (llvm::ReturnInst* ret : returns) {
+        llvm::BasicBlock* retBB = ret->getParent();
+        ret->dropAllReferences();
+        ret->eraseFromParent();
+
+        mBuilder.SetInsertPoint(retBB);
+        mBuilder.CreateCall(getDummyVoidFunc());
+        mBuilder.CreateUnreachable();
+    }
+}
+
 bool LiftErrorCalls::run()
 {
     auto sccIt = llvm::scc_begin(&mCallGraph);
 
     while (!sccIt.isAtEnd()) {
         const std::vector<CallGraphNode*>& scc = *sccIt;
-
-        for (auto cgNode : scc) {
-            // TODO: What happens if we get an actual SCC?
-            auto function = cgNode->getFunction();
-            if (function == nullptr || function->isDeclaration()) {
-                continue;
-            }
-
-            // Find error calls in this function.
-            for (auto& call : classof_range<CallInst>(llvm::instructions(function))) {
-                llvm::Function* callee = call.getCalledFunction();
-                if (callee != nullptr && callee->getName() == CheckRegistry::ErrorFunctionName) {
-                    mInfos[function].selfFails.push_back(&call);
-                }
-            }
-
-            // Find possibly failing calls to other infos.
-            for (auto& callRecord : *cgNode) {
-                llvm::Function* callee = callRecord.second->getFunction();
-                if (callee == nullptr) {
-                    // TODO: Indirect function calls are unsupported at the moment.
-                    continue;
-                }
-
-                if (callee->isDeclaration() || !mInfos[callee].canFail()) {
-                    continue;
-                }
-
-                if (auto call = llvm::dyn_cast<CallInst>(callRecord.first)) {
-                    mInfos[function].mayFailCalls.emplace_back(call);
-                }
-            }
+        for (const CallGraphNode* cgNode : scc) {
+            this->collectFailingCalls(cgNode);
         }
-
         ++sccIt;
     }
 
@@ -212,7 +240,7 @@ bool LiftErrorCalls::run()
     // this single error location afterwards.
     for (auto& [function, info] : mInfos) {
         if (info.canFail()) {
-            combineErrorsInFunction(function, info);
+            this->combineErrorsInFunction(function, info);
         }
     }
 
@@ -232,32 +260,17 @@ bool LiftErrorCalls::run()
 
         // Create PHI nodes to represent arguments
         llvm::ValueToValueMapTy vmap;
-        info.failCopyArgumentPHIs.resize(function->arg_size());
-        mBuilder.SetInsertPoint(failEntry);
-        for (size_t i = 0; i < function->arg_size(); ++i) {
-            llvm::Argument& argument = *(function->arg_begin() + i);
-            llvm::PHINode* phi = mBuilder.CreatePHI(argument.getType(), 0, "");
-            info.failCopyArgumentPHIs[i] = phi;
-            vmap[&argument] = phi;
-        }
+        this->representArgumentsAsPhiNodes(function, failEntry, info, vmap);
 
         llvm::SmallVector<ReturnInst*, 4> returns;
         llvm::CloneFunctionInto(mEntryFunction, function, vmap, true, returns);
 
-        // The cloned function is in a invalid state, as we do not want the return instructions.
-        // Replace all returns with unreachable's.
-        for (auto ret : returns) {
-            llvm::BasicBlock* retBB = ret->getParent();
-            ret->dropAllReferences();
-            ret->eraseFromParent();
-
-            mBuilder.SetInsertPoint(retBB);
-            mBuilder.CreateCall(getDummyVoidFunc());
-            mBuilder.CreateUnreachable();
-        }
+        // The cloned function is in an invalid state, as we do not want the return instructions.
+        // Replace all returns with unreachable instructions.
+        this->replaceReturnsWithUnreachable(returns);
 
         // Wire the clone of the unique error call to main's error call.
-        auto mappedErrorCall = dyn_cast_or_null<CallInst>(vmap[info.uniqueErrorCall]);
+        auto* mappedErrorCall = dyn_cast_or_null<CallInst>(vmap[info.uniqueErrorCall]);
         assert(mappedErrorCall != nullptr
             && "The error call must map to a call instruction in the cloned function!");
 
@@ -283,37 +296,57 @@ bool LiftErrorCalls::run()
         info.uniqueErrorPhi->dropAllReferences();
         info.uniqueErrorPhi->eraseFromParent();
 
-        auto clonedEntry = cast<llvm::BasicBlock>(vmap[&function->getEntryBlock()]);
+        auto* clonedEntry = cast<llvm::BasicBlock>(vmap[&function->getEntryBlock()]);
         mBuilder.SetInsertPoint(failEntry);
         mBuilder.CreateBr(clonedEntry);
     }
 
     for (llvm::CallSite call : mayFailCallsInMain) {
-        assert(call.getCalledFunction() != nullptr);
-        auto& calleeInfo = mInfos[call.getCalledFunction()];
-
-        // Split the block for each call, create a nondet branch.
-        llvm::BasicBlock* origBlock = call->getParent();
-        llvm::BasicBlock* successBlock = llvm::SplitBlock(origBlock, call.getInstruction());
-        llvm::BasicBlock* errorBlock = llvm::BasicBlock::Create(mModule.getContext(), "", mEntryFunction);
-
-        // Create the nondetermistic branch between the success and error.
-        origBlock->getTerminator()->eraseFromParent();
-        mBuilder.SetInsertPoint(origBlock);
-
-        auto dummyCall = mBuilder.CreateCall(getDummyBoolFunc());
-        mBuilder.CreateCondBr(dummyCall, errorBlock, successBlock);
-
-        // Branch to the appropriate basic block
-        mBuilder.SetInsertPoint(errorBlock);
-        mBuilder.CreateBr(calleeInfo.failCopyEntry);
-
-        for (size_t i = 0; i < call.arg_size(); ++i) {
-            calleeInfo.failCopyArgumentPHIs[i]->addIncoming(call.getArgOperand(i), errorBlock);
-        }
+        this->createBranchToFail(call);
     }
 
     return true;
+}
+void LiftErrorCalls::createBranchToFail(CallSite& call)
+{
+    assert(call.getCalledFunction() != nullptr);
+    auto& calleeInfo = mInfos[call.getCalledFunction()];
+
+    // Split the block for each call, create a nondet branch.
+    BasicBlock* origBlock = call->getParent();
+    BasicBlock* successBlock = SplitBlock(origBlock, call.getInstruction());
+    BasicBlock* errorBlock = BasicBlock::Create(mModule.getContext(), "", mEntryFunction);
+
+    // Create the nondetermistic branch between the success and error.
+    origBlock->getTerminator()->eraseFromParent();
+    mBuilder.SetInsertPoint(origBlock);
+
+    llvm::Instruction* dummyCall = mBuilder.CreateCall(getDummyBoolFunc());
+    mBuilder.CreateCondBr(dummyCall, errorBlock, successBlock);
+
+    // Branch to the appropriate basic block
+    mBuilder.SetInsertPoint(errorBlock);
+    mBuilder.CreateBr(calleeInfo.failCopyEntry);
+
+    for (size_t i = 0; i < call.arg_size(); ++i) {
+        calleeInfo.failCopyArgumentPHIs[i]->addIncoming(call.getArgOperand(i), errorBlock);
+    }
+}
+
+void LiftErrorCalls::representArgumentsAsPhiNodes(
+    Function* function,
+    BasicBlock* failEntry,
+    LiftErrorCalls::FunctionInfo& info,
+    ValueToValueMapTy& vmap)
+{
+    info.failCopyArgumentPHIs.resize(function->arg_size());
+    mBuilder.SetInsertPoint(failEntry);
+    for (size_t i = 0; i < function->arg_size(); ++i) {
+        Argument& argument = *(function->arg_begin() + i);
+        PHINode* phi = mBuilder.CreatePHI(argument.getType(), 0, "");
+        info.failCopyArgumentPHIs[i] = phi;
+        vmap[&argument] = phi;
+    }
 }
 
 llvm::Pass* gazer::createLiftErrorCallsPass(llvm::Function& entry)

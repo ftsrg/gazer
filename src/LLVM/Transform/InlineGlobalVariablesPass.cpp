@@ -126,7 +126,7 @@ void transformConstantUsersToInstructions(llvm::Constant& constant)
     }
 }
 
-llvm::DIGlobalVariableExpression* findDIGlobalVariableExpression(llvm::GlobalVariable& gv)
+llvm::DIGlobalVariableExpression* findDIGlobalVariableExpression(const llvm::GlobalVariable& gv)
 {
     llvm::SmallVector<std::pair<unsigned, MDNode*>, 2> md;
     gv.getAllMetadata(md);
@@ -180,8 +180,7 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
         // store if the ExternFuncGlobalBehavior setting requires this.
 
         // Add `inlined_global.write` traceability if we have the original inlined variable
-        llvm::DIGlobalVariableExpression* diGlobalExpr = findDIGlobalVariableExpression(gv);
-        if (diGlobalExpr != nullptr) {
+        if (auto* diGlobalExpr = findDIGlobalVariableExpression(gv)) {
             DIGlobalVariable* diGlobalVariable = diGlobalExpr->getVariable();
 
             auto mark = GazerIntrinsic::GetOrInsertInlinedGlobalWrite(module, gv.getType()->getPointerElementType());
