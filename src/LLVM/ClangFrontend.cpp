@@ -163,13 +163,13 @@ auto gazer::ClangCompileAndLink(
     llvm::SMDiagnostic err;
 
     // Find clang and llvm-link.
-    auto clang = llvm::sys::findProgramByName("clang-9");
+    auto clang = llvm::sys::findProgramByName("clang-11");
     if (clang.getError()) clang = llvm::sys::findProgramByName("clang");
-    CHECK_ERROR(clang.getError(), "Could not find clang-9 or clang.");
+    CHECK_ERROR(clang.getError(), "Could not find clang-11 or clang.");
 
-    auto llvm_link = llvm::sys::findProgramByName("llvm-link-9");
+    auto llvm_link = llvm::sys::findProgramByName("llvm-link-11");
     if (llvm_link.getError()) llvm_link = llvm::sys::findProgramByName("llvm-link");
-    CHECK_ERROR(llvm_link.getError(), "Could not find llvm-link-9 or llvm-link.");
+    CHECK_ERROR(llvm_link.getError(), "Could not find llvm-link-11 or llvm-link.");
 
     // Create a temporary working directory
     llvm::SmallString<128> workingDir;
