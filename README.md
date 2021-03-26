@@ -11,6 +11,8 @@ Currently we support two verification backends:
 Furthermore, it is also possible to run multiple backends with different options as a portfolio.
 See [doc/Portfolio.md](doc/Portfolio.md) for more information.
 
+Gazer also participates in [SV-COMP](sv-comp.sosy-lab.org/), see [general report](https://www.sosy-lab.org/research/pub/2021-TACAS.Software_Verification_10th_Comparative_Evaluation_SV-COMP_2021.pdf) and our [publication](https://link.springer.com/chapter/10.1007/978-3-030-72013-1_27).
+
 # Usage
 
 Consider the following C program (`example.c`):
@@ -109,4 +111,22 @@ Linking this test harness against the original module yields an executable which
 $ clang example.c harness.ll -o example_test
 $ ./example_test
 [1]    19948 floating point exception (core dumped)  ./example_test
+```
+
+# Citation
+
+To cite Gazer as a tool, please use the following [paper](https://link.springer.com/chapter/10.1007/978-3-030-72013-1_27).
+```
+@incollection{gazer-tacas2021,
+    author     = {\'Adam, Zs\'ofia and Sallai, Gyula and Hajdu, \'Akos},
+    title      = {{G}azer-{T}heta: {LLVM}-based Verifier Portfolio with {BMC}/{CEGAR} (Competition Contribution)},
+    year       = {2021},
+    booktitle  = {Tools and Algorithms for the Construction and Analysis of Systems},
+    editor     = {Jan Friso Groote and Kim G. Larsen},
+    series     = {Lecture Notes in Computer Science},
+    volume     = {12652},
+    publisher  = {Springer},
+    pages      = {435--439},
+    doi        = {10.1007/978-3-030-72013-1_27},
+}
 ```
