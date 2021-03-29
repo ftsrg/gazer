@@ -1,0 +1,28 @@
+---
+generate-witness: No
+finish-all-configurations: Yes
+
+check-harness:
+    execute-harness-timeout: 50
+    compile-harness-timeout: 100
+
+configurations:
+    - name: theta1
+      tool: gazer-theta
+      timeout: 150 # sec
+      flags: --search ERR --domain EXPL --maxenum 100 --refinement BW_BIN_ITP --initprec ALLVARS
+    
+    - name: theta2
+      tool: gazer-theta
+      timeout: 150 # sec
+      flags: --inline all --search ERR --domain PRED_CART --refinement BW_BIN_ITP --initprec EMPTY
+
+    - name: theta1
+      tool: gazer-theta
+      timeout: 150 # sec
+      flags: --search ERR --domain EXPL --maxenum 100 --refinement BW_BIN_ITP --initprec ALLVARS
+    
+    - name: theta2
+      tool: gazer-theta
+      timeout: 150 # sec
+      flags: --inline all --search ERR --domain PRED_CART --refinement BW_BIN_ITP --initprec EMPTY

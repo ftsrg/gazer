@@ -54,7 +54,7 @@ sub run_command {
         close $fhandle;
     };
 
-    unless ( $return_0 eq 0 or $? eq 0 or $result = "TIMEOUT" ) {
+    unless ( $return_0 eq 0 or $? eq 0 or $result eq "TIMEOUT" ) {
         $result = "ERROR";
     }
     if ( not defined $result ) {
