@@ -6,3 +6,7 @@ llvm_map_components_to_libnames(LLVM_LIBS support)
 
 add_library(GazerSupport ${SOURCE_FILES})
 target_link_libraries(GazerSupport ${LLVM_LIBS})
+
+set_target_properties(GazerSupport PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/src/lib"
+)

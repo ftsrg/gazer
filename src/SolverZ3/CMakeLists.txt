@@ -28,3 +28,7 @@ add_dependencies(z3 z3_download)
 
 add_library(GazerZ3Solver SHARED ${SOURCE_FILES})
 target_link_libraries(GazerZ3Solver GazerCore z3)
+
+set_target_properties(GazerZ3Solver PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/src/lib"
+)

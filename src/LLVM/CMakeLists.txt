@@ -35,8 +35,22 @@ set(SOURCE_FILES
     Instrumentation/Checks/DivisionByZeroCheck.cpp
     Instrumentation/Checks/SignedIntegerOverflowCheck.cpp Transform/LoopExitCanonizationPass.cpp)
 
+find_package(LLVM REQUIRED CONFIG)
+add_definitions(${LLVM_DEFINITIONS})
+include_directories(${LLVM_INCLUDE_DIRS})
+include(AddLLVM)
+
 llvm_map_components_to_libnames(GAZER_LLVM_LIBS core irreader transformutils scalaropts ipo)
 message(STATUS "Using LLVM libraries: ${GAZER_LLVM_LIBS}")
 
-add_library(GazerLLVM SHARED ${SOURCE_FILES})
-target_link_libraries(GazerLLVM ${GAZER_LLVM_LIBS} GazerCore GazerTrace GazerZ3Solver GazerAutomaton)
+add_llvm_library(GazerLLVMBase SHARED ${SOURCE_FILES})
+target_link_libraries(GazerLLVMBase GazerCore GazerTrace GazerZ3Solver GazerAutomaton)
+
+# CMake needs a file to link against for a library.
+# This is, however, unnecessary when creating a shared lib from an (LLVM) module.
+# This is a dirty workaround.
+# file(CONFIGURE TOUCH ${DESTPATH}/empty.cpp)
+file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/empty.cpp CONTENT \ )
+
+add_library(GazerLLVM SHARED ${CMAKE_CURRENT_BINARY_DIR}/empty.cpp)
+target_link_libraries(GazerLLVM GazerLLVMBase ${GAZER_LLVM_LIBS})
