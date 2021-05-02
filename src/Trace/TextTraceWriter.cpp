@@ -32,7 +32,7 @@ namespace
     {
     public:
         explicit TextTraceWriter(llvm::raw_ostream& os, bool printBv = true)
-            : TraceWriter(os), mPrintBv(printBv), mFuncEntries(0)
+            : TraceWriter(os), mPrintBv(printBv)
         {}
 
         static constexpr auto INDENT = "  ";
@@ -45,7 +45,7 @@ namespace
             if (llvm::isa<UndefExpr>(expr.get())) {
                 mOS << "???";
             } else if (auto bv = llvm::dyn_cast<BvLiteralExpr>(expr)) {
-                TraceVariable var = event.getVariable();
+                const TraceVariable& var = event.getVariable();
                 unsigned varSize = var.getSize();
 
                 switch (var.getRepresentation()) {
@@ -68,6 +68,8 @@ namespace
                         break;
                     case TraceVariable::Rep_Float:
                         llvm_unreachable("Cannot represent a int BV type as a float!");
+                    default:
+                        break;
                 }
 
                 if (mPrintBv) {
@@ -75,9 +77,7 @@ namespace
                     bv->getValue().zextOrSelf(32).toString(bits, 2, false, false);
                     mOS << "\t(0b";
                     if (bits.size() < varSize) {
-                        for (int i = 0; i < varSize - bits.size(); ++i) {
-                            mOS.write('0');
-                        }
+                        mOS.write_zeros(varSize - bits.size());
                     }
                     mOS << bits << ')';
                 }
@@ -85,8 +85,7 @@ namespace
                 expr->print(mOS);
             }
 
-            auto location = event.getLocation();
-            if (location.getLine() != 0) {
+            if (auto location = event.getLocation(); location.getLine() != 0) {
                 mOS << "\t at "
                     << location.getLine()
                     << ":"
@@ -135,8 +134,7 @@ namespace
             }
             mOS << "\t";
 
-            auto location = event.getLocation();
-            if (location.getLine() != 0) {
+            if (auto location = event.getLocation(); location.getLine() != 0) {
                 mOS << "\t at "
                     << location.getLine()
                     << ":"
@@ -157,8 +155,7 @@ namespace
 
             mOS << ")\t";
 
-            auto location = event.getLocation();
-            if (location.getLine() != 0) {
+            if (auto location = event.getLocation(); location.getLine() != 0) {
                 mOS << "\t at "
                     << location.getLine()
                     << ":"
@@ -170,7 +167,7 @@ namespace
 
     private:
         bool mPrintBv;
-        size_t mFuncEntries;
+        size_t mFuncEntries = 0;
     };
 } // end anonymous namespace
 

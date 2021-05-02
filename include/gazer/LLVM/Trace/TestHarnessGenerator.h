@@ -26,9 +26,9 @@ namespace gazer
 {
 
 std::unique_ptr<llvm::Module> GenerateTestHarnessModuleFromTrace(
-    Trace& trace, llvm::LLVMContext& context, const llvm::Module& module
+    const Trace& trace, llvm::LLVMContext& context, const llvm::Module& llvmModule
 );
 
-}
+} // namespace gazer
 
 #endif

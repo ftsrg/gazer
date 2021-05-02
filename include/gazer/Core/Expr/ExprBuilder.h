@@ -24,7 +24,7 @@
 
 namespace llvm {
     class APInt;
-}
+} // namespace llvm
 
 namespace gazer
 {
@@ -316,6 +316,6 @@ std::unique_ptr<ExprBuilder> CreateExprBuilder(GazerContext& context);
 /// some basic simplifications.
 std::unique_ptr<ExprBuilder> CreateFoldingExprBuilder(GazerContext& context);
 
-}
+} // namespace gazer
 
 #endif

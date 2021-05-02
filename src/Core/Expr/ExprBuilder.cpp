@@ -34,7 +34,7 @@ ExprPtr ExprBuilder::TupleInsert(const ExprPtr &tuple, const ExprPtr &value, uns
     auto& tupleTy = llvm::cast<TupleType>(tuple->getType());
 
     assert(index <= tupleTy.getNumSubtypes() && "Tuple insert index out of range!");
-    assert(tupleTy.getTypeAtIndex(index) == value->getType() && "Tuple insert of incompatible types!");
+    assert(tupleTy.getSubType(index) == value->getType() && "Tuple insert of incompatible types!");
 
     ExprVector newMembers;
     newMembers.reserve(tupleTy.getNumSubtypes());

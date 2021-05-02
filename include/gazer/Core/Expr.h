@@ -191,7 +191,7 @@ protected:
     Type& mType;
 
 private:
-    mutable unsigned mRefCount;
+    mutable unsigned mRefCount = 0;
     Expr* mNextPtr = nullptr;
     mutable size_t mHashCode = 0;
 };
@@ -327,13 +327,13 @@ namespace llvm
 
 template<class T>
 struct simplify_type<gazer::ExprRef<T>> {
-    typedef T* SimpleType;
+    using SimpleType = T*;
     static SimpleType getSimplifiedValue(gazer::ExprRef<T> &Val) { return Val.get(); }
 };
 
 template<class T>
 struct simplify_type<const gazer::ExprRef<T>> {
-    typedef T* SimpleType;
+    using SimpleType = T*;
     static SimpleType getSimplifiedValue(const gazer::ExprRef<T> &Val) { return Val.get(); }
 };
 

@@ -95,8 +95,8 @@ llvm::Function* ExtensionPoint::getParent() const
 bool ExtensionPoint::isEntryProcedure() const
 {
     llvm::Function* function = getParent();
-    llvm::Module* module = function->getParent();
-    return mGenInfo.Context.getSettings().getEntryFunction(*module) == function;
+    llvm::Module* llvmModule = function->getParent();
+    return mGenInfo.Context.getSettings().getEntryFunction(*llvmModule) == function;
 }
 
 Variable* VariableDeclExtensionPoint::createInput(ValueOrMemoryObject val, Type& type, const std::string& suffix)

@@ -95,15 +95,15 @@ void MemorySSABuilderPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
     this->addRequiredAnalyses(au);
 }
 
-auto MemorySSABuilderPass::runOnModule(llvm::Module& module) -> bool
+auto MemorySSABuilderPass::runOnModule(llvm::Module& llvmModule) -> bool
 {
-    for (llvm::Function& function : module) {
+    for (llvm::Function& function : llvmModule) {
         if (function.isDeclaration()) {
             continue;
         }
 
         auto& dt = getAnalysis<llvm::DominatorTreeWrapperPass>(function).getDomTree();
-        MemorySSABuilder builder(function, module.getDataLayout(), dt);
+        MemorySSABuilder builder(function, llvmModule.getDataLayout(), dt);
 
         this->initializeFunction(function, builder);
 

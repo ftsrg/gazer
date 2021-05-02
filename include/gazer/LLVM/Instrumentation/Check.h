@@ -33,9 +33,7 @@ class Check : public llvm::ModulePass
 {
     friend class CheckRegistry;
 public:
-    explicit Check(char& id)
-        : ModulePass(id)
-    {}
+    using llvm::ModulePass::ModulePass;
 
     Check(const Check&) = delete;
     Check& operator=(const Check&) = delete;

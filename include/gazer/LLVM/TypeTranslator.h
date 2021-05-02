@@ -39,7 +39,7 @@ public:
 
     gazer::Type& get(const llvm::Type* type);
 
-protected:
+private:
     MemoryTypeTranslator& mMemoryTypes;
     const LLVMFrontendSettings& mSettings;
 };

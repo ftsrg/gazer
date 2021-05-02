@@ -38,7 +38,7 @@ using namespace gazer;
 namespace
 {
 
-llvm::cl::opt<bool> FlatMemoryDumpMemSSA("flat-memory-dump-memssa");
+const llvm::cl::opt<bool> FlatMemoryDumpMemSSA("flat-memory-dump-memssa");
 
 class FlatMemoryModelInstTranslator;
 
@@ -80,7 +80,7 @@ public:
     FlatMemoryModel(
         GazerContext& context,
         const LLVMFrontendSettings& settings,
-        llvm::Module& module,
+        llvm::Module& llvmModule,
         DominatorTreeFuncTy dominators
     );
 
@@ -140,11 +140,11 @@ private:
 FlatMemoryModel::FlatMemoryModel(
     GazerContext& context,
     const LLVMFrontendSettings& settings,
-    llvm::Module& module,
+    llvm::Module& llvmModule,
     DominatorTreeFuncTy dominators
 ) : MemoryTypeTranslator(context),
     mSettings(settings),
-    mDataLayout(module.getDataLayout()),
+    mDataLayout(llvmModule.getDataLayout()),
     mTypes(*this, mSettings)
 {
     // Initialize the expression builder
@@ -155,7 +155,7 @@ FlatMemoryModel::FlatMemoryModel(
     llvm::SmallPtrSet<llvm::GlobalVariable*, 8> liftedGlobals;
     llvm::SmallPtrSet<llvm::GlobalVariable*, 4> otherGlobals;
 
-    for (llvm::GlobalVariable& gv : module.globals()) {
+    for (llvm::GlobalVariable& gv : llvmModule.globals()) {
         // FIXME: We currently do not lift globals which have array or struct types.
         //if (!memory::isGlobalUsedAsPointer(gv) && gv.getType()->isSingleValueType()) {
         //    liftedGlobals.insert(&gv);
@@ -164,12 +164,12 @@ FlatMemoryModel::FlatMemoryModel(
         //}
     }
 
-    for (llvm::Function& function : module) {
+    for (llvm::Function& function : llvmModule) {
         if (function.isDeclaration()) {
             continue;
         }
 
-        bool isEntryFunction = mSettings.getEntryFunction(module) == &function;
+        bool isEntryFunction = mSettings.getEntryFunction(llvmModule) == &function;
 
         memory::MemorySSABuilder builder(function, mDataLayout, dominators(function));
         auto& info = mFunctions[&function];
@@ -393,7 +393,7 @@ auto FlatMemoryModelInstTranslator::handleAlloca(const llvm::AllocaInst& alloc, 
     // which is then advanced by the size of the allocated type.
     // We also clobber the relevant bytes of the memory array.
     ExprPtr ptr = ep.getAsOperand(spDef->getReachingDef());
-    Variable* defVar = ep.getVariableFor(&*spDef);
+    Variable* defVar = ep.getVariableFor(spDef);
 
     assert(defVar != nullptr && "The definition variable should have been inserted earlier!");
 
@@ -410,8 +410,8 @@ auto FlatMemoryModelInstTranslator::handleAlloca(const llvm::AllocaInst& alloc, 
         );
     }
 
-    Variable* memVar = ep.getVariableFor(&*memDef);
-    if (!ep.tryToEliminate(&*memDef, memVar, resArray)) {
+    Variable* memVar = ep.getVariableFor(memDef);
+    if (!ep.tryToEliminate(memDef, memVar, resArray)) {
         ep.insertAssignment(memVar, resArray);
     }
 
@@ -845,9 +845,9 @@ auto FlatMemoryModel::getMemoryInstructionHandler(llvm::Function& function)
 auto gazer::CreateFlatMemoryModel(
     GazerContext& context,
     const LLVMFrontendSettings& settings,
-    llvm::Module& module,
+    llvm::Module& llvmModule,
     std::function<llvm::DominatorTree&(llvm::Function&)> dominators
 ) -> std::unique_ptr<MemoryModel>
 {
-    return std::make_unique<FlatMemoryModel>(context, settings, module, dominators);
+    return std::make_unique<FlatMemoryModel>(context, settings, llvmModule, dominators);
 }

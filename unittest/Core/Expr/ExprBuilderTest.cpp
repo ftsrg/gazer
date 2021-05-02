@@ -37,9 +37,9 @@ TEST(ExprBuilderTest, TupleConstruct)
 
     auto& tupTy = llvm::cast<TupleType>(tuple->getType());
     ASSERT_EQ(tupTy.getNumSubtypes(), 3);
-    EXPECT_EQ(tupTy.getTypeAtIndex(0), IntType::Get(ctx));
-    EXPECT_EQ(tupTy.getTypeAtIndex(1), BvType::Get(ctx, 8));
-    EXPECT_EQ(tupTy.getTypeAtIndex(2), BoolType::Get(ctx));
+    EXPECT_EQ(tupTy.getSubType(0), IntType::Get(ctx));
+    EXPECT_EQ(tupTy.getSubType(1), BvType::Get(ctx, 8));
+    EXPECT_EQ(tupTy.getSubType(2), BoolType::Get(ctx));
 }
 
 TEST(ExprBuilderTest, TupleInsertionsInTupleConstruct)

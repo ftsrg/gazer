@@ -164,17 +164,21 @@ auto gazer::ClangCompileAndLink(
 
     // Find clang and llvm-link.
     auto clang = llvm::sys::findProgramByName("clang-9");
-    if (clang.getError()) clang = llvm::sys::findProgramByName("clang");
-    CHECK_ERROR(clang.getError(), "Could not find clang-9 or clang.");
+    if (clang.getError()) {
+        clang = llvm::sys::findProgramByName("clang");
+    }
+    CHECK_ERROR(clang.getError(), "Could not find clang-9 or clang.")
 
     auto llvm_link = llvm::sys::findProgramByName("llvm-link-9");
-    if (llvm_link.getError()) llvm_link = llvm::sys::findProgramByName("llvm-link");
-    CHECK_ERROR(llvm_link.getError(), "Could not find llvm-link-9 or llvm-link.");
+    if (llvm_link.getError()) {
+        llvm_link = llvm::sys::findProgramByName("llvm-link");
+    }
+    CHECK_ERROR(llvm_link.getError(), "Could not find llvm-link-9 or llvm-link.")
 
     // Create a temporary working directory
     llvm::SmallString<128> workingDir;
     errorCode = llvm::sys::fs::createUniqueDirectory("gazer_workdir_", workingDir);
-    CHECK_ERROR(errorCode, "Could not create temporary working directory.");
+    CHECK_ERROR(errorCode, "Could not create temporary working directory.")
 
     std::vector<std::string> bitcodeFiles;
 

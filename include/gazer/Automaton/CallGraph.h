@@ -41,7 +41,7 @@ public:
     {
         friend class CallGraph;
     public:
-        Node(Cfa* cfa)
+        explicit Node(Cfa* cfa)
             : mCfa(cfa)
         {}
 
@@ -65,10 +65,10 @@ public:
         std::vector<CallSite> mCallsToOthers;
         std::vector<CallTransition*> mCallsToThis;
     };
-public:
+
     explicit CallGraph(AutomataSystem& system);
 
-    ~CallGraph();
+    ~CallGraph() = default;
 
     /// Returns true if the given procedure is tail-recursive. That is,
     /// if it is recursive and the recursive calls only occur in

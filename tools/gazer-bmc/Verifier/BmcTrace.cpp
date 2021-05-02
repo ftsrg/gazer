@@ -46,7 +46,7 @@ void bmc::cex_iterator::advance()
     auto edge = std::find_if(
         current->incoming_begin(),
         current->incoming_end(),
-        [source](Transition* e) { return e->getSource() == source; }
+        [source](const Transition* e) { return e->getSource() == source; }
     );
 
     assert(edge != current->incoming_end()

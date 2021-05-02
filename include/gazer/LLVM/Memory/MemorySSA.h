@@ -88,7 +88,7 @@ public:
 private:
 
     template<class AccessKind, class Range>
-    static void memoryAccessOfKindImpl(Range&& range, llvm::SmallVectorImpl<AccessKind*>& vec)
+    static void memoryAccessOfKindImpl(const Range& range, llvm::SmallVectorImpl<AccessKind*>& vec)
     {
         static_assert(std::is_base_of_v<MemoryAccess, AccessKind>, "AccessKind must be a subclass of MemoryAccess!");
         for (auto& access : range) {
@@ -180,7 +180,7 @@ public:
     {}
 
     void getAnalysisUsage(llvm::AnalysisUsage& au) const final;
-    bool runOnModule(llvm::Module& module) final;
+    bool runOnModule(llvm::Module& llvmModule) final;
 
     virtual void addRequiredAnalyses(llvm::AnalysisUsage& au) const {}
     virtual void initializeFunction(llvm::Function& function, MemorySSABuilder& builder) = 0;

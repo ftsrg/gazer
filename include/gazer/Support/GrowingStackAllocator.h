@@ -41,7 +41,9 @@ class GrowingStackAllocator : public llvm::AllocatorBase<GrowingStackAllocator<A
     };
 public:
     GrowingStackAllocator() = default;
-    
+    GrowingStackAllocator(const GrowingStackAllocator&) = delete;
+    GrowingStackAllocator& operator=(const GrowingStackAllocator&) = delete;
+
     void Init()
     {
         this->startNewSlab();
@@ -111,6 +113,6 @@ private:
     size_t mCurrentSlab = 0;
 };
 
-}
+} // namespace gazer
 
 #endif

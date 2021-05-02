@@ -62,6 +62,7 @@ gazer::Type* LLVMTraceBuilder::preferredTypeFromDIType(llvm::DIType* diTy)
                     default:
                         break;
                 }
+                break;
             default:
                break;
         }
@@ -114,7 +115,7 @@ auto LLVMTraceBuilder::build(
     Valuation currentVals;
     ValuationExprEvaluator evaluator(currentVals);
 
-    auto shouldProcessEntry = [](CfaToLLVMTrace::BlockToLocationInfo info) -> bool {
+    auto shouldProcessEntry = [](CfaToLLVMTrace::BlockToLocationInfo info) {
         return info.block != nullptr && info.kind == CfaToLLVMTrace::Location_Entry;
     };
 
@@ -362,8 +363,7 @@ ExprRef<AtomicExpr> LLVMTraceBuilder::getLiteralFromValue(
 
     ValuationExprEvaluator eval(model);
 
-    auto expr = mCfaToLlvmTrace.getExpressionForValue(cfa, value);
-    if (expr != nullptr) {
+    if (auto expr = mCfaToLlvmTrace.getExpressionForValue(cfa, value); expr != nullptr) {
         auto ret = eval.evaluate(expr);
         if (ret != nullptr) {
             return ret;

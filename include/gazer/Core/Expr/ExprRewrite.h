@@ -69,10 +69,7 @@ protected:
 class VariableExprRewrite : public ExprRewrite
 {
 public:
-    explicit VariableExprRewrite(ExprBuilder& builder)
-        : ExprRewrite(builder)
-    {}
-
+    using ExprRewrite::ExprRewrite;
     ExprPtr& operator[](Variable* variable);
 
 protected:

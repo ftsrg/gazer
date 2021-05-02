@@ -31,9 +31,9 @@ using namespace gazer;
 
 namespace
 {
-    llvm::cl::opt<bool> Z3SolveParallel("z3-solve-parallel", llvm::cl::desc("Enable Z3's parallel solver"));
-    llvm::cl::opt<int>  Z3ThreadsMax("z3-threads-max", llvm::cl::desc("Maximum number of threads"), llvm::cl::init(0));
-    llvm::cl::opt<bool> Z3DumpModel("z3-dump-model", llvm::cl::desc("Dump Z3 model"));
+    const llvm::cl::opt<bool> Z3SolveParallel("z3-solve-parallel", llvm::cl::desc("Enable Z3's parallel solver"));
+    const llvm::cl::opt<int>  Z3ThreadsMax("z3-threads-max", llvm::cl::desc("Maximum number of threads"), llvm::cl::init(0));
+    const llvm::cl::opt<bool> Z3DumpModel("z3-dump-model", llvm::cl::desc("Dump Z3 model"));
 } // end anonymous namespace
 
 
@@ -346,7 +346,7 @@ Z3Handle<Z3_sort> Z3ExprTransformer::handleTupleType(TupleType& tupTy)
     for (unsigned i = 0; i < tupTy.getNumSubtypes(); ++i) {
         std::string projName = tupTy.getName() + "_" + std::to_string(i);
         projs.emplace_back(Z3_mk_string_symbol(mZ3Context, projName.c_str()));
-        sorts.emplace_back(typeToSort(tupTy.getTypeAtIndex(i)));
+        sorts.emplace_back(typeToSort(tupTy.getSubType(i)));
     }
 
     Z3_func_decl constructDecl;

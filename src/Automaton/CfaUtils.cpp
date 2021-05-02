@@ -65,8 +65,7 @@ PathConditionCalculator::PathConditionCalculator(
     ExprBuilder& builder,
     std::function<ExprPtr(CallTransition*)> calls,
     std::function<void(Location*, ExprPtr)> preds
-) : mTopo(topo), mExprBuilder(builder), mCalls(calls),
-    mPredecessors(preds)
+) : mTopo(topo), mExprBuilder(builder), mCalls(calls), mPredecessors(preds)
 {}
 
 namespace
@@ -74,14 +73,12 @@ namespace
 
 struct PathPredecessor
 {
-    Transition* edge;
-    size_t idx;
+    Transition* edge = nullptr;
+    size_t idx = 0;
     ExprPtr expr;
 
-    PathPredecessor() = default;
-
     PathPredecessor(Transition* edge, size_t idx, ExprPtr expr)
-        : edge(edge), idx(idx), expr(expr)
+        : edge(edge), idx(idx), expr(std::move(expr))
     {}
 };
 
@@ -188,9 +185,6 @@ ExprPtr PathConditionCalculator::encode(Location* source, Location* target)
             }
 
             for (size_t j = 0; j < preds.size(); ++j) {
-                Transition* edge = preds[j].edge;
-                size_t predIdx = preds[j].idx;
-
                 ExprPtr predIdentification = mExprBuilder.True();
 
                 if (predDisc != nullptr) {

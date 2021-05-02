@@ -43,7 +43,6 @@ class InlinePass : public llvm::ModulePass
 public:
     static char ID;
 
-public:
     InlinePass(llvm::Function* entry, InlineLevel level)
         : ModulePass(ID), mEntryFunction(entry), mLevel(level)
     {
@@ -55,14 +54,14 @@ public:
         au.addRequired<llvm::CallGraphWrapperPass>();
     }
 
-    bool runOnModule(llvm::Module& module) override;
+    bool runOnModule(llvm::Module& llvmModule) override;
 
     llvm::StringRef getPassName() const override {
         return "Simplified inling";
     }
 
 private:
-    bool shouldInlineFunction(llvm::CallGraphNode* target, unsigned allowedRefs);
+    bool shouldInlineFunction(llvm::CallGraphNode* target, unsigned allowedRefs) const;
 
     llvm::Function* mEntryFunction;
     InlineLevel mLevel;
@@ -72,7 +71,7 @@ private:
 
 char InlinePass::ID;
 
-bool InlinePass::shouldInlineFunction(llvm::CallGraphNode* target, unsigned allowedRefs)
+bool InlinePass::shouldInlineFunction(llvm::CallGraphNode* target, unsigned allowedRefs) const
 {
     bool viable = llvm::isInlineViable(*target->getFunction());
     viable |= !isRecursive(target);
@@ -102,7 +101,7 @@ bool InlinePass::shouldInlineFunction(llvm::CallGraphNode* target, unsigned allo
     return false;
 }
 
-bool InlinePass::runOnModule(llvm::Module& module)
+bool InlinePass::runOnModule(llvm::Module& llvmModule)
 {
     if (mLevel == InlineLevel::Off) {
         return false;

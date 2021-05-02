@@ -49,9 +49,7 @@ namespace
 class FoldingExprBuilder : public ExprBuilder
 {
 public:
-    FoldingExprBuilder(GazerContext& context)
-        : ExprBuilder(context)
-    {}
+    using ExprBuilder::ExprBuilder;
 
 private:
     ExprPtr foldBinaryExpr(Expr::ExprKind kind, const ExprPtr& left, const ExprPtr& right);
@@ -584,7 +582,8 @@ ExprPtr FoldingExprBuilder::foldBinaryExpr(Expr::ExprKind kind, const ExprPtr& l
                 break;
             case Expr::BvOr:
                 if (rhs->isZero()) { return left; }                         // X or 0 == X
-                if (rhs->isAllOnes()) { return rhs; }                       // X and 1..1 == 1..1 
+                if (rhs->isAllOnes()) { return rhs; }                       // X and 1..1 == 1..1
+                break;
             case Expr::BvXor:
                 if (rhs->isZero()) { return left; }                         // X xor 0 == X
                 break;
@@ -597,10 +596,10 @@ ExprPtr FoldingExprBuilder::foldBinaryExpr(Expr::ExprKind kind, const ExprPtr& l
     }
 
     // See if both of them are literals
-    if (auto lhs = dyn_cast<IntLiteralExpr>(left)) {
-        if (auto rhs = dyn_cast<IntLiteralExpr>(right)) {
-            auto l = lhs->getValue();
-            auto r = rhs->getValue();
+    if (auto intLeft = dyn_cast<IntLiteralExpr>(left)) {
+        if (auto intRight = dyn_cast<IntLiteralExpr>(right)) {
+            auto l = intLeft->getValue();
+            auto r = intRight->getValue();
 
             switch (kind) {
                 case Expr::Add: return this->IntLit(l + r);
@@ -614,10 +613,10 @@ ExprPtr FoldingExprBuilder::foldBinaryExpr(Expr::ExprKind kind, const ExprPtr& l
                     break;
             }
         }
-    } else if (auto lhs = dyn_cast<BvLiteralExpr>(left)) {
-        if (auto rhs = dyn_cast<BvLiteralExpr>(right)) {
-            auto l = lhs->getValue();
-            auto r = rhs->getValue();
+    } else if (auto bvLeft = dyn_cast<BvLiteralExpr>(left)) {
+        if (auto bvRight = dyn_cast<BvLiteralExpr>(right)) {
+            auto l = bvLeft->getValue();
+            auto r = bvRight->getValue();
 
             switch (kind) {
                 case Expr::Add: return this->BvLit(l + r);
@@ -647,7 +646,7 @@ ExprPtr FoldingExprBuilder::foldBinaryExpr(Expr::ExprKind kind, const ExprPtr& l
             case Expr::LShr:
             case Expr::AShr:
             case Expr::Shl:
-                if (lhs->isZero()) { return lhs; }
+                if (bvLeft->isZero()) { return bvLeft; }
                 break;
             default:
                 break;
@@ -764,5 +763,5 @@ ExprPtr FoldingExprBuilder::simplifyLtEq(const ExprPtr& left, const ExprPtr& rig
 }
 
 std::unique_ptr<ExprBuilder> gazer::CreateFoldingExprBuilder(GazerContext& context) {
-    return std::unique_ptr<ExprBuilder>(new FoldingExprBuilder(context));
+    return std::make_unique<FoldingExprBuilder>(context);
 }

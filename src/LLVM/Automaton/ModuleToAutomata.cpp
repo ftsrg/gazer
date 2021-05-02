@@ -130,10 +130,8 @@ static bool hasUsesOutsideOfBlockRange(const MemoryObjectDef* def, Range& range)
 
 static bool isErrorBlock(llvm::BasicBlock* bb)
 {
-    // In error blocks, the last instruction before a terminator should be the
-    //  'gazer.error_code' call.
+    // In error blocks, the last instruction before a terminator should be the  'gazer.error_code' call.
     auto inst = bb->getTerminator()->getPrevNonDebugInstruction();
-
     if (auto call = llvm::dyn_cast_or_null<CallInst>(inst)) {
         Function* function = call->getCalledFunction();
         if (function != nullptr && function->getName() == CheckRegistry::ErrorFunctionName) {
@@ -189,25 +187,26 @@ static std::string getLoopName(const llvm::Loop* loop, unsigned& loopCount, llvm
     if (header->hasName()) {
         name += header->getName();
     } else {
-        name += "__loop_" + std::to_string(loopCount++);
+        name += "__loop_" + std::to_string(loopCount);
+        ++loopCount;
     }
 
     return name;
 }
 
 ModuleToCfa::ModuleToCfa(
-    llvm::Module& module,
+    llvm::Module& llvmModule,
     LoopInfoFuncTy loops,
     GazerContext& context,
     MemoryModel& memoryModel,
     LLVMTypeTranslator& types,
     const SpecialFunctions& specialFunctions,
     const LLVMFrontendSettings& settings
-) : mModule(module),
+) : mModule(llvmModule),
     mContext(context),
     mMemoryModel(memoryModel),
     mSettings(settings),
-    mSystem(new AutomataSystem(context)),
+    mSystem(std::make_unique<AutomataSystem>(context)),
     mGenCtx(*mSystem, mMemoryModel, types, std::move(loops), specialFunctions, settings)
 {
     if (mSettings.simplifyExpr) {
@@ -289,10 +288,10 @@ void ModuleToCfa::createAutomata()
 
             ArrayRef<BasicBlock*> loopBlocks = loop->getBlocks();
             std::vector<BasicBlock*> loopOnlyBlocks;
-            std::copy_if(
-                loopBlocks.begin(), loopBlocks.end(),
+            llvm::copy_if(
+                loopBlocks,
                 std::back_inserter(loopOnlyBlocks),
-                [&visitedBlocks] (BasicBlock* b) { return visitedBlocks.count(b) == 0; }
+                [&visitedBlocks] (auto b) { return visitedBlocks.count(b) == 0; }
             );
 
             // Declare loop variables.
@@ -522,7 +521,7 @@ void BlocksToCfa::encode()
 
     // Do a clean-up, remove eliminated variables from the CFA.
     if (!mGenCtx.getSettings().isElimVarsOff()) {
-        mCfa->removeLocalsIf([this](Variable* v) {
+        mCfa->removeLocalsIf([this](auto v) {
             return mEliminatedVarsSet.count(v) != 0;
         });
     }
@@ -689,9 +688,8 @@ bool BlocksToCfa::tryToEliminate(ValueOrMemoryObject val, Variable* variable, co
         // On 'Normal' level, we do not want to inline expressions which have multiple uses
         // and have already inlined operands.
 
-        bool hasInlinedOperands = std::any_of(inst->op_begin(), inst->op_end(), [this](const llvm::Use& op) {
-            const llvm::Value* v = &*op;
-            return llvm::isa<Instruction>(v) && mInlinedVars.count(llvm::cast<Instruction>(v)) != 0;
+        bool hasInlinedOperands = llvm::any_of(inst->operands(), [this](const llvm::Use& op) {
+            return llvm::isa<Instruction>(op) && mInlinedVars.count(llvm::cast<Instruction>(op)) != 0;
         });
 
         if (!mGenCtx.getSettings().isElimVarsAggressive()
@@ -723,8 +721,7 @@ void BlocksToCfa::createExitTransition(const BasicBlock* source, const BasicBloc
     }
 
     // Add the possible loop exit assignments
-    for (auto& entry : mGenInfo.LoopOutputs) {
-        VariableAssignment& assign = entry.second;
+    for (auto& [_, assign] : mGenInfo.LoopOutputs) {
         exitAssigns.push_back(assign);
     }
 
@@ -844,11 +841,9 @@ void BlocksToCfa::createCallToLoop(llvm::Loop* loop, const llvm::BasicBlock* sou
     llvm::SmallVector<llvm::Loop::Edge, 4> exitEdges;
     loop->getExitEdges(exitEdges);
 
-    for (llvm::Loop::Edge& exitEdge : exitEdges) {
-        LLVM_DEBUG(llvm::dbgs() << "  Handling exit edge " << exitEdge.first->getName()
-            << " to " << exitEdge.second->getName() << "\n");
-        const llvm::BasicBlock* inBlock = exitEdge.first;
-        const llvm::BasicBlock* exitBlock = exitEdge.second;
+    for (const auto& [inBlock, exitBlock] : exitEdges) {
+        LLVM_DEBUG(llvm::dbgs() << "  Handling exit edge " << inBlock->getName()
+            << " to " << exitBlock->getName() << "\n");
         std::vector<VariableAssignment> phiAssignments;
         insertPhiAssignments(inBlock, exitBlock, phiAssignments);
 
@@ -880,8 +875,7 @@ void BlocksToCfa::insertOutputAssignments(CfaGenInfo& callee, std::vector<Variab
         Variable* parentVar;
 
         // If the value is a loop output, we must use its "_out" variable.
-        auto loopVar = mGenInfo.LoopOutputs.find(value);
-        if (loopVar != mGenInfo.LoopOutputs.end()) {
+        if (auto loopVar = mGenInfo.LoopOutputs.find(value); loopVar != mGenInfo.LoopOutputs.end()) {
             parentVar = loopVar->second.getVariable();
         } else {
             parentVar = mGenInfo.findVariable(value);

@@ -119,7 +119,7 @@ class BoundedModelCheckerImpl
         std::vector<Cfa*> callChain;
 
         unsigned getCost() const {
-            return std::count(callChain.begin(), callChain.end(), callChain.back());
+            return llvm::count(callChain, callChain.back());
         }
     };
 public:
@@ -169,6 +169,10 @@ private:
 
     void findOpenCallsInCex(Model& model, llvm::SmallVectorImpl<CallTransition*>& callsInCex);
 
+    unsigned collectOpenCalls(size_t bound);
+
+    std::unique_ptr<VerificationResult> checkBound(unsigned openCallSites, unsigned bound);
+
     std::unique_ptr<VerificationResult> createFailResult();
     std::unique_ptr<Trace> constructTrace(Model& model);
 
@@ -183,6 +187,12 @@ private:
     }
 
     Solver::SolverStatus runSolver();
+
+    // Logging
+    //==--------------------------------------------------------------------==//
+    void dumpFormulaIfRequested(const ExprPtr& formula) const;
+    void dumpSolverIfRequested() const;
+    void dumpAutomataIfRequested() const;
 
     // Fields
     AutomataSystem& mSystem;

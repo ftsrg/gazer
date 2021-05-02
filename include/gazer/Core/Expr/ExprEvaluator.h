@@ -30,6 +30,7 @@ class ExprEvaluator
 {
 public:
     virtual ExprRef<AtomicExpr> evaluate(const ExprPtr& expr) = 0;
+    virtual ~ExprEvaluator() = default;
 };
 
 /// Base class for expression evaluation implementations.

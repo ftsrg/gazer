@@ -108,11 +108,11 @@ namespace
 char RunVerificationBackendPass::ID;
 
 LLVMFrontend::LLVMFrontend(
-    std::unique_ptr<llvm::Module> module,
+    std::unique_ptr<llvm::Module> llvmModule,
     GazerContext& context,
     LLVMFrontendSettings& settings)
     : mContext(context),
-    mModule(std::move(module)),
+    mModule(std::move(llvmModule)),
     mChecks(mModule->getContext()),
     mSettings(settings)
 {

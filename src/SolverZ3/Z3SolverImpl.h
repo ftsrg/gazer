@@ -434,6 +434,8 @@ protected:
     unsigned& mTmpCount;
     Z3CacheMapTy& mCache;
     Z3DeclMapTy& mDecls;
+
+private:
     std::unordered_map<const TupleType*, TupleInfo> mTupleInfo;
 };
 

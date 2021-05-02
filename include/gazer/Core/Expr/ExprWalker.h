@@ -74,7 +74,7 @@ class ExprWalker
             return mExpr->isNullary() || llvm::cast<NonNullaryExpr>(mExpr)->getNumOperands() == mState;
         }
     };
-private:
+
     Frame* createFrame(const ExprPtr& expr, size_t idx, Frame* parent)
     {
         size_t siz = sizeof(Frame);
@@ -89,13 +89,11 @@ private:
         mAllocator.Deallocate(frame, sizeof(Frame));
     }
 
-private:
-    Frame* mTop;
+    Frame* mTop = nullptr;
     GrowingStackAllocator<llvm::MallocAllocator, SlabSize> mAllocator;
 
 public:
     ExprWalker()
-        : mTop(nullptr)
     {
         mAllocator.Init();
     }
@@ -108,11 +106,15 @@ public:
 protected:
     /// If this function returns true, the walker will not visit \p expr
     /// and will use the value contained in \p ret.
-    virtual bool shouldSkip(const ExprPtr& expr, ReturnT* ret) { return false; }
+    virtual bool shouldSkip(const ExprPtr& expr, ReturnT* ret) {
+        return false;
+    }
 
     /// This function is called by the walker if an actual visit took place
     /// for \p expr. The visit result is contained in \p ret.
-    virtual void handleResult(const ExprPtr& expr, ReturnT& ret) {}
+    virtual void handleResult(const ExprPtr& expr, ReturnT& ret) {
+        // Do nothing by default.
+    }
 
     ReturnT walk(const ExprPtr& expr)
     {

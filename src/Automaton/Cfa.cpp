@@ -325,7 +325,7 @@ Cfa *AutomataSystem::createCfa(std::string name)
 
 Cfa* AutomataSystem::getAutomatonByName(llvm::StringRef name) const
 {
-    auto result = std::find_if(begin(), end(), [name](Cfa& cfa) {
+    auto result = std::find_if(begin(), end(), [name](const Cfa& cfa) {
         return cfa.getName() == name;
     });
 

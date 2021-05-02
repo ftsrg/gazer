@@ -63,8 +63,8 @@ public:
         }
     };
 
-    LiftErrorCalls(llvm::Module& module, llvm::CallGraph& cg, llvm::Function& entryFunction)
-        : mModule(module), mCallGraph(cg), mEntryFunction(&entryFunction), mBuilder(module.getContext())
+    LiftErrorCalls(llvm::Module& llvmModule, llvm::CallGraph& cg, llvm::Function& entryFunction)
+        : mModule(llvmModule), mCallGraph(cg), mEntryFunction(&entryFunction), mBuilder(llvmModule.getContext())
     {}
 
     bool run();
@@ -74,7 +74,7 @@ private:
     void collectFailingCalls(const llvm::CallGraphNode* cgNode);
     void replaceReturnsWithUnreachable(const llvm::SmallVectorImpl<llvm::ReturnInst*>& returns);
     void representArgumentsAsPhiNodes(llvm::Function* function, llvm::BasicBlock* failEntry, FunctionInfo& info, ValueToValueMapTy& vmap);
-    void createBranchToFail(CallSite& call);
+    void createBranchToFail(const CallSite& call);
     
     llvm::FunctionCallee getDummyBoolFunc()
     {
@@ -123,11 +123,11 @@ public:
         au.addRequired<CallGraphWrapperPass>();
     }
 
-    bool runOnModule(Module& module) override
+    bool runOnModule(Module& llvmModule) override
     {
         auto& cg = getAnalysis<CallGraphWrapperPass>();
 
-        LiftErrorCalls impl(module, cg.getCallGraph(), *mEntryFunction);
+        LiftErrorCalls impl(llvmModule, cg.getCallGraph(), *mEntryFunction);
         return impl.run();
     }
 
@@ -180,15 +180,15 @@ void LiftErrorCalls::collectFailingCalls(const llvm::CallGraphNode* cgNode)
     llvm::copy_if(
         classof_range<CallInst>(llvm::make_pointer_range(llvm::instructions(function))),
         std::back_inserter(mInfos[function].selfFails),
-        [](llvm::CallInst* call) {
+        [](const llvm::CallInst* call) {
           const llvm::Function* callee = call->getCalledFunction();
           return callee != nullptr && callee->getName() == CheckRegistry::ErrorFunctionName;
         }
     );
 
     // Find possibly failing calls to other infos.
-    for (const auto& callRecord : *cgNode) {
-        llvm::Function* callee = callRecord.second->getFunction();
+    for (const auto& [callInst, calleeNode] : *cgNode) {
+        llvm::Function* callee = calleeNode->getFunction();
         if (callee == nullptr) {
             // TODO: Indirect function calls are unsupported at the moment.
             continue;
@@ -198,7 +198,7 @@ void LiftErrorCalls::collectFailingCalls(const llvm::CallGraphNode* cgNode)
             continue;
         }
 
-        if (auto* call = llvm::dyn_cast<CallInst>(callRecord.first)) {
+        if (auto* call = llvm::dyn_cast<CallInst>(callInst)) {
             mInfos[function].mayFailCalls.emplace_back(call);
         }
     }
@@ -307,7 +307,7 @@ bool LiftErrorCalls::run()
 
     return true;
 }
-void LiftErrorCalls::createBranchToFail(CallSite& call)
+void LiftErrorCalls::createBranchToFail(const CallSite& call)
 {
     assert(call.getCalledFunction() != nullptr);
     auto& calleeInfo = mInfos[call.getCalledFunction()];
@@ -328,7 +328,7 @@ void LiftErrorCalls::createBranchToFail(CallSite& call)
     mBuilder.SetInsertPoint(errorBlock);
     mBuilder.CreateBr(calleeInfo.failCopyEntry);
 
-    for (size_t i = 0; i < call.arg_size(); ++i) {
+    for (unsigned i = 0; i < call.arg_size(); ++i) {
         calleeInfo.failCopyArgumentPHIs[i]->addIncoming(call.getArgOperand(i), errorBlock);
     }
 }

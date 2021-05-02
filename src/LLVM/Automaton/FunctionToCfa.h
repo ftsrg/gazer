@@ -278,7 +278,7 @@ public:
     static constexpr char LoopOutputSelectorName[] = "__output_selector";
 
     ModuleToCfa(
-        llvm::Module& module,
+        llvm::Module& llvmModule,
         LoopInfoFuncTy loops,
         GazerContext& context,
         MemoryModel& memoryModel,

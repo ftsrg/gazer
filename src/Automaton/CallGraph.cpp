@@ -46,10 +46,10 @@ bool CallGraph::isTailRecursive(Cfa* cfa)
     bool isRecursive = false;
     bool isTail = true;
 
-    for (auto& call : node->mCallsToOthers) {
-        if (call.first->getCalledAutomaton() == cfa) {
+    for (auto& [callEdge, _] : node->mCallsToOthers) {
+        if (callEdge->getCalledAutomaton() == cfa) {
             isRecursive = true;
-            if (call.first->getTarget() != cfa->getExit()) {
+            if (callEdge->getTarget() != cfa->getExit()) {
                 isTail = false;
                 break;
             }
@@ -63,10 +63,4 @@ auto CallGraph::lookupNode(Cfa* cfa) -> Node*
 {
     return mNodes[cfa].get();
 }
-
-CallGraph::~CallGraph()
-{}
-
-// Visualization
-//-----------------------------------------------------------------------------
 

@@ -125,8 +125,8 @@ private:
 template<class NodeTy, class EdgeTy>
 class Graph
 {
-    static_assert(std::is_base_of_v<GraphNode<NodeTy, EdgeTy>, NodeTy>, "");
-    static_assert(std::is_base_of_v<GraphEdge<NodeTy, EdgeTy>, EdgeTy>, "");
+    static_assert(std::is_base_of_v<GraphNode<NodeTy, EdgeTy>, NodeTy>);
+    static_assert(std::is_base_of_v<GraphEdge<NodeTy, EdgeTy>, EdgeTy>);
 
     using NodeVectorTy = std::vector<std::unique_ptr<NodeTy>>;
     using EdgeVectorTy = std::vector<std::unique_ptr<EdgeTy>>;

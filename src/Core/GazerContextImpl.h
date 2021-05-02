@@ -136,11 +136,11 @@ struct expr_hasher<ExprTy, std::enable_if_t<std::is_base_of_v<LiteralExpr, ExprT
 // Specialization for float literals, as operator==() cannot be used with APFloats.
 template<> struct expr_hasher<FloatLiteralExpr>
 {
-    static std::size_t hash_value(Type& type, llvm::APFloat value) {
+    static std::size_t hash_value(Type& type, const llvm::APFloat& value) {
         return llvm::hash_value(value);
     }
 
-    static bool equals(const Expr* other, Type& type, llvm::APFloat value) {
+    static bool equals(const Expr* other, Type& type, const llvm::APFloat& value) {
         if (auto bv = literal_equals<FloatLiteralExpr>(other, type)) {
             return bv->getValue().bitwiseIsEqual(value);
         }
@@ -179,11 +179,11 @@ template<> struct expr_hasher<ArrayLiteralExpr>
 };
 
 template<> struct expr_hasher<VarRefExpr> {
-    static std::size_t hash_value(Variable* variable) {
+    static std::size_t hash_value(const Variable* variable) {
         return llvm::hash_value(variable->getName());
     }
 
-    static bool equals(const Expr* other, Variable* variable) {
+    static bool equals(const Expr* other, const Variable* variable) {
         if (auto expr = llvm::dyn_cast<VarRefExpr>(other)) {
             return &expr->getVariable() == variable;
         }
@@ -295,18 +295,13 @@ class ExprStorage
 
     struct Bucket
     {
-        Bucket()
-            : Ptr(nullptr)
-        {}
-
+        Bucket() = default;
         Bucket(const Bucket&) = delete;
-
-        Expr* Ptr;
+        Expr* Ptr = nullptr;
     };
 
 public:
     ExprStorage()
-        : mBucketCount(DefaultBucketCount)
     {
         mStorage = new Bucket[mBucketCount];
     }
@@ -316,7 +311,7 @@ public:
 
     template<
         class ExprTy,
-        class = std::enable_if<std::is_base_of<NonNullaryExpr, ExprTy>::value>,
+        class = std::enable_if<std::is_base_of_v<NonNullaryExpr, ExprTy>>,
         class... SubclassData
     > ExprRef<ExprTy> create(Type &type, std::initializer_list<ExprPtr> init, SubclassData&&... data)
     {
@@ -325,7 +320,7 @@ public:
 
     template<
         class ExprTy,
-        class = std::enable_if<std::is_base_of<NonNullaryExpr, ExprTy>::value>,
+        class = std::enable_if<std::is_base_of_v<NonNullaryExpr, ExprTy>>,
         Expr::ExprKind Kind = ExprTypeToExprKind<ExprTy>::Kind,
         class InputIterator,
         class... SubclassData
@@ -339,7 +334,7 @@ public:
 
     template<
         class ExprTy,
-        class = std::enable_if<std::is_base_of<LiteralExpr, ExprTy>::value>,
+        class = std::enable_if<std::is_base_of_v<LiteralExpr, ExprTy>>,
         class... ConstructorArgs
     > ExprRef<ExprTy> create(ConstructorArgs&&... args) {
         return createIfNotExists<ExprTy>(std::forward<ConstructorArgs>(args)...);
@@ -383,7 +378,7 @@ private:
                 << "[ExprStorage] Created new "
                 << Expr::getKindName(expr->getKind())
                 << " address " << expr << "\n"
-        );
+        )
 
         ++mEntryCount;
 
@@ -405,7 +400,7 @@ private:
 
 private:
     Bucket* mStorage;
-    size_t  mBucketCount;
+    size_t  mBucketCount = DefaultBucketCount;
     size_t  mEntryCount = 0;
 };
 

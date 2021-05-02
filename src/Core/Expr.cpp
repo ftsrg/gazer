@@ -34,8 +34,7 @@ std::size_t gazer::expr_kind_prime(Expr::ExprKind kind)
         290623u, 241291u, 579499u, 384287u, 125287u, 920273u, 485833u, 326449u,
         972683u, 485167u, 882599u, 535727u, 383651u, 159833u, 796001u, 218479u,
         163993u, 622561u, 938881u, 692467u, 851971u, 478427u, 653969u, 650329u,
-        645187u, 830827u, 431729u, 497663u, 392351u, 715237u,  111323u,
-        359641u
+        645187u, 830827u, 431729u, 497663u, 392351u, 715237u, 111323u, 359641u
     };
 
     static_assert(
@@ -53,7 +52,7 @@ std::size_t gazer::expr_kind_prime(Expr::ExprKind kind)
 //------------------- Expression creation and destruction -------------------//
 
 Expr::Expr(Expr::ExprKind kind, Type &type)
-    : mKind(kind), mType(type), mRefCount(0)
+    : mKind(kind), mType(type)
 {}
 
 void Expr::DeleteExpr(gazer::Expr *expr)
@@ -328,7 +327,7 @@ ExprRef<TupleSelectExpr> TupleSelectExpr::Create(const ExprPtr& tuple, unsigned 
     assert(tupTy->getNumSubtypes() > index && "Invalid tuple index!");
 
     auto& context = tupTy->getContext();
-    return context.pImpl->Exprs.create<TupleSelectExpr>(tupTy->getTypeAtIndex(index), { tuple }, index);
+    return context.pImpl->Exprs.create<TupleSelectExpr>(tupTy->getSubType(index), { tuple }, index);
 }
 
 
@@ -411,7 +410,7 @@ llvm::StringRef Expr::getKindName(ExprKind kind)
     #define GAZER_EXPR_KIND(KIND) case KIND: return #KIND;
     switch (kind) {
         #include "gazer/Core/Expr/ExprKind.def"
-    };
+    }
     #undef GAZER_EXPR_KIND
 
     llvm_unreachable("Invalid expression kind.");

@@ -39,8 +39,8 @@ using namespace gazer;
 
 namespace
 {
-    llvm::cl::opt<bool> NoDomPush("bmc-no-dom-push", llvm::cl::Hidden);
-    llvm::cl::opt<bool> NoPostDomPush("bmc-no-postdom-push", llvm::cl::Hidden);
+    const llvm::cl::opt<bool> NoDomPush("bmc-no-dom-push", llvm::cl::Hidden);
+    const llvm::cl::opt<bool> NoPostDomPush("bmc-no-postdom-push", llvm::cl::Hidden);
 } // end anonymous namespace
 
 auto BoundedModelChecker::check(AutomataSystem& system, CfaTraceBuilder& traceBuilder)
@@ -220,11 +220,8 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
     // Insert initial call approximations.
     this->initializeCallApproximations();
 
-    if (mSettings.debugDumpCfa) {
-        for (const Cfa& cfa : mSystem) {
-            cfa.view();
-        }
-    }
+    // See if -debug-dump-cfa is enabled.
+    this->dumpAutomataIfRequested();
 
     // Initialize the path condition calculator
     mPathConditions = std::make_unique<PathConditionCalculator>(
@@ -254,7 +251,7 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
     mSkipUnderApprox = false;
 
     // Let's do some verification.
-    for (size_t bound = mSettings.eagerUnroll + 1; bound <= mSettings.maxBound; ++bound) {
+    for (unsigned bound = mSettings.eagerUnroll + 1; bound <= mSettings.maxBound; ++bound) {
         llvm::outs() << "Iteration " << bound << "\n";
 
         while (true) {
@@ -294,7 +291,7 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
                 status = this->runSolver();
 
                 if (status == Solver::UNSAT) {
-                    llvm::outs() << "    Start and target points are inconsitent, no errors are reachable.\n";
+                    llvm::outs() << "    Start and target points are inconsistent, no errors are reachable.\n";
                     return VerificationResult::CreateSuccess();
                 }
             } else {
@@ -305,37 +302,20 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
             // Now try to over-approximate.
             llvm::outs() << "  Over-approximating.\n";
 
+            // Find all calls which are to be over-approximated: that is, calls that have a cost
+            // less than the current bound
             mOpenCalls.clear();
-            for (auto& [call, info] : mCalls) {
-                if (info.getCost() > bound) {
-                    LLVM_DEBUG(
-                        llvm::dbgs() << "  Skipping " << *call
-                        << ": inline cost is greater than bound (" <<
-                        info.getCost() << " > " << bound << ").\n"
-                    );
-                    info.overApprox = mExprBuilder.False();
-                    ++numUnhandledCallSites;
-                    continue;
-                }
-
-                info.overApprox = mExprBuilder.True();
-                mOpenCalls.insert(call);
-            }
+            numUnhandledCallSites += collectOpenCalls(bound);
 
             this->push();
 
             llvm::outs() << "    Calculating verification condition...\n";
             formula = mPathConditions->encode(lca.first, lca.second);
-            if (mSettings.dumpFormula) {
-                formula->print(llvm::errs());
-            }
+            this->dumpFormulaIfRequested(formula);
 
             llvm::outs() << "    Transforming formula...\n";
             mSolver->add(formula);
-
-            if (mSettings.dumpSolver) {
-                mSolver->dump(llvm::errs());
-            }
+            this->dumpSolverIfRequested();
 
             status = this->runSolver();
 
@@ -352,23 +332,9 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
                 mBottomLoc = lca.second;
             } else if (status == Solver::UNSAT) {
                 llvm::outs() << "  Over-approximated formula is UNSAT.\n";
-                if (numUnhandledCallSites == 0) {
-                    // If we have no unhandled call sites,
-                    // the program is guaranteed to be safe at this point.
-                    mStats.NumEndLocs = mRoot->getNumLocations();
-                    mStats.NumEndLocals = mRoot->getNumLocals();
 
-                    return VerificationResult::CreateSuccess();
-                }
-
-                if (bound == mSettings.maxBound) {
-                    // The maximum bound was reached.
-                    llvm::outs() << "Maximum bound is reached.\n";
-
-                    mStats.NumEndLocs = mRoot->getNumLocations();
-                    mStats.NumEndLocals = mRoot->getNumLocals();
-
-                    return VerificationResult::CreateBoundReached();
+                if (auto boundResult = this->checkBound(numUnhandledCallSites, bound)) {
+                    return boundResult;
                 }
 
                 // Try with an increased bound.
@@ -389,6 +355,29 @@ auto BoundedModelCheckerImpl::check() -> std::unique_ptr<VerificationResult>
     }
 
     return VerificationResult::CreateBoundReached();
+}
+
+unsigned BoundedModelCheckerImpl::collectOpenCalls(size_t bound)
+{
+    unsigned unhandledCalls = 0;
+
+    for (auto& [call, info] : mCalls) {
+        if (info.getCost() > bound) {
+            LLVM_DEBUG(
+                llvm::dbgs() << "  Skipping " << *call
+                << ": inline cost is greater than bound (" <<
+                info.getCost() << " > " << bound << ").\n"
+            );
+            info.overApprox = mExprBuilder.False();
+            ++unhandledCalls;
+            continue;
+        }
+
+        info.overApprox = mExprBuilder.True();
+        mOpenCalls.insert(call);
+    }
+
+    return unhandledCalls;
 }
 
 auto BoundedModelCheckerImpl::underApproximationStep() -> Solver::SolverStatus
@@ -544,6 +533,29 @@ void BoundedModelCheckerImpl::inlineCallIntoRoot(
     mInlinedVariables.insert(result.inlinedVariables.begin(), result.inlinedVariables.end());
 }
 
+auto BoundedModelCheckerImpl::checkBound(unsigned openCallSites, unsigned bound) -> std::unique_ptr<VerificationResult>
+{
+    if (openCallSites == 0) {
+        // If we have no unhandled call sites, the program is guaranteed to be safe at this point.
+        mStats.NumEndLocs = mRoot->getNumLocations();
+        mStats.NumEndLocals = mRoot->getNumLocals();
+
+        return VerificationResult::CreateSuccess();
+    }
+
+    if (bound == mSettings.maxBound) {
+        // The maximum bound was reached.
+        llvm::outs() << "Maximum bound is reached.\n";
+
+        mStats.NumEndLocs = mRoot->getNumLocations();
+        mStats.NumEndLocals = mRoot->getNumLocals();
+
+        return VerificationResult::CreateBoundReached();
+    }
+
+    return nullptr;
+}
+
 auto BoundedModelCheckerImpl::runSolver() -> Solver::SolverStatus
 {
     llvm::outs() << "    Running solver...\n";
@@ -575,4 +587,27 @@ void BoundedModelCheckerImpl::printStats(llvm::raw_ostream& os) const
         mSolver->printStats(os);
     }
     os << "\n";
+}
+
+void BoundedModelCheckerImpl::dumpFormulaIfRequested(const ExprPtr& formula) const
+{
+    if (mSettings.dumpFormula) {
+        formula->print(llvm::errs());
+    }
+}
+
+void BoundedModelCheckerImpl::dumpSolverIfRequested() const
+{
+    if (mSettings.dumpSolver) {
+        mSolver->dump(llvm::errs());
+    }
+}
+
+void BoundedModelCheckerImpl::dumpAutomataIfRequested() const
+{
+    if (mSettings.debugDumpCfa) {
+        for (const Cfa& cfa : mSystem) {
+            cfa.view();
+        }
+    }
 }

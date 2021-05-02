@@ -43,7 +43,7 @@ void MemoryModelWrapperPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
     au.setPreservesAll();
 }
 
-bool MemoryModelWrapperPass::runOnModule(llvm::Module& module)
+bool MemoryModelWrapperPass::runOnModule(llvm::Module& llvmModule)
 {
     switch (mSettings.memoryModel) {
         case MemoryModelSetting::Flat: {
@@ -51,7 +51,7 @@ bool MemoryModelWrapperPass::runOnModule(llvm::Module& module)
                 return getAnalysis<llvm::DominatorTreeWrapperPass>(function).getDomTree();
             };
 
-            mMemoryModel = CreateFlatMemoryModel(mContext, mSettings, module, dominators);
+            mMemoryModel = CreateFlatMemoryModel(mContext, mSettings, llvmModule, dominators);
             break;
         }
         case MemoryModelSetting::Havoc: {
