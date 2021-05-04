@@ -2,7 +2,6 @@ set(SOURCE_FILES
     Transform/InlineGlobalVariablesPass.cpp
     Transform/UndefToNondet.cpp
     Transform/LiftErrorsPass.cpp
-    Transform/BackwardSlicer.cpp
     Transform/Inline.cpp
     Transform/TransformUtils.cpp
     Instrumentation/MarkFunctionEntries.cpp
@@ -29,7 +28,6 @@ set(SOURCE_FILES
     Automaton/AutomatonPasses.cpp
     Automaton/ExtensionPoints.cpp
     Automaton/ValueOrMemoryObject.cpp
-    Analysis/PDG.cpp
     Instrumentation/Checks/AssertionFailCheck.cpp
     Instrumentation/Checks/DivisionByZeroCheck.cpp
     Instrumentation/Checks/SignedIntegerOverflowCheck.cpp

@@ -31,8 +31,6 @@ public:
     // 'evaluate' is inherited from ExprEvaluator
 
     virtual void dump(llvm::raw_ostream& os) = 0;
-
-    virtual ~Model() = default;
 };
 
 } // namespace gazer

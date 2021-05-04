@@ -25,7 +25,6 @@
 #include "gazer/Trace/TraceWriter.h"
 #include "gazer/LLVM/Trace/TestHarnessGenerator.h"
 #include "gazer/Trace/WitnessWriter.h"
-#include "gazer/LLVM/Transform/BackwardSlicer.h"
 #include "gazer/Support/Warnings.h"
 
 #include <llvm/Analysis/ScopedNoAliasAA.h>

@@ -17,8 +17,6 @@
 //===----------------------------------------------------------------------===//
 #include "Z3SolverImpl.h"
 
-#include "gazer/Support/Float.h"
-
 #include <llvm/ADT/SmallString.h>
 
 #include <llvm/Support/raw_os_ostream.h>
