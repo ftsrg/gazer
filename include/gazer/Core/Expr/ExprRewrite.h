@@ -24,26 +24,13 @@
 namespace gazer
 {
 
-/// Non-template dependent functionality of the expression rewriter.
-class ExprRewriteBase
-{
-protected:
-    explicit ExprRewriteBase(ExprBuilder& builder)
-        : mExprBuilder(builder)
-    {}
-
-    ExprPtr rewriteNonNullary(const ExprRef<NonNullaryExpr>& expr, const ExprVector& ops);
-
-protected:
-    ExprBuilder& mExprBuilder;
-};
 
 /// Base class for expression rewrite implementations.
-class ExprRewrite : public ExprWalker<ExprPtr>, public ExprRewriteBase
+class ExprRewrite : public ExprWalker<ExprPtr>
 {
 public:
     explicit ExprRewrite(ExprBuilder& builder)
-        : ExprRewriteBase(builder)
+        : mExprBuilder(builder)
     {}
 
     ExprPtr rewrite(const ExprPtr& expr) {
@@ -56,12 +43,18 @@ protected:
     ExprPtr visitNonNullary(const ExprRef<NonNullaryExpr>& expr) override
     {
         ExprVector ops(expr->getNumOperands(), nullptr);
+
         for (size_t i = 0; i < expr->getNumOperands(); ++i) {
             ops[i] = this->getOperand(i);
         }
 
         return this->rewriteNonNullary(expr, ops);
     }
+
+private:
+    ExprPtr rewriteNonNullary(const ExprRef<NonNullaryExpr>& expr, const ExprVector& ops);
+
+    ExprBuilder& mExprBuilder;
 };
 
 /// An expression rewriter that replaces certain variables with some
@@ -71,6 +64,9 @@ class VariableExprRewrite : public ExprRewrite
 public:
     using ExprRewrite::ExprRewrite;
     ExprPtr& operator[](Variable* variable);
+    ExprPtr& operator[](const ExprRef<VarRefExpr>& expr) {
+        return operator[](&expr->getVariable());
+    }
 
 protected:
     ExprPtr visitVarRef(const ExprRef<VarRefExpr>& expr) override;

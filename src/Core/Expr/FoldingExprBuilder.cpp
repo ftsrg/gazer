@@ -25,10 +25,7 @@
 #include "gazer/Core/ExprTypes.h"
 #include "gazer/Core/LiteralExpr.h"
 #include "gazer/Core/Expr/Matcher.h"
-#include "gazer/ADT/Algorithm.h"
 
-#include <llvm/ADT/DenseMap.h>
-#include <llvm/ADT/DenseSet.h>
 #include <llvm/Support/raw_ostream.h>
 
 #include <boost/container/flat_set.hpp>
@@ -65,6 +62,11 @@ public:
 
         ExprPtr x, y;
 
+        // Not(Not(X)) --> X
+        if (auto notOp = llvm::dyn_cast<NotExpr>(op)) {
+            return notOp->getOperand();
+        }
+
         // Not(Or(Not(X), Y)) --> And(X, Not(Y))
         if (match(op, m_Or(m_Not(m_Expr(x)), m_Expr(y)))) {
             return this->And({x, this->Not(y)});
@@ -81,7 +83,7 @@ public:
 
         return ZExtExpr::Create(op, type);
     }
-    
+
     ExprPtr SExt(const ExprPtr& op, BvType& type) override
     {
         if (auto bvLit = dyn_cast<BvLiteralExpr>(op.get())) {
@@ -134,7 +136,7 @@ public:
     ExprPtr BvConcat(const ExprPtr& left, const ExprPtr& right) override
     {
         unsigned width = cast<BvType>(left->getType()).getWidth() + cast<BvType>(right->getType()).getWidth();
-        
+
         if (auto lhsLit = llvm::dyn_cast<BvLiteralExpr>(left)) {
             if (auto rhsLit = llvm::dyn_cast<BvLiteralExpr>(right)) {
                 llvm::APInt result = lhsLit->getValue().zext(width).shl(rhsLit->getType().getWidth());
@@ -156,15 +158,25 @@ public:
     {
         ExprVector newOps;
 
+        // First, see which operands we need
         for (const ExprPtr& op : vector) {
             if (auto lit = dyn_cast<BoolLiteralExpr>(op)) {
                 // We are not adding unnecessary true literals
                 if (lit->isFalse()) {
                     return this->False();
-                }                
+                }
             } else if (auto andExpr = dyn_cast<AndExpr>(op)) {
                 // For AndExpr operands, we flatten the expression
                 newOps.insert(newOps.end(), andExpr->op_begin(), andExpr->op_end());
+            } else if (auto notExpr = dyn_cast<NotExpr>(op); notExpr != nullptr && isa<AndExpr>(notExpr->getOperand())) {
+                // And(..., Not(And(X1, X2))) --> And(..., Or(Not(X1), Not(X2)))
+                auto nestedAnd = llvm::cast<AndExpr>(notExpr->getOperand());
+                std::vector<ExprPtr> orOps;
+                llvm::transform(nestedAnd->operands(), std::back_inserter(orOps), [this](auto& o) {
+                    return this->Not(o);
+                });
+
+                newOps.push_back(this->Or(orOps));
             } else {
                 newOps.push_back(op);
             }
@@ -174,7 +186,7 @@ public:
             // If we eliminated all operands
             return this->True();
         }
-        
+
         if (newOps.size() == 1) {
             return *newOps.begin();
         }
@@ -196,6 +208,15 @@ public:
             } else if (auto orExpr = dyn_cast<OrExpr>(op)) {
                 // For OrExpr operands, we try to flatten the expression
                 newOps.insert(newOps.end(), orExpr->op_begin(), orExpr->op_end());
+            }  else if (auto notExpr = dyn_cast<NotExpr>(op); notExpr != nullptr && isa<AndExpr>(notExpr->getOperand())) {
+                // Or(..., Not(And(X1, X2))) --> Or(..., Not(X1), Not(X2))
+                auto nestedAnd = llvm::cast<AndExpr>(notExpr->getOperand());
+                std::vector<ExprPtr> orOps;
+                llvm::transform(nestedAnd->operands(), std::back_inserter(orOps), [this](auto& o) {
+                    return this->Not(o);
+                });
+
+                newOps.insert(newOps.end(), orOps.begin(), orOps.end());
             } else {
                 newOps.push_back(op);
             }
@@ -319,41 +340,73 @@ public:
 
     ExprPtr BvSLt(const ExprPtr& left, const ExprPtr& right) override
     {
+        if (ExprPtr folded = this->foldBinaryCompare(Expr::BvSLt, left, right)) {
+            return folded;
+        }
+
         return BvSLtExpr::Create(left, right);
     }
 
     ExprPtr BvSLtEq(const ExprPtr& left, const ExprPtr& right) override
     {
+        if (ExprPtr folded = this->foldBinaryCompare(Expr::BvSLtEq, left, right)) {
+            return folded;
+        }
+
         return BvSLtEqExpr::Create(left, right);
     }
 
     ExprPtr BvSGt(const ExprPtr& left, const ExprPtr& right) override
     {
+        if (ExprPtr folded = this->foldBinaryCompare(Expr::BvSGt, left, right)) {
+            return folded;
+        }
+
         return BvSGtExpr::Create(left, right);
     }
 
     ExprPtr BvSGtEq(const ExprPtr& left, const ExprPtr& right) override
     {
+        if (ExprPtr folded = this->foldBinaryCompare(Expr::BvSGtEq, left, right)) {
+            return folded;
+        }
+
         return BvSGtEqExpr::Create(left, right);
     }
 
     ExprPtr BvULt(const ExprPtr& left, const ExprPtr& right) override
     {
+        if (ExprPtr folded = this->foldBinaryCompare(Expr::BvULt, left, right)) {
+            return folded;
+        }
+
         return BvULtExpr::Create(left, right);
     }
 
     ExprPtr BvULtEq(const ExprPtr& left, const ExprPtr& right) override
     {
+        if (ExprPtr folded = this->foldBinaryCompare(Expr::BvULtEq, left, right)) {
+            return folded;
+        }
+
         return BvULtEqExpr::Create(left, right);
     }
 
     ExprPtr BvUGt(const ExprPtr& left, const ExprPtr& right) override
     {
+        if (ExprPtr folded = this->foldBinaryCompare(Expr::BvUGt, left, right)) {
+            return folded;
+        }
+
         return BvUGtExpr::Create(left, right);
     }
 
     ExprPtr BvUGtEq(const ExprPtr& left, const ExprPtr& right) override
     {
+        if (ExprPtr folded = this->foldBinaryCompare(Expr::BvUGtEq, left, right)) {
+            return folded;
+        }
+
         return BvUGtEqExpr::Create(left, right);
     }
 

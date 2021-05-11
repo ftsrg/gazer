@@ -59,19 +59,26 @@ class ExprWalker
         Frame* mParent = nullptr;
         size_t mState = 0;
         llvm::SmallVector<ReturnT, 2> mVisitedOps;
+        size_t mDepth = 0;
 
-        Frame(ExprPtr expr, size_t index, Frame* parent)
+        Frame(ExprPtr expr, size_t index, Frame* parent, size_t depth)
             : mExpr(std::move(expr)),
             mIndex(index),
             mParent(parent),
             mVisitedOps(
                 mExpr->isNullary() ? 0 : llvm::cast<NonNullaryExpr>(mExpr)->getNumOperands()
-            )
+            ),
+            mDepth(depth)
         {}
 
         bool isFinished() const
         {
             return mExpr->isNullary() || llvm::cast<NonNullaryExpr>(mExpr)->getNumOperands() == mState;
+        }
+
+        bool isFresh() const
+        {
+            return mState == 0;
         }
     };
 
@@ -80,7 +87,7 @@ class ExprWalker
         size_t siz = sizeof(Frame);
         void* ptr = mAllocator.Allocate(siz, alignof(Frame));
 
-        return new (ptr) Frame(expr, idx, parent);
+        return new (ptr) Frame(expr, idx, parent, parent == nullptr ? 0 : parent->mDepth);
     }
 
     void destroyFrame(Frame* frame)
@@ -101,9 +108,10 @@ public:
     ExprWalker(const ExprWalker&) = delete;
     ExprWalker& operator=(ExprWalker&) = delete;
 
-    ~ExprWalker() = default;
+    virtual ~ExprWalker() = default;
 
 protected:
+
     /// If this function returns true, the walker will not visit \p expr
     /// and will use the value contained in \p ret.
     virtual bool shouldSkip(const ExprPtr& expr, ReturnT* ret) {
@@ -116,6 +124,14 @@ protected:
         // Do nothing by default.
     }
 
+    size_t currentDepth() const {
+        return mTop->mDepth;
+    }
+
+    ExprPtr getCurrentParent() const {
+        return mTop->mParent == nullptr ? nullptr : mTop->mParent->mExpr;
+    }
+
     ReturnT walk(const ExprPtr& expr)
     {
         assert(mTop == nullptr);
@@ -124,7 +140,10 @@ protected:
         while (mTop != nullptr) {
             Frame* current = mTop;
             ReturnT ret;
-            bool shouldSkip = this->shouldSkip(current->mExpr, &ret);
+            bool shouldSkip = false;
+            if (current->isFresh()) {
+                shouldSkip = this->shouldSkip(current->mExpr, &ret);
+            }
             if (current->isFinished() || shouldSkip) {
                 if (!shouldSkip) {
                     ret = this->doVisit(current->mExpr);
