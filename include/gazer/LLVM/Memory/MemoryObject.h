@@ -26,7 +26,7 @@
 #include <llvm/IR/Operator.h>
 #include <llvm/Pass.h>
 #include <llvm/IR/ValueHandle.h>
-#include <llvm/IR/CallSite.h>
+#include <llvm/IR/AbstractCallSite.h>
 
 #include <boost/iterator/indirect_iterator.hpp>
 
@@ -334,7 +334,7 @@ private:
 class CallDef : public InstructionAnnotationDef
 {
 public:
-    CallDef(MemoryObject* object, unsigned int version, llvm::CallSite call)
+    CallDef(MemoryObject* object, unsigned int version, llvm::CallBase* call)
         : InstructionAnnotationDef(object, version, MemoryObjectDef::Call), mCall(call)
     {}
 
@@ -342,13 +342,13 @@ public:
         return def->getKind() == MemoryObjectDef::Call;
     }
 
-    llvm::Instruction* getInstruction() const override { return mCall.getInstruction(); }
+    llvm::Instruction* getInstruction() const override { return mCall; }
 
 protected:
     void doPrint(llvm::raw_ostream& os) const override;
 
 private:
-    llvm::CallSite mCall;
+    llvm::CallBase* mCall;
 };
 
 class LiveOnEntryDef : public BlockAnnotationDef
@@ -445,12 +445,12 @@ private:
 class CallUse : public MemoryObjectUse
 {
 public:
-    CallUse(MemoryObject* object, llvm::CallSite callSite)
+    CallUse(MemoryObject* object, llvm::CallBase* callSite)
         : MemoryObjectUse(object, MemoryObjectUse::Call), mCallSite(callSite)
     {}
 
-    llvm::Instruction* getInstruction() const override { return mCallSite.getInstruction(); }
-    llvm::CallSite getCallSite() const { return mCallSite; }
+    llvm::Instruction* getInstruction() const override { return mCallSite; }
+    llvm::CallBase* getCallSite() const { return mCallSite; }
 
     void print(llvm::raw_ostream& os) const override;
 
@@ -458,7 +458,7 @@ public:
         return use->getKind() == MemoryObjectUse::Call;
     }
 private:
-    llvm::CallSite mCallSite;
+    llvm::CallBase* mCallSite;
 };
 
 class RetUse : public MemoryObjectUse

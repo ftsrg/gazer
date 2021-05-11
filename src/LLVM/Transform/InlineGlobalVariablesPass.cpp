@@ -161,7 +161,8 @@ bool InlineGlobalVariablesPass::runOnModule(Module& module)
         AllocaInst* alloc = builder.CreateAlloca(type, nullptr, gv.getName());
 
         Constant* init = gv.getInitializer();
-        builder.CreateAlignedStore(init, alloc, module.getDataLayout().getABITypeAlignment(type));
+        // This was only deprecated TODO remove the comment
+        builder.CreateAlignedStore(init, alloc, llvm::Align(module.getDataLayout().getABITypeAlignment(type)));
 
         // TODO: We should check external calls and clobber the alloca with a nondetermistic
         // store if the ExternFuncGlobalBehavior setting requires this.

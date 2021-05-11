@@ -1,6 +1,7 @@
 main process __gazer_main_process {
     var main_RET_VAL : int
-    var main_tmp : int
+    var main_i : int
+    var main_error_phi : int
     var main___gazer_error_field : int
     init loc loc0
     final loc loc1
@@ -15,15 +16,16 @@ main process __gazer_main_process {
     }
 
     loc2 -> loc3 {
-        havoc main_tmp
+        havoc main_i
     }
 
     loc3 -> loc6 {
-        assume (not (1 <= main_tmp))
+        assume ((if (main_i <= 0) then 0 else main_i) = 0)
+        main_error_phi := 2
     }
 
     loc3 -> loc4 {
-        assume (not (not (1 <= main_tmp)))
+        assume (not ((if (main_i <= 0) then 0 else main_i) = 0))
     }
 
     loc4 -> loc5 {
@@ -41,7 +43,7 @@ main process __gazer_main_process {
     }
 
     loc7 -> loc8 {
-        main___gazer_error_field := 2
+        main___gazer_error_field := main_error_phi
     }
 
 }

@@ -299,20 +299,20 @@ private:
             bv->getValue().toStringSigned(buffer, mRadix);
             rso << "bv" << bv->getType().getWidth();
 
-            return rso.str();
+            return rso.str().str();
         }
 
         if (auto fl = llvm::dyn_cast<FloatLiteralExpr>(expr)) {
             fl->getValue().toString(buffer);
             rso << "fp" << fl->getType().getWidth();
 
-            return rso.str();
+            return rso.str().str();
         }
 
         if (auto rl = llvm::dyn_cast<RealLiteralExpr>(expr)) {
             rso << rl->getValue().numerator() << "%" << rl->getValue().denominator();
 
-            return rso.str();
+            return rso.str().str();
         }
 
         if (auto al = llvm::dyn_cast<ArrayLiteralExpr>(expr)) {
@@ -336,7 +336,7 @@ private:
             rso << llvm::join(orderedElems, ", ");
             rso << "]";
 
-            return rso.str();
+            return rso.str().str();
         }
 
         llvm_unreachable("Unknown literal expression kind.");

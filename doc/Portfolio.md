@@ -76,10 +76,10 @@ configurations:
     - name: config1
       tool: gazer-bmc
       timeout: 1 # sec
-      flags: --inline all --bound 1000000*
+      flags: --inline-level all --bound 1000000*
     - name: config2
       tool: gazer-theta
-      flags: --inline all --domain EXPL
+      flags: --inline-level all --domain EXPL
 ```
 - The `name` and `tool` attributes are required, while `timeout` and `flags` are optional.
 - The `name` can be an arbitrary identifier, which just makes the output easier to interpret. 

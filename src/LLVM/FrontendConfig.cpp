@@ -110,7 +110,7 @@ void FrontendConfig::createChecks(std::vector<std::unique_ptr<Check>>& checks)
     }
 
     for (llvm::StringRef name : fragments) {
-        auto it = mFactories.find(name);
+        auto it = mFactories.find(name.str());
         if (it == mFactories.end()) {
             emit_warning("unknown check '%s', parameter ignored", name.data());
             continue;

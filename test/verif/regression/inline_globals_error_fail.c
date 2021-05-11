@@ -1,4 +1,4 @@
-// RUN: %bmc -bound 1 -inline=all -trace "%s" | FileCheck "%s"
+// RUN: %bmc -bound 1 -inline-level=all -trace "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED
 

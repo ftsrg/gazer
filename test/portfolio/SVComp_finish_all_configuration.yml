@@ -11,7 +11,7 @@ configurations: # list of configs to be run. For every configuration a tool is m
     - name: bmc-inline
       tool: gazer-bmc
       timeout: 150 # sec
-      flags: --inline all --bound 1000000
+      flags: --inline-level all --bound 1000000
     
     - name: theta-expl
       tool: gazer-theta
@@ -20,4 +20,4 @@ configurations: # list of configs to be run. For every configuration a tool is m
     
     - name: theta-pred
       tool: gazer-theta
-      flags: --inline all --search ERR --domain PRED_CART --refinement BW_BIN_ITP --initprec EMPTY
+      flags: --inline-level all --search ERR --domain PRED_CART --refinement BW_BIN_ITP --initprec EMPTY

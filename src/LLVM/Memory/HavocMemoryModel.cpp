@@ -93,7 +93,7 @@ public:
     }
 
     void handleCall(
-        llvm::CallSite call,
+        llvm::CallBase* call,
         llvm2cfa::GenerationStepExtensionPoint& callerEp,
         llvm2cfa::AutomatonInterfaceExtensionPoint& calleeEp,
         llvm::SmallVectorImpl<VariableAssignment>& inputAssignments,

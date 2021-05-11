@@ -163,13 +163,13 @@ auto gazer::ClangCompileAndLink(
     llvm::SMDiagnostic err;
 
     // Find clang and llvm-link.
-    auto clang = llvm::sys::findProgramByName("clang-9");
+    auto clang = llvm::sys::findProgramByName("clang-11");
     if (clang.getError()) clang = llvm::sys::findProgramByName("clang");
-    CHECK_ERROR(clang.getError(), "Could not find clang-9 or clang.");
+    CHECK_ERROR(clang.getError(), "Could not find clang-11 or clang.");
 
-    auto llvm_link = llvm::sys::findProgramByName("llvm-link-9");
+    auto llvm_link = llvm::sys::findProgramByName("llvm-link-11");
     if (llvm_link.getError()) llvm_link = llvm::sys::findProgramByName("llvm-link");
-    CHECK_ERROR(llvm_link.getError(), "Could not find llvm-link-9 or llvm-link.");
+    CHECK_ERROR(llvm_link.getError(), "Could not find llvm-link-11 or llvm-link.");
 
     // Create a temporary working directory
     llvm::SmallString<128> workingDir;
@@ -180,7 +180,7 @@ auto gazer::ClangCompileAndLink(
 
     for (llvm::StringRef inputFile : files) {
         if (inputFile.endswith_lower(".bc") || inputFile.endswith_lower(".ll")) {
-            bitcodeFiles.push_back(inputFile);
+            bitcodeFiles.push_back(inputFile.str());
             continue;
         }
         
@@ -210,7 +210,7 @@ auto gazer::ClangCompileAndLink(
             return nullptr;
         }
 
-        bitcodeFiles.push_back(outputPath.str());
+        bitcodeFiles.push_back(outputPath.str().str());
     }
 
     // Run llvm-link
@@ -236,7 +236,7 @@ using namespace gazer;
 
 void ClangOptions::addSanitizerFlag(llvm::StringRef flag)
 {
-    mSanitizerFlags.insert(flag);
+    mSanitizerFlags.insert(flag.str());
 }
 
 void ClangOptions::createArgumentList(std::vector<std::string>& args)

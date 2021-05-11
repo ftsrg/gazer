@@ -50,7 +50,7 @@ public:
         : SmartPtrGetIterator::iterator_adaptor_base(std::move(it))
     {}
 
-    ReturnTy operator*() { return this->wrapped()->get(); }
+    ReturnTy operator*() const { return this->wrapped()->get(); }
 };
 
 } // namespace gazer
