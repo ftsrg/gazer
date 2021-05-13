@@ -89,7 +89,7 @@ function(require_llvm_libraries outVar)
 endfunction()
 
 # Get boost
-find_package(Boost 1.70 REQUIRED)
+find_package(Boost 1.74 REQUIRED)
 include_directories(${Boost_INCLUDE_DIR})
 
 add_definitions(-DBOOST_NO_RTTI -DBOOST_EXCEPTION_DISABLE -DBOOST_NO_EXCEPTIONS)

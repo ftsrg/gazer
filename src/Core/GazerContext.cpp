@@ -35,12 +35,10 @@ namespace boost
         std::terminate();
     }
 
-    #if BOOST_VERSION >= 107300
     void throw_exception(std::exception const &e, boost::source_location const&)
     {
         boost::throw_exception(e);
     }
-    #endif
 } // end namespace boost
 #endif
 
