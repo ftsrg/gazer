@@ -118,9 +118,11 @@ auto Z3Model::evalBoolean(Z3AstHandle ast) -> ExprRef<BoolLiteralExpr>
         case Z3_L_TRUE:  return BoolLiteralExpr::True(mContext);
         case Z3_L_FALSE: return BoolLiteralExpr::False(mContext);
         case Z3_L_UNDEF:
-            llvm_unreachable("A function of boolean sort must be convertible to a boolean value!");
-            return nullptr;
+            break;
     }
+
+    llvm_unreachable("A function of boolean sort must be convertible to a boolean value!");
+    return nullptr;
 }
 
 auto Z3Model::evalInt(Z3AstHandle ast) -> ExprRef<IntLiteralExpr> 

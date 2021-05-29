@@ -182,7 +182,7 @@ static std::string getLoopName(const llvm::Loop* loop, unsigned& loopCount, llvm
     const BasicBlock* header = loop->getHeader();
     assert(header != nullptr && "Loop without a loop header?");
 
-    std::string name = prefix;
+    std::string name = prefix.str();
     name += '/';
     if (header->hasName()) {
         name += header->getName();
@@ -261,7 +261,7 @@ void ModuleToCfa::createAutomata()
 
         auto& memoryInstHandler = mMemoryModel.getMemoryInstructionHandler(function);
 
-        Cfa* cfa = mSystem->createCfa(function.getName());
+        Cfa* cfa = mSystem->createCfa(function.getName().str());
         LLVM_DEBUG(llvm::dbgs() << "Created CFA " << cfa->getName() << "\n");
         DenseSet<BasicBlock*> visitedBlocks;
 
@@ -574,7 +574,7 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
         // FIXME: This const_cast is needed because the memory model interface must
         // take a mutable call site as ImmutableCallSite objects cannot be put into
         // a map properly. This should be removed as soon as something about that changes.
-        mMemoryInstHandler.handleCall(const_cast<llvm::CallInst*>(call), callerEP, calleeEP, inputs, outputs);
+        mMemoryInstHandler.handleCall(call, callerEP, calleeEP, inputs, outputs);
 
         if (!callee->getReturnType()->isVoidTy()) {
             Variable* variable = getVariable(call);

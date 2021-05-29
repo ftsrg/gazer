@@ -29,7 +29,7 @@ namespace gazer
 class SpecialFunctionHandler
 {
 public:
-    using HandlerFuncTy = std::function<void(llvm::ImmutableCallSite, llvm2cfa::GenerationStepExtensionPoint& ep)>;
+    using HandlerFuncTy = std::function<void(const llvm::CallBase*, llvm2cfa::GenerationStepExtensionPoint& ep)>;
 
     enum MemoryBehavior
     {
@@ -43,7 +43,7 @@ public:
         : mHandlerFunction(std::move(function)), mMemory(memory)
     {}
 
-    void operator()(llvm::ImmutableCallSite cs, llvm2cfa::GenerationStepExtensionPoint& ep) const
+    void operator()(const llvm::CallBase* cs, llvm2cfa::GenerationStepExtensionPoint& ep) const
     {
         return mHandlerFunction(cs, ep);
     }
@@ -77,10 +77,10 @@ public:
         }
     }
 
-    bool handle(llvm::ImmutableCallSite cs, llvm2cfa::GenerationStepExtensionPoint& ep) const;
+    bool handle(const llvm::CallBase* cs, llvm2cfa::GenerationStepExtensionPoint& ep) const;
 
     // Some handlers for common cases
-    static void handleAssume(llvm::ImmutableCallSite cs, llvm2cfa::GenerationStepExtensionPoint& ep);
+    static void handleAssume(const llvm::CallBase* cs, llvm2cfa::GenerationStepExtensionPoint& ep);
 
 private:
     llvm::StringMap<SpecialFunctionHandler> mHandlers;

@@ -41,7 +41,7 @@ std::string GenerationContext::uniqueName(const llvm::Twine& base)
         name = (base + llvm::Twine(mTmp++)).toStringRef(buffer);
     }
 
-    return buffer.str();
+    return buffer.str().str();
 }
 
 void CfaGenInfo::addVariableToContext(ValueOrMemoryObject value, Variable* variable)

@@ -273,15 +273,15 @@ auto Z3ExprTransformer::visitTupleConstruct(const ExprRef<TupleConstructExpr>& e
 auto Z3ExprTransformer::transformRoundingMode(llvm::APFloat::roundingMode rm) -> Z3AstHandle
 {
     switch (rm) {
-        case llvm::APFloat::roundingMode::rmNearestTiesToEven:
+        case llvm::APFloat::roundingMode::NearestTiesToEven:
             return createHandle(Z3_mk_fpa_round_nearest_ties_to_even(mZ3Context));
-        case llvm::APFloat::roundingMode::rmNearestTiesToAway:
+        case llvm::APFloat::roundingMode::NearestTiesToAway:
             return createHandle(Z3_mk_fpa_round_nearest_ties_to_away(mZ3Context));
-        case llvm::APFloat::roundingMode::rmTowardPositive:
+        case llvm::APFloat::roundingMode::TowardPositive:
             return createHandle(Z3_mk_fpa_round_toward_positive(mZ3Context));
-        case llvm::APFloat::roundingMode::rmTowardNegative:
+        case llvm::APFloat::roundingMode::TowardNegative:
             return createHandle(Z3_mk_fpa_round_toward_negative(mZ3Context));
-        case llvm::APFloat::roundingMode::rmTowardZero:
+        case llvm::APFloat::roundingMode::TowardZero:
             return createHandle(Z3_mk_fpa_round_toward_zero(mZ3Context));
     }
 

@@ -40,6 +40,7 @@
 #include <llvm/Transforms/Utils/UnifyFunctionExitNodes.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/InitializePasses.h>
+#include <llvm/Analysis/CallGraph.h>
 
 #include <llvm/IR/IRPrintingPasses.h>
 #include <llvm/Analysis/CFGPrinter.h>

@@ -237,7 +237,7 @@ auto LLVMTraceBuilder::build(
                 }
 
                 events.push_back(std::make_unique<FunctionEntryEvent>(
-                    diSP->getName(),
+                    diSP->getName().str(),
                     args
                 ));
             } else if (callee->getName() == GazerIntrinsic::FunctionReturnVoidName) {
@@ -246,7 +246,7 @@ auto LLVMTraceBuilder::build(
                 );
 
                 events.push_back(std::make_unique<FunctionReturnEvent>(
-                    diSP->getName(),
+                    diSP->getName().str(),
                     nullptr
                 ));
             } else if (callee->getName().startswith(GazerIntrinsic::FunctionReturnValuePrefix))  {
@@ -256,7 +256,7 @@ auto LLVMTraceBuilder::build(
 
                 auto expr = this->getLiteralFromValue(loc->getAutomaton(), call->getArgOperand(1), currentVals);
                 events.push_back(std::make_unique<FunctionReturnEvent>(
-                    diSP->getName(),
+                    diSP->getName().str(),
                     expr
                 ));
             } else if (callee->getName() == GazerIntrinsic::FunctionCallReturnedName) {
@@ -265,7 +265,7 @@ auto LLVMTraceBuilder::build(
                 );
 
                 events.push_back(std::make_unique<FunctionEntryEvent>(
-                    diSP->getName()
+                    diSP->getName().str()
                 ));
             } else if (callee->getName().startswith("gazer.undef_value.")) {
                 // Register that we have passed through an undef value.
@@ -300,7 +300,7 @@ auto LLVMTraceBuilder::build(
                 }
 
                 events.push_back(std::make_unique<FunctionCallEvent>(
-                    callee->getName(),
+                    callee->getName().str(),
                     expr,
                     std::vector<ExprRef<AtomicExpr>>(),
                     location
@@ -396,6 +396,6 @@ TraceVariable LLVMTraceBuilder::traceVarFromDIVar(const llvm::DIVariable* diVar)
         }
     }
 
-    return TraceVariable(diVar->getName(), rep, diType->getSizeInBits());
+    return TraceVariable(diVar->getName().str(), rep, diType->getSizeInBits());
 }
 

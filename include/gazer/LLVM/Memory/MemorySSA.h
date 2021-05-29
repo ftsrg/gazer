@@ -144,10 +144,10 @@ public:
     );
     memory::AllocaDef* createAllocaDef(MemoryObject* object, llvm::AllocaInst& alloca);
     memory::StoreDef* createStoreDef(MemoryObject* object, llvm::StoreInst& inst);
-    memory::CallDef*  createCallDef(MemoryObject* object, llvm::CallSite call);
+    memory::CallDef*  createCallDef(MemoryObject* object, llvm::CallBase* call);
 
     memory::LoadUse* createLoadUse(MemoryObject* object, llvm::LoadInst& load);
-    memory::CallUse* createCallUse(MemoryObject* object, llvm::CallSite call);
+    memory::CallUse* createCallUse(MemoryObject* object, llvm::CallBase* call);
     memory::RetUse* createReturnUse(MemoryObject* object, llvm::ReturnInst& ret);
 
     std::unique_ptr<MemorySSA> build();

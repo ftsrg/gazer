@@ -27,6 +27,7 @@
 #include <llvm/IR/GetElementPtrTypeIterator.h>
 #include <llvm/Transforms/Utils/UnifyFunctionExitNodes.h>
 #include <llvm/Support/Debug.h>
+#include <llvm/Support/CommandLine.h>
 
 #define DEBUG_TYPE "FlatMemoryModel"
 
@@ -62,7 +63,7 @@ struct FlatMemoryFunctionInfo
     // Maps non-lifted globals to their addresses in memory.
     llvm::DenseMap<llvm::GlobalVariable*, ExprRef<LiteralExpr>> globalPointers;
 
-    llvm::DenseMap<llvm::CallSite, CallInfo> calls;
+    llvm::DenseMap<const llvm::CallBase*, CallInfo> calls;
 
     std::unique_ptr<memory::MemorySSA> memorySSA;
 };
@@ -85,7 +86,7 @@ public:
     );
 
     void insertCallDefsUses(
-        llvm::CallSite call, FlatMemoryFunctionInfo& info, memory::MemorySSABuilder& builder);
+        llvm::CallBase* call, FlatMemoryFunctionInfo& info, memory::MemorySSABuilder& builder);
 
     MemoryTypeTranslator& getMemoryTypeTranslator() override { return *this; }
     
@@ -249,9 +250,9 @@ FlatMemoryModel::FlatMemoryModel(
 }
 
 void FlatMemoryModel::insertCallDefsUses(
-    llvm::CallSite call, FlatMemoryFunctionInfo& info, memory::MemorySSABuilder& builder)
+    llvm::CallBase* call, FlatMemoryFunctionInfo& info, memory::MemorySSABuilder& builder)
 {
-    llvm::Function* callee = call.getCalledFunction();
+    llvm::Function* callee = call->getCalledFunction();
 
     if (callee == nullptr) {
         builder.createCallDef(info.memory, call);
@@ -335,7 +336,7 @@ public:
         llvm2cfa::GenerationStepExtensionPoint& ep) override;
 
     void handleCall(
-        llvm::CallSite call,
+        const llvm::CallBase* call,
         llvm2cfa::GenerationStepExtensionPoint& parentEp,
         llvm2cfa::AutomatonInterfaceExtensionPoint& calleeEp,
         llvm::SmallVectorImpl<VariableAssignment>& inputAssignments,
@@ -631,15 +632,15 @@ ExprPtr FlatMemoryModelInstTranslator::handleLoad(
 }
 
 void FlatMemoryModelInstTranslator::handleCall(
-    llvm::CallSite call,
+    const llvm::CallBase* call,
     llvm2cfa::GenerationStepExtensionPoint& parentEp,
     llvm2cfa::AutomatonInterfaceExtensionPoint& calleeEp,
     llvm::SmallVectorImpl<VariableAssignment>& inputAssignments,
     llvm::SmallVectorImpl<VariableAssignment>& outputAssignments)
 {
-    LLVM_DEBUG(llvm::dbgs() << "Handling call instruction " << *call.getInstruction() << "\n");
+    LLVM_DEBUG(llvm::dbgs() << "Handling call instruction " << *call << "\n");
 
-    const llvm::Function* callee = call.getCalledFunction();
+    const llvm::Function* callee = call->getCalledFunction();
     assert(callee != nullptr);
 
     auto& calleeInfo = mMemoryModel.getInfoFor(callee);

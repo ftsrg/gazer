@@ -96,7 +96,7 @@ llvm::ErrorOr<std::string> gazer::findProgramLocation(llvm::StringRef argvZero)
             return ec;
         }
 
-        return path.str();
+        return path.str().str();
     }
 
     // See if we can look it up in the PATH

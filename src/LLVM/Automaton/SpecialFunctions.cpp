@@ -47,13 +47,13 @@ void SpecialFunctions::registerHandler(
     assert(result.second && "Attempt to register duplicate handler!");
 }
 
-auto SpecialFunctions::handle(llvm::ImmutableCallSite cs, llvm2cfa::GenerationStepExtensionPoint& ep) const
+auto SpecialFunctions::handle(const llvm::CallBase* cs, llvm2cfa::GenerationStepExtensionPoint& ep) const
     -> bool
 {
-    assert(cs.getCalledFunction() != nullptr);
+    assert(cs->getCalledFunction() != nullptr);
 
     // Check if we have an appropriate handler
-    auto it = mHandlers.find(cs.getCalledFunction()->getName());
+    auto it = mHandlers.find(cs->getCalledFunction()->getName());
     if (it == mHandlers.end()) {
         return false;
     }
@@ -65,9 +65,9 @@ auto SpecialFunctions::handle(llvm::ImmutableCallSite cs, llvm2cfa::GenerationSt
 // Default handler implementations
 //===----------------------------------------------------------------------===//
 
-void SpecialFunctions::handleAssume(llvm::ImmutableCallSite cs, llvm2cfa::GenerationStepExtensionPoint& ep)
+void SpecialFunctions::handleAssume(const llvm::CallBase* cs, llvm2cfa::GenerationStepExtensionPoint& ep)
 {
-    const llvm::Value* arg = cs.getArgOperand(0);
+    const llvm::Value* arg = cs->getArgOperand(0);
     ExprPtr assumeExpr = ep.getAsOperand(arg, BoolType::Get(ep.getContext()));
 
     ep.splitCurrentTransition(assumeExpr);

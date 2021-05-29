@@ -129,7 +129,7 @@ public:
     /// The parameters \p inputAssignments and \p outputAssignments will be placed
     /// on the resulting automaton call _after_ the regular input/output assignments.
     virtual void handleCall(
-        llvm::CallSite call,
+        const llvm::CallBase* call,
         llvm2cfa::GenerationStepExtensionPoint& callerEp,
         llvm2cfa::AutomatonInterfaceExtensionPoint& calleeEp,
         llvm::SmallVectorImpl<VariableAssignment>& inputAssignments,
@@ -142,7 +142,7 @@ public:
     /// function, the translation process already generates a havoc assignment for
     /// it _before_ calling this function.
     virtual void handleExternalCall(
-        llvm::CallSite call, llvm2cfa::GenerationStepExtensionPoint& ep) {}
+        llvm::AbstractCallSite call, llvm2cfa::GenerationStepExtensionPoint& ep) {}
 
     // Memory safety predicates
     //==--------------------------------------------------------------------==//

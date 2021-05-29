@@ -40,8 +40,6 @@
 namespace gazer
 {
 
-extern llvm::cl::opt<bool> PrintTrace;
-
 namespace llvm2cfa
 {
 

@@ -85,7 +85,7 @@ class ExprWalker
     Frame* createFrame(const ExprPtr& expr, size_t idx, Frame* parent)
     {
         size_t siz = sizeof(Frame);
-        void* ptr = mAllocator.Allocate(siz, alignof(Frame));
+        void* ptr = mAllocator.Allocate(siz, llvm::Align(alignof(Frame)));
 
         return new (ptr) Frame(expr, idx, parent, parent == nullptr ? 0 : parent->mDepth);
     }

@@ -50,7 +50,7 @@ public:
     struct FunctionInfo
     {
         std::vector<llvm::CallInst*> selfFails;
-        std::vector<llvm::CallSite> mayFailCalls;
+        std::vector<llvm::CallBase*> mayFailCalls;
         llvm::PHINode* uniqueErrorPhi = nullptr;
         llvm::CallInst* uniqueErrorCall = nullptr;
 
@@ -71,10 +71,10 @@ public:
 
 private:
     void combineErrorsInFunction(llvm::Function* function, FunctionInfo& info);
-    void collectFailingCalls(const llvm::CallGraphNode* cgNode);
+    void collectFailingCalls(llvm::CallGraphNode* cgNode);
     void replaceReturnsWithUnreachable(const llvm::SmallVectorImpl<llvm::ReturnInst*>& returns);
     void representArgumentsAsPhiNodes(llvm::Function* function, llvm::BasicBlock* failEntry, FunctionInfo& info, ValueToValueMapTy& vmap);
-    void createBranchToFail(const CallSite& call);
+    void createBranchToFail(llvm::CallBase* call);
     
     llvm::FunctionCallee getDummyBoolFunc()
     {
@@ -89,16 +89,6 @@ private:
             "gazer.dummy.void",
             llvm::FunctionType::get(llvm::Type::getVoidTy(mModule.getContext()), false)
         );
-    }
-
-    llvm::Value* getErrorFunction()
-    {
-        return CheckRegistry::GetErrorFunction(mModule).getCallee();
-    }
-
-    llvm::Type* getErrorCodeType()
-    {
-        return CheckRegistry::GetErrorCodeType(mModule.getContext());
     }
 
 private:
@@ -149,8 +139,8 @@ void LiftErrorCalls::combineErrorsInFunction(llvm::Function* function, FunctionI
     auto* errorBlock = llvm::BasicBlock::Create(function->getContext(), "error", function);
     mBuilder.SetInsertPoint(errorBlock);
 
-    auto* phi = mBuilder.CreatePHI(getErrorCodeType(), info.selfFails.size(), "error_phi");
-    auto* err = mBuilder.CreateCall(getErrorFunction(), {phi});
+    auto* phi = mBuilder.CreatePHI(CheckRegistry::GetErrorCodeType(mModule.getContext()), info.selfFails.size(), "error_phi");
+    auto* err = mBuilder.CreateCall(CheckRegistry::GetErrorFunction(mModule), {phi});
     mBuilder.CreateUnreachable();
 
     for (llvm::CallInst* errorCall : info.selfFails) {
@@ -169,7 +159,7 @@ void LiftErrorCalls::combineErrorsInFunction(llvm::Function* function, FunctionI
     info.uniqueErrorCall = err;
 }
 
-void LiftErrorCalls::collectFailingCalls(const llvm::CallGraphNode* cgNode)
+void LiftErrorCalls::collectFailingCalls(llvm::CallGraphNode* cgNode)
 {
     llvm::Function* function = cgNode->getFunction();
     if (function == nullptr || function->isDeclaration()) {
@@ -187,7 +177,7 @@ void LiftErrorCalls::collectFailingCalls(const llvm::CallGraphNode* cgNode)
     );
 
     // Find possibly failing calls to other infos.
-    for (const auto& [callInst, calleeNode] : *cgNode) {
+    for (auto& [callInst, calleeNode] : *cgNode) {
         llvm::Function* callee = calleeNode->getFunction();
         if (callee == nullptr) {
             // TODO: Indirect function calls are unsupported at the moment.
@@ -198,7 +188,7 @@ void LiftErrorCalls::collectFailingCalls(const llvm::CallGraphNode* cgNode)
             continue;
         }
 
-        if (auto* call = llvm::dyn_cast<CallInst>(callInst)) {
+        if (CallInst* call = llvm::dyn_cast<CallInst>(*callInst)) {
             mInfos[function].mayFailCalls.emplace_back(call);
         }
     }
@@ -223,7 +213,7 @@ bool LiftErrorCalls::run()
 
     while (!sccIt.isAtEnd()) {
         const std::vector<CallGraphNode*>& scc = *sccIt;
-        for (const CallGraphNode* cgNode : scc) {
+        for (CallGraphNode* cgNode : scc) {
             this->collectFailingCalls(cgNode);
         }
         ++sccIt;
@@ -245,7 +235,7 @@ bool LiftErrorCalls::run()
     }
 
     // Do the interprocedural transformation.
-    std::vector<llvm::CallSite> mayFailCallsInMain = mInfos[mEntryFunction].mayFailCalls;
+    std::vector<llvm::CallBase*> mayFailCallsInMain = mInfos[mEntryFunction].mayFailCalls;
 
     // Copy the bodies of the possibly-failing functions into main.
     for (auto& [function, info] : mInfos) {
@@ -287,7 +277,7 @@ bool LiftErrorCalls::run()
         // Add all possible calls into main
         mayFailCallsInMain.reserve(mayFailCallsInMain.size() + info.mayFailCalls.size());
         for (auto cs : info.mayFailCalls) {
-            mayFailCallsInMain.emplace_back(vmap[cs.getInstruction()]);
+            mayFailCallsInMain.emplace_back(llvm::cast<CallInst>(vmap[cs]));
         }
 
         // Remove the error call from the original function
@@ -301,20 +291,20 @@ bool LiftErrorCalls::run()
         mBuilder.CreateBr(clonedEntry);
     }
 
-    for (llvm::CallSite call : mayFailCallsInMain) {
+    for (llvm::CallBase* call : mayFailCallsInMain) {
         this->createBranchToFail(call);
     }
 
     return true;
 }
-void LiftErrorCalls::createBranchToFail(const CallSite& call)
+void LiftErrorCalls::createBranchToFail(llvm::CallBase* call)
 {
-    assert(call.getCalledFunction() != nullptr);
-    auto& calleeInfo = mInfos[call.getCalledFunction()];
+    assert(call->getCalledFunction() != nullptr);
+    auto& calleeInfo = mInfos[call->getCalledFunction()];
 
     // Split the block for each call, create a nondet branch.
     BasicBlock* origBlock = call->getParent();
-    BasicBlock* successBlock = SplitBlock(origBlock, call.getInstruction());
+    BasicBlock* successBlock = SplitBlock(origBlock, call);
     BasicBlock* errorBlock = BasicBlock::Create(mModule.getContext(), "", mEntryFunction);
 
     // Create the nondetermistic branch between the success and error.
@@ -328,8 +318,8 @@ void LiftErrorCalls::createBranchToFail(const CallSite& call)
     mBuilder.SetInsertPoint(errorBlock);
     mBuilder.CreateBr(calleeInfo.failCopyEntry);
 
-    for (unsigned i = 0; i < call.arg_size(); ++i) {
-        calleeInfo.failCopyArgumentPHIs[i]->addIncoming(call.getArgOperand(i), errorBlock);
+    for (unsigned i = 0; i < call->arg_size(); ++i) {
+        calleeInfo.failCopyArgumentPHIs[i]->addIncoming(call->getArgOperand(i), errorBlock);
     }
 }
 

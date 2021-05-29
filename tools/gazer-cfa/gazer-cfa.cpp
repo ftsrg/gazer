@@ -26,6 +26,7 @@
 #include "gazer/LLVM/Memory/MemoryModel.h"
 
 #include <llvm/IR/Module.h>
+#include <llvm/Support/CommandLine.h>
 
 #ifndef NDEBUG
 #include <llvm/Support/Debug.h>

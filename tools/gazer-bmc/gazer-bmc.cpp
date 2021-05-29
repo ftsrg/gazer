@@ -26,6 +26,7 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/CommandLine.h>
 
 #ifndef NDEBUG
 #include <llvm/Support/PrettyStackTrace.h>
@@ -112,7 +113,7 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-BmcSettings initBmcSettingsFromCommandLine()
+static BmcSettings initBmcSettingsFromCommandLine()
 {
     BmcSettings settings;
     settings.debugDumpCfa = DumpCfa;

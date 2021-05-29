@@ -495,11 +495,11 @@ TEST_F(SolverZ3Test, FpToBvCasts)
     auto& bv32Ty = BvType::Get(ctx, 32);
 
     EXPECT_TRUE(checkBvOp(
-        FpToSignedExpr::Create(FloatLiteralExpr::Get(fp32Ty, llvm::APFloat(fp32Ty.getLLVMSemantics(), 1.0f)), bv32Ty, llvm::APFloat::rmNearestTiesToEven),
+        FpToSignedExpr::Create(FloatLiteralExpr::Get(fp32Ty, llvm::APFloat(1.0f)), bv32Ty, llvm::APFloat::rmNearestTiesToEven),
         BvLiteralExpr::Get(bv32Ty, 1)
     ));
     EXPECT_TRUE(checkBvOp(
-        FpToUnsignedExpr::Create(FloatLiteralExpr::Get(fp32Ty, llvm::APFloat(fp32Ty.getLLVMSemantics(), 1.0f)), bv32Ty, llvm::APFloat::rmNearestTiesToEven),
+        FpToUnsignedExpr::Create(FloatLiteralExpr::Get(fp32Ty, llvm::APFloat(1.0f)), bv32Ty, llvm::APFloat::rmNearestTiesToEven),
         BvLiteralExpr::Get(bv32Ty, 1)
     ));
 
