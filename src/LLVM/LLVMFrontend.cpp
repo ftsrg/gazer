@@ -337,7 +337,7 @@ void LLVMFrontend::registerEarlyOptimizations()
     mPassManager.add(llvm::createDeadArgEliminationPass());
 
     // Clean up
-    mPassManager.add(llvm::createInstructionCombiningPass());
+    //mPassManager.add(llvm::createInstructionCombiningPass());
     mPassManager.add(llvm::createCFGSimplificationPass());
 
     // SROA may introduce new undef values, so we run another promote undef pass after it
@@ -346,8 +346,8 @@ void LLVMFrontend::registerEarlyOptimizations()
     //mPassManager.add(llvm::createEarlyCSEPass());
 
     mPassManager.add(llvm::createCFGSimplificationPass());
-    mPassManager.add(llvm::createAggressiveInstCombinerPass());
-    mPassManager.add(llvm::createInstructionCombiningPass());
+    //mPassManager.add(llvm::createAggressiveInstCombinerPass());
+    //mPassManager.add(llvm::createInstructionCombiningPass());
 
     // Try to remove irreducible control flow
     if (StructurizeCFG) {
