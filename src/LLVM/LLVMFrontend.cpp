@@ -90,7 +90,7 @@ namespace
             au.setPreservesCFG();
         }
 
-        bool runOnModule(llvm::Module& module) override;
+        bool runOnModule(llvm::Module& llvmModule) override;
 
         llvm::StringRef getPassName() const override {
             return "Verification backend pass";
@@ -209,7 +209,7 @@ void LLVMFrontend::registerVerificationStep()
     }
 }
 
-bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
+bool RunVerificationBackendPass::runOnModule(llvm::Module& llvmModule)
 {
     auto& moduleToCfa = getAnalysis<ModuleToAutomataPass>();
 
@@ -258,9 +258,9 @@ bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
             if (!mSettings.testHarnessFile.empty() && fail->hasTrace()) {
                 llvm::outs() << "Generating test harness.\n";
                 auto test = GenerateTestHarnessModuleFromTrace(
-                    fail->getTrace(), 
-                    module.getContext(),
-                    module
+                    fail->getTrace(),
+                    llvmModule.getContext(),
+                    llvmModule
                 );
 
                 llvm::StringRef filename(mSettings.testHarnessFile);

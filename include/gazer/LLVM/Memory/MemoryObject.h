@@ -50,7 +50,7 @@ class MemoryAccess
 {
     friend class memory::MemorySSABuilder;
 public:
-    MemoryAccess(MemoryObject* object)
+    explicit MemoryAccess(MemoryObject* object)
         : mObject(object)
     {}
 
@@ -96,7 +96,7 @@ public:
 
     void print(llvm::raw_ostream& os) const;
 
-    virtual ~MemoryObjectDef() {}
+    virtual ~MemoryObjectDef() = default;
 
 protected:
     virtual void doPrint(llvm::raw_ostream& os) const = 0;
@@ -136,7 +136,7 @@ public:
     virtual llvm::Instruction* getInstruction() const = 0;
     virtual void print(llvm::raw_ostream& os) const = 0;
 
-    virtual ~MemoryObjectUse() {}
+    virtual ~MemoryObjectUse() = default;
 
 private:
     Kind mKind;
@@ -210,8 +210,26 @@ public:
     ~MemoryObject();
 
 private:
-    void addDefinition(MemoryObjectDef* def);
-    void addUse(MemoryObjectUse* use);
+    template<class T, class... Args>
+    T* createDef(Args&&... args)
+    {
+        std::unique_ptr<T> ptr = std::make_unique<T>(std::forward<Args>(args)...);
+        T* rawPtr = ptr.get();
+        mDefs.emplace_back(std::move(ptr));
+        return rawPtr;
+    }
+
+    template<class T, class... Args>
+    T* createUse(Args&&... args)
+    {
+        std::unique_ptr<T> ptr = std::make_unique<T>(std::forward<Args>(args)...);
+        T* rawPtr = ptr.get();
+        mUses.emplace_back(std::move(ptr));
+        return rawPtr;
+    }
+
+    MemoryObjectDef* addDefinition(std::unique_ptr<MemoryObjectDef>&& def);
+    MemoryObjectUse* addUse(std::unique_ptr<MemoryObjectUse>&& use);
     void setEntryDef(MemoryObjectDef* def);
     void setExitUse(MemoryObjectUse* use);
 

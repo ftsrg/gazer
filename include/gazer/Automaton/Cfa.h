@@ -30,6 +30,8 @@
 #include <llvm/ADT/DenseMap.h>
 #include <boost/iterator/indirect_iterator.hpp>
 
+#include <optional>
+
 namespace gazer
 {
 

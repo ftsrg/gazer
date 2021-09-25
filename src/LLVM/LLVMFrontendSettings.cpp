@@ -125,9 +125,9 @@ namespace
     );
 } // end anonymous namespace
 
-bool LLVMFrontendSettings::validate(const llvm::Module& module, llvm::raw_ostream& os) const
+bool LLVMFrontendSettings::validate(const llvm::Module& llvmModule, llvm::raw_ostream& os) const
 {
-    if (module.getFunction(this->function) == nullptr) {
+    if (llvmModule.getFunction(this->function) == nullptr) {
         os << "The entry function '" << this->function << "' does not exist!\n";
         return false;
     }
@@ -135,9 +135,9 @@ bool LLVMFrontendSettings::validate(const llvm::Module& module, llvm::raw_ostrea
     return true;
 }
 
-llvm::Function* LLVMFrontendSettings::getEntryFunction(const llvm::Module& module) const
+llvm::Function* LLVMFrontendSettings::getEntryFunction(const llvm::Module& llvmModule) const
 {
-    llvm::Function* result = module.getFunction(this->function);
+    llvm::Function* result = llvmModule.getFunction(this->function);
     assert(result != nullptr && "The entry function must exist!");
 
     return result;

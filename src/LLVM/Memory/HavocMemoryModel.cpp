@@ -106,7 +106,6 @@ public:
 private:
     gazer::Type& ptrType() const { return BoolType::Get(mContext); }
     ExprPtr ptrValue() const { return UndefExpr::Get(this->ptrType()); }
-
 };
 
 } // namespace

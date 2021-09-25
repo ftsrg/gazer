@@ -34,13 +34,13 @@ static std::string getOverloadedFunctionName(llvm::StringRef prefix, llvm::Type*
     return rso.str();
 }
 
-llvm::FunctionCallee GazerIntrinsic::GetOrInsertFunctionEntry(llvm::Module& module, llvm::ArrayRef<llvm::Type*> args)
+llvm::FunctionCallee GazerIntrinsic::GetOrInsertFunctionEntry(llvm::Module& llvmModule, llvm::ArrayRef<llvm::Type*> args)
 {
     std::vector<llvm::Type*> funArgs;
-    funArgs.push_back(llvm::Type::getMetadataTy(module.getContext()));
+    funArgs.push_back(llvm::Type::getMetadataTy(llvmModule.getContext()));
     funArgs.insert(funArgs.end(), args.begin(), args.end());
 
-    auto funTy = llvm::FunctionType::get(llvm::Type::getVoidTy(module.getContext()), funArgs, false);
+    auto funTy = llvm::FunctionType::get(llvm::Type::getVoidTy(llvmModule.getContext()), funArgs, false);
 
     std::string buffer;
     llvm::raw_string_ostream rso{buffer};
@@ -52,52 +52,52 @@ llvm::FunctionCallee GazerIntrinsic::GetOrInsertFunctionEntry(llvm::Module& modu
     }
     rso.flush();
 
-    return module.getOrInsertFunction(
+    return llvmModule.getOrInsertFunction(
         rso.str(),
         funTy
     );
 }
 
-llvm::FunctionCallee GazerIntrinsic::GetOrInsertFunctionReturnVoid(llvm::Module& module)
+llvm::FunctionCallee GazerIntrinsic::GetOrInsertFunctionReturnVoid(llvm::Module& llvmModule)
 {
-    return module.getOrInsertFunction(
+    return llvmModule.getOrInsertFunction(
         FunctionReturnVoidName,
-        llvm::Type::getVoidTy(module.getContext()),
-        llvm::Type::getMetadataTy(module.getContext())
+        llvm::Type::getVoidTy(llvmModule.getContext()),
+        llvm::Type::getMetadataTy(llvmModule.getContext())
     );
 }
 
-llvm::FunctionCallee GazerIntrinsic::GetOrInsertFunctionCallReturned(llvm::Module& module)
+llvm::FunctionCallee GazerIntrinsic::GetOrInsertFunctionCallReturned(llvm::Module& llvmModule)
 {
-    return module.getOrInsertFunction(
+    return llvmModule.getOrInsertFunction(
         FunctionCallReturnedName,
-        llvm::Type::getVoidTy(module.getContext()),
-        llvm::Type::getMetadataTy(module.getContext())
+        llvm::Type::getVoidTy(llvmModule.getContext()),
+        llvm::Type::getMetadataTy(llvmModule.getContext())
     );
 }
 
-llvm::FunctionCallee GazerIntrinsic::GetOrInsertFunctionReturnValue(llvm::Module& module, llvm::Type* type)
+llvm::FunctionCallee GazerIntrinsic::GetOrInsertFunctionReturnValue(llvm::Module& llvmModule, llvm::Type* type)
 {
     // Insert a new function for this mark type
-    return module.getOrInsertFunction(
+    return llvmModule.getOrInsertFunction(
         getOverloadedFunctionName(FunctionReturnValuePrefix, type),
-        llvm::Type::getVoidTy(module.getContext()),
-        llvm::Type::getMetadataTy(module.getContext()),
+        llvm::Type::getVoidTy(llvmModule.getContext()),
+        llvm::Type::getMetadataTy(llvmModule.getContext()),
         type
     );
 }
 
-llvm::FunctionCallee GazerIntrinsic::GetOrInsertInlinedGlobalWrite(llvm::Module& module, llvm::Type* type)
+llvm::FunctionCallee GazerIntrinsic::GetOrInsertInlinedGlobalWrite(llvm::Module& llvmModule, llvm::Type* type)
 {
-    return module.getOrInsertFunction(
+    return llvmModule.getOrInsertFunction(
         getOverloadedFunctionName(InlinedGlobalWritePrefix, type),
-        llvm::Type::getVoidTy(module.getContext()),
+        llvm::Type::getVoidTy(llvmModule.getContext()),
         type,
-        llvm::Type::getMetadataTy(module.getContext())
+        llvm::Type::getMetadataTy(llvmModule.getContext())
     );
 }
 
-llvm::FunctionCallee GazerIntrinsic::GetOrInsertOverflowCheck(llvm::Module& module, Overflow kind, llvm::Type* type)
+llvm::FunctionCallee GazerIntrinsic::GetOrInsertOverflowCheck(llvm::Module& llvmModule, Overflow kind, llvm::Type* type)
 {
     std::string name;
 
@@ -116,9 +116,9 @@ llvm::FunctionCallee GazerIntrinsic::GetOrInsertOverflowCheck(llvm::Module& modu
     type->print(rso, false, true);
     rso.flush();
 
-    return module.getOrInsertFunction(
+    return llvmModule.getOrInsertFunction(
         name,
-        llvm::Type::getInt1Ty(module.getContext()),
+        llvm::Type::getInt1Ty(llvmModule.getContext()),
         type,
         type
     );

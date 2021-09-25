@@ -45,10 +45,6 @@ void VarRefExpr::print(llvm::raw_ostream& os) const {
     os << mVariable->getType().getName() << " " << mVariable->getName();
 }
 
-VariableAssignment::VariableAssignment()
-    : mVariable(nullptr), mValue(nullptr)
-{}
-
 VariableAssignment::VariableAssignment(Variable *variable, ExprPtr value)
     : mVariable(variable), mValue(std::move(value))
 {

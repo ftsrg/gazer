@@ -32,6 +32,6 @@ class Expr;
 template<class T = Expr> using ExprRef = boost::intrusive_ptr<T>;
 using ExprPtr = ExprRef<Expr>;
 
-}
+} // namespace gazer
 
 #endif

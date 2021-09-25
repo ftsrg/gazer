@@ -113,7 +113,7 @@ public:
         return ArrayType::Get(ptrType(), cellType());
     }
 
-    ExprRef<BvLiteralExpr> ptrConstant(unsigned addr) {
+    ExprRef<BvLiteralExpr> ptrConstant(unsigned int addr) {
         return BvLiteralExpr::Get(ptrType(), addr);
     }
 
@@ -249,6 +249,12 @@ FlatMemoryModel::FlatMemoryModel(
     }
 }
 
+static bool isIntrinsic(llvm::Function* callee)
+{
+    llvm::StringRef name = callee->getName();
+    return name.startswith("gazer.") || name.startswith("llvm.") || name.startswith("verifier.");
+}
+
 void FlatMemoryModel::insertCallDefsUses(
     llvm::CallBase* call, FlatMemoryFunctionInfo& info, memory::MemorySSABuilder& builder)
 {
@@ -260,9 +266,7 @@ void FlatMemoryModel::insertCallDefsUses(
         return;
     }
 
-    llvm::StringRef name = callee->getName();
-
-    if (name.startswith("gazer.") || name.startswith("llvm.") || name.startswith("verifier.")) {
+    if (isIntrinsic(callee)) {
         // TODO: This may need to change in the case of some intrinsics (e.g. llvm.memcpy)
         return;
     }
@@ -272,8 +276,7 @@ void FlatMemoryModel::insertCallDefsUses(
     }
 
     if (callee->isDeclaration()) {
-        // TODO: We could handle some know function here or clobber the memory according to
-        // some configuration option.
+        // TODO: We could handle some know function here or clobber the memory according to some configuration option.
         return;
     }
 
@@ -388,7 +391,7 @@ auto FlatMemoryModelInstTranslator::handleAlloca(const llvm::AllocaInst& alloc, 
     assert(memDef != nullptr && "There must be exactly one Memory definition for an alloca!");
     assert(spDef != nullptr && "There must be exactly one StackPtr definition for an alloca!");
 
-    unsigned size = mDataLayout.getTypeAllocSize(alloc.getAllocatedType());
+    unsigned long size = mDataLayout.getTypeAllocSize(alloc.getAllocatedType());
     
     // This alloca returns the pointer to the current stack frame,
     // which is then advanced by the size of the allocated type.
@@ -466,7 +469,7 @@ ExprPtr FlatMemoryModelInstTranslator::handleGetElementPtr(
 
     for (unsigned i = 1; i < ops.size(); ++i) {
         // Calculate the size of the current step
-        unsigned siz = mDataLayout.getTypeAllocSize(ti.getIndexedType());
+        unsigned long size = mDataLayout.getTypeAllocSize(ti.getIndexedType());
 
         // Index arguments may be integer types different from the pointer type.
         // Extend/truncate them into the proper pointer length.
@@ -487,7 +490,7 @@ ExprPtr FlatMemoryModelInstTranslator::handleGetElementPtr(
         }
 
         addr = mExprBuilder.Add(
-            addr, mExprBuilder.Mul(index, mMemoryModel.ptrConstant(siz))
+            addr, mExprBuilder.Mul(index, mMemoryModel.ptrConstant(size))
         );
 
         ++ti;
@@ -504,7 +507,7 @@ ExprPtr FlatMemoryModelInstTranslator::handleConstantDataArray(
     ArrayLiteralExpr::Builder builder(ArrayType::Get(mMemoryModel.ptrType(), bv8ty()), BvLiteralExpr::Get(bv8ty(), 0));
 
     llvm::Type* elemTy = cda->getType()->getArrayElementType();
-    unsigned size = mDataLayout.getTypeAllocSize(elemTy);
+    unsigned long size = mDataLayout.getTypeAllocSize(elemTy);
 
     unsigned currentOffset = 0;
     for (unsigned i = 0; i < cda->getNumElements(); ++i) {
@@ -599,7 +602,7 @@ void FlatMemoryModelInstTranslator::handleStore(
     MemoryObjectDef* memoryDef = mMemorySSA.getUniqueDefinitionFor(&store, mInfo.memory);
     assert(memoryDef != nullptr && "There must be exactly one definition for Memory on a store!");
 
-    unsigned size = mDataLayout.getTypeAllocSize(store.getValueOperand()->getType());
+    auto size = mDataLayout.getTypeAllocSize(store.getValueOperand()->getType());
 
     ExprPtr array = ep.getAsOperand(memoryDef->getReachingDef());
     ExprPtr value = ep.getAsOperand(store.getValueOperand());

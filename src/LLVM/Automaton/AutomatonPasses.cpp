@@ -31,7 +31,7 @@ using namespace gazer;
 using namespace gazer::llvm2cfa;
 
 std::unique_ptr<AutomataSystem> gazer::translateModuleToAutomata(
-    llvm::Module& module,
+    llvm::Module& llvmModule,
     const LLVMFrontendSettings& settings,
     LoopInfoFuncTy loopInfos,
     GazerContext& context,
@@ -44,7 +44,7 @@ std::unique_ptr<AutomataSystem> gazer::translateModuleToAutomata(
     }
 
     LLVMTypeTranslator types(memoryModel.getMemoryTypeTranslator(), settings);
-    ModuleToCfa transformer(module, std::move(loopInfos), context, memoryModel, types, *specialFunctions, settings);
+    ModuleToCfa transformer(llvmModule, std::move(loopInfos), context, memoryModel, types, *specialFunctions, settings);
     return transformer.generate(blockEntries);
 }
 
@@ -60,12 +60,12 @@ void ModuleToAutomataPass::getAnalysisUsage(llvm::AnalysisUsage& au) const
     au.setPreservesAll();
 }
 
-bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
+bool ModuleToAutomataPass::runOnModule(llvm::Module& llvmModule)
 {
     // We need to save loop information here as a on-the-fly LoopInfo pass would delete
     // the acquired loop information when the lambda function exits.
     llvm::DenseMap<const llvm::Function*, std::unique_ptr<llvm::LoopInfo>> loopInfos;
-    for (const llvm::Function& function : module) {
+    for (const llvm::Function& function : llvmModule) {
         if (!function.isDeclaration()) {
             // The const_cast is needed here as getAnalysis expects a non-const function.
             // However, it should be safe as DominatorTreeWrapper does not modify the function.
@@ -75,7 +75,7 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
         }
     }
 
-    auto loops = [&loopInfos](const llvm::Function* function) -> llvm::LoopInfo* {
+    auto loops = [&loopInfos](const llvm::Function* function) {
         auto& result = loopInfos[function];
         assert(result != nullptr);
         return result.get();
@@ -85,7 +85,7 @@ bool ModuleToAutomataPass::runOnModule(llvm::Module& module)
     auto specialFunctions = SpecialFunctions::get();
 
     mSystem = translateModuleToAutomata(
-        module, mSettings, loops, mContext, memoryModel, mTraceInfo, specialFunctions.get());
+        llvmModule, mSettings, loops, mContext, memoryModel, mTraceInfo, specialFunctions.get());
 
     if (mSettings.loops == LoopRepresentation::Cycle) {
         // Transform the main automaton into a cyclic CFA if requested.
@@ -115,7 +115,7 @@ class PrintCfaPass : public llvm::ModulePass
         au.setPreservesAll();
     }
 
-    bool runOnModule(llvm::Module& module) override
+    bool runOnModule(llvm::Module& llvmModule) override
     {
         auto& moduleToCfa = getAnalysis<ModuleToAutomataPass>();
         AutomataSystem& system = moduleToCfa.getSystem();

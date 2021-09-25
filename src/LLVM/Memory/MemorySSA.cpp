@@ -136,13 +136,12 @@ memory::LiveOnEntryDef* MemorySSABuilder::createLiveOnEntryDef(gazer::MemoryObje
     assert(!object->hasEntryDef() && "Attempting to insert two entry definitions for a single object!");
 
     llvm::BasicBlock* entryBlock = &mFunction.getEntryBlock();
-    auto def = new memory::LiveOnEntryDef(object, mVersionNumber++, entryBlock);
+    auto def = object->createDef<memory::LiveOnEntryDef>(object, mVersionNumber++, entryBlock);
     mObjectInfo[object].defBlocks.insert(entryBlock);
 
     mValueDefs[&mFunction.getEntryBlock()].emplace_back(def);
 
 
-    object->addDefinition(def);
     object->setEntryDef(def);
 
     return def;
@@ -152,32 +151,28 @@ memory::GlobalInitializerDef* MemorySSABuilder::createGlobalInitializerDef(
     gazer::MemoryObject* object, llvm::GlobalVariable* gv)
 {
     llvm::BasicBlock* entryBlock = &mFunction.getEntryBlock();
-    auto def = new memory::GlobalInitializerDef(object, mVersionNumber++, entryBlock, gv);
+    auto def = object->createDef<memory::GlobalInitializerDef>(object, mVersionNumber++, entryBlock, gv);
     mObjectInfo[object].defBlocks.insert(entryBlock);
 
     mValueDefs[&mFunction.getEntryBlock()].emplace_back(def);
-    
-    object->addDefinition(def);
 
     return def;
 }
 
 memory::StoreDef* MemorySSABuilder::createStoreDef(MemoryObject* object, llvm::StoreInst& inst)
 {
-    auto def = new memory::StoreDef(object, mVersionNumber++, inst);
+    auto def = object->createDef<memory::StoreDef>(object, mVersionNumber++, inst);
     mObjectInfo[object].defBlocks.insert(inst.getParent());
     mValueDefs[&inst].push_back(def);
-    object->addDefinition(def);
 
     return def;
 }
 
 memory::CallDef* MemorySSABuilder::createCallDef(gazer::MemoryObject* object, llvm::CallBase* call)
 {
-    auto def = new memory::CallDef(object, mVersionNumber++, call);
+    auto def = object->createDef<memory::CallDef>(object, mVersionNumber++, call);
     mObjectInfo[object].defBlocks.insert(call->getParent());
     mValueDefs[call].push_back(def);
-    object->addDefinition(def);
 
     return def;
 }
@@ -186,28 +181,25 @@ memory::AllocaDef* MemorySSABuilder::createAllocaDef(
     MemoryObject* object, llvm::AllocaInst& alloca
 )
 {
-    auto def = new memory::AllocaDef(object, mVersionNumber++, alloca);
+    auto def = object->createDef<memory::AllocaDef>(object, mVersionNumber++, alloca);
     mObjectInfo[object].defBlocks.insert(alloca.getParent());
     mValueDefs[&alloca].push_back(def);
-    object->addDefinition(def);
 
     return def;
 }
 
 memory::LoadUse* MemorySSABuilder::createLoadUse(MemoryObject* object, llvm::LoadInst& load)
 {
-    auto use = new memory::LoadUse(object, load);
+    auto use = object->createUse<memory::LoadUse>(object, load);
     mValueUses[&load].push_back(use);
-    object->addUse(use);
 
     return use;
 }
 
 memory::CallUse* MemorySSABuilder::createCallUse(MemoryObject* object, llvm::CallBase* call)
 {
-    auto use = new memory::CallUse(object, call);
+    auto use = object->createUse<memory::CallUse>(object, call);
     mValueUses[call].push_back(use);
-    object->addUse(use);
 
     return use;
 }
@@ -215,9 +207,8 @@ memory::CallUse* MemorySSABuilder::createCallUse(MemoryObject* object, llvm::Cal
 memory::RetUse* MemorySSABuilder::createReturnUse(MemoryObject* object, llvm::ReturnInst& ret)
 {
     assert(!object->hasExitUse() && "Attempting to add a duplicate exit use!");
-    auto use = new memory::RetUse(object, ret);
+    auto use = object->createUse<memory::RetUse>(object, ret);
     mValueUses[&ret].push_back(use);
-    object->addUse(use);
     object->setExitUse(use);
 
     return use;
@@ -243,8 +234,7 @@ void MemorySSABuilder::calculatePHINodes()
         idf.calculate(phiBlocks);
 
         for (llvm::BasicBlock* bb : phiBlocks) {
-            auto phi = new memory::PhiDef(&*object, mVersionNumber++, bb);
-            object->addDefinition(phi);
+            auto phi = object->createDef<memory::PhiDef>(&*object, mVersionNumber++, bb);
             mValueDefs[bb].push_back(phi);
         }
     }

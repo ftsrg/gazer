@@ -230,7 +230,7 @@ auto LLVMTraceBuilder::build(
                 );
 
                 std::vector<ExprRef<AtomicExpr>> args;
-                for (size_t i = 1; i < call->getNumArgOperands(); ++i) {
+                for (unsigned i = 1; i < call->getNumArgOperands(); ++i) {
                     args.push_back(
                         this->getLiteralFromValue(loc->getAutomaton(), call->getArgOperand(i), currentVals)
                     );

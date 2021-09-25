@@ -82,10 +82,6 @@ ExprPtr InstToExpr::doTransform(const llvm::Instruction& inst, Type& expectedTyp
 // Transformation functions
 //-----------------------------------------------------------------------------
 
-static bool isLogicInstruction(unsigned opcode) {
-    return opcode == Instruction::And || opcode == Instruction::Or || opcode == Instruction::Xor;
-}
-
 static bool isNonConstValue(const llvm::Value* value) {
     return isa<Instruction>(value) || isa<Argument>(value) || isa<GlobalVariable>(value);
 }
@@ -893,8 +889,7 @@ ExprPtr InstToExpr::operandValue(const llvm::Value* value)
     }
     
     if (isNonConstValue(value)) {
-        auto result = this->lookupInlinedVariable(value);
-        if (result != nullptr) {
+        if (auto result = lookupInlinedVariable(value)) {
             return result;
         }
 
@@ -911,8 +906,7 @@ ExprPtr InstToExpr::operandValue(const llvm::Value* value)
 
 ExprPtr InstToExpr::operandMemoryObject(const gazer::MemoryObjectDef* def)
 {
-    auto result = this->lookupInlinedVariable(def);
-    if (result != nullptr) {
+    if (auto result = this->lookupInlinedVariable(def)) {
         return result;
     }
 

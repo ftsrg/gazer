@@ -116,23 +116,10 @@ static bool checkUsesInBlockRange(const MemoryObjectDef* def, Range& range, bool
     return false;
 }
 
-template<class Range>
-static bool hasUsesInBlockRange(const MemoryObjectDef* def, Range& range)
-{
-    return checkUsesInBlockRange(def, range, true);
-}
-
-template<class Range>
-static bool hasUsesOutsideOfBlockRange(const MemoryObjectDef* def, Range& range)
-{
-    return checkUsesInBlockRange(def, range, false);
-}
-
 static bool isErrorBlock(llvm::BasicBlock* bb)
 {
     // In error blocks, the last instruction before a terminator should be the  'gazer.error_code' call.
-    auto inst = bb->getTerminator()->getPrevNonDebugInstruction();
-    if (auto call = llvm::dyn_cast_or_null<CallInst>(inst)) {
+    if (auto call = llvm::dyn_cast_or_null<CallInst>(bb->getTerminator()->getPrevNonDebugInstruction())) {
         Function* function = call->getCalledFunction();
         if (function != nullptr && function->getName() == CheckRegistry::ErrorFunctionName) {
             return true;
@@ -144,7 +131,7 @@ static bool isErrorBlock(llvm::BasicBlock* bb)
 
 /// If \p bb is part of a loop nested into the CFA represented by \p genInfo, returns this loop.
 /// Otherwise, this function returns nullptr.
-static llvm::Loop* getNestedLoopOf(GenerationContext& genCtx, CfaGenInfo& genInfo, const llvm::BasicBlock* bb)
+static llvm::Loop* getNestedLoopOf(GenerationContext& genCtx, const CfaGenInfo& genInfo, const llvm::BasicBlock* bb)
 {
     auto nested = genCtx.getLoopInfoFor(bb->getParent())->getLoopFor(bb);
     if (nested == nullptr) {
@@ -353,22 +340,19 @@ void ModuleToCfa::createAutomata()
         memoryInstHandler.declareFunctionVariables(functionVarDecl);
 
         // For the local variables, we only need to add the values not present in any of the loops.
-        for (BasicBlock& bb : function) {
-            LLVM_DEBUG(llvm::dbgs() << "Translating function-level block " << bb.getName() << "\n");
-            for (Instruction& inst : bb) {
-                LLVM_DEBUG(llvm::dbgs().indent(2) << "Instruction " << inst.getName() << "\n");
-                if (auto loop = loopInfo->getLoopFor(&bb)) {
-                    // If the variable is an output of a loop, add it here as a local variable
-                    Variable* output = mGenCtx.getLoopCfa(loop).findOutput(&inst);
-                    if (output == nullptr && !hasUsesInBlockRange(&inst, functionBlocks)) {
-                        LLVM_DEBUG(llvm::dbgs().indent(4) << "Not adding (no uses in function) " << inst << "\n");
-                        continue;
-                    }
+        for (Instruction& inst : llvm::instructions(function)) {
+            LLVM_DEBUG(llvm::dbgs().indent(2) << "Instruction " << inst.getName() << "\n");
+            if (auto loop = loopInfo->getLoopFor(inst.getParent())) {
+                // If the variable is an output of a loop, add it here as a local variable
+                Variable* output = mGenCtx.getLoopCfa(loop).findOutput(&inst);
+                if (output == nullptr && !hasUsesInBlockRange(&inst, functionBlocks)) {
+                    LLVM_DEBUG(llvm::dbgs().indent(4) << "Not adding (no uses in function) " << inst << "\n");
+                    continue;
                 }
+            }
 
-                if (!inst.getType()->isVoidTy()) {
-                    functionVarDecl.createLocal(&inst, mGenCtx.getTypes().get(inst.getType()));
-                }
+            if (!inst.getType()->isVoidTy()) {
+                functionVarDecl.createLocal(&inst, mGenCtx.getTypes().get(inst.getType()));
             }
         }
 
@@ -516,7 +500,7 @@ void BlocksToCfa::encode()
         mCfa->createAssignTransition(entry, exit, mExprBuilder.True(), assignments);
 
         // Handle the outgoing edges
-        this->handleTerminator(bb, entry, exit);
+        this->handleTerminator(bb, exit);
     }
 
     // Do a clean-up, remove eliminated variables from the CFA.
@@ -609,7 +593,7 @@ bool BlocksToCfa::handleCall(const llvm::CallInst* call, Location** entry, Locat
     return true;
 }
 
-void BlocksToCfa::handleTerminator(const llvm::BasicBlock* bb, Location* entry, Location* exit)
+void BlocksToCfa::handleTerminator(const llvm::BasicBlock* bb, Location* exit)
 {
     auto terminator = bb->getTerminator();
 
@@ -862,7 +846,7 @@ void BlocksToCfa::createCallToLoop(llvm::Loop* loop, const llvm::BasicBlock* sou
     }
 }
 
-void BlocksToCfa::insertOutputAssignments(CfaGenInfo& callee, std::vector<VariableAssignment>& outputArgs)
+void BlocksToCfa::insertOutputAssignments(const CfaGenInfo& callee, std::vector<VariableAssignment>& outputArgs)
 {
     // For the outputs, find the corresponding variables in the parent and create the assignments.
     for (auto& [value, nestedOutputVar] : callee.Outputs) {

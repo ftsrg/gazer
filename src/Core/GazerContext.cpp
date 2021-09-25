@@ -60,7 +60,7 @@ bool ::gazer::IsDebugEnabled = false;
 using namespace gazer;
 
 GazerContext::GazerContext()
-    : pImpl(new GazerContextImpl(*this))
+    : pImpl(std::make_unique<GazerContextImpl>(*this))
 {}
 
 GazerContext::~GazerContext() = default;

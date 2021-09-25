@@ -44,16 +44,16 @@ public:
         return "Mark function entries";
     }
 
-    bool runOnModule(Module& module) override
+    bool runOnModule(Module& llvmModule) override
     {
-        LLVMContext& context = module.getContext();
+        LLVMContext& context = llvmModule.getContext();
         llvm::DenseMap<llvm::Type*, llvm::FunctionCallee> returnValueMarks;
 
-        auto retMarkVoid = GazerIntrinsic::GetOrInsertFunctionReturnVoid(module);        
-        auto callReturnedMark = GazerIntrinsic::GetOrInsertFunctionCallReturned(module);
+        auto retMarkVoid = GazerIntrinsic::GetOrInsertFunctionReturnVoid(llvmModule);
+        auto callReturnedMark = GazerIntrinsic::GetOrInsertFunctionCallReturned(llvmModule);
 
         IRBuilder<> builder(context);
-        for (Function& function : module) {
+        for (Function& function : llvmModule) {
             if (function.isDeclaration()) {
                 continue;
             }
@@ -63,7 +63,7 @@ public:
 
             auto dsp = function.getSubprogram();
             if (dsp != nullptr) {
-                auto mark = GazerIntrinsic::GetOrInsertFunctionEntry(module, function.getFunctionType()->params());
+                auto mark = GazerIntrinsic::GetOrInsertFunctionEntry(llvmModule, function.getFunctionType()->params());
                 builder.SetInsertPoint(&entry, entry.getFirstInsertionPt());
 
                 std::vector<llvm::Value*> args;
@@ -97,7 +97,7 @@ public:
                         rso.flush();
 
                         // Insert a new function for this mark type
-                        retMark = GazerIntrinsic::GetOrInsertFunctionReturnValue(module, retValueTy);
+                        retMark = GazerIntrinsic::GetOrInsertFunctionReturnValue(llvmModule, retValueTy);
                         returnValueMarks[retValueTy] = retMark;
                     }
 
@@ -116,8 +116,7 @@ public:
             std::vector<CallInst*> calls;
             for (Instruction& inst : llvm::instructions(function)) {
                 if (auto call = dyn_cast<CallInst>(&inst)) {
-                    Function* callee = call->getCalledFunction();
-                    if (callee == nullptr || callee->isDeclaration()) {
+                    if (Function* callee = call->getCalledFunction(); callee == nullptr || callee->isDeclaration()) {
                         // Currently we do not bother with indirect calls,
                         // also we only need functions which have a definition.
                         continue;

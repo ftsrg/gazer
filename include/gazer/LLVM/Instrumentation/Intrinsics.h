@@ -59,23 +59,23 @@ public:
 
 public:
     /// Returns a 'gazer.function.entry(metadata fn_name, args...)' intrinsic.
-    static llvm::FunctionCallee GetOrInsertFunctionEntry(llvm::Module& module, llvm::ArrayRef<llvm::Type*> args);
+    static llvm::FunctionCallee GetOrInsertFunctionEntry(llvm::Module& llvmModule, llvm::ArrayRef<llvm::Type*> args);
 
     /// Returns a 'gazer.function.return_void(metadata fn_name)' intrinsic.
-    static llvm::FunctionCallee GetOrInsertFunctionReturnVoid(llvm::Module& module);
+    static llvm::FunctionCallee GetOrInsertFunctionReturnVoid(llvm::Module& llvmModule);
 
     /// Returns a 'gazer.function.call_returned(metadata fn_name)' intrinsic.
-    static llvm::FunctionCallee GetOrInsertFunctionCallReturned(llvm::Module& module);
+    static llvm::FunctionCallee GetOrInsertFunctionCallReturned(llvm::Module& llvmModule);
 
     /// Returns a 'gazer.function.return_value.T(metadata fn_name, T retval)' intrinsic,
     /// where 'T' is the given return type.
-    static llvm::FunctionCallee GetOrInsertFunctionReturnValue(llvm::Module& module, llvm::Type* type);
+    static llvm::FunctionCallee GetOrInsertFunctionReturnValue(llvm::Module& llvmModule, llvm::Type* type);
 
     /// Returns a 'gazer.inlined_global_write.T(T value, metadata gv_name)' intrinsic.
-    static llvm::FunctionCallee GetOrInsertInlinedGlobalWrite(llvm::Module& module, llvm::Type* type);
+    static llvm::FunctionCallee GetOrInsertInlinedGlobalWrite(llvm::Module& llvmModule, llvm::Type* type);
 
     /// Returns a 'gazer.KIND.no_overflow.T(T left, T right)' intrinsic.
-    static llvm::FunctionCallee GetOrInsertOverflowCheck(llvm::Module& module, Overflow kind, llvm::Type* type);
+    static llvm::FunctionCallee GetOrInsertOverflowCheck(llvm::Module& llvmModule, Overflow kind, llvm::Type* type);
 };
 
 }

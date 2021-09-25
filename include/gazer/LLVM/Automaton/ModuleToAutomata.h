@@ -207,7 +207,7 @@ public:
 
     void getAnalysisUsage(llvm::AnalysisUsage& au) const override;
 
-    bool runOnModule(llvm::Module& module) override;
+    bool runOnModule(llvm::Module& llvmModule) override;
 
     llvm::StringRef getPassName() const override {
         return "Module to automata transformation";
@@ -226,7 +226,7 @@ private:
 class SpecialFunctions;
 
 std::unique_ptr<AutomataSystem> translateModuleToAutomata(
-    llvm::Module& module,
+    llvm::Module& llvmModule,
     const LLVMFrontendSettings& settings,
     llvm2cfa::LoopInfoFuncTy loopInfos,
     GazerContext& context,

@@ -120,7 +120,7 @@ struct expr_hasher<ExprTy, std::enable_if_t<std::is_base_of_v<LiteralExpr, ExprT
 {
     using ValT = decltype(std::declval<ExprTy>().getValue());
 
-    static std::size_t hash_value(Type& type, ValT value) {
+    static std::size_t hash_value([[maybe_unused]] Type& type, ValT value) {
         return llvm::hash_value(value);
     }
 
@@ -407,9 +407,9 @@ private:
 class GazerContextImpl
 {
     friend class GazerContext;
-    explicit GazerContextImpl(GazerContext& ctx);
 
 public:
+    explicit GazerContextImpl(GazerContext& ctx);
     ~GazerContextImpl();
 
 public:
@@ -438,7 +438,8 @@ public:
 
     //------------------- Expressions -------------------//
     ExprStorage Exprs;
-    ExprRef<BoolLiteralExpr> TrueLit, FalseLit;
+    ExprRef<BoolLiteralExpr> TrueLit;
+    ExprRef<BoolLiteralExpr> FalseLit;
     llvm::StringMap<std::unique_ptr<Variable>> VariableTable;
 
     //------------------ Other helpers ------------------//

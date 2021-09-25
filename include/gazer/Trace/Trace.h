@@ -121,18 +121,18 @@ public:
         Rep_Float
     };
 
-    TraceVariable(std::string name, Representation representation, unsigned size = 0)
+    TraceVariable(std::string name, Representation representation, size_t size = 0)
         : mName(std::move(name)), mRepresentation(representation), mSize(size)
     {}
 
     [[nodiscard]] llvm::StringRef getName() const { return mName; }
     [[nodiscard]] Representation getRepresentation() const { return mRepresentation; }
-    [[nodiscard]] unsigned getSize() const { return mSize; }
+    [[nodiscard]] size_t getSize() const { return mSize; }
 
 private:
     std::string mName;
     Representation mRepresentation;
-    unsigned mSize;
+    size_t mSize;
 };
 
 /// Indicates an assignment in the original program.
@@ -225,7 +225,7 @@ public:
         ArgsVectorTy args = {},
         LocationInfo location = {}   
     ) : TraceEvent(TraceEvent::Event_FunctionCall, location),
-        mFunctionName(functionName), mReturnValue(returnValue), mArgs(args)
+        mFunctionName(std::move(functionName)), mReturnValue(returnValue), mArgs(args)
     {}
 
     std::string getFunctionName() const { return mFunctionName; }

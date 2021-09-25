@@ -366,11 +366,11 @@ private:
 private:
     bool tryToEliminate(ValueOrMemoryObject val, Variable* variable, const ExprPtr& expr);
 
-    void insertOutputAssignments(CfaGenInfo& callee, std::vector<VariableAssignment>& outputArgs);
+    void insertOutputAssignments(const CfaGenInfo& callee, std::vector<VariableAssignment>& outputArgs);
     void insertPhiAssignments(const llvm::BasicBlock* source, const llvm::BasicBlock* target, std::vector<VariableAssignment>& phiAssignments);
 
     bool handleCall(const llvm::CallInst* call, Location** entry, Location* exit, std::vector<VariableAssignment>& previousAssignments);
-    void handleTerminator(const llvm::BasicBlock* bb, Location* entry, Location* exit);
+    void handleTerminator(const llvm::BasicBlock* bb, Location* exit);
 
     void handleSuccessor(
         const llvm::BasicBlock* succ,

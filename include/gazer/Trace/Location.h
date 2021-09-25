@@ -27,7 +27,7 @@ class LocationInfo
 {
 public:
     LocationInfo(unsigned line = 0, unsigned column = 0, std::string fileName = "")
-        : mLine(line), mColumn(column), mFileName(fileName)
+        : mLine(line), mColumn(column), mFileName(std::move(fileName))
     {}
 
     LocationInfo(const LocationInfo&) = default;
