@@ -89,10 +89,25 @@ function(require_llvm_libraries outVar)
 endfunction()
 
 # Get boost
-find_package(Boost 1.74 REQUIRED)
-include_directories(${Boost_INCLUDE_DIR})
+include(FetchContent)
 
-add_definitions(-DBOOST_NO_RTTI -DBOOST_EXCEPTION_DISABLE -DBOOST_NO_EXCEPTIONS)
+FetchContent_Declare(
+    Boost
+    URL https://boostorg.jfrog.io/artifactory/main/release/1.76.0/source/boost_1_76_0.tar.bz2
+    URL_HASH SHA256=f0397ba6e982c4450f27bf32a2a83292aba035b827a5623a14636ea583318c41
+)
+FetchContent_GetProperties(Boost)
+
+if(NOT Boost_POPULATED)
+    message(STATUS "Fetching Boost")
+    FetchContent_Populate(Boost)
+    message(STATUS "Fetching Boost - done")
+endif()
+
+message("Boost include directories are ${boost_SOURCE_DIR}")
+add_definitions(-DBOOST_NO_RTTI -DBOOST_EXCEPTION_DISABLE -DBOOST_NO_EXCEPTIONS -DBOOST_NO_IOSTREAM)
+include_directories(${boost_SOURCE_DIR})
+
 
 # Project directories
 set(GAZER_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/include")

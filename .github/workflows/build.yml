@@ -13,7 +13,7 @@ jobs:
       run: sudo apt-get install build-essential cmake wget lsb-release software-properties-common zlib1g-dev openjdk-11-jre python3 python3-pip python3-setuptools python3-psutil
     - name: Set up some more dependencies
       run: |
-        sudo apt-get install -y clang-9 llvm-9-dev llvm-9-tools llvm-9-runtime libboost-all-dev
+        sudo apt-get install -y clang-9 llvm-9-dev llvm-9-tools llvm-9-runtime
         sudo ln -sf /usr/bin/clang-9 /usr/bin/clang
         sudo ln -s `which opt-9` /usr/bin/opt -f
         sudo ln -s `which FileCheck-9` /usr/bin/FileCheck

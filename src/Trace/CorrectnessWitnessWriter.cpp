@@ -18,9 +18,9 @@
 
 #include "gazer/Core/LiteralExpr.h"
 #include "gazer/Trace/WitnessWriter.h"
-#include <llvm/ADT/SmallString.h>
 
-#include <fstream>
+#include <sstream>
+#include <iomanip>
 #include <ctime>
 
 using namespace gazer;

@@ -1,6 +1,4 @@
 # Fetch Z3
-include(FetchContent)
-
 set(Z3_DOWNLOAD_DIR "${CMAKE_CURRENT_BINARY_DIR}/vendor/z3_download")
 
 FetchContent_Declare(
