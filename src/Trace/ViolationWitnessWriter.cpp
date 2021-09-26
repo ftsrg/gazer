@@ -20,9 +20,8 @@
 #include "gazer/Trace/WitnessWriter.h"
 #include <llvm/ADT/SmallString.h>
 
-#include <sstream>
-#include <iomanip>
-#include <time.h>
+#include <llvm/Support/FormatVariadic.h>
+#include <llvm/Support/Chrono.h>
 
 using namespace gazer;
 
@@ -69,8 +68,12 @@ std::string ViolationWitnessWriter::SourceFileName{};
 
 void ViolationWitnessWriter::createNode(bool violation) {
     mOS << "\n<node id=\"N" << mNodeCounter << "\">\n";
-    if(mNodeCounter == 0) mOS << "\t<data key=\"entry\">true</data>\n";
-    if(violation) mOS << "\t<data key=\"violation\">true</data>\n";
+    if (mNodeCounter == 0) {
+        mOS << "\t<data key=\"entry\">true</data>\n";
+    }
+    if (violation){
+        mOS << "\t<data key=\"violation\">true</data>\n";
+    }
     mOS << "</node>\n";
     mNodeCounter++;
 }
@@ -97,18 +100,15 @@ void ViolationWitnessWriter::writeLocation(gazer::LocationInfo location) {
 
 void ViolationWitnessWriter::initializeWitness() {
     mNodeCounter = 0;
-    time_t rawtime;
-    struct tm * ptm;
-    time ( &rawtime );
-    ptm = gmtime( &rawtime ); // UTC timestamp
-    std::stringstream timestamp;
-    timestamp << std::put_time(ptm, "%FT%T");
+
+    using namespace std::chrono;
+    llvm::sys::TimePoint<seconds> timestamp = time_point_cast<seconds>(system_clock::now());
 
     mOS << schema;
     mOS << keys;
     mOS << graph_data;
     mOS << "<data key=\"programhash\">" << mHash << "</data>\n";
-    mOS << "<data key=\"creationtime\">" << timestamp.str() << "</data>\n";
+    mOS << "<data key=\"creationtime\">" << llvm::formatv("{0:%FT%T}", timestamp) << "</data>\n";
     mOS << "<data key=\"programfile\">" << SourceFileName << "</data>\n";
     createNode(); // entry node
     mInProgress = true;
@@ -164,7 +164,7 @@ void ViolationWitnessWriter::visit(FunctionCallEvent& event)
         mOS << ";</data>\n";
         mOS << "\t<data key=\"assumption.resultfunction\">" << event.getFunctionName() << "</data>\n";
         closeEdge();
-    } else if (!retexpr->getKind() == Expr::Undef) {
+    } else if (retexpr->getKind() != Expr::Undef) {
         createNode();
         openEdge();
         writeLocation(event.getLocation());

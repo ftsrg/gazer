@@ -33,7 +33,7 @@ public:
     enum Status { Success, Fail, Timeout, Unknown, BoundReached, InternalError };
 protected:
     explicit VerificationResult(Status status, std::string message = "")
-        : mStatus(status), mMessage(message)
+        : mStatus(status), mMessage(std::move(message))
     {}
 
 public:

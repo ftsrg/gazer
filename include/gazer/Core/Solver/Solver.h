@@ -51,7 +51,7 @@ public:
         addConstraint(expr);
     }
 
-    unsigned getNumConstraints() const
+    size_t getNumConstraints() const
     {
         return mExprStack.size();
     }
@@ -95,7 +95,7 @@ protected:
     GazerContext& mContext;
 private:
     std::vector<ExprPtr> mExprStack;
-    std::vector<unsigned> mScopes;
+    std::vector<size_t> mScopes;
 };
 
 /// Base factory class for all solvers, used to create new Solver instances.

@@ -221,9 +221,7 @@ llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Expr& expr);
 class AtomicExpr : public Expr
 {
 protected:
-    AtomicExpr(Expr::ExprKind kind, Type& type)
-        : Expr(kind, type)
-    {}
+    using Expr::Expr;
 public:
     static bool classof(const Expr* expr) {
         return expr->getKind() >= FirstAtomic && expr->getKind() <= LastAtomic;
@@ -307,7 +305,6 @@ public:
     size_t getNumOperands() const { return mOperands.size(); }
     ExprPtr getOperand(size_t idx) const { return mOperands[idx]; }
 
-public:
     static bool classof(const Expr* expr) {
         return expr->getKind() >= FirstUnary;
     }
