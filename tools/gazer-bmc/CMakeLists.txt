@@ -1,5 +1,3 @@
-add_subdirectory(Verifier)
-
 set(SOURCE_FILES
     gazer-bmc.cpp
 )
