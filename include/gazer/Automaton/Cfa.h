@@ -233,7 +233,7 @@ public:
     size_t getNumErrors() const { return mErrorFieldExprs.size(); }
 
     // Variable iterators
-    using var_iterator = boost::indirect_iterator<std::vector<Variable*>::iterator>;
+    using var_iterator = std::vector<Variable*>::iterator;
 
     llvm::iterator_range<var_iterator> inputs() {
         return llvm::make_range(mInputs.begin(), mInputs.end());
@@ -243,6 +243,12 @@ public:
     }
     llvm::iterator_range<var_iterator> locals() {
         return llvm::make_range(mLocals.begin(), mLocals.end());
+    }
+
+    /// Returns both inputs and locals. Note that all output variables are either inputs or locals,
+    /// so they will also be included in the iterator result.
+    decltype(auto) variables() {
+        return llvm::concat<Variable*>(inputs(), outputs());
     }
 
     // Others

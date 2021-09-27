@@ -43,41 +43,41 @@ CfaInlineResult gazer::InlineCall(
     CfaInlineResult result;
 
     // Clone local variables into the caller
-    for (Variable& local : callee->locals()) {
-        if (!callee->isOutput(&local)) {
-            auto varname = local.getName() + suffix;
-            auto* newLocal = target->createLocal(varname, local.getType());
-            result.oldVarToNew[&local] = newLocal;
-            result.inlinedVariables[newLocal] = &local;
-            rewrite[&local] = newLocal->getRefExpr();
+    for (Variable* local : callee->locals()) {
+        if (!callee->isOutput(local)) {
+            auto varname = local->getName() + suffix;
+            auto* newLocal = target->createLocal(varname, local->getType());
+            result.oldVarToNew[local] = newLocal;
+            result.inlinedVariables[newLocal] = local;
+            rewrite[local] = newLocal->getRefExpr();
         }
     }
 
     // Clone input variables as well; we will insert an assign transition
     // with the initial values later.
     std::vector<Variable*> inputTemporaries;
-    for (Variable& input : callee->inputs()) {
-        if (!callee->isOutput(&input)) {
-            auto varname = input.getName() + suffix;
-            auto* newInput = target->createLocal(varname, input.getType());
-            result.oldVarToNew[&input] = newInput;
-            result.inlinedVariables[newInput] = &input;
+    for (Variable* input : callee->inputs()) {
+        if (!callee->isOutput(input)) {
+            auto varname = input->getName() + suffix;
+            auto* newInput = target->createLocal(varname, input->getType());
+            result.oldVarToNew[input] = newInput;
+            result.inlinedVariables[newInput] = input;
             //rewrite[input] = call->getInputArgument(i);
-            rewrite[&input] = newInput->getRefExpr();
+            rewrite[input] = newInput->getRefExpr();
 
-            auto* val = target->createLocal(varname+"_", input.getType());
+            auto* val = target->createLocal(varname+"_", input->getType());
             inputTemporaries.emplace_back(val);
         }
     }
 
-    for (Variable& output : callee->outputs()) {
-        auto argument = call->getOutputArgument(output);
+    for (Variable* output : callee->outputs()) {
+        auto argument = call->getOutputArgument(*output);
         assert(argument.has_value() && "Every callee output should be assigned in a call transition!");
 
         auto* newOutput = argument->getVariable();
-        result.oldVarToNew[&output] = newOutput;
-        result.inlinedVariables[newOutput] = &output;
-        rewrite[&output] = newOutput->getRefExpr();
+        result.oldVarToNew[output] = newOutput;
+        result.inlinedVariables[newOutput] = output;
+        rewrite[output] = newOutput->getRefExpr();
     }
 
     // Insert all locations

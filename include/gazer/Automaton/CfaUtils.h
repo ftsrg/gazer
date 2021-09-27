@@ -117,6 +117,10 @@ Location* findHighestCommonPostDominator(
     Location* start
 );
 
+/// Replaces all of the callee's variables in \p expr with the actual call site arguments found in \p call.
+ExprPtr applyCallTransitionCallingContext(CallTransition *call, const ExprPtr &expr, ExprBuilder& exprBuilder);
+
 } // namespace gazer
+
 
 #endif

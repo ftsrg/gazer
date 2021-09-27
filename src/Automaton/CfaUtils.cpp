@@ -377,3 +377,19 @@ Location* gazer::findHighestCommonPostDominator(
 
     return topo[startIdx - commonDominatorIndex];
 }
+
+// Call contexts
+//==------------------------------------------------------------------------==//
+ExprPtr gazer::applyCallTransitionCallingContext(CallTransition *call, const ExprPtr &expr, ExprBuilder& exprBuilder)
+{
+    VariableExprRewrite variableExprRewrite(exprBuilder);
+    for (const VariableAssignment& input : call->inputs()) {
+        variableExprRewrite[input.getVariable()] = input.getValue();
+    }
+    for (const VariableAssignment& output : call->outputs()) {
+        variableExprRewrite[llvm::cast<VarRefExpr>(output.getValue())] = output.getVariable()->getRefExpr();
+    }
+
+    return variableExprRewrite.rewrite(expr);
+}
+

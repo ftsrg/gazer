@@ -232,20 +232,20 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
     };
 
     // Add variables
-    for (auto& variable : main->locals()) {
-        auto name = validName(variable.getName(), isValidVarName);
-        auto type = typeName(variable.getType());
+    for (auto* variable : main->locals()) {
+        auto name = validName(variable->getName(), isValidVarName);
+        auto type = typeName(variable->getType());
         
-        nameTrace.variables[name] = &variable;
-        vars.try_emplace(&variable, std::make_unique<ThetaVarDecl>(name, type));
+        nameTrace.variables[name] = variable;
+        vars.try_emplace(variable, std::make_unique<ThetaVarDecl>(name, type));
     }
 
-    for (auto& variable : main->inputs()) {
-        auto name = validName(variable.getName(), isValidVarName);
-        auto type = typeName(variable.getType());
+    for (auto* variable : main->inputs()) {
+        auto name = validName(variable->getName(), isValidVarName);
+        auto type = typeName(variable->getType());
 
-        nameTrace.variables[name] = &variable;
-        vars.try_emplace(&variable, std::make_unique<ThetaVarDecl>(name, type));
+        nameTrace.variables[name] = variable;
+        vars.try_emplace(variable, std::make_unique<ThetaVarDecl>(name, type));
     }
 
     // Add locations
@@ -306,9 +306,9 @@ void ThetaCfaGenerator::write(llvm::raw_ostream& os, ThetaNameMapping& nameTrace
 
     os << "main process __gazer_main_process {\n";
     
-    for (auto& variable : llvm::concat<Variable>(main->inputs(), main->locals())) {
+    for (auto* variable : main->variables()) {
         os << INDENT;
-        vars[&variable]->print(os);
+        vars[variable]->print(os);
         os << "\n";
     }
 

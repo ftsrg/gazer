@@ -43,9 +43,9 @@ CfaCloneResult gazer::CloneCfa(Cfa& cfa, const std::string& nameSuffix)
     locToLocMap[cfa.getEntry()] = newCfa->getEntry();
     locToLocMap[cfa.getExit()] = newCfa->getExit();
 
-    for (Variable& variable : cfa.locals()) {
-        Variable* newVar = newCfa->createLocal(variable.getName(), variable.getType());
-        variablesMap[&variable] = newVar;
+    for (Variable* variable : cfa.locals()) {
+        Variable* newVar = newCfa->createLocal(variable->getName(), variable->getType());
+        variablesMap[variable] = newVar;
     }
 
     // Add inputs and outputs - order matters here.
