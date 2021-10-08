@@ -1,5 +1,5 @@
 // REQUIRES: memory.burstall
-// RUN: %theta "%s" | FileCheck "%s"
+// RUN: %theta --domain PRED_CART --refinement NWT_IT_WP "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED
 int __VERIFIER_nondet_int(void);
@@ -13,7 +13,7 @@ int main(void)
         x[i] = i;
     }
 
-    if (x[0] != 0) {
+    if (x[0] == 0) {
         __VERIFIER_error();
     }
 

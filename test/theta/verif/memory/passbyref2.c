@@ -1,5 +1,5 @@
 // REQUIRES: memory.burstall
-// RUN: %theta "%s" | FileCheck "%s"
+// RUN: %theta --domain PRED_CART --refinement NWT_IT_WP "%s" | FileCheck "%s"
 
 // CHECK: Verification SUCCESSFUL
 

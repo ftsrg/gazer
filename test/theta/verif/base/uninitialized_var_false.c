@@ -1,5 +1,6 @@
-// RUN: %theta -no-optimize -memory=havoc "%s" | FileCheck "%s"
-// RUN: %theta -memory=havoc "%s"  | FileCheck "%s"
+// RUN: %theta -no-optimize -memory=havoc "%s" -math-int | FileCheck "%s"
+// RUN: %theta -memory=havoc "%s" -math-int  | FileCheck "%s"
+// RUN: %theta --domain EXPL --refinement UNSAT_CORE "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED
 

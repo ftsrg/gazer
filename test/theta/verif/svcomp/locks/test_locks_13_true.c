@@ -1,4 +1,5 @@
-// RUN: %theta -memory=havoc "%s" | FileCheck "%s"
+// RUN: %theta -memory=havoc -math-int "%s" | FileCheck "%s"
+// RUN: %theta --domain EXPL --refinement UNSAT_CORE "%s" | FileCheck "%s"
 
 // CHECK: Verification SUCCESSFUL
 extern void __VERIFIER_error() __attribute__ ((__noreturn__));

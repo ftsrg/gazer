@@ -1,5 +1,5 @@
 // REQUIRES: memory.burstall
-// RUN: %theta "%s" | FileCheck "%s"
+// RUN: %theta --domain PRED_CART --refinement NWT_IT_WP "%s" | FileCheck "%s"
 
 // CHECK: Verification FAILED
 
@@ -20,7 +20,7 @@ int main(void)
     int prod;
     sumprod(a, b, &prod, &prod);
 
-    if (prod != 25) {
+    if (prod == 25) {
         __VERIFIER_error();
     }
 

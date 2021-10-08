@@ -1,4 +1,6 @@
-// RUN: %theta -memory=havoc "%s" | FileCheck "%s"
+// RUN: %theta -memory=havoc -math-int "%s" | FileCheck "%s"
+// RUN: %theta --domain EXPL --refinement UNSAT_CORE "%s" | FileCheck "%s"
+
 
 // CHECK: Verification SUCCESSFUL
 extern int __VERIFIER_nondet_int(void);

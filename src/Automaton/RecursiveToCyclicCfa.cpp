@@ -42,15 +42,16 @@ public:
     RecursiveToCyclicResult transform();
 
 private:
-    void addUniqueErrorLocation();
     void inlineCallIntoRoot(CallTransition* call, llvm::Twine suffix);
+    void createErrorTransition(Location* from, ExprPtr errorFieldExpr);
+    void createDummyErrorTransition();
 
 private:
     Cfa* mRoot;
     CallGraph mCallGraph;
     llvm::SmallVector<CallTransition*, 8> mTailRecursiveCalls;
-    Location* mError;
-    Variable* mErrorFieldVariable;;
+    Location* mError = nullptr;
+    Variable* mErrorFieldVariable = nullptr;
     llvm::DenseMap<Location*, Location*> mInlinedLocations;
     llvm::DenseMap<Variable*, Variable*> mInlinedVariables;
     std::unique_ptr<ExprBuilder> mExprBuilder;
@@ -61,8 +62,16 @@ private:
 
 RecursiveToCyclicResult RecursiveToCyclicTransformer::transform()
 {
-    this->addUniqueErrorLocation();
+    mError = mRoot->createErrorLocation();
 
+    // Connect error location
+    for (Location* loc : mRoot->nodes()) {
+        if (loc->isError() && loc != mError) {
+            this->createErrorTransition(loc, mRoot->getErrorFieldExpr(loc));
+        }
+    }
+
+    // Collect tail-recursive calls
     for (Transition* edge : mRoot->edges()) {
         if (auto call = llvm::dyn_cast<CallTransition>(edge)) {
             if (mCallGraph.isTailRecursive(call->getCalledAutomaton())) {
@@ -78,6 +87,12 @@ RecursiveToCyclicResult RecursiveToCyclicTransformer::transform()
 
         this->inlineCallIntoRoot(call, "_inlined" + llvm::Twine(mInlineCnt++));
     }
+
+    if(mErrorFieldVariable == nullptr) {
+        // If there are no error locations, create one to use as goal
+        this->createDummyErrorTransition();
+    }
+
     mRoot->clearDisconnectedElements();
 
     // Calculate the new call graph and remove unneeded automata.
@@ -145,9 +160,7 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
         locToLocMap[&*origLoc] = newLoc;
         mInlinedLocations[newLoc] = origLoc;
         if (origLoc->isError()) {
-            mRoot->createAssignTransition(newLoc, mError, mExprBuilder->True(), {
-                { mErrorFieldVariable, callee->getErrorFieldExpr(origLoc) }
-            });
+            this->createErrorTransition(newLoc, callee->getErrorFieldExpr(origLoc));
         }
     }
 
@@ -279,39 +292,33 @@ void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm
     mRoot->disconnectEdge(call);
 }
 
-void RecursiveToCyclicTransformer::addUniqueErrorLocation()
+void RecursiveToCyclicTransformer::createErrorTransition(Location *from, ExprPtr errorFieldExpr)
 {
+    assert(mError != nullptr);
+    assert(mErrorFieldVariable == nullptr || mErrorFieldVariable->getType() == errorFieldExpr->getType());
+
+    if(mErrorFieldVariable == nullptr) {
+        mErrorFieldVariable = mRoot->createLocal("__gazer_error_field", errorFieldExpr->getType());
+    }
+
+    mRoot->createAssignTransition(from, mError, BoolLiteralExpr::True(mRoot->getParent().getContext()), {
+        VariableAssignment { mErrorFieldVariable, errorFieldExpr }
+    });
+}
+
+void RecursiveToCyclicTransformer::createDummyErrorTransition()
+{
+    assert(mError != nullptr);
+    assert(mErrorFieldVariable == nullptr);
+
     auto& intTy = IntType::Get(mRoot->getParent().getContext());
     auto& ctx = mRoot->getParent().getContext();
 
-    llvm::SmallVector<Location*, 1> errors;
-    for (Location* loc : mRoot->nodes()) {
-        if (loc->isError()) {
-            errors.push_back(loc);
-        }
-    }
-    
-    mError = mRoot->createErrorLocation();
+    // A dummy error location will be used as a goal as there are no error locations in the automaton
     mErrorFieldVariable = mRoot->createLocal("__gazer_error_field", intTy);
-
-    if (errors.empty()) {
-        // If there are no error locations in the main automaton, they might still exist in a called CFA.
-        // A dummy error location will be used as a goal.
-        mRoot->createAssignTransition(mRoot->getEntry(), mError, BoolLiteralExpr::False(ctx), {
-            VariableAssignment{ mErrorFieldVariable, IntLiteralExpr::Get(intTy, 0) }
-        });        
-    } else {
-        // The error location will be directly reachable from already existing error locations.
-        for (Location* err : errors) {
-            auto errorExpr = mRoot->getErrorFieldExpr(err);
-
-            assert(errorExpr->getType().isIntType() && "Error expression must be arithmetic integers in the theta backend!");
-
-            mRoot->createAssignTransition(err, mError, BoolLiteralExpr::True(ctx), {
-                VariableAssignment { mErrorFieldVariable, errorExpr }
-            });
-        }
-    }
+    mRoot->createAssignTransition(mRoot->getEntry(), mError, BoolLiteralExpr::False(ctx), {
+        VariableAssignment{ mErrorFieldVariable, IntLiteralExpr::Get(intTy, 0) }
+    });
 }
 
 RecursiveToCyclicResult gazer::TransformRecursiveToCyclic(Cfa* cfa)

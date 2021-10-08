@@ -1,4 +1,4 @@
-// RUN: %theta -model-only "%s" -o "%t"
+// RUN: %theta -model-only -math-int "%s" -o "%t"
 // RUN: cat "%t" | /usr/bin/diff -B -Z "%p/Expected/counter.theta" -
 #include <assert.h>
 

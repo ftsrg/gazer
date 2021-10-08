@@ -1,4 +1,4 @@
-// RUN: %theta "%s" | FileCheck "%s"
+// RUN: %theta --domain PRED_CART --refinement NWT_IT_WP -no-inline-globals "%s" | FileCheck "%s"
 
 // CHECK: Verification SUCCESSFUL
 int __VERIFIER_nondet_int(void);
