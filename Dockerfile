@@ -1,5 +1,7 @@
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 
+ARG DEBIAN_FRONTEND=noninteractive
+ENV TZ=Europe/Budapest
 ENV THETA_VERSION v2.10.0
 
 RUN apt-get update && \
@@ -10,11 +12,10 @@ RUN apt-get update && \
 
 # fetch LLVM and other dependencies
 RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
-    add-apt-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main" && \
+    add-apt-repository "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-12 main" && \
     apt-get update && \
-    add-apt-repository ppa:mhier/libboost-latest && \
     apt-get update && \
-    apt-get install -y clang-9 llvm-9-dev llvm-9-tools llvm-9-runtime libboost1.70-dev perl libyaml-tiny-perl
+    apt-get install -y clang-12 llvm-12-dev llvm-12-tools llvm-12-runtime perl libyaml-tiny-perl
 
 # create a new user `user` with the password `user` and sudo rights
 RUN useradd -m user && \
@@ -24,7 +25,7 @@ RUN useradd -m user && \
     
 # (the portfolio uses clang)
 RUN ln -sf /usr/bin/clang-9 /usr/bin/clang
-    
+
 USER user
 
 ENV GAZER_DIR /home/user/gazer
@@ -32,7 +33,7 @@ ENV GAZER_DIR /home/user/gazer
 ADD --chown=user:user . $GAZER_DIR
 
 WORKDIR $GAZER_DIR
-RUN cmake -DCMAKE_CXX_COMPILER=clang++-9 -DGAZER_ENABLE_UNIT_TESTS=On -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=On . && make
+RUN cmake -DCMAKE_CXX_COMPILER=clang++-12 -DGAZER_ENABLE_UNIT_TESTS=On -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=On . && make
 
 # download theta (and libs)
 RUN mkdir $GAZER_DIR/tools/gazer-theta/theta && \

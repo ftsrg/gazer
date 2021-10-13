@@ -21,7 +21,9 @@ jobs:
     - name: Set up portfolio dependencies
       run: sudo apt-get install perl libyaml-tiny-perl libproc-processtable-perl
     - name: Build
-      run: cmake -DCMAKE_CXX_COMPILER=clang++-9 -DGAZER_ENABLE_UNIT_TESTS=On -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=On . && make
+      run: |
+        cmake -B build -DCMAKE_CXX_COMPILER=clang++-9 -DGAZER_ENABLE_UNIT_TESTS=On -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=On
+        cmake --build build/ -j2
     - name: Get Theta
       run: |
         mkdir tools/gazer-theta/theta
@@ -32,6 +34,6 @@ jobs:
       env:
         THETA_VERSION: v2.10.0
     - name: Run unit tests
-      run: make check-unit
+      run: cmake --build build --target check-unit
     - name: Run functional tests
-      run: make check-functional
+      run: cmake --build build --target check-functional

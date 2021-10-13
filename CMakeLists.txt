@@ -43,7 +43,8 @@ if(GAZER_ENABLE_SANITIZER)
     endif()
 endif()
 
-# Coverage
+## Coverage
+################################################################################
 option(GAZER_ENABLE_COVERAGE "Enable code coverage" OFF)
 if (GAZER_ENABLE_COVERAGE)
     if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
