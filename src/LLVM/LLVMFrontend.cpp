@@ -25,7 +25,6 @@
 #include "gazer/Trace/TraceWriter.h"
 #include "gazer/LLVM/Trace/TestHarnessGenerator.h"
 #include "gazer/Trace/WitnessWriter.h"
-#include "gazer/LLVM/Transform/BackwardSlicer.h"
 #include "gazer/Support/Warnings.h"
 
 #include <llvm/Analysis/ScopedNoAliasAA.h>
@@ -41,6 +40,7 @@
 #include <llvm/Transforms/Utils/UnifyFunctionExitNodes.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/InitializePasses.h>
+#include <llvm/Analysis/CallGraph.h>
 
 #include <llvm/IR/IRPrintingPasses.h>
 #include <llvm/Analysis/CFGPrinter.h>
@@ -90,7 +90,7 @@ namespace
             au.setPreservesCFG();
         }
 
-        bool runOnModule(llvm::Module& module) override;
+        bool runOnModule(llvm::Module& llvmModule) override;
 
         llvm::StringRef getPassName() const override {
             return "Verification backend pass";
@@ -108,11 +108,11 @@ namespace
 char RunVerificationBackendPass::ID;
 
 LLVMFrontend::LLVMFrontend(
-    std::unique_ptr<llvm::Module> module,
+    std::unique_ptr<llvm::Module> llvmModule,
     GazerContext& context,
     LLVMFrontendSettings& settings)
     : mContext(context),
-    mModule(std::move(module)),
+    mModule(std::move(llvmModule)),
     mChecks(mModule->getContext()),
     mSettings(settings)
 {
@@ -149,7 +149,6 @@ void LLVMFrontend::registerVerificationPipeline()
     mPassManager.add(gazer::createPromoteUndefsPass());
 
     // Perform check instrumentation.
-    mPassManager.add(gazer::createNormalizeVerifierCallsPass());
     registerEnabledChecks();
 
     // Execute early optimization passes.
@@ -210,7 +209,7 @@ void LLVMFrontend::registerVerificationStep()
     }
 }
 
-bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
+bool RunVerificationBackendPass::runOnModule(llvm::Module& llvmModule)
 {
     auto& moduleToCfa = getAnalysis<ModuleToAutomataPass>();
 
@@ -259,9 +258,9 @@ bool RunVerificationBackendPass::runOnModule(llvm::Module& module)
             if (!mSettings.testHarnessFile.empty() && fail->hasTrace()) {
                 llvm::outs() << "Generating test harness.\n";
                 auto test = GenerateTestHarnessModuleFromTrace(
-                    fail->getTrace(), 
-                    module.getContext(),
-                    module
+                    fail->getTrace(),
+                    llvmModule.getContext(),
+                    llvmModule
                 );
 
                 llvm::StringRef filename(mSettings.testHarnessFile);

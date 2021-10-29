@@ -56,18 +56,18 @@ auto FrontendConfig::buildFrontend(
     std::vector<std::unique_ptr<Check>> checks;
     createChecks(checks);
 
-    auto module = ClangCompileAndLink(inputs, llvmContext, mClangSettings);
-    if (module == nullptr) {
-        llvm::errs() << "Failed to build input module.\n";
+    auto llvmModule = ClangCompileAndLink(inputs, llvmContext, mClangSettings);
+    if (llvmModule == nullptr) {
+        llvm::errs() << "Failed to build input llvmModule.\n";
         return nullptr;
     }
 
-    if (!mSettings.validate(*module, llvm::errs())) {
-        llvm::errs() << "Settings could not be applied to the input module.\n";
+    if (!mSettings.validate(*llvmModule, llvm::errs())) {
+        llvm::errs() << "Settings could not be applied to the input llvmModule.\n";
         return nullptr;
     }
 
-    auto frontend = std::make_unique<LLVMFrontend>(std::move(module), context, mSettings);
+    auto frontend = std::make_unique<LLVMFrontend>(std::move(llvmModule), context, mSettings);
 
     // The Witness generator has to get the initial name of the sourcefile
     // ( witnesses support programs with a single source file only )
@@ -110,7 +110,7 @@ void FrontendConfig::createChecks(std::vector<std::unique_ptr<Check>>& checks)
     }
 
     for (llvm::StringRef name : fragments) {
-        auto it = mFactories.find(name);
+        auto it = mFactories.find(name.str());
         if (it == mFactories.end()) {
             emit_warning("unknown check '%s', parameter ignored", name.data());
             continue;

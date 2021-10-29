@@ -93,7 +93,7 @@ public:
     }
 
     void handleCall(
-        llvm::CallSite call,
+        const llvm::CallBase* call,
         llvm2cfa::GenerationStepExtensionPoint& callerEp,
         llvm2cfa::AutomatonInterfaceExtensionPoint& calleeEp,
         llvm::SmallVectorImpl<VariableAssignment>& inputAssignments,
@@ -106,7 +106,6 @@ public:
 private:
     gazer::Type& ptrType() const { return BoolType::Get(mContext); }
     ExprPtr ptrValue() const { return UndefExpr::Get(this->ptrType()); }
-
 };
 
 } // namespace

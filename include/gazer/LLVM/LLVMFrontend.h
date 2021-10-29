@@ -26,6 +26,7 @@
 #include <llvm/Pass.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Support/ToolOutputFile.h>
+#include <llvm/Support/ManagedStatic.h>
 
 namespace gazer
 {
@@ -80,7 +81,7 @@ class FrontendConfigWrapper
 {
 public:
     static void PrintVersion(llvm::raw_ostream& os);
-public:
+
     FrontendConfigWrapper() = default;
 
     std::unique_ptr<LLVMFrontend> buildFrontend(llvm::ArrayRef<std::string> inputs)
@@ -102,7 +103,7 @@ class LLVMFrontend
 {
 public:
     LLVMFrontend(
-        std::unique_ptr<llvm::Module> module,
+        std::unique_ptr<llvm::Module> llvmModule,
         GazerContext& context,
         LLVMFrontendSettings& settings
     );

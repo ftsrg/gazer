@@ -40,8 +40,6 @@
 namespace gazer
 {
 
-extern llvm::cl::opt<bool> PrintTrace;
-
 namespace llvm2cfa
 {
 
@@ -278,7 +276,7 @@ public:
     static constexpr char LoopOutputSelectorName[] = "__output_selector";
 
     ModuleToCfa(
-        llvm::Module& module,
+        llvm::Module& llvmModule,
         LoopInfoFuncTy loops,
         GazerContext& context,
         MemoryModel& memoryModel,
@@ -331,7 +329,7 @@ protected:
             mBlocksToCfa(blocksToCfa), mAssigns(assigns), mEntry(entry), mExit(exit)
         {}
 
-        ExprPtr getAsOperand(ValueOrMemoryObject val) override;
+        ExprPtr getAsOperand(ValueOrMemoryObject val, Type* type) override;
         bool tryToEliminate(ValueOrMemoryObject val, Variable* variable, const ExprPtr& expr) override;
         void insertAssignment(Variable* variable, const ExprPtr& value) override;
 
@@ -368,11 +366,11 @@ private:
 private:
     bool tryToEliminate(ValueOrMemoryObject val, Variable* variable, const ExprPtr& expr);
 
-    void insertOutputAssignments(CfaGenInfo& callee, std::vector<VariableAssignment>& outputArgs);
+    void insertOutputAssignments(const CfaGenInfo& callee, std::vector<VariableAssignment>& outputArgs);
     void insertPhiAssignments(const llvm::BasicBlock* source, const llvm::BasicBlock* target, std::vector<VariableAssignment>& phiAssignments);
 
     bool handleCall(const llvm::CallInst* call, Location** entry, Location* exit, std::vector<VariableAssignment>& previousAssignments);
-    void handleTerminator(const llvm::BasicBlock* bb, Location* entry, Location* exit);
+    void handleTerminator(const llvm::BasicBlock* bb, Location* exit);
 
     void handleSuccessor(
         const llvm::BasicBlock* succ,

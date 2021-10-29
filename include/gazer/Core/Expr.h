@@ -191,7 +191,7 @@ protected:
     Type& mType;
 
 private:
-    mutable unsigned mRefCount;
+    mutable unsigned mRefCount = 0;
     Expr* mNextPtr = nullptr;
     mutable size_t mHashCode = 0;
 };
@@ -221,9 +221,7 @@ llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Expr& expr);
 class AtomicExpr : public Expr
 {
 protected:
-    AtomicExpr(Expr::ExprKind kind, Type& type)
-        : Expr(kind, type)
-    {}
+    using Expr::Expr;
 public:
     static bool classof(const Expr* expr) {
         return expr->getKind() >= FirstAtomic && expr->getKind() <= LastAtomic;
@@ -248,6 +246,7 @@ public:
     }
 };
 
+/// Represents a reference to a named (or unnamed) variable.
 class VarRefExpr final : public Expr
 {
     friend class Variable;
@@ -306,7 +305,6 @@ public:
     size_t getNumOperands() const { return mOperands.size(); }
     ExprPtr getOperand(size_t idx) const { return mOperands[idx]; }
 
-public:
     static bool classof(const Expr* expr) {
         return expr->getKind() >= FirstUnary;
     }
@@ -326,13 +324,13 @@ namespace llvm
 
 template<class T>
 struct simplify_type<gazer::ExprRef<T>> {
-    typedef T* SimpleType;
+    using SimpleType = T*;
     static SimpleType getSimplifiedValue(gazer::ExprRef<T> &Val) { return Val.get(); }
 };
 
 template<class T>
 struct simplify_type<const gazer::ExprRef<T>> {
-    typedef T* SimpleType;
+    using SimpleType = T*;
     static SimpleType getSimplifiedValue(const gazer::ExprRef<T> &Val) { return Val.get(); }
 };
 

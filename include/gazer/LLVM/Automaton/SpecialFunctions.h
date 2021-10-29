@@ -29,7 +29,7 @@ namespace gazer
 class SpecialFunctionHandler
 {
 public:
-    using HandlerFuncTy = std::function<void(llvm::ImmutableCallSite, llvm2cfa::GenerationStepExtensionPoint& ep)>;
+    using HandlerFuncTy = std::function<void(const llvm::CallBase*, llvm2cfa::GenerationStepExtensionPoint& ep)>;
 
     enum MemoryBehavior
     {
@@ -39,12 +39,11 @@ public:
         Memory_DefinesAll      ///< Clobber and define all known memory objects.
     };
 
-public:
-    SpecialFunctionHandler(HandlerFuncTy function, MemoryBehavior memory = Memory_Default)
-        : mHandlerFunction(function), mMemory(memory)
+    explicit SpecialFunctionHandler(HandlerFuncTy function, MemoryBehavior memory = Memory_Default)
+        : mHandlerFunction(std::move(function)), mMemory(memory)
     {}
 
-    void operator()(llvm::ImmutableCallSite cs, llvm2cfa::GenerationStepExtensionPoint& ep) const
+    void operator()(const llvm::CallBase* cs, llvm2cfa::GenerationStepExtensionPoint& ep) const
     {
         return mHandlerFunction(cs, ep);
     }
@@ -58,19 +57,30 @@ class SpecialFunctions
 {
     static const SpecialFunctions EmptyInstance;
 public:
-    /// Returns an object with the default handlers
+    /// Returns a SpecialFunctions object with the default handlers
     static std::unique_ptr<SpecialFunctions> get();
+
+    /// Returns a handler without any registered handlers
     static const SpecialFunctions& empty() { return EmptyInstance; }
 
     void registerHandler(
-        llvm::StringRef name, SpecialFunctionHandler::HandlerFuncTy function,
+        llvm::StringRef name, const SpecialFunctionHandler::HandlerFuncTy& function,
         SpecialFunctionHandler::MemoryBehavior memory = SpecialFunctionHandler::Memory_Default);
 
-    bool handle(llvm::ImmutableCallSite cs, llvm2cfa::GenerationStepExtensionPoint& ep) const;
+    template<class Range>
+    void registerMultipleHandlers(
+        Range& names, const SpecialFunctionHandler::HandlerFuncTy& function,
+        SpecialFunctionHandler::MemoryBehavior memory = SpecialFunctionHandler::Memory_Default)
+    {
+        for (const auto& name : names) {
+            this->registerHandler(name, function, memory);
+        }
+    }
+
+    bool handle(const llvm::CallBase* cs, llvm2cfa::GenerationStepExtensionPoint& ep) const;
 
     // Some handlers for common cases
-public:
-    static void handleAssume(llvm::ImmutableCallSite cs, llvm2cfa::GenerationStepExtensionPoint& ep);
+    static void handleAssume(const llvm::CallBase* cs, llvm2cfa::GenerationStepExtensionPoint& ep);
 
 private:
     llvm::StringMap<SpecialFunctionHandler> mHandlers;

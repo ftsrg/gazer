@@ -45,7 +45,8 @@ protected:
         : mKind(kind), mType(type)
     {}
 
-protected:
+    // Fields
+    //===------------------------------------------------------------------===//
     const DeclKind mKind;
     Type& mType;
 };
@@ -81,7 +82,7 @@ private:
 class VariableAssignment final
 {
 public:
-    VariableAssignment();
+    VariableAssignment() = default;
     VariableAssignment(Variable *variable, ExprPtr value);
 
     bool operator==(const VariableAssignment& other) const;
@@ -93,8 +94,8 @@ public:
     void print(llvm::raw_ostream& os) const;
 
 private:
-    Variable* mVariable;
-    ExprPtr mValue;
+    Variable* mVariable = nullptr;
+    ExprPtr mValue = nullptr;
 };
 
 llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Variable& variable);

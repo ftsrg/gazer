@@ -1,0 +1,64 @@
+name: Run SonarCloud analysis
+
+on: ['push', 'pull_request']
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    env:
+      SONAR_SCANNER_VERSION: 4.6.1.2450
+      SONAR_SERVER_URL: "https://sonarcloud.io"
+      BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Update apt
+        run: sudo apt-get update
+      - name: Set up dependencies
+        run: sudo apt-get install build-essential cmake wget lsb-release software-properties-common zlib1g-dev openjdk-11-jre python3 python3-pip python3-setuptools python3-psutil
+      - name: Set up some more dependencies
+        run: |
+          sudo apt-get install -y clang-9 llvm-9-dev llvm-9-tools llvm-9-runtime
+          sudo ln -sf /usr/bin/clang-9 /usr/bin/clang
+          sudo ln -s `which opt-9` /usr/bin/opt -f
+      - name: Cache SonarCloud packages and analysis
+        uses: actions/cache@v1
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+      - name: Download and set up sonar-scanner
+        env:
+          SONAR_SCANNER_DOWNLOAD_URL: https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${{ env.SONAR_SCANNER_VERSION }}-linux.zip
+        run: |
+          mkdir -p $HOME/.sonar
+          curl -sSLo $HOME/.sonar/sonar-scanner.zip ${{ env.SONAR_SCANNER_DOWNLOAD_URL }}
+          unzip -o $HOME/.sonar/sonar-scanner.zip -d $HOME/.sonar/
+          echo "$HOME/.sonar/sonar-scanner-${{ env.SONAR_SCANNER_VERSION }}-linux/bin" >> $GITHUB_PATH
+      - name: Download and set up build-wrapper
+        env:
+          BUILD_WRAPPER_DOWNLOAD_URL: ${{ env.SONAR_SERVER_URL }}/static/cpp/build-wrapper-linux-x86.zip
+        run: |
+          curl -sSLo $HOME/.sonar/build-wrapper-linux-x86.zip ${{ env.BUILD_WRAPPER_DOWNLOAD_URL }}
+          unzip -o $HOME/.sonar/build-wrapper-linux-x86.zip -d $HOME/.sonar/
+          echo "$HOME/.sonar/build-wrapper-linux-x86" >> $GITHUB_PATH
+      - name: Build
+        run: |
+          mkdir build
+          cmake -B build -DCMAKE_CXX_COMPILER=clang++-9 -DGAZER_ENABLE_UNIT_TESTS=On -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=On -DGAZER_ENABLE_COVERAGE=On
+          build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} cmake --build build/
+      - name: Run unit tests
+        continue-on-error: true
+        run: |
+          cmake --build build --target check-unit
+      - name: Compile coverage reports
+        run: |
+          llvm-profdata-9 merge -sparse `find . -name "*.profraw"` -o coverage.profdata
+          llvm-cov-9 show -instr-profile=coverage.profdata  $(for f in $(find ./build/src -name "libGazer*.so"); do echo -object $f; done) > llvm_cov_report.txt
+      - name: Run sonar-scanner
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          sonar-scanner --define sonar.host.url="${{ env.SONAR_SERVER_URL }}" --define sonar.cfamily.build-wrapper-output="${{ env.BUILD_WRAPPER_OUT_DIR }}"

@@ -32,10 +32,11 @@
 #include <stdexcept>
 #include <iosfwd>
 
-namespace llvm {
+namespace llvm
+{
     struct fltSemantics;
     class raw_ostream;
-}
+} // namespace llvm
 
 namespace gazer
 {
@@ -116,7 +117,7 @@ llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Type& type);
 class BoolType final : public Type
 {
     friend class GazerContextImpl;
-protected:
+
     explicit BoolType(GazerContext& context)
         : Type(context, BoolTypeID)
     {}
@@ -131,7 +132,7 @@ public:
 class BvType final : public Type
 {
     friend class GazerContextImpl;
-protected:
+
     BvType(GazerContext& context, unsigned width)
         : Type(context, BvTypeID), mWidth(width)
     {}
@@ -155,7 +156,7 @@ private:
 class IntType final : public Type
 {
     friend class GazerContextImpl;
-protected:
+
     explicit IntType(GazerContext& context)
         : Type(context, IntTypeID)
     {}
@@ -169,13 +170,12 @@ public:
     static bool classof(const Type& type) {
         return type.getTypeID() == IntTypeID;
     }
-private:
 };
 
 class RealType final : public Type
 {
     friend class GazerContextImpl;
-protected:
+
     explicit RealType(GazerContext& context)
         : Type(context, RealTypeID)
     {}
@@ -214,7 +214,7 @@ public:
     static constexpr unsigned ExponentBitsInDoubleTy = 11;
     static constexpr unsigned ExponentBitsInQuadTy   = 15;
 
-protected:
+private:
     FloatType(GazerContext& context, FloatPrecision precision)
         : Type(context, FloatTypeID), mPrecision(precision)
     {}
@@ -256,8 +256,17 @@ public:
         return *mSubTypes[idx];
     }
 
+    size_t getNumSubtypes() const
+    {
+        return mSubTypes.size();
+    }
+
+    using subtype_iterator = boost::indirect_iterator<std::vector<Type*>::const_iterator>;
+    subtype_iterator subtype_begin() const { return boost::make_indirect_iterator(mSubTypes.begin()); }
+    subtype_iterator subtype_end() const { return boost::make_indirect_iterator(mSubTypes.end()); }
+
 protected:
-    std::vector<Type*> mSubTypes;
+    const std::vector<Type*> mSubTypes;
 };
 
 /// Represents an array type with arbitrary index and element types.
@@ -279,24 +288,12 @@ public:
     }
 };
 
-class TupleType final : public Type
+class TupleType final : public CompositeType
 {
-    TupleType(GazerContext& context, std::vector<Type*> subtypes)
-        : Type(context, TupleTypeID), mSubtypeList(std::move(subtypes))
-    {
-        assert(!mSubtypeList.empty());
-        assert(mSubtypeList.size() >= 2);
-    }
+    TupleType(GazerContext& context, std::vector<Type*> types);
 public:
-    Type& getTypeAtIndex(unsigned idx) const { return *mSubtypeList[idx]; }
-    unsigned getNumSubtypes() const { return mSubtypeList.size(); }
-
-    using subtype_iterator = boost::indirect_iterator<std::vector<Type*>::const_iterator>;
-    subtype_iterator subtype_begin() const { return boost::make_indirect_iterator(mSubtypeList.begin()); }
-    subtype_iterator subtype_end() const { return boost::make_indirect_iterator(mSubtypeList.end()); }
-
     template<class... Tys>
-    static typename std::enable_if<(std::is_base_of_v<Type, Tys> && ...), TupleType&>::type
+    static typename std::enable_if_t<(std::is_base_of_v<Type, Tys> && ...), TupleType&>
     Get(Type& first, Tys&... tail)
     {
         std::vector<Type*> subtypeList({ &first, &tail... });
@@ -305,16 +302,15 @@ public:
 
     static TupleType& Get(std::vector<Type*> subtypes);
 
-    static bool classof(const Type* type) {
+    static bool classof(const Type* type)
+    {
         return type->getTypeID() == TupleTypeID;
     }
 
-    static bool classof(const Type& type) {
+    static bool classof(const Type& type)
+    {
         return classof(&type);
     }
-
-private:
-    std::vector<Type*> mSubtypeList;
 };
 
 class FunctionType : public Type
@@ -325,7 +321,7 @@ class FunctionType : public Type
 
 public:
     template<class... Tys>
-    static typename std::enable_if<std::is_base_of_v<Type, Tys...>, FunctionType&>::type
+    static typename std::enable_if_t<std::is_base_of_v<Type, Tys...>, FunctionType&>
     Get(Type& result, Tys&... params)
     {
         std::array<Type*, sizeof...(Tys)> paramTypes({ &params... });

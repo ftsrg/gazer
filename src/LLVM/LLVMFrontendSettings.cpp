@@ -125,9 +125,9 @@ namespace
     );
 } // end anonymous namespace
 
-bool LLVMFrontendSettings::validate(const llvm::Module& module, llvm::raw_ostream& os) const
+bool LLVMFrontendSettings::validate(const llvm::Module& llvmModule, llvm::raw_ostream& os) const
 {
-    if (module.getFunction(this->function) == nullptr) {
+    if (llvmModule.getFunction(this->function) == nullptr) {
         os << "The entry function '" << this->function << "' does not exist!\n";
         return false;
     }
@@ -135,9 +135,9 @@ bool LLVMFrontendSettings::validate(const llvm::Module& module, llvm::raw_ostrea
     return true;
 }
 
-llvm::Function* LLVMFrontendSettings::getEntryFunction(const llvm::Module& module) const
+llvm::Function* LLVMFrontendSettings::getEntryFunction(const llvm::Module& llvmModule) const
 {
-    llvm::Function* result = module.getFunction(this->function);
+    llvm::Function* result = llvmModule.getFunction(this->function);
     assert(result != nullptr && "The entry function must exist!");
 
     return result;
@@ -160,10 +160,10 @@ LLVMFrontendSettings LLVMFrontendSettings::initFromCommandLine()
     settings.elimVars = ElimVarsLevelOpt;
     settings.memoryModel = MemoryModelOpt;
 
-    settings.checks = EnabledChecks;
+    settings.checks = EnabledChecks.getValue();
 
 
-    settings.function = EntryFunctionName;
+    settings.function = EntryFunctionName.getValue();
 
     if (ArithInts) {
         settings.ints = IntRepresentation::Integers;
@@ -174,9 +174,9 @@ LLVMFrontendSettings LLVMFrontendSettings::initFromCommandLine()
     settings.debugDumpMemorySSA = DebugDumpMemorySSA;
 
     settings.trace = PrintTrace;
-    settings.witness = GenerateWitness;
-    settings.hash = Hash;
-    settings.testHarnessFile = TestHarnessFile;
+    settings.witness = GenerateWitness.getValue();
+    settings.hash = Hash.getValue();
+    settings.testHarnessFile = TestHarnessFile.getValue();
 
     return settings;
 }
@@ -190,12 +190,16 @@ std::string LLVMFrontendSettings::toString() const
         case ElimVarsLevel::Off:         str += "off"; break;
         case ElimVarsLevel::Normal:      str += "normal"; break;
         case ElimVarsLevel::Aggressive:  str += "aggressive"; break;
+        default:
+            break;
     }
     str += R"(", "loop_representation": ")";
 
     switch (loops) {
         case LoopRepresentation::Recursion:  str += "recursion"; break;
         case LoopRepresentation::Cycle:      str += "cycle"; break;
+    default:
+        break;
     }
 
     str += R"(", "int_representation": ")";
@@ -203,6 +207,8 @@ std::string LLVMFrontendSettings::toString() const
     switch (ints) {
         case IntRepresentation::BitVectors:     str += "bv"; break;
         case IntRepresentation::Integers:       str += "int"; break;
+        default:
+            break;
     }
 
     str += R"(", "float_representation": ")";
@@ -211,6 +217,8 @@ std::string LLVMFrontendSettings::toString() const
         case FloatRepresentation::Fpa:     str += "fpa";   break;
         case FloatRepresentation::Real:    str += "real";  break;
         case FloatRepresentation::Undef:   str += "undef"; break;
+        default:
+            break;
     }
 
     str += "\"}";

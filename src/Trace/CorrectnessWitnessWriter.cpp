@@ -15,13 +15,10 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
-
-#include "gazer/Core/LiteralExpr.h"
 #include "gazer/Trace/WitnessWriter.h"
-#include <llvm/ADT/SmallString.h>
 
-#include <fstream>
-#include <ctime>
+#include <llvm/Support/FormatVariadic.h>
+#include <llvm/Support/Chrono.h>
 
 using namespace gazer;
 
@@ -63,18 +60,14 @@ const std::string graph_data = R"(<graph edgedefault="directed">
 
 void CorrectnessWitnessWriter::outputWitness()
 {
-    time_t rawtime;
-    struct tm * ptm;
-    time ( &rawtime );
-    ptm = gmtime( &rawtime ); // UTC timestamp
-    std::stringstream timestamp;
-    timestamp << std::put_time(ptm, "%FT%T");
+    using namespace std::chrono;
+    llvm::sys::TimePoint<seconds> timestamp = time_point_cast<seconds>(system_clock::now());
 
     mOS << schema;
     mOS << keys;
     mOS << graph_data;
     mOS << "<data key=\"programhash\">" << mHash << "</data>";
-    mOS << "<data key=\"creationtime\">" << timestamp.str() << "</data>\n";
+    mOS << "<data key=\"creationtime\">" << llvm::formatv("{0:%FT%T}", timestamp) << "</data>\n";
     mOS << "<data key=\"programfile\">" << SourceFileName << "</data>\n";
     mOS << nodes;
     mOS << "</graph>";

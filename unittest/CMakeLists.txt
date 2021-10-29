@@ -1,37 +1,16 @@
 enable_testing()
 
-set(GOOGLETEST_SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/googletest-src")
-set(GOOGLETEST_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/googletest-build")
+include(FetchContent)
 
-# Download and unpack googletest at configure time
-configure_file(${PROJECT_SOURCE_DIR}/cmake/GoogleTestDownload.cmake googletest-download/CMakeLists.txt)
-execute_process(
-    COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
-    RESULT_VARIABLE result
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/googletest-download
+# Load GoogleTest
+FetchContent_Declare(
+    gtest
+    GIT_REPOSITORY  "https://github.com/google/googletest"
+    GIT_TAG         master
 )
-if(result)
-    message(FATAL_ERROR "CMake step for googletest failed: ${result}")
-endif()
-execute_process(
-    COMMAND ${CMAKE_COMMAND} --build .
-    RESULT_VARIABLE result
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/googletest-download
-)
-if(result)
-    message(FATAL_ERROR "Build step for googletest failed: ${result}")
-endif()
 
-# Prevent overriding the parent project's compiler/linker
-# settings on Windows
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-
-# Add googletest directly to our build. This defines
-# the gtest and gtest_main targets.
-add_subdirectory(${GOOGLETEST_SOURCE_DIR}
-    ${GOOGLETEST_BINARY_DIR}
-    EXCLUDE_FROM_ALL
-)
+FetchContent_MakeAvailable(gtest)
 
 # Add tests
 add_subdirectory(ADT)
@@ -39,6 +18,7 @@ add_subdirectory(Core)
 add_subdirectory(Automaton)
 add_subdirectory(LLVM)
 add_subdirectory(Support)
+add_subdirectory(Verifier)
 add_subdirectory(tools/gazer-theta)
 
 # Only add tests for requested targets
@@ -57,5 +37,6 @@ add_dependencies(check-unit
     GazerAutomatonTest
     GazerSolverZ3Test
     GazerToolsBackendThetaTest
+    GazerVerifierTest
     GazerSupportTest
 )

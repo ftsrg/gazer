@@ -23,12 +23,8 @@
 namespace gazer
 {
 
-unsigned ExprDepth(const ExprPtr& expr);
-
-void FormatPrintExpr(const ExprPtr& expr, llvm::raw_ostream& os);
-
 void InfixPrintExpr(const ExprPtr& expr, llvm::raw_ostream& os, unsigned bvRadix = 10);
 
-}
+} // namespace gazer
 
 #endif

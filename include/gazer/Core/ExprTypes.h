@@ -154,15 +154,13 @@ class ArithmeticExpr final : public BinaryExpr
         "An arithmetic expression must have an arithmetic expression kind.");
 
     friend class ExprStorage;
-protected:
+
+private:
     using BinaryExpr::BinaryExpr;
 
 public:
     static ExprRef<ArithmeticExpr<Kind>> Create(const ExprPtr& left, const ExprPtr& right);
 
-    /**
-     * Type inquiry support.
-     */
     static bool classof(const Expr* expr) {
         return expr->getKind() == Kind;
     }
@@ -195,9 +193,8 @@ class CompareExpr final : public BinaryExpr
     static_assert(Expr::FirstCompare <= Kind && Kind <= Expr::LastCompare,
         "A compare expression must have a compare expression kind.");
     friend class ExprStorage;
-protected:
-    using BinaryExpr::BinaryExpr;
 
+    using BinaryExpr::BinaryExpr;
 public:
     static ExprRef<CompareExpr<Kind>> Create(const ExprPtr& left, const ExprPtr& right);
     
@@ -227,7 +224,7 @@ class MultiaryLogicExpr final : public NonNullaryExpr
     static_assert(Expr::And == Kind || Expr::Or == Kind,
         "A logic expression must have a logic expression kind.");
     friend class ExprStorage;
-protected:
+
     using NonNullaryExpr::NonNullaryExpr;
 
 public:
@@ -245,7 +242,6 @@ template<Expr::ExprKind Kind>
 class BinaryLogicExpr final : public BinaryExpr
 {
     friend class ExprStorage;
-protected:
     using BinaryExpr::BinaryExpr;
 
 public:
@@ -266,7 +262,7 @@ class FpQueryExpr final : public UnaryExpr
     static_assert(Kind == Expr::FIsNan || Kind == Expr::FIsInf,
         "A floating point query expression must be FIsNan or FIsInf.");
     friend class ExprStorage;
-protected:
+
     using UnaryExpr::UnaryExpr;
 
 public:
@@ -342,7 +338,7 @@ class FpArithmeticExpr final : public BinaryExpr, public detail::FpExprWithRound
 
     // Needed for ExprStorage to call this constructor.
     friend class ExprStorage;
-protected:
+
     template<class InputIterator>
     FpArithmeticExpr(Expr::ExprKind kind, Type& type, InputIterator begin, InputIterator end, const llvm::APFloat::roundingMode& rm)
         : BinaryExpr(kind, type, begin, end), FpExprWithRoundingMode(rm)

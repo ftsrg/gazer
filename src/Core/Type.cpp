@@ -216,6 +216,12 @@ ArrayType::ArrayType(GazerContext& context, std::vector<Type*> types)
     assert(mSubTypes.size() == 2);
 }
 
+TupleType::TupleType(GazerContext& context, std::vector<Type*> types)
+    : CompositeType(context, TupleTypeID, std::move(types))
+{
+    assert(mSubTypes.size() >= 2);
+}
+
 ArrayType& ArrayType::Get(Type& indexType, Type& elementType)
 {
     auto& ctx = indexType.getContext();

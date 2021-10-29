@@ -33,14 +33,12 @@ class Check : public llvm::ModulePass
 {
     friend class CheckRegistry;
 public:
-    explicit Check(char& id)
-        : ModulePass(id)
-    {}
+    using llvm::ModulePass::ModulePass;
 
     Check(const Check&) = delete;
     Check& operator=(const Check&) = delete;
 
-    bool runOnModule(llvm::Module& module) final;
+    bool runOnModule(llvm::Module& llvmModule) final;
 
     /// Returns a user-friendly error description on why this particular
     /// check failed. Such descriptions should be short and simple, e.g.
@@ -108,7 +106,7 @@ public:
     CheckRegistry(const CheckRegistry&) = delete;
     CheckRegistry& operator=(const CheckRegistry&) = delete;
 
-    static llvm::FunctionCallee GetErrorFunction(llvm::Module& module);
+    static llvm::FunctionCallee GetErrorFunction(llvm::Module& llvmModule);
     static llvm::FunctionCallee GetErrorFunction(llvm::Module* module) {
         return GetErrorFunction(*module);
     }

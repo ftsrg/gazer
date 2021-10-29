@@ -27,6 +27,7 @@
 #include <llvm/IR/GetElementPtrTypeIterator.h>
 #include <llvm/Transforms/Utils/UnifyFunctionExitNodes.h>
 #include <llvm/Support/Debug.h>
+#include <llvm/Support/CommandLine.h>
 
 #define DEBUG_TYPE "FlatMemoryModel"
 
@@ -38,7 +39,7 @@ using namespace gazer;
 namespace
 {
 
-llvm::cl::opt<bool> FlatMemoryDumpMemSSA("flat-memory-dump-memssa");
+const llvm::cl::opt<bool> FlatMemoryDumpMemSSA("flat-memory-dump-memssa");
 
 class FlatMemoryModelInstTranslator;
 
@@ -62,7 +63,7 @@ struct FlatMemoryFunctionInfo
     // Maps non-lifted globals to their addresses in memory.
     llvm::DenseMap<llvm::GlobalVariable*, ExprRef<LiteralExpr>> globalPointers;
 
-    llvm::DenseMap<llvm::CallSite, CallInfo> calls;
+    llvm::DenseMap<const llvm::CallBase*, CallInfo> calls;
 
     std::unique_ptr<memory::MemorySSA> memorySSA;
 };
@@ -80,12 +81,12 @@ public:
     FlatMemoryModel(
         GazerContext& context,
         const LLVMFrontendSettings& settings,
-        llvm::Module& module,
+        llvm::Module& llvmModule,
         DominatorTreeFuncTy dominators
     );
 
     void insertCallDefsUses(
-        llvm::CallSite call, FlatMemoryFunctionInfo& info, memory::MemorySSABuilder& builder);
+        llvm::CallBase* call, FlatMemoryFunctionInfo& info, memory::MemorySSABuilder& builder);
 
     MemoryTypeTranslator& getMemoryTypeTranslator() override { return *this; }
     
@@ -112,7 +113,7 @@ public:
         return ArrayType::Get(ptrType(), cellType());
     }
 
-    ExprRef<BvLiteralExpr> ptrConstant(unsigned addr) {
+    ExprRef<BvLiteralExpr> ptrConstant(unsigned int addr) {
         return BvLiteralExpr::Get(ptrType(), addr);
     }
 
@@ -140,11 +141,11 @@ private:
 FlatMemoryModel::FlatMemoryModel(
     GazerContext& context,
     const LLVMFrontendSettings& settings,
-    llvm::Module& module,
+    llvm::Module& llvmModule,
     DominatorTreeFuncTy dominators
 ) : MemoryTypeTranslator(context),
     mSettings(settings),
-    mDataLayout(module.getDataLayout()),
+    mDataLayout(llvmModule.getDataLayout()),
     mTypes(*this, mSettings)
 {
     // Initialize the expression builder
@@ -155,7 +156,7 @@ FlatMemoryModel::FlatMemoryModel(
     llvm::SmallPtrSet<llvm::GlobalVariable*, 8> liftedGlobals;
     llvm::SmallPtrSet<llvm::GlobalVariable*, 4> otherGlobals;
 
-    for (llvm::GlobalVariable& gv : module.globals()) {
+    for (llvm::GlobalVariable& gv : llvmModule.globals()) {
         // FIXME: We currently do not lift globals which have array or struct types.
         //if (!memory::isGlobalUsedAsPointer(gv) && gv.getType()->isSingleValueType()) {
         //    liftedGlobals.insert(&gv);
@@ -164,12 +165,12 @@ FlatMemoryModel::FlatMemoryModel(
         //}
     }
 
-    for (llvm::Function& function : module) {
+    for (llvm::Function& function : llvmModule) {
         if (function.isDeclaration()) {
             continue;
         }
 
-        bool isEntryFunction = mSettings.getEntryFunction(module) == &function;
+        bool isEntryFunction = mSettings.getEntryFunction(llvmModule) == &function;
 
         memory::MemorySSABuilder builder(function, mDataLayout, dominators(function));
         auto& info = mFunctions[&function];
@@ -248,10 +249,16 @@ FlatMemoryModel::FlatMemoryModel(
     }
 }
 
-void FlatMemoryModel::insertCallDefsUses(
-    llvm::CallSite call, FlatMemoryFunctionInfo& info, memory::MemorySSABuilder& builder)
+static bool isIntrinsic(llvm::Function* callee)
 {
-    llvm::Function* callee = call.getCalledFunction();
+    llvm::StringRef name = callee->getName();
+    return name.startswith("gazer.") || name.startswith("llvm.") || name.startswith("verifier.");
+}
+
+void FlatMemoryModel::insertCallDefsUses(
+    llvm::CallBase* call, FlatMemoryFunctionInfo& info, memory::MemorySSABuilder& builder)
+{
+    llvm::Function* callee = call->getCalledFunction();
 
     if (callee == nullptr) {
         builder.createCallDef(info.memory, call);
@@ -259,9 +266,7 @@ void FlatMemoryModel::insertCallDefsUses(
         return;
     }
 
-    llvm::StringRef name = callee->getName();
-
-    if (name.startswith("gazer.") || name.startswith("llvm.") || name.startswith("verifier.")) {
+    if (isIntrinsic(callee)) {
         // TODO: This may need to change in the case of some intrinsics (e.g. llvm.memcpy)
         return;
     }
@@ -271,8 +276,7 @@ void FlatMemoryModel::insertCallDefsUses(
     }
 
     if (callee->isDeclaration()) {
-        // TODO: We could handle some know function here or clobber the memory according to
-        // some configuration option.
+        // TODO: We could handle some know function here or clobber the memory according to some configuration option.
         return;
     }
 
@@ -335,7 +339,7 @@ public:
         llvm2cfa::GenerationStepExtensionPoint& ep) override;
 
     void handleCall(
-        llvm::CallSite call,
+        const llvm::CallBase* call,
         llvm2cfa::GenerationStepExtensionPoint& parentEp,
         llvm2cfa::AutomatonInterfaceExtensionPoint& calleeEp,
         llvm::SmallVectorImpl<VariableAssignment>& inputAssignments,
@@ -387,13 +391,13 @@ auto FlatMemoryModelInstTranslator::handleAlloca(const llvm::AllocaInst& alloc, 
     assert(memDef != nullptr && "There must be exactly one Memory definition for an alloca!");
     assert(spDef != nullptr && "There must be exactly one StackPtr definition for an alloca!");
 
-    unsigned size = mDataLayout.getTypeAllocSize(alloc.getAllocatedType());
+    unsigned long size = mDataLayout.getTypeAllocSize(alloc.getAllocatedType());
     
     // This alloca returns the pointer to the current stack frame,
     // which is then advanced by the size of the allocated type.
     // We also clobber the relevant bytes of the memory array.
     ExprPtr ptr = ep.getAsOperand(spDef->getReachingDef());
-    Variable* defVar = ep.getVariableFor(&*spDef);
+    Variable* defVar = ep.getVariableFor(spDef);
 
     assert(defVar != nullptr && "The definition variable should have been inserted earlier!");
 
@@ -410,8 +414,8 @@ auto FlatMemoryModelInstTranslator::handleAlloca(const llvm::AllocaInst& alloc, 
         );
     }
 
-    Variable* memVar = ep.getVariableFor(&*memDef);
-    if (!ep.tryToEliminate(&*memDef, memVar, resArray)) {
+    Variable* memVar = ep.getVariableFor(memDef);
+    if (!ep.tryToEliminate(memDef, memVar, resArray)) {
         ep.insertAssignment(memVar, resArray);
     }
 
@@ -465,7 +469,7 @@ ExprPtr FlatMemoryModelInstTranslator::handleGetElementPtr(
 
     for (unsigned i = 1; i < ops.size(); ++i) {
         // Calculate the size of the current step
-        unsigned siz = mDataLayout.getTypeAllocSize(ti.getIndexedType());
+        unsigned long size = mDataLayout.getTypeAllocSize(ti.getIndexedType());
 
         // Index arguments may be integer types different from the pointer type.
         // Extend/truncate them into the proper pointer length.
@@ -486,7 +490,7 @@ ExprPtr FlatMemoryModelInstTranslator::handleGetElementPtr(
         }
 
         addr = mExprBuilder.Add(
-            addr, mExprBuilder.Mul(index, mMemoryModel.ptrConstant(siz))
+            addr, mExprBuilder.Mul(index, mMemoryModel.ptrConstant(size))
         );
 
         ++ti;
@@ -503,7 +507,7 @@ ExprPtr FlatMemoryModelInstTranslator::handleConstantDataArray(
     ArrayLiteralExpr::Builder builder(ArrayType::Get(mMemoryModel.ptrType(), bv8ty()), BvLiteralExpr::Get(bv8ty(), 0));
 
     llvm::Type* elemTy = cda->getType()->getArrayElementType();
-    unsigned size = mDataLayout.getTypeAllocSize(elemTy);
+    unsigned long size = mDataLayout.getTypeAllocSize(elemTy);
 
     unsigned currentOffset = 0;
     for (unsigned i = 0; i < cda->getNumElements(); ++i) {
@@ -598,7 +602,7 @@ void FlatMemoryModelInstTranslator::handleStore(
     MemoryObjectDef* memoryDef = mMemorySSA.getUniqueDefinitionFor(&store, mInfo.memory);
     assert(memoryDef != nullptr && "There must be exactly one definition for Memory on a store!");
 
-    unsigned size = mDataLayout.getTypeAllocSize(store.getValueOperand()->getType());
+    auto size = mDataLayout.getTypeAllocSize(store.getValueOperand()->getType());
 
     ExprPtr array = ep.getAsOperand(memoryDef->getReachingDef());
     ExprPtr value = ep.getAsOperand(store.getValueOperand());
@@ -631,15 +635,15 @@ ExprPtr FlatMemoryModelInstTranslator::handleLoad(
 }
 
 void FlatMemoryModelInstTranslator::handleCall(
-    llvm::CallSite call,
+    const llvm::CallBase* call,
     llvm2cfa::GenerationStepExtensionPoint& parentEp,
     llvm2cfa::AutomatonInterfaceExtensionPoint& calleeEp,
     llvm::SmallVectorImpl<VariableAssignment>& inputAssignments,
     llvm::SmallVectorImpl<VariableAssignment>& outputAssignments)
 {
-    LLVM_DEBUG(llvm::dbgs() << "Handling call instruction " << *call.getInstruction() << "\n");
+    LLVM_DEBUG(llvm::dbgs() << "Handling call instruction " << *call << "\n");
 
-    const llvm::Function* callee = call.getCalledFunction();
+    const llvm::Function* callee = call->getCalledFunction();
     assert(callee != nullptr);
 
     auto& calleeInfo = mMemoryModel.getInfoFor(callee);
@@ -845,9 +849,9 @@ auto FlatMemoryModel::getMemoryInstructionHandler(llvm::Function& function)
 auto gazer::CreateFlatMemoryModel(
     GazerContext& context,
     const LLVMFrontendSettings& settings,
-    llvm::Module& module,
+    llvm::Module& llvmModule,
     std::function<llvm::DominatorTree&(llvm::Function&)> dominators
 ) -> std::unique_ptr<MemoryModel>
 {
-    return std::make_unique<FlatMemoryModel>(context, settings, module, dominators);
+    return std::make_unique<FlatMemoryModel>(context, settings, llvmModule, dominators);
 }

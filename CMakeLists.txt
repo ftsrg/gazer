@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.13)
 project(gazer)
 
 # Set version information
@@ -43,7 +43,8 @@ if(GAZER_ENABLE_SANITIZER)
     endif()
 endif()
 
-# Coverage
+## Coverage
+################################################################################
 option(GAZER_ENABLE_COVERAGE "Enable code coverage" OFF)
 if (GAZER_ENABLE_COVERAGE)
     if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
@@ -58,7 +59,7 @@ if (GAZER_ENABLE_COVERAGE)
 endif()
 
 # Get LLVM
-find_package(LLVM 9.0 REQUIRED CONFIG)
+find_package(LLVM 12.0 REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
@@ -66,11 +67,48 @@ include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
 
-# Get boost
-find_package(Boost 1.70 REQUIRED)
-include_directories(${Boost_INCLUDE_DIR})
+# If `GAZER_SHARED_LLVM` is on, we want to link against LLVM dynamically.
+# If it is set to off, we want to map components to static library names
+# and link against those.
+option(GAZER_SHARED_LLVM "Link against shared libLLVM.so" OFF)
 
-add_definitions(-DBOOST_NO_RTTI -DBOOST_EXCEPTION_DISABLE -DBOOST_NO_EXCEPTIONS)
+function(require_llvm_libraries outVar)
+  if (GAZER_SHARED_LLVM)
+    message(STATUS "Searching for shared libLLVM in ${LLVM_LIBRARY_DIR}")
+    find_library(
+      LLVM_LIBS
+      NAMES LLVM-9
+      PATHS ${LLVM_LIBRARY_DIRS}
+      NO_DEFAULT_PATH
+    )
+    message(STATUS "Found shared libLLVM in ${LLVM_LIBS}")
+    set(${outVar} ${LLVM_LIBS} PARENT_SCOPE)
+  else()
+    llvm_map_components_to_libnames(LLVM_LIBRARY_NAMES ${ARGN})
+    set(${outVar} ${LLVM_LIBRARY_NAMES} PARENT_SCOPE)
+  endif()
+endfunction()
+
+# Get boost
+include(FetchContent)
+
+FetchContent_Declare(
+    Boost
+    URL https://boostorg.jfrog.io/artifactory/main/release/1.76.0/source/boost_1_76_0.tar.bz2
+    URL_HASH SHA256=f0397ba6e982c4450f27bf32a2a83292aba035b827a5623a14636ea583318c41
+)
+FetchContent_GetProperties(Boost)
+
+if(NOT Boost_POPULATED)
+    message(STATUS "Fetching Boost")
+    FetchContent_Populate(Boost)
+    message(STATUS "Fetching Boost - done")
+endif()
+
+message("Boost include directories are ${boost_SOURCE_DIR}")
+add_definitions(-DBOOST_NO_RTTI -DBOOST_EXCEPTION_DISABLE -DBOOST_NO_EXCEPTIONS -DBOOST_NO_IOSTREAM)
+include_directories(${boost_SOURCE_DIR})
+
 
 # Project directories
 set(GAZER_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/include")

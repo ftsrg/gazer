@@ -60,14 +60,14 @@ void MemoryObject::print(llvm::raw_ostream& os) const
     os << ")";
 }
 
-void MemoryObject::addDefinition(MemoryObjectDef* def)
+MemoryObjectDef* MemoryObject::addDefinition(std::unique_ptr<MemoryObjectDef>&& def)
 {
-    mDefs.emplace_back(std::unique_ptr<MemoryObjectDef>(def));
+    return mDefs.emplace_back(std::move(def)).get();
 }
 
-void MemoryObject::addUse(MemoryObjectUse* use)
+MemoryObjectUse* MemoryObject::addUse(std::unique_ptr<MemoryObjectUse>&& use)
 {
-    mUses.emplace_back(std::unique_ptr<MemoryObjectUse>(use));
+    return mUses.emplace_back(std::move(use)).get();
 }
 
 void MemoryObject::setEntryDef(MemoryObjectDef* def)

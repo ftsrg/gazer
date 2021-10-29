@@ -21,48 +21,77 @@
 #include "gazer/Automaton/Cfa.h"
 
 #include <llvm/ADT/DenseSet.h>
-#include <llvm/ADT/PostOrderIterator.h>
+#include <llvm/ADT/Twine.h>
 
 namespace gazer
 {
 
 class ExprBuilder;
 
-template<class Seq = std::vector<Location*>, class Map = llvm::DenseMap<Location*, size_t>>
-void createTopologicalSort(Cfa& cfa, Seq& topoVec, Map* locNumbers = nullptr)
+/// A class which contains the topological sort of a recursive CFA. The mapping is bi-directional:
+/// the class knows the index of each location stored in the topological sort.
+class CfaTopoSort
 {
-    auto poBegin = llvm::po_begin(cfa.getEntry());
-    auto poEnd = llvm::po_end(cfa.getEntry());
+public:
+    CfaTopoSort() = default;
+    explicit CfaTopoSort(Cfa& cfa);
 
-    topoVec.insert(topoVec.end(), poBegin, poEnd);
-    std::reverse(topoVec.begin(), topoVec.end());
+    CfaTopoSort(const CfaTopoSort&) = default;
+    CfaTopoSort& operator=(const CfaTopoSort&) = default;
 
-    if (locNumbers != nullptr) {
-        for (size_t i = 0; i < topoVec.size(); ++i) {
-            (*locNumbers)[topoVec[i]] = i;
+    Location* operator[](size_t idx) const;
+    size_t indexOf(Location* location) const;
+    size_t size() const { return mLocations.size(); }
+
+    using iterator = std::vector<Location*>::const_iterator;
+    iterator begin() const { return mLocations.begin(); }
+    iterator end() const { return mLocations.end(); }
+
+    template<class LocationIterator>
+    iterator insert(size_t idx, LocationIterator first, LocationIterator second)
+    {
+        auto pos = std::next(mLocations.begin(), idx);
+        auto insertPos = mLocations.insert(pos, first, second);
+
+        for (auto it = insertPos, ie = mLocations.end(); it != ie; ++it) {
+            size_t currIdx = std::distance(mLocations.begin(), it);
+            mLocNumbers[*it] = currIdx;
         }
+
+        return insertPos;
     }
-}
+
+private:
+    std::vector<Location*> mLocations;
+    llvm::DenseMap<Location*, size_t> mLocNumbers;
+};
 
 /// Class for calculating verification path conditions.
 class PathConditionCalculator
 {
 public:
+    /// Constructs a new path condition calculator.
+    ///
+    /// \param topo The topological sort to use.
+    /// \param builder An expression builder instance.
+    /// \param calls A function which tells the translation process how to represent call
+    ///  transitions in the formula.
+    /// \param preds If non-null, the formula generation process will insert predecessor information
+    ///  into the generated formula. The function passed here will be invoked on each generated
+    ///  predecessor expression, so the caller may handle it (e.g. insert it into a map).
     PathConditionCalculator(
-        const std::vector<Location*>& topo,
+        const CfaTopoSort& topo,
         ExprBuilder& builder,
-        std::function<size_t(Location*)> index,
         std::function<ExprPtr(CallTransition*)> calls,
         std::function<void(Location*, ExprPtr)> preds = nullptr
     );
 
-public:
+    /// Calculates the reachability condition between \p source and \p target.
     ExprPtr encode(Location* source, Location* target);
 
 private:
-    const std::vector<Location*>& mTopo;
+    const CfaTopoSort& mTopo;
     ExprBuilder& mExprBuilder;
-    std::function<size_t(Location*)> mIndex;
     std::function<ExprPtr(CallTransition*)> mCalls;
     std::function<void(Location*, ExprPtr)> mPredecessors;
     unsigned mPredIdx = 0;
@@ -77,19 +106,21 @@ private:
 ///     entry location if empty.
 Location* findLowestCommonDominator(
     const std::vector<Transition*>& targets,
-    const std::vector<Location*>& topo,
-    std::function<size_t(Location*)> index,
+    const CfaTopoSort& topo,
     Location* start = nullptr
 );
 
 /// Returns the highest common post-dominator of each transition in \p targets.
 Location* findHighestCommonPostDominator(
     const std::vector<Transition*>& targets,
-    const std::vector<Location*>& topo,
-    std::function<size_t(Location*)> index,
+    const CfaTopoSort& topo,
     Location* start
 );
 
-}
+/// Replaces all of the callee's variables in \p expr with the actual call site arguments found in \p call.
+ExprPtr applyCallTransitionCallingContext(CallTransition *call, const ExprPtr &expr, ExprBuilder& exprBuilder);
+
+} // namespace gazer
+
 
 #endif

@@ -61,7 +61,7 @@ std::unique_ptr<MemoryModel> CreateHavocMemoryModel(GazerContext& context);
 std::unique_ptr<MemoryModel> CreateFlatMemoryModel(
     GazerContext& context,
     const LLVMFrontendSettings& settings,
-    llvm::Module& module,
+    llvm::Module& llvmModule,
     std::function<llvm::DominatorTree&(llvm::Function&)> dominators
 );
 
@@ -75,7 +75,7 @@ public:
     {}
 
     void getAnalysisUsage(llvm::AnalysisUsage& au) const override;
-    bool runOnModule(llvm::Module& module) override;
+    bool runOnModule(llvm::Module& llvmModule) override;
 
     MemoryModel& getMemoryModel() const { return *mMemoryModel; }
 

@@ -22,7 +22,7 @@
 
 using namespace gazer;
 
-void Valuation::print(llvm::raw_ostream& os)
+void Valuation::print(llvm::raw_ostream& os) const
 {
     for (auto& [variable, expr] : mMap) {
         os << variable->getName() << " = ";

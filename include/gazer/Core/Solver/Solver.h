@@ -47,11 +47,14 @@ public:
     void add(const ExprPtr& expr)
     {
         assert(expr->getType().isBoolType() && "Can only add bool expressions to a solver.");
-        mStatCount++;
+        mExprStack.push_back(expr);
         addConstraint(expr);
     }
 
-    unsigned getNumConstraints() const { return mStatCount; }
+    size_t getNumConstraints() const
+    {
+        return mExprStack.size();
+    }
 
     GazerContext& getContext() const { return mContext; }
 
@@ -61,60 +64,38 @@ public:
     virtual SolverStatus run() = 0;
     virtual std::unique_ptr<Model> getModel() = 0;
 
-    virtual void reset() = 0;
+    virtual void reset()
+    {
+        this->doReset();
+        mExprStack.clear();
+        mScopes.clear();
+    }
 
-    virtual void push() = 0;
-    virtual void pop() = 0;
+    virtual void push()
+    {
+        this->doPush();
+        mScopes.push_back(mExprStack.size());
+    }
+
+    virtual void pop()
+    {
+        this->doPop();
+        mExprStack.resize(mScopes.back());
+        mScopes.pop_back();
+    }
 
     virtual ~Solver() = default;
 
 protected:
     virtual void addConstraint(ExprPtr expr) = 0;
+    virtual void doReset() = 0;
+    virtual void doPush() = 0;
+    virtual void doPop() = 0;
 
     GazerContext& mContext;
 private:
-    unsigned mStatCount = 0;
-};
-
-/// Identifies an interpolation group.
-using ItpGroup = unsigned;
-
-/// Interface for interpolating solvers.
-class ItpSolver : public Solver
-{
-    using ItpGroupMapTy = std::unordered_map<ItpGroup, llvm::SmallVector<ExprPtr, 1>>;
-public:
-    using Solver::Solver;
-
-    void add(ItpGroup group, const ExprPtr& expr)
-    {
-        assert(expr->getType().isBoolType() && "Can only add bool expressions to a solver.");
-        mGroupFormulae[group].push_back(expr);
-
-        this->addConstraint(group, expr);
-    }
-
-    // Interpolant groups
-    ItpGroup createItpGroup() { return mGroupId++; }
-
-    using itp_formula_iterator = typename ItpGroupMapTy::mapped_type::iterator;
-    itp_formula_iterator group_formula_begin(ItpGroup group) {
-        return mGroupFormulae[group].begin();
-    }
-    itp_formula_iterator group_formula_end(ItpGroup group) {
-        return mGroupFormulae[group].end();
-    }
-
-    /// Returns an interpolant for a given interpolation group.
-    virtual ExprPtr getInterpolant(ItpGroup group) = 0;
-
-protected:
-    using Solver::addConstraint;
-    virtual void addConstraint(ItpGroup group, ExprPtr expr) = 0;
-
-private:
-    unsigned mGroupId = 1;
-    ItpGroupMapTy mGroupFormulae;
+    std::vector<ExprPtr> mExprStack;
+    std::vector<size_t> mScopes;
 };
 
 /// Base factory class for all solvers, used to create new Solver instances.
@@ -123,8 +104,10 @@ class SolverFactory
 public:
     /// Creates a new solver instance with a given symbol table.
     virtual std::unique_ptr<Solver> createSolver(GazerContext& symbols) = 0;
+
+    virtual ~SolverFactory() = default;
 };
 
-}
+} // namespace gazer
 
 #endif

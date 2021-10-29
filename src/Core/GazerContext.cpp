@@ -35,12 +35,10 @@ namespace boost
         std::terminate();
     }
 
-    #if BOOST_VERSION >= 107300
     void throw_exception(std::exception const &e, boost::source_location const&)
     {
         boost::throw_exception(e);
     }
-    #endif
 } // end namespace boost
 #endif
 
@@ -62,7 +60,7 @@ bool ::gazer::IsDebugEnabled = false;
 using namespace gazer;
 
 GazerContext::GazerContext()
-    : pImpl(new GazerContextImpl(*this))
+    : pImpl(std::make_unique<GazerContextImpl>(*this))
 {}
 
 GazerContext::~GazerContext() = default;
@@ -71,9 +69,14 @@ GazerContext::~GazerContext() = default;
 
 Variable* GazerContext::createVariable(const std::string& name, Type &type)
 {
-    LLVM_DEBUG(llvm::dbgs() << "Adding variable with name " << name << " and type " << type << "\n");
-    GAZER_DEBUG_ASSERT(pImpl->VariableTable.count(name) == 0);
-    auto ptr = new Variable(name, type);
+    std::string finalName = name;
+    while (pImpl->VariableTable.count(finalName) != 0) {
+        finalName = name + std::to_string(pImpl->UniqueNameCounter);
+        ++pImpl->UniqueNameCounter;
+    }
+
+    LLVM_DEBUG(llvm::dbgs() << "Adding variable with name " << finalName << " and type " << type << "\n");
+    auto* ptr = new Variable(finalName, type);
     pImpl->VariableTable[name] = std::unique_ptr<Variable>(ptr);
 
     GAZER_DEBUG(llvm::errs()

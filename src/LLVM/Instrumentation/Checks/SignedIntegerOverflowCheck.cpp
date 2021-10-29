@@ -17,6 +17,7 @@
 //===----------------------------------------------------------------------===//
 #include "gazer/LLVM/Instrumentation/DefaultChecks.h"
 #include "gazer/LLVM/Instrumentation/Intrinsics.h"
+#include "gazer/ADT/Iterator.h"
 #include "gazer/Support/Warnings.h"
 
 #include <llvm/IR/IRBuilder.h>
@@ -127,12 +128,10 @@ bool SignedIntegerOverflowCheck::mark(llvm::Function &function)
     llvm::SmallVector<std::pair<llvm::CallInst*, GazerIntrinsic::Overflow>, 16> targets;
     llvm::SmallVector<llvm::CallInst*, 16> sanitizerCalls;
 
-    for (Instruction& inst : instructions(function)) {
-        if (auto call = dyn_cast<CallInst>(&inst)) {
-            GazerIntrinsic::Overflow ovrKind;
-            if (this->isOverflowIntrinsic(call->getCalledFunction(), &ovrKind)) {
-                targets.emplace_back(call, ovrKind);
-            }
+    for (auto& call : classof_range<llvm::CallInst>(llvm::instructions(function))) {
+        GazerIntrinsic::Overflow ovrKind;
+        if (this->isOverflowIntrinsic(call.getCalledFunction(), &ovrKind)) {
+            targets.emplace_back(&call, ovrKind);
         }
     }
 

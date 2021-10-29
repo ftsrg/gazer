@@ -62,6 +62,7 @@ gazer::Type* LLVMTraceBuilder::preferredTypeFromDIType(llvm::DIType* diTy)
                     default:
                         break;
                 }
+                break;
             default:
                break;
         }
@@ -114,7 +115,7 @@ auto LLVMTraceBuilder::build(
     Valuation currentVals;
     ValuationExprEvaluator evaluator(currentVals);
 
-    auto shouldProcessEntry = [](CfaToLLVMTrace::BlockToLocationInfo info) -> bool {
+    auto shouldProcessEntry = [](CfaToLLVMTrace::BlockToLocationInfo info) {
         return info.block != nullptr && info.kind == CfaToLLVMTrace::Location_Entry;
     };
 
@@ -229,14 +230,14 @@ auto LLVMTraceBuilder::build(
                 );
 
                 std::vector<ExprRef<AtomicExpr>> args;
-                for (size_t i = 1; i < call->getNumArgOperands(); ++i) {
+                for (unsigned i = 1; i < call->getNumArgOperands(); ++i) {
                     args.push_back(
                         this->getLiteralFromValue(loc->getAutomaton(), call->getArgOperand(i), currentVals)
                     );
                 }
 
                 events.push_back(std::make_unique<FunctionEntryEvent>(
-                    diSP->getName(),
+                    diSP->getName().str(),
                     args
                 ));
             } else if (callee->getName() == GazerIntrinsic::FunctionReturnVoidName) {
@@ -245,7 +246,7 @@ auto LLVMTraceBuilder::build(
                 );
 
                 events.push_back(std::make_unique<FunctionReturnEvent>(
-                    diSP->getName(),
+                    diSP->getName().str(),
                     nullptr
                 ));
             } else if (callee->getName().startswith(GazerIntrinsic::FunctionReturnValuePrefix))  {
@@ -255,7 +256,7 @@ auto LLVMTraceBuilder::build(
 
                 auto expr = this->getLiteralFromValue(loc->getAutomaton(), call->getArgOperand(1), currentVals);
                 events.push_back(std::make_unique<FunctionReturnEvent>(
-                    diSP->getName(),
+                    diSP->getName().str(),
                     expr
                 ));
             } else if (callee->getName() == GazerIntrinsic::FunctionCallReturnedName) {
@@ -264,7 +265,7 @@ auto LLVMTraceBuilder::build(
                 );
 
                 events.push_back(std::make_unique<FunctionEntryEvent>(
-                    diSP->getName()
+                    diSP->getName().str()
                 ));
             } else if (callee->getName().startswith("gazer.undef_value.")) {
                 // Register that we have passed through an undef value.
@@ -299,7 +300,7 @@ auto LLVMTraceBuilder::build(
                 }
 
                 events.push_back(std::make_unique<FunctionCallEvent>(
-                    callee->getName(),
+                    callee->getName().str(),
                     expr,
                     std::vector<ExprRef<AtomicExpr>>(),
                     location
@@ -362,8 +363,7 @@ ExprRef<AtomicExpr> LLVMTraceBuilder::getLiteralFromValue(
 
     ValuationExprEvaluator eval(model);
 
-    auto expr = mCfaToLlvmTrace.getExpressionForValue(cfa, value);
-    if (expr != nullptr) {
+    if (auto expr = mCfaToLlvmTrace.getExpressionForValue(cfa, value); expr != nullptr) {
         auto ret = eval.evaluate(expr);
         if (ret != nullptr) {
             return ret;
@@ -396,6 +396,6 @@ TraceVariable LLVMTraceBuilder::traceVarFromDIVar(const llvm::DIVariable* diVar)
         }
     }
 
-    return TraceVariable(diVar->getName(), rep, diType->getSizeInBits());
+    return TraceVariable(diVar->getName().str(), rep, diType->getSizeInBits());
 }
 

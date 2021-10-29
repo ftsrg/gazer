@@ -19,7 +19,7 @@
 
 using namespace gazer;
 
-ExprPtr ExprRewriteBase::rewriteNonNullary(const ExprRef<NonNullaryExpr>& expr, const ExprVector& ops)
+ExprPtr ExprRewrite::rewriteNonNullary(const ExprRef<NonNullaryExpr>& expr, const ExprVector& ops)
 {
     switch (expr->getKind()) {
         case Expr::Not: return mExprBuilder.Not(ops[0]);
@@ -119,6 +119,8 @@ ExprPtr ExprRewriteBase::rewriteNonNullary(const ExprRef<NonNullaryExpr>& expr, 
         case Expr::Select: return mExprBuilder.Select(ops[0], ops[1], ops[2]);
         case Expr::ArrayRead: return mExprBuilder.Read(ops[0], ops[1]);
         case Expr::ArrayWrite: return mExprBuilder.Write(ops[0], ops[1], ops[2]);
+        case Expr::TupleConstruct: return mExprBuilder.Tuple(ops);
+        case Expr::TupleSelect: return mExprBuilder.TupSel(ops[0], llvm::cast<TupleSelectExpr>(expr)->getIndex());
         // Add all the invalid cases as well
         case Expr::Literal:
         case Expr::Undef:
@@ -131,9 +133,8 @@ ExprPtr ExprRewriteBase::rewriteNonNullary(const ExprRef<NonNullaryExpr>& expr, 
 
 ExprPtr VariableExprRewrite::visitVarRef(const ExprRef<VarRefExpr>& expr)
 {
-    auto result = mRewriteMap[&expr->getVariable()];
-    if (result != nullptr) {
-        return result;
+    if (auto r = mRewriteMap.find(&expr->getVariable()); r != mRewriteMap.end()) {
+        return r->second;
     }
 
     return expr;

@@ -22,97 +22,152 @@
     #error "Including ExprKind.def without defining GAZER_EXPR_KIND is not allowed!"
 #endif
 
+// The following macros can be used to fine-tune some includes on expression kinds.
+// We have two main categories: one for nullary and one for non-nullary expressions.
+// Non-nullary expression kinds are also split into unary, binary, and multiary expressions.
+// Note that here "binary" means that it only takes two arguments and *not* two expressions,
+// i.e. "Add(left, right)" is binary, whereas "FAdd(left, right, roundingMode)" is not.
+#ifndef GAZER_NULLARY_EXPR_KIND
+    #define GAZER_NULLARY_DEFINED_HERE
+    #define GAZER_NULLARY_EXPR_KIND(X) GAZER_EXPR_KIND(X)
+#endif
+
+#ifndef GAZER_NON_NULLARY_EXPR_KIND
+    #define GAZER_NON_NULLARY_DEFINED_HERE
+    #define GAZER_NON_NULLARY_EXPR_KIND(X) GAZER_EXPR_KIND(X)
+#endif
+
+#ifndef GAZER_UNARY_EXPR_KIND
+    #define GAZER_UNARY_DEFINED_HERE
+    #define GAZER_UNARY_EXPR_KIND(X) GAZER_NON_NULLARY_EXPR_KIND(X)
+#endif
+
+#ifndef GAZER_BINARY_EXPR_KIND
+    #define GAZER_BINARY_DEFINED_HERE
+    #define GAZER_BINARY_EXPR_KIND(X) GAZER_NON_NULLARY_EXPR_KIND(X)
+#endif
+
+#ifndef GAZER_MULTIARY_EXPR_KIND
+    #define GAZER_MULTIARY_DEFINED_HERE
+    #define GAZER_MULTIARY_EXPR_KIND(X) GAZER_NON_NULLARY_EXPR_KIND(X)
+#endif
+
 // Nullary expressions
-GAZER_EXPR_KIND(Undef)      // Havoc
-GAZER_EXPR_KIND(Literal)    // Literal expression of a type
-GAZER_EXPR_KIND(VarRef)     // Variable reference
+GAZER_NULLARY_EXPR_KIND(Undef)      // Havoc
+GAZER_NULLARY_EXPR_KIND(Literal)    // Literal expression of a type
+GAZER_NULLARY_EXPR_KIND(VarRef)     // Variable reference
 
 // Unary boolean operators
-GAZER_EXPR_KIND(Not)        // Boolean negation
+GAZER_UNARY_EXPR_KIND(Not)          // Boolean negation
 
 // Unary bit-vector operators
-GAZER_EXPR_KIND(ZExt)       // Zero-extend to another bit-vector type
-GAZER_EXPR_KIND(SExt)       // Sign-extend to another bit-vector type
-GAZER_EXPR_KIND(Extract)    // Extract bits from a bit-vector
+GAZER_UNARY_EXPR_KIND(ZExt)             // Zero-extend to another bit-vector type
+GAZER_UNARY_EXPR_KIND(SExt)             // Sign-extend to another bit-vector type
+GAZER_NON_NULLARY_EXPR_KIND(Extract)    // Extract bits from a bit-vector
 
 // Overloaded binary operators
-GAZER_EXPR_KIND(Add)        // Addition for Int, Real and Bv types
-GAZER_EXPR_KIND(Sub)        // Substraction for Int, Real and Bv types
-GAZER_EXPR_KIND(Mul)        // Multiplication for Int, Real and Bv types
-GAZER_EXPR_KIND(Div)        // Division operator for arithmetic types
-GAZER_EXPR_KIND(Mod)        // Modulo operator for arithmetic types
-GAZER_EXPR_KIND(Rem)        // Remainder operator for arithmetic types
+GAZER_BINARY_EXPR_KIND(Add)         // Addition for Int, Real and Bv types
+GAZER_BINARY_EXPR_KIND(Sub)         // Substraction for Int, Real and Bv types
+GAZER_BINARY_EXPR_KIND(Mul)         // Multiplication for Int, Real and Bv types
+GAZER_BINARY_EXPR_KIND(Div)         // Division operator for arithmetic types
+GAZER_BINARY_EXPR_KIND(Mod)         // Modulo operator for arithmetic types
+GAZER_BINARY_EXPR_KIND(Rem)         // Remainder operator for arithmetic types
 
 // Binary operations for bit-vectors
-GAZER_EXPR_KIND(BvSDiv)     // Signed division for bit-vectors
-GAZER_EXPR_KIND(BvUDiv)     // Unsigned division for bit-vectors
-GAZER_EXPR_KIND(BvSRem)     // Signed remainder for bit-vectors
-GAZER_EXPR_KIND(BvURem)     // Unsigned remainder for bit-vectors
-GAZER_EXPR_KIND(Shl)        // Binary shift left
-GAZER_EXPR_KIND(LShr)       // Logical shift right
-GAZER_EXPR_KIND(AShr)       // Arithmetic shift right
-GAZER_EXPR_KIND(BvAnd)      // Binary AND for bit-vectors
-GAZER_EXPR_KIND(BvOr)       // Binary OR for bit-vectors
-GAZER_EXPR_KIND(BvXor)      // Binary XOR for bit-vectors
-GAZER_EXPR_KIND(BvConcat)   // Bit-vector concatenation
+GAZER_BINARY_EXPR_KIND(BvSDiv)      // Signed division for bit-vectors
+GAZER_BINARY_EXPR_KIND(BvUDiv)      // Unsigned division for bit-vectors
+GAZER_BINARY_EXPR_KIND(BvSRem)      // Signed remainder for bit-vectors
+GAZER_BINARY_EXPR_KIND(BvURem)      // Unsigned remainder for bit-vectors
+GAZER_BINARY_EXPR_KIND(Shl)         // Binary shift left
+GAZER_BINARY_EXPR_KIND(LShr)        // Logical shift right
+GAZER_BINARY_EXPR_KIND(AShr)        // Arithmetic shift right
+GAZER_BINARY_EXPR_KIND(BvAnd)       // Binary AND for bit-vectors
+GAZER_BINARY_EXPR_KIND(BvOr)        // Binary OR for bit-vectors
+GAZER_BINARY_EXPR_KIND(BvXor)       // Binary XOR for bit-vectors
+GAZER_BINARY_EXPR_KIND(BvConcat)    // Bit-vector concatenation
 
 // Binary logic
-GAZER_EXPR_KIND(And)        // Multiary AND operator for booleans
-GAZER_EXPR_KIND(Or)         // Multiary OR operator for booleans
-GAZER_EXPR_KIND(Imply)      // Binary implication for booleans
+GAZER_MULTIARY_EXPR_KIND(And)        // Multiary AND operator for booleans
+GAZER_MULTIARY_EXPR_KIND(Or)         // Multiary OR operator for booleans
+GAZER_BINARY_EXPR_KIND(Imply)      // Binary implication for booleans
 
 // Compare
-GAZER_EXPR_KIND(Eq)         // Equality overloaded for all types
-GAZER_EXPR_KIND(NotEq)
-GAZER_EXPR_KIND(Lt)         // Arithmetic less than
-GAZER_EXPR_KIND(LtEq)       // Arithmetic less than or equal
-GAZER_EXPR_KIND(Gt)         // Arithmetic greater than
-GAZER_EXPR_KIND(GtEq)       // Arithmetic greater than or equal
+GAZER_BINARY_EXPR_KIND(Eq)         // Equality overloaded for all types
+GAZER_BINARY_EXPR_KIND(NotEq)
+GAZER_BINARY_EXPR_KIND(Lt)         // Arithmetic less than
+GAZER_BINARY_EXPR_KIND(LtEq)       // Arithmetic less than or equal
+GAZER_BINARY_EXPR_KIND(Gt)         // Arithmetic greater than
+GAZER_BINARY_EXPR_KIND(GtEq)       // Arithmetic greater than or equal
 
 // Bit-vector compare
-GAZER_EXPR_KIND(BvSLt)      // Bitvector signed less than or equal
-GAZER_EXPR_KIND(BvSLtEq)    // Bitvector signed less than or equal
-GAZER_EXPR_KIND(BvSGt)      // Bitvector signed greater than
-GAZER_EXPR_KIND(BvSGtEq)    // Bitvector signed greater than or equal
-GAZER_EXPR_KIND(BvULt)      // Bitvector unsigned less than
-GAZER_EXPR_KIND(BvULtEq)    // Bitvector unsigned less than or equal
-GAZER_EXPR_KIND(BvUGt)      // Bitvector unsigned greater than
-GAZER_EXPR_KIND(BvUGtEq)    // Bitvector unsigned greater than or equal
+GAZER_BINARY_EXPR_KIND(BvSLt)      // Bitvector signed less than or equal
+GAZER_BINARY_EXPR_KIND(BvSLtEq)    // Bitvector signed less than or equal
+GAZER_BINARY_EXPR_KIND(BvSGt)      // Bitvector signed greater than
+GAZER_BINARY_EXPR_KIND(BvSGtEq)    // Bitvector signed greater than or equal
+GAZER_BINARY_EXPR_KIND(BvULt)      // Bitvector unsigned less than
+GAZER_BINARY_EXPR_KIND(BvULtEq)    // Bitvector unsigned less than or equal
+GAZER_BINARY_EXPR_KIND(BvUGt)      // Bitvector unsigned greater than
+GAZER_BINARY_EXPR_KIND(BvUGtEq)    // Bitvector unsigned greater than or equal
 
 // Floating-point unary
-GAZER_EXPR_KIND(FIsNan)
-GAZER_EXPR_KIND(FIsInf)
+GAZER_UNARY_EXPR_KIND(FIsNan)
+GAZER_UNARY_EXPR_KIND(FIsInf)
 
 // Floating-point casts
-GAZER_EXPR_KIND(FCast)
-GAZER_EXPR_KIND(SignedToFp)
-GAZER_EXPR_KIND(UnsignedToFp)
-GAZER_EXPR_KIND(FpToSigned)
-GAZER_EXPR_KIND(FpToUnsigned)
-GAZER_EXPR_KIND(FpToBv) // Bit-cast a floating-point value to a bit-vector
-GAZER_EXPR_KIND(BvToFp) // Bit-cast a bit-vector into a floating-point value
+GAZER_NON_NULLARY_EXPR_KIND(FCast)
+GAZER_NON_NULLARY_EXPR_KIND(SignedToFp)
+GAZER_NON_NULLARY_EXPR_KIND(UnsignedToFp)
+GAZER_NON_NULLARY_EXPR_KIND(FpToSigned)
+GAZER_NON_NULLARY_EXPR_KIND(FpToUnsigned)
+GAZER_NON_NULLARY_EXPR_KIND(FpToBv) // Bit-cast a floating-point value to a bit-vector
+GAZER_NON_NULLARY_EXPR_KIND(BvToFp) // Bit-cast a bit-vector into a floating-point value
 
 // Floating point binary
-GAZER_EXPR_KIND(FAdd)
-GAZER_EXPR_KIND(FSub)
-GAZER_EXPR_KIND(FMul)
-GAZER_EXPR_KIND(FDiv)
+GAZER_NON_NULLARY_EXPR_KIND(FAdd)
+GAZER_NON_NULLARY_EXPR_KIND(FSub)
+GAZER_NON_NULLARY_EXPR_KIND(FMul)
+GAZER_NON_NULLARY_EXPR_KIND(FDiv)
 
 // Floating point compare
 // All comparisons evaluate to false if either operand is NaN
-GAZER_EXPR_KIND(FEq)
-GAZER_EXPR_KIND(FGt)
-GAZER_EXPR_KIND(FGtEq)
-GAZER_EXPR_KIND(FLt)
-GAZER_EXPR_KIND(FLtEq)
+GAZER_BINARY_EXPR_KIND(FEq)
+GAZER_BINARY_EXPR_KIND(FGt)
+GAZER_BINARY_EXPR_KIND(FGtEq)
+GAZER_BINARY_EXPR_KIND(FLt)
+GAZER_BINARY_EXPR_KIND(FLtEq)
 
 // Ternary
-GAZER_EXPR_KIND(Select)     // Ternary if-then-else (ITE) operator
+GAZER_NON_NULLARY_EXPR_KIND(Select)     // Ternary if-then-else (ITE) operator
 
 // Arrays
-GAZER_EXPR_KIND(ArrayRead)
-GAZER_EXPR_KIND(ArrayWrite)
+GAZER_NON_NULLARY_EXPR_KIND(ArrayRead)
+GAZER_NON_NULLARY_EXPR_KIND(ArrayWrite)
 
 // Tuples
-GAZER_EXPR_KIND(TupleSelect)
-GAZER_EXPR_KIND(TupleConstruct)
+GAZER_NON_NULLARY_EXPR_KIND(TupleSelect)
+GAZER_NON_NULLARY_EXPR_KIND(TupleConstruct)
+
+#ifdef GAZER_NULLARY_DEFINED_HERE
+    #undef GAZER_NULLARY_EXPR_KIND
+    #undef GAZER_NULLARY_DEFINED_HERE
+#endif
+
+#ifdef GAZER_NON_NULLARY_DEFINED_HERE
+    #undef GAZER_NON_NULLARY_EXPR_KIND
+    #undef GAZER_NON_NULLARY_DEFINED_HERE
+#endif
+
+#ifdef GAZER_UNARY_DEFINED_HERE
+    #undef GAZER_UNARY_EXPR_KIND
+    #undef GAZER_UNARY_DEFINED_HERE
+#endif
+
+#ifdef GAZER_BINARY_DEFINED_HERE
+    #undef GAZER_BINARY_EXPR_KIND
+    #undef GAZER_BINARY_DEFINED_HERE
+#endif
+
+#ifdef GAZER_MULTIARY_DEFINED_HERE
+    #undef GAZER_MULTIARY_EXPR_KIND
+    #undef GAZER_MULTIARY_DEFINED_HERE
+#endif

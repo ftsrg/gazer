@@ -17,8 +17,6 @@
 //===----------------------------------------------------------------------===//
 #include "Z3SolverImpl.h"
 
-#include "gazer/Support/Float.h"
-
 #include <llvm/ADT/SmallString.h>
 
 #include <llvm/Support/raw_os_ostream.h>
@@ -31,9 +29,9 @@ using namespace gazer;
 
 namespace
 {
-    llvm::cl::opt<bool> Z3SolveParallel("z3-solve-parallel", llvm::cl::desc("Enable Z3's parallel solver"));
-    llvm::cl::opt<int>  Z3ThreadsMax("z3-threads-max", llvm::cl::desc("Maximum number of threads"), llvm::cl::init(0));
-    llvm::cl::opt<bool> Z3DumpModel("z3-dump-model", llvm::cl::desc("Dump Z3 model"));
+    const llvm::cl::opt<bool> Z3SolveParallel("z3-solve-parallel", llvm::cl::desc("Enable Z3's parallel solver"));
+    const llvm::cl::opt<int>  Z3ThreadsMax("z3-threads-max", llvm::cl::desc("Maximum number of threads"), llvm::cl::init(0));
+    const llvm::cl::opt<bool> Z3DumpModel("z3-dump-model", llvm::cl::desc("Dump Z3 model"));
 } // end anonymous namespace
 
 
@@ -79,7 +77,8 @@ Solver::SolverStatus Z3Solver::run()
                 llvm::errs() << Z3_model_to_string(mZ3Context, Z3_solver_get_model(mZ3Context, mSolver)) << "\n";
             }
             return SolverStatus::SAT;
-        case Z3_L_UNDEF: return SolverStatus::UNKNOWN;
+        case Z3_L_UNDEF:
+            return SolverStatus::UNKNOWN;
     }
 
     llvm_unreachable("Unknown solver status encountered.");
@@ -87,25 +86,25 @@ Solver::SolverStatus Z3Solver::run()
 
 void Z3Solver::addConstraint(ExprPtr expr)
 {
-    auto z3Expr = mTransformer.walk(expr);
+    auto z3Expr = mTransformer.translate(expr);
     Z3_solver_assert(mZ3Context, mSolver, z3Expr);
 }
 
-void Z3Solver::reset()
+void Z3Solver::doReset()
 {
     mCache.clear();
     mDecls.clear();
     Z3_solver_reset(mZ3Context, mSolver);
 }
 
-void Z3Solver::push()
+void Z3Solver::doPush()
 {
     mCache.push();
     mDecls.push();
     Z3_solver_push(mZ3Context, mSolver);
 }
 
-void Z3Solver::pop()
+void Z3Solver::doPop()
 {
     mCache.pop();
     mDecls.pop();
@@ -152,8 +151,7 @@ auto Z3ExprTransformer::shouldSkip(const ExprPtr& expr, Z3AstHandle* ret) -> boo
         return false;
     }
 
-    auto result = mCache.get(expr);
-    if (result) {
+    if (auto result = mCache.get(expr)) {
         *ret = *result;
         return true;
     }
@@ -168,8 +166,7 @@ void Z3ExprTransformer::handleResult(const ExprPtr& expr, Z3AstHandle& ret)
 
 auto Z3ExprTransformer::translateDecl(Variable* variable) -> Z3Handle<Z3_func_decl>
 {
-    auto opt = mDecls.get(variable);
-    if (opt) {
+    if (auto opt = mDecls.get(variable)) {
         return *opt;
     }
 
@@ -260,7 +257,7 @@ auto Z3ExprTransformer::visitTupleSelect(const ExprRef<TupleSelectExpr>& expr) -
 
 auto Z3ExprTransformer::visitTupleConstruct(const ExprRef<TupleConstructExpr>& expr) -> Z3AstHandle
 {
-    auto& tupTy = llvm::cast<TupleType>(expr->getOperand(0)->getType());
+    auto& tupTy = expr->getType();
 
     assert(mTupleInfo.count(&tupTy) != 0 && "Tuple types should have been handled before!");
     auto& info = mTupleInfo[&tupTy];
@@ -276,15 +273,15 @@ auto Z3ExprTransformer::visitTupleConstruct(const ExprRef<TupleConstructExpr>& e
 auto Z3ExprTransformer::transformRoundingMode(llvm::APFloat::roundingMode rm) -> Z3AstHandle
 {
     switch (rm) {
-        case llvm::APFloat::roundingMode::rmNearestTiesToEven:
+        case llvm::APFloat::roundingMode::NearestTiesToEven:
             return createHandle(Z3_mk_fpa_round_nearest_ties_to_even(mZ3Context));
-        case llvm::APFloat::roundingMode::rmNearestTiesToAway:
+        case llvm::APFloat::roundingMode::NearestTiesToAway:
             return createHandle(Z3_mk_fpa_round_nearest_ties_to_away(mZ3Context));
-        case llvm::APFloat::roundingMode::rmTowardPositive:
+        case llvm::APFloat::roundingMode::TowardPositive:
             return createHandle(Z3_mk_fpa_round_toward_positive(mZ3Context));
-        case llvm::APFloat::roundingMode::rmTowardNegative:
+        case llvm::APFloat::roundingMode::TowardNegative:
             return createHandle(Z3_mk_fpa_round_toward_negative(mZ3Context));
-        case llvm::APFloat::roundingMode::rmTowardZero:
+        case llvm::APFloat::roundingMode::TowardZero:
             return createHandle(Z3_mk_fpa_round_toward_zero(mZ3Context));
     }
 
@@ -335,39 +332,29 @@ Z3Handle<Z3_sort> Z3ExprTransformer::typeToSort(Type& type)
 Z3Handle<Z3_sort> Z3ExprTransformer::handleTupleType(TupleType& tupTy)
 {
     // Check if we already visited this type
-    auto it = mTupleInfo.find(&tupTy);
-    if (it != mTupleInfo.end()) {
+    if (auto it = mTupleInfo.find(&tupTy); it != mTupleInfo.end()) {
         return it->second.sort;
     }
 
-    auto name = Z3_mk_string_symbol(mZ3Context, ("mk_" + tupTy.getName()).c_str());
+    Z3_symbol name = Z3_mk_string_symbol(mZ3Context, ("mk_" + tupTy.getName()).c_str());
 
     std::vector<Z3_symbol> projs;
     std::vector<Z3_sort> sorts;
 
-    for (size_t i = 0; i < tupTy.getNumSubtypes(); ++i) {
+    for (unsigned i = 0; i < tupTy.getNumSubtypes(); ++i) {
         std::string projName = tupTy.getName() + "_" + std::to_string(i);
         projs.emplace_back(Z3_mk_string_symbol(mZ3Context, projName.c_str()));
-        sorts.emplace_back(typeToSort(tupTy.getTypeAtIndex(i)));
+        sorts.emplace_back(typeToSort(tupTy.getSubType(i)));
     }
 
     Z3_func_decl constructDecl;
     std::vector<Z3_func_decl> projDecls(tupTy.getNumSubtypes());
 
-    auto tup = Z3_mk_tuple_sort(
+    Z3_sort tup = Z3_mk_tuple_sort(
         mZ3Context, name, tupTy.getNumSubtypes(), projs.data(),
         sorts.data(), &constructDecl, projDecls.data()
     );
-
-    if (tup == nullptr) {
-        std::string errStr;
-        llvm::raw_string_ostream err{errStr};
-
-        err << "Invalid Z3_sort!\n"
-            << "Z3 error: " << Z3_get_error_msg(mZ3Context, Z3_get_error_code(mZ3Context))
-            << "\n";
-        llvm::report_fatal_error(err.str(), true);
-    }
+    checkErrors(mZ3Context, tup);
 
     auto& info = mTupleInfo[&tupTy];
 
@@ -380,12 +367,15 @@ Z3Handle<Z3_sort> Z3ExprTransformer::handleTupleType(TupleType& tupTy)
     return info.sort;
 }
 
+Z3AstHandle Z3ExprTransformer::translateAPInt(const llvm::APInt& value, Z3Handle<Z3_sort> z3Sort)
+{
+    return createHandle(Z3_mk_numeral(mZ3Context, value.toString(10, false).c_str(), z3Sort));
+}
+
 Z3AstHandle Z3ExprTransformer::translateLiteral(const ExprRef<LiteralExpr>& expr)
 {
     if (auto bvLit = llvm::dyn_cast<BvLiteralExpr>(expr)) {
-        llvm::SmallString<20> buffer;
-        bvLit->getValue().toStringUnsigned(buffer, 10);
-        return createHandle(Z3_mk_numeral(mZ3Context, buffer.c_str(), typeToSort(bvLit->getType())));
+        return translateAPInt(bvLit->getValue(), typeToSort(bvLit->getType()));
     }
 
     if (auto bl = llvm::dyn_cast<BoolLiteralExpr>(expr)) {
@@ -397,17 +387,12 @@ Z3AstHandle Z3ExprTransformer::translateLiteral(const ExprRef<LiteralExpr>& expr
     }
 
     if (auto fl = llvm::dyn_cast<FloatLiteralExpr>(expr)) {
-        if (fl->getType().getPrecision() == FloatType::Single) {
-            return createHandle(Z3_mk_fpa_numeral_float(
-                mZ3Context, fl->getValue().convertToFloat(), typeToSort(fl->getType())
-            ));
-        }
-
-        if (fl->getType().getPrecision() == FloatType::Double) {
-            return createHandle(Z3_mk_fpa_numeral_double(
-                mZ3Context, fl->getValue().convertToDouble(), typeToSort(fl->getType())
-            ));
-        }
+        llvm::APInt fpAsBv = fl->getValue().bitcastToAPInt();
+        return createHandle(Z3_mk_fpa_to_fp_bv(
+            mZ3Context,
+            translateAPInt(fpAsBv, typeToSort(BvType::Get(fl->getContext(), fpAsBv.getBitWidth()))),
+            typeToSort(fl->getType())
+        ));
     }
 
     if (auto arrayLit = llvm::dyn_cast<ArrayLiteralExpr>(expr)) {
@@ -432,5 +417,5 @@ Z3AstHandle Z3ExprTransformer::translateLiteral(const ExprRef<LiteralExpr>& expr
 
 std::unique_ptr<Solver> Z3SolverFactory::createSolver(GazerContext& context)
 {
-    return std::unique_ptr<Solver>(new Z3Solver(context));
+    return std::make_unique<Z3Solver>(context);
 }

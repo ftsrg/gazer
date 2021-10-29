@@ -114,10 +114,10 @@ public:
     MemoryModelSetting memoryModel = MemoryModelSetting::Flat;
 
 public:
-    /// Returns true if the current settings can be applied to the given module.
-    bool validate(const llvm::Module& module, llvm::raw_ostream& os) const;
+    /// Returns true if the current settings can be applied to the given llvmModule.
+    bool validate(const llvm::Module& llvmModule, llvm::raw_ostream& os) const;
 
-    llvm::Function* getEntryFunction(const llvm::Module& module) const;
+    llvm::Function* getEntryFunction(const llvm::Module& llvmModule) const;
 
     bool isElimVarsOff() const { return elimVars == ElimVarsLevel::Off; }
     bool isElimVarsNormal() const { return elimVars == ElimVarsLevel::Normal; }

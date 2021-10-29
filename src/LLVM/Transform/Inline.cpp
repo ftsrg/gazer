@@ -43,7 +43,6 @@ class InlinePass : public llvm::ModulePass
 public:
     static char ID;
 
-public:
     InlinePass(llvm::Function* entry, InlineLevel level)
         : ModulePass(ID), mEntryFunction(entry), mLevel(level)
     {
@@ -55,14 +54,14 @@ public:
         au.addRequired<llvm::CallGraphWrapperPass>();
     }
 
-    bool runOnModule(llvm::Module& module) override;
+    bool runOnModule(llvm::Module& llvmModule) override;
 
     llvm::StringRef getPassName() const override {
         return "Simplified inling";
     }
 
 private:
-    bool shouldInlineFunction(llvm::CallGraphNode* target, unsigned allowedRefs);
+    bool shouldInlineFunction(llvm::CallGraphNode* target, unsigned allowedRefs) const;
 
     llvm::Function* mEntryFunction;
     InlineLevel mLevel;
@@ -72,9 +71,9 @@ private:
 
 char InlinePass::ID;
 
-bool InlinePass::shouldInlineFunction(llvm::CallGraphNode* target, unsigned allowedRefs)
+bool InlinePass::shouldInlineFunction(llvm::CallGraphNode* target, unsigned allowedRefs) const
 {
-    bool viable = llvm::isInlineViable(*target->getFunction());
+    bool viable = llvm::isInlineViable(*target->getFunction()).isSuccess();
     viable |= !isRecursive(target);
 
     if (!viable) {
@@ -102,7 +101,7 @@ bool InlinePass::shouldInlineFunction(llvm::CallGraphNode* target, unsigned allo
     return false;
 }
 
-bool InlinePass::runOnModule(llvm::Module& module)
+bool InlinePass::runOnModule(llvm::Module& llvmModule)
 {
     if (mLevel == InlineLevel::Off) {
         return false;
@@ -112,25 +111,25 @@ bool InlinePass::runOnModule(llvm::Module& module)
     llvm::CallGraph& cg = getAnalysis<llvm::CallGraphWrapperPass>().getCallGraph();
 
     llvm::InlineFunctionInfo ifi(&cg);
-    llvm::SmallVector<llvm::CallSite, 16> wl;
+    llvm::SmallVector<llvm::CallBase*, 16> wl;
 
     llvm::CallGraphNode* entryCG = cg[mEntryFunction];
 
     for (auto& [call, target] : *entryCG) {
         if (this->shouldInlineFunction(target, 1)) {
             LLVM_DEBUG(llvm::dbgs() << "Decided to inline call " << *call << " to target " << target->getFunction()->getName() << "\n");
-            wl.emplace_back(call);
+            wl.emplace_back(llvm::cast<llvm::CallBase>(*call));
         }
     }
 
     while (!wl.empty()) {
-        llvm::CallSite cs = wl.pop_back_val();
-        bool success = llvm::InlineFunction(cs, ifi);
+        llvm::CallBase* cs = wl.pop_back_val();
+        bool success = llvm::InlineFunction(*cs, ifi).isSuccess();
         changed |= success;
 
         for (llvm::Value* newCall : ifi.InlinedCalls) {
-            llvm::CallSite newCS(newCall);
-            auto callee = newCS.getCalledFunction();
+            llvm::CallBase* newCS = llvm::cast<llvm::CallBase>(newCall);
+            auto callee = newCS->getCalledFunction();
             if (callee == nullptr) {
                 continue;
             }

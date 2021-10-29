@@ -125,8 +125,8 @@ private:
 template<class NodeTy, class EdgeTy>
 class Graph
 {
-    static_assert(std::is_base_of_v<GraphNode<NodeTy, EdgeTy>, NodeTy>, "");
-    static_assert(std::is_base_of_v<GraphEdge<NodeTy, EdgeTy>, EdgeTy>, "");
+    static_assert(std::is_base_of_v<GraphNode<NodeTy, EdgeTy>, NodeTy>);
+    static_assert(std::is_base_of_v<GraphEdge<NodeTy, EdgeTy>, EdgeTy>);
 
     using NodeVectorTy = std::vector<std::unique_ptr<NodeTy>>;
     using EdgeVectorTy = std::vector<std::unique_ptr<EdgeTy>>;
@@ -135,11 +135,11 @@ public:
     using node_iterator = SmartPtrGetIterator<typename NodeVectorTy::iterator>;
     using const_node_iterator = SmartPtrGetIterator<typename NodeVectorTy::const_iterator>;
 
-    node_iterator node_begin() { return mNodes.begin(); }
-    node_iterator node_end() { return mNodes.end(); }
+    node_iterator node_begin() { return node_iterator(mNodes.begin()); }
+    node_iterator node_end() { return node_iterator(mNodes.end()); }
 
-    const_node_iterator node_begin() const { return mNodes.begin(); }
-    const_node_iterator node_end() const { return mNodes.end(); }
+    const_node_iterator node_begin() const { return const_node_iterator(mNodes.begin()); }
+    const_node_iterator node_end() const { return const_node_iterator(mNodes.end()); }
 
     llvm::iterator_range<node_iterator> nodes() {
         return llvm::make_range(node_begin(), node_end());
@@ -151,11 +151,11 @@ public:
     using edge_iterator = SmartPtrGetIterator<typename EdgeVectorTy::iterator>;
     using const_edge_iterator = SmartPtrGetIterator<typename EdgeVectorTy::const_iterator>;
 
-    edge_iterator edge_begin() { return mEdges.begin(); }
-    edge_iterator edge_end() { return mEdges.end(); }
+    edge_iterator edge_begin() { return edge_iterator(mEdges.begin()); }
+    edge_iterator edge_end() { return edge_iterator(mEdges.end()); }
 
-    const_edge_iterator edge_begin() const { return mEdges.begin(); }
-    const_edge_iterator edge_end() const { return mEdges.end(); }
+    const_edge_iterator edge_begin() const { return const_edge_iterator(mEdges.begin()); }
+    const_edge_iterator edge_end() const { return const_edge_iterator(mEdges.end()); }
     llvm::iterator_range<edge_iterator> edges() {
         return llvm::make_range(edge_begin(), edge_end());
     }
@@ -360,6 +360,6 @@ struct GraphTraits<Inverse<gazer::GraphNode<NodeTy, EdgeTy>*>>
     }
 };
 
-} // namespace gazer
+} // namespace llvm
 
 #endif

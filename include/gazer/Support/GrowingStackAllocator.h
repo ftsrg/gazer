@@ -41,15 +41,17 @@ class GrowingStackAllocator : public llvm::AllocatorBase<GrowingStackAllocator<A
     };
 public:
     GrowingStackAllocator() = default;
-    
+    GrowingStackAllocator(const GrowingStackAllocator&) = delete;
+    GrowingStackAllocator& operator=(const GrowingStackAllocator&) = delete;
+
     void Init()
     {
         this->startNewSlab();
     }
 
-    LLVM_ATTRIBUTE_RETURNS_NONNULL void* Allocate(size_t size, size_t alignment)
+    LLVM_ATTRIBUTE_RETURNS_NONNULL void* Allocate(size_t size, llvm::Align alignment)
     {
-        size_t adjustment = llvm::alignmentAdjustment(slab().Current, alignment);
+        size_t adjustment = llvm::offsetToAlignedAddr(slab().Current, alignment);
         assert(adjustment + size >= size);
 
         if (size > SlabSize) {
@@ -111,6 +113,6 @@ private:
     size_t mCurrentSlab = 0;
 };
 
-}
+} // namespace gazer
 
 #endif

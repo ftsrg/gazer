@@ -63,11 +63,9 @@ RecursiveToCyclicResult RecursiveToCyclicTransformer::transform()
 {
     this->addUniqueErrorLocation();
 
-    for (Transition* edge : mRoot->edges()) {
-        if (auto call = llvm::dyn_cast<CallTransition>(edge)) {
-            if (mCallGraph.isTailRecursive(call->getCalledAutomaton())) {
-                mTailRecursiveCalls.push_back(call);
-            }
+    for (auto* call : classof_range<CallTransition>(mRoot->edges())) {
+        if (mCallGraph.isTailRecursive(call->getCalledAutomaton())) {
+            mTailRecursiveCalls.push_back(call);
         }
     }
 
@@ -94,189 +92,63 @@ RecursiveToCyclicResult RecursiveToCyclicTransformer::transform()
 void RecursiveToCyclicTransformer::inlineCallIntoRoot(CallTransition* call, llvm::Twine suffix)
 {
     Cfa* callee = call->getCalledAutomaton();
-    Location* before = call->getSource();
-    Location* after  = call->getTarget();
 
+    CfaInlineResult inlineResult = InlineCall(call, mError, mErrorFieldVariable, suffix.str());
+
+    // TODO: This is super not-nice: we are copying all the maps from the rewrite object that we
+    //  have to re-create after the inlining.
     VariableExprRewrite rewrite(*mExprBuilder);
-    llvm::DenseMap<Location*, Location*> locToLocMap;
-    llvm::DenseMap<Variable*, Variable*> oldVarToNew;
+    llvm::for_each(inlineResult.oldVarToNew, [&rewrite](auto& entry) {
+        rewrite[entry.first] = entry.second->getRefExpr();
+    });
 
-    // Clone all local variables into the parent
-    for (Variable& local : callee->locals()) {
-        if (!callee->isOutput(&local)) {
-            auto varname = (local.getName() + suffix).str();
-            auto newLocal = mRoot->createLocal(varname, local.getType());
-            oldVarToNew[&local] = newLocal;
-            mInlinedVariables[newLocal] = &local;
-            rewrite[&local] = newLocal->getRefExpr();
-        }
-    }
-
-    // Clone input variables as well; we will insert an assign transition
-    // with the initial values later.
-    std::vector<Variable*> inputTemporaries;
-    for (Variable& input : callee->inputs()) {
-        if (!callee->isOutput(&input)) {
-            auto varname = (input.getName() + suffix).str();
-            auto newInput = mRoot->createLocal(varname, input.getType());
-            oldVarToNew[&input] = newInput;
-            mInlinedVariables[newInput] = &input;
-            //rewrite[input] = call->getInputArgument(i);
-            rewrite[&input] = newInput->getRefExpr();
-
-            auto val = mRoot->createLocal(varname+"_", input.getType());
-            inputTemporaries.emplace_back(val);
-        }
-    }
-
-    for (Variable& output : callee->outputs()) {
-        auto argument = call->getOutputArgument(output);
-        assert(argument.has_value() && "Every callee output should be assigned in a call transition!");
-
-        auto newOutput = argument->getVariable();
-        oldVarToNew[&output] = newOutput;
-        mInlinedVariables[newOutput] = &output;
-        rewrite[&output] = newOutput->getRefExpr();
-    }
-
-    // Insert all locations
-    for (Location* origLoc : callee->nodes()) {
-        auto newLoc = mRoot->createLocation();
-        locToLocMap[&*origLoc] = newLoc;
-        mInlinedLocations[newLoc] = origLoc;
-        if (origLoc->isError()) {
-            mRoot->createAssignTransition(newLoc, mError, mExprBuilder->True(), {
-                { mErrorFieldVariable, callee->getErrorFieldExpr(origLoc) }
-            });
-        }
-    }
-
-    // Clone the edges
-    for (Transition* origEdge : callee->edges()) {
-        Location* source = locToLocMap[origEdge->getSource()];
-        Location* target = locToLocMap[origEdge->getTarget()];
-
-        if (auto assign = llvm::dyn_cast<AssignTransition>(&*origEdge)) {
-            std::vector<VariableAssignment> newAssigns;
-            std::transform(
-                assign->begin(), assign->end(), std::back_inserter(newAssigns),
-                [&oldVarToNew, &rewrite] (const VariableAssignment& origAssign) {
-                    return VariableAssignment {
-                        oldVarToNew[origAssign.getVariable()],
-                        rewrite.walk(origAssign.getValue())
-                    };
-                }
-            );
-
-            mRoot->createAssignTransition(
-                source, target, rewrite.walk(assign->getGuard()), newAssigns
-            );
-        } else if (auto nestedCall = llvm::dyn_cast<CallTransition>(&*origEdge)) {
-            if (nestedCall->getCalledAutomaton() == callee) {
-                // This is where the magic happens: if we are calling this
-                // same automaton, replace the recursive call with a back-edge
-                // to the entry.
-                std::vector<VariableAssignment> recursiveInputArgs;
-                for (size_t i = 0; i < callee->getNumInputs(); ++i) {
-                    // result variable is different then original inputs #46
-                    // to simulate parallel assignments
-                    Variable* input = inputTemporaries[i];
-                    Variable* realInput = callee->getInput(i);
-
-                    auto variable = input;
-                    auto value = rewrite.walk(nestedCall->getInputArgument(*realInput)->getValue());
-
-                    if (variable->getRefExpr() != value) {
-                        // Do not add unneeded assignments (X := X).
-                        recursiveInputArgs.push_back({
-                                                         variable,
-                                                         value
-                                                     });
-                    }
-                }
-
-                for (size_t i = 0; i < callee->getNumInputs(); ++i) {
-                    Variable* inputTemp = inputTemporaries[i];
-                    Variable* realInput = callee->getInput(i);
-
-                    auto variable = oldVarToNew[realInput];
-                    auto value = inputTemp->getRefExpr();
-
-                    recursiveInputArgs.push_back({
-                                                     variable,
-                                                     value
-                                                 });
-                }
-
-                // Create the assignment back-edge.
-                mRoot->createAssignTransition(
-                    source, locToLocMap[callee->getEntry()],
-                    nestedCall->getGuard(), recursiveInputArgs
-                );
-            } else {
-                // Inline it as a normal call.
-                std::vector<VariableAssignment> newArgs;
-                std::vector<VariableAssignment> newOuts;
-
-                std::transform(
-                    nestedCall->input_begin(), nestedCall->input_end(),
-                    std::back_inserter(newArgs),
-                    [&rewrite](const VariableAssignment& assign) {
-                        return VariableAssignment{assign.getVariable(), rewrite.walk(assign.getValue())};
-                    }
-                );
-                std::transform(
-                    nestedCall->output_begin(), nestedCall->output_end(),
-                    std::back_inserter(newOuts),
-                    [&oldVarToNew](const VariableAssignment& origAssign) {
-                        Variable* newVar = oldVarToNew.lookup(origAssign.getVariable());
-                        assert(newVar != nullptr
-                            && "All variables should be present in the variable map!");
-
-                        return VariableAssignment{
-                            newVar,
-                            origAssign.getValue()
-                        };
-                    }
-                );
-
-                auto newCall = mRoot->createCallTransition(
-                    source, target,
-                    rewrite.walk(nestedCall->getGuard()),
-                    nestedCall->getCalledAutomaton(),
-                    newArgs, newOuts
-                );
-
-                if (mCallGraph.isTailRecursive(nestedCall->getCalledAutomaton())) {
-                    // If the call is to another tail-recursive automaton, we add it
-                    // to the worklist.
-                    mTailRecursiveCalls.push_back(newCall);
-                }
+    // See the newly inserted calls: if it is the same automaton (callee is guaranteed to be
+    // tail-recursive at this point), replace the call edge to the final location with a back-edge
+    // to the entry location.
+    for (CallTransition* newCall : inlineResult.newCalls) {
+        if (newCall->getCalledAutomaton() != callee) {
+            if (mCallGraph.isTailRecursive(newCall->getCalledAutomaton())) {
+                mTailRecursiveCalls.emplace_back(newCall);
             }
+            continue;
         }
+
+        std::vector<VariableAssignment> recursiveInputArgs;
+        std::vector<Variable*> inputTemporaries;
+        for (size_t i = 0; i < callee->getNumInputs(); ++i) {
+            // result variable is different then original inputs #46
+            // to simulate parallel assignments
+            Variable* realInput = callee->getInput(i);
+            Variable* tempInput = mRoot->createLocal(realInput->getName() + "_temp", realInput->getType());
+
+            auto value = rewrite.rewrite(newCall->getInputArgument(*realInput)->getValue());
+
+            if (tempInput->getRefExpr() != value) {
+                // Do not add unneeded assignments (X := X).
+                recursiveInputArgs.emplace_back( tempInput, value );
+            }
+
+            inputTemporaries.emplace_back(tempInput);
+        }
+
+        for (size_t i = 0; i < callee->getNumInputs(); ++i) {
+            Variable* inputTemp = inputTemporaries[i];
+            Variable* realInput = callee->getInput(i);
+
+            Variable* variable = inlineResult.oldVarToNew[realInput];
+            ExprPtr value = inputTemp->getRefExpr();
+            recursiveInputArgs.emplace_back( variable, value );
+        }
+
+        // Create the assignment back-edge.
+        mRoot->createAssignTransition(
+            newCall->getSource(), inlineResult.locToLocMap[callee->getEntry()],
+            newCall->getGuard(), recursiveInputArgs
+        );
+        mRoot->disconnectEdge(newCall);
     }
-        
-    std::vector<VariableAssignment> inputArgs;
-    for (size_t i = 0; i < callee->getNumInputs(); ++i) {
-        Variable* input = callee->getInput(i);
-        inputArgs.push_back({
-            oldVarToNew[input],
-            call->getInputArgument(*input)->getValue()
-        });
-    }
 
-    // We set the input variables to their initial values on a transition
-    // between 'before' and the entry of the called CFA.
-    mRoot->createAssignTransition(
-        before, locToLocMap[callee->getEntry()], call->getGuard(), inputArgs
-    );
-
-    mRoot->createAssignTransition(
-        locToLocMap[callee->getExit()], after , mExprBuilder->True()
-    );
-
-    // Remove the original call edge
-    mRoot->disconnectEdge(call);
+    mRoot->clearDisconnectedElements();
 }
 
 void RecursiveToCyclicTransformer::addUniqueErrorLocation()

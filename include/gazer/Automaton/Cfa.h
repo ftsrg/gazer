@@ -30,6 +30,8 @@
 #include <llvm/ADT/DenseMap.h>
 #include <boost/iterator/indirect_iterator.hpp>
 
+#include <optional>
+
 namespace gazer
 {
 
@@ -101,9 +103,8 @@ private:
 class AssignTransition final : public Transition
 {
     friend class Cfa;
-protected:
-    AssignTransition(Location* source, Location* target, ExprPtr guard, std::vector<VariableAssignment> assignments);
 
+    AssignTransition(Location* source, Location* target, ExprPtr guard, std::vector<VariableAssignment> assignments);
 public:
     using iterator = std::vector<VariableAssignment>::const_iterator;
     iterator begin() const { return mAssignments.begin(); }
@@ -126,7 +127,7 @@ private:
 class CallTransition final : public Transition
 {
     friend class Cfa;
-protected:
+
     CallTransition(
         Location* source, Location* target,
         ExprPtr guard,
@@ -182,9 +183,8 @@ public:
     Cfa(const Cfa&) = delete;
     Cfa& operator=(const Cfa&) = delete;
 
-public:
-    //===----------------------------------------------------------------------===//
     // Locations and edges
+    //===----------------------------------------------------------------------===//
     Location* createLocation();
     Location* createErrorLocation();
 
@@ -233,28 +233,26 @@ public:
     size_t getNumErrors() const { return mErrorFieldExprs.size(); }
 
     // Variable iterators
-    using var_iterator = boost::indirect_iterator<std::vector<Variable*>::iterator>;
+    using var_iterator = std::vector<Variable*>::iterator;
 
-    var_iterator input_begin() { return mInputs.begin(); }
-    var_iterator input_end() { return mInputs.end(); }
     llvm::iterator_range<var_iterator> inputs() {
-        return llvm::make_range(input_begin(), input_end());
+        return llvm::make_range(mInputs.begin(), mInputs.end());
     }
-
-    var_iterator output_begin() { return mOutputs.begin(); }
-    var_iterator output_end() { return mOutputs.end(); }
     llvm::iterator_range<var_iterator> outputs() {
-        return llvm::make_range(output_begin(), output_end());
+        return llvm::make_range(mOutputs.begin(), mOutputs.end());
     }
-
-    var_iterator local_begin() { return mLocals.begin(); }
-    var_iterator local_end() { return mLocals.end(); }
     llvm::iterator_range<var_iterator> locals() {
-        return llvm::make_range(local_begin(), local_end());
+        return llvm::make_range(mLocals.begin(), mLocals.end());
     }
 
-    //===----------------------------------------------------------------------===//
+    /// Returns both inputs and locals. Note that all output variables are either inputs or locals,
+    /// so they will also be included in the iterator result.
+    decltype(auto) variables() {
+        return llvm::concat<Variable*>(inputs(), outputs());
+    }
+
     // Others
+    //===----------------------------------------------------------------------===//
     llvm::StringRef getName() const { return mName; }
     Location* getEntry() const { return mEntry; }
     Location* getExit() const { return mExit; }
@@ -400,7 +398,7 @@ template<>
 struct GraphTraits<Inverse<gazer::Cfa>> :
     public GraphTraits<Inverse<gazer::Graph<gazer::Location, gazer::Transition>>>
 {
-    static NodeRef getEntryNode(Inverse<gazer::Cfa>& cfa) {
+    static NodeRef getEntryNode(const Inverse<gazer::Cfa>& cfa) {
         return cfa.Graph.getExit();
     }
 };

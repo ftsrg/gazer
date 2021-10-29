@@ -26,23 +26,23 @@ namespace gazer
 class LocationInfo
 {
 public:
-    LocationInfo(unsigned int line = 0, unsigned int column = 0, std::string fileName = "")
-        : mLine(line), mColumn(column), mFileName(fileName)
+    LocationInfo(unsigned line = 0, unsigned column = 0, std::string fileName = "")
+        : mLine(line), mColumn(column), mFileName(std::move(fileName))
     {}
 
     LocationInfo(const LocationInfo&) = default;
     LocationInfo& operator=(const LocationInfo&) = default;
 
-    int getLine() const { return mLine; }
-    int getColumn() const { return mColumn; }
+    unsigned getLine() const { return mLine; }
+    unsigned getColumn() const { return mColumn; }
     std::string getFileName() const { return mFileName; }
 
 private:
-    int mLine;
-    int mColumn;
+    unsigned mLine;
+    unsigned mColumn;
     std::string mFileName;
 };
 
-}
+} // namespace gazer
 
 #endif

@@ -42,7 +42,7 @@ static llvm::Constant* exprToLLVMValue(ExprRef<AtomicExpr>& expr, LLVMContext& c
         return llvm::ConstantInt::get(context, bvLit->getValue());
     } else if (auto intLit = llvm::dyn_cast<IntLiteralExpr>(expr)) {
         return llvm::ConstantInt::get(context, llvm::APInt{targetTy->getIntegerBitWidth(), static_cast<uint64_t>(intLit->getValue())});
-    } else if (auto boolLit =llvm::dyn_cast<BoolLiteralExpr>(expr)) {
+    } else if (auto boolLit = llvm::dyn_cast<BoolLiteralExpr>(expr)) {
         if (boolLit->getValue()) {
             return llvm::ConstantInt::getTrue(context);
         }
@@ -56,16 +56,16 @@ static llvm::Constant* exprToLLVMValue(ExprRef<AtomicExpr>& expr, LLVMContext& c
 }
 
 std::unique_ptr<Module> gazer::GenerateTestHarnessModuleFromTrace(
-    Trace& trace, LLVMContext& context, const llvm::Module& module
+    const Trace& trace, LLVMContext& context, const llvm::Module& llvmModule
 ) {
-    const DataLayout& dl = module.getDataLayout();
+    const DataLayout& dl = llvmModule.getDataLayout();
 
     std::unordered_map<llvm::Function*, std::vector<ExprRef<AtomicExpr>>> calls;
     for (auto& event : trace) {
         if (event->getKind() == TraceEvent::Event_FunctionCall) {
             auto callEvent = llvm::cast<FunctionCallEvent>(event.get());
 
-            llvm::Function* callee = module.getFunction(callEvent->getFunctionName());
+            llvm::Function* callee = llvmModule.getFunction(callEvent->getFunctionName());
             assert(callee != nullptr && "The function declaration should be present in the module");
             auto expr = callEvent->getReturnValue();
 
@@ -73,7 +73,7 @@ std::unique_ptr<Module> gazer::GenerateTestHarnessModuleFromTrace(
         }
     }
 
-    std::unique_ptr<Module> test = std::make_unique<Module>("test", context);
+    auto test = std::make_unique<Module>("test", context);
     test->setDataLayout(dl);
 
     for (auto& [function, vec] : calls) {

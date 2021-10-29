@@ -60,7 +60,9 @@ static llvm::ErrorOr<std::string> read_symlink(llvm::StringRef path)
         if (ret < 0) {
             std::error_code ec(errno, std::system_category());
             return ec;
-        } else if (ret < static_cast<ssize_t>(size)) {
+        }
+
+        if (ret < static_cast<ssize_t>(size)) {
             return std::string(buffer.data(), static_cast<std::string::size_type>(ret));
         }
         size *= 2;
@@ -83,19 +85,18 @@ llvm::ErrorOr<std::string> gazer::findProgramLocation(llvm::StringRef argvZero)
 #endif
 
     // Try a heuristic based on argv[0], if supplied
-    if (argvZero.size() == 0) {
+    if (argvZero.empty()) {
         return result;
     }
 
     llvm::SmallString<64> path(argvZero);
 
     if (llvm::sys::path::is_absolute(argvZero) || llvm::sys::path::is_relative(argvZero)) {
-        auto ec = llvm::sys::fs::real_path(argvZero, path);
-        if (ec) {
+        if (auto ec = llvm::sys::fs::real_path(argvZero, path); ec) {
             return ec;
         }
 
-        return path.str();
+        return path.str().str();
     }
 
     // See if we can look it up in the PATH

@@ -30,7 +30,7 @@
 using namespace gazer;
 using namespace llvm;
 
-bool Check::runOnModule(llvm::Module& module)
+bool Check::runOnModule(llvm::Module& llvmModule)
 {
     assert(mRegistry != nullptr
         && "The check registry was not set before check execution was initiated."
@@ -38,7 +38,7 @@ bool Check::runOnModule(llvm::Module& module)
 
     bool changed = false;
 
-    for (llvm::Function& function : module) {
+    for (llvm::Function& function : llvmModule) {
         if (function.isDeclaration()) {
             continue;
         }
@@ -126,7 +126,8 @@ void Check::setCheckRegistry(CheckRegistry& registry)
 
 llvm::Value* CheckRegistry::createCheckViolation(Check* check, llvm::DebugLoc loc)
 {
-    unsigned ec = mErrorCodeCnt++;
+    unsigned ec = mErrorCodeCnt;
+    ++mErrorCodeCnt;
     mCheckMap.try_emplace(ec, check, loc);
 
     return llvm::ConstantInt::get(
@@ -149,15 +150,15 @@ llvm::IntegerType* CheckRegistry::GetErrorCodeType(llvm::LLVMContext& context)
     return llvm::Type::getInt16Ty(context);
 }
 
-llvm::FunctionCallee CheckRegistry::GetErrorFunction(llvm::Module& module)
+llvm::FunctionCallee CheckRegistry::GetErrorFunction(llvm::Module& llvmModule)
 {
     llvm::AttrBuilder ab;
     ab.addAttribute(llvm::Attribute::NoReturn);
 
-    return module.getOrInsertFunction(
+    return llvmModule.getOrInsertFunction(
         ErrorFunctionName,
-        GetErrorFunctionType(module.getContext()),
-        llvm::AttributeList::get(module.getContext(), AttributeList::FunctionIndex, ab)
+        GetErrorFunctionType(llvmModule.getContext()),
+        llvm::AttributeList::get(llvmModule.getContext(), AttributeList::FunctionIndex, ab)
     );
 }
 

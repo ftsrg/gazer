@@ -28,13 +28,22 @@ ExprPtr ExprBuilder::createTupleConstructor(TupleType& type, const ExprVector& m
     return TupleConstructExpr::Create(type, members);
 }
 
+ExprPtr ExprBuilder::Tuple(const ExprVector &elems)
+{
+    std::vector<Type*> subtypes;
+    llvm::transform(elems, std::back_inserter(subtypes), [](auto& e) { return &e->getType(); });
+
+    TupleType& type = TupleType::Get(subtypes);
+    return this->createTupleConstructor(type, elems);
+}
+
 ExprPtr ExprBuilder::TupleInsert(const ExprPtr &tuple, const ExprPtr &value, unsigned int index)
 {
     assert(tuple->getType().isTupleType() && "Can only perform tuple insertion on tuples!");
     auto& tupleTy = llvm::cast<TupleType>(tuple->getType());
 
     assert(index <= tupleTy.getNumSubtypes() && "Tuple insert index out of range!");
-    assert(tupleTy.getTypeAtIndex(index) == value->getType() && "Tuple insert of incompatible types!");
+    assert(tupleTy.getSubType(index) == value->getType() && "Tuple insert of incompatible types!");
 
     ExprVector newMembers;
     newMembers.reserve(tupleTy.getNumSubtypes());

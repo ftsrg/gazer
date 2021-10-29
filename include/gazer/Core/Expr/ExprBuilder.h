@@ -24,7 +24,7 @@
 
 namespace llvm {
     class APInt;
-}
+} // namespace llvm
 
 namespace gazer
 {
@@ -157,14 +157,15 @@ public:
     virtual ExprPtr And(const ExprVector& vector) { return AndExpr::Create(vector); }
     virtual ExprPtr Or(const ExprVector& vector) { return OrExpr::Create(vector); }
 
-    template<class Left, class Right>
-    ExprPtr And(const ExprRef<Left>& left, const ExprRef<Right>& right) {
-        return this->And({left, right});
+    template<class First, class Second, class... Args>
+    ExprPtr And(const First& first, const Second& second, const Args&... args)
+    {
+        return this->And(std::vector<ExprPtr>{first, second, args...});
     }
 
-    template<class Left, class Right>
-    ExprPtr Or(const ExprRef<Left>& left, const ExprRef<Right>& right) {
-        return this->Or({left, right});
+    template<class First, class Second, class... Args>
+    ExprPtr Or(const First& first, const Second& second, const Args&... args) {
+        return this->Or(std::vector<ExprPtr>{first, second, args...});
     }
 
     ExprPtr Xor(const ExprPtr& left, const ExprPtr& right)
@@ -285,11 +286,12 @@ public:
         return ArrayReadExpr::Create(array, index);
     }
 
+    ExprPtr Tuple(const ExprVector& elems);
+
     template<class First, class Second, class... Tail>
     ExprPtr Tuple(const First& first, const Second& second, const Tail&... exprs)
     {
-        TupleType& type = TupleType::Get(first->getType(), second->getType(), exprs->getType()...);
-        return this->createTupleConstructor(type, {first, second, exprs...});
+        return this->Tuple({first, second, exprs...});
     }
 
     /// Constructs a new tuple based on \p tuple, where the element at \p index
@@ -316,6 +318,6 @@ std::unique_ptr<ExprBuilder> CreateExprBuilder(GazerContext& context);
 /// some basic simplifications.
 std::unique_ptr<ExprBuilder> CreateFoldingExprBuilder(GazerContext& context);
 
-}
+} // namespace gazer
 
 #endif

@@ -24,62 +24,57 @@
 namespace gazer
 {
 
-/// Non-template dependent functionality of the expression rewriter.
-class ExprRewriteBase
+
+/// Base class for expression rewrite implementations.
+class ExprRewrite : public ExprWalker<ExprPtr>
 {
-protected:
-    ExprRewriteBase(ExprBuilder& builder)
+public:
+    explicit ExprRewrite(ExprBuilder& builder)
         : mExprBuilder(builder)
     {}
 
-    ExprPtr rewriteNonNullary(const ExprRef<NonNullaryExpr>& expr, const ExprVector& ops);
-protected:
-    ExprBuilder& mExprBuilder;
-};
-
-/// Base class for expression rewrite implementations.
-template<class DerivedT>
-class ExprRewrite : public ExprWalker<DerivedT, ExprPtr>, public ExprRewriteBase
-{
-    friend class ExprWalker<DerivedT, ExprPtr>;
-public:
-    explicit ExprRewrite(ExprBuilder& builder)
-        : ExprRewriteBase(builder)
-    {}
+    ExprPtr rewrite(const ExprPtr& expr) {
+        return this->walk(expr);
+    }
 
 protected:
-    ExprPtr visitExpr(const ExprPtr& expr) { return expr; }
+    ExprPtr visitExpr(const ExprPtr& expr) override { return expr; }
 
-    ExprPtr visitNonNullary(const ExprRef<NonNullaryExpr>& expr)
+    ExprPtr visitNonNullary(const ExprRef<NonNullaryExpr>& expr) override
     {
         ExprVector ops(expr->getNumOperands(), nullptr);
+
         for (size_t i = 0; i < expr->getNumOperands(); ++i) {
             ops[i] = this->getOperand(i);
         }
 
         return this->rewriteNonNullary(expr, ops);
     }
+
+private:
+    ExprPtr rewriteNonNullary(const ExprRef<NonNullaryExpr>& expr, const ExprVector& ops);
+
+    ExprBuilder& mExprBuilder;
 };
 
 /// An expression rewriter that replaces certain variables with some
 /// given expression, according to the values set by operator[].
-class VariableExprRewrite : public ExprRewrite<VariableExprRewrite>
+class VariableExprRewrite : public ExprRewrite
 {
-    friend class ExprWalker<VariableExprRewrite, ExprPtr>;
 public:
-    explicit VariableExprRewrite(ExprBuilder& builder)
-        : ExprRewrite(builder)
-    {}
-
+    using ExprRewrite::ExprRewrite;
     ExprPtr& operator[](Variable* variable);
+    ExprPtr& operator[](const ExprRef<VarRefExpr>& expr) {
+        return operator[](&expr->getVariable());
+    }
 
 protected:
-    ExprPtr visitVarRef(const ExprRef<VarRefExpr>& expr);
+    ExprPtr visitVarRef(const ExprRef<VarRefExpr>& expr) override;
 
 private:
     llvm::DenseMap<Variable*, ExprPtr> mRewriteMap;
 };
 
-}
+} // namespace gazer
 
 #endif

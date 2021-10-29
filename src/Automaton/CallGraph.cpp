@@ -33,10 +33,8 @@ CallGraph::CallGraph(AutomataSystem& system)
     for (Cfa& cfa : system) {
         auto& node = mNodes[&cfa];
 
-        for (Transition* edge : cfa.edges()) {
-            if (auto call = llvm::dyn_cast<CallTransition>(edge)) {
-                node->addCall(call, mNodes[call->getCalledAutomaton()].get());
-            }
+        for (auto* call : classof_range<CallTransition>(cfa.edges())) {
+            node->addCall(call, mNodes[call->getCalledAutomaton()].get());
         }
     }
 }
@@ -48,10 +46,10 @@ bool CallGraph::isTailRecursive(Cfa* cfa)
     bool isRecursive = false;
     bool isTail = true;
 
-    for (auto& call : node->mCallsToOthers) {
-        if (call.first->getCalledAutomaton() == cfa) {
+    for (auto& [callEdge, _] : node->mCallsToOthers) {
+        if (callEdge->getCalledAutomaton() == cfa) {
             isRecursive = true;
-            if (call.first->getTarget() != cfa->getExit()) {
+            if (callEdge->getTarget() != cfa->getExit()) {
                 isTail = false;
                 break;
             }
@@ -65,10 +63,4 @@ auto CallGraph::lookupNode(Cfa* cfa) -> Node*
 {
     return mNodes[cfa].get();
 }
-
-CallGraph::~CallGraph()
-{}
-
-// Visualization
-//-----------------------------------------------------------------------------
 

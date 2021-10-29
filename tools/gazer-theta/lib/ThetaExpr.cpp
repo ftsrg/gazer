@@ -24,15 +24,20 @@
 #include <boost/range/irange.hpp>
 
 #include <functional>
+#include <utility>
 
 using namespace gazer;
 
-class ThetaExprPrinter : public ExprWalker<ThetaExprPrinter, std::string>
+class ThetaExprPrinter : public ExprWalker<std::string>
 {
 public:
-    ThetaExprPrinter(std::function<std::string(Variable*)> replacedNames)
-        : mReplacedNames(replacedNames)
+    explicit ThetaExprPrinter(std::function<std::string(Variable*)> replacedNames)
+        : mReplacedNames(std::move(replacedNames))
     {}
+
+    std::string print(const ExprPtr& expr) {
+        return this->walk(expr);
+    }
 
     /// If there was an expression which could not be handled by
     /// this walker, returns it. Otherwise returns nullptr.
@@ -40,25 +45,25 @@ public:
         return mUnhandledExpr;
     }
 
-public:
-    std::string visitExpr(const ExprPtr& expr) {
+protected:
+    std::string visitExpr(const ExprPtr& expr) override {
         mUnhandledExpr = expr;
         llvm::errs() << "Unhandled expr " << *expr << "\n";
         return "__UNHANDLED_EXPR__";
     }
 
-    std::string visitLiteral(const ExprRef<LiteralExpr>& expr)
+    std::string visitLiteral(const ExprRef<LiteralExpr>& expr) override
     {
-        if (auto intLit = llvm::dyn_cast<IntLiteralExpr>(expr)) {
+        if (auto* intLit = llvm::dyn_cast<IntLiteralExpr>(expr)) {
             auto val = intLit->getValue();
             return val < 0 ? "(" + std::to_string(val) + ")" : std::to_string(intLit->getValue());
         }
 
-        if (auto boolLit = llvm::dyn_cast<BoolLiteralExpr>(expr)) {
+        if (auto* boolLit = llvm::dyn_cast<BoolLiteralExpr>(expr)) {
             return boolLit->getValue() ? "true" : "false";
         }
 
-        if (auto realLit = llvm::dyn_cast<RealLiteralExpr>(expr)) {
+        if (auto* realLit = llvm::dyn_cast<RealLiteralExpr>(expr)) {
             auto val = realLit->getValue();
             return std::to_string(val.numerator()) + "%" + std::to_string(val.denominator());
         }
@@ -66,7 +71,7 @@ public:
         return visitExpr(expr);
     }
 
-    std::string visitVarRef(const ExprRef<VarRefExpr>& expr) {
+    std::string visitVarRef(const ExprRef<VarRefExpr>& expr) override {
         std::string newName = mReplacedNames(&expr->getVariable());
         if (!newName.empty()) {
             return newName;
@@ -75,32 +80,7 @@ public:
         return expr->getVariable().getName();
     }
 
-    std::string visitNot(const ExprRef<NotExpr>& expr) {
-        return "(not " + getOperand(0) + ")";
-    }
-
-    // Binary
-    std::string visitAdd(const ExprRef<AddExpr>& expr) {
-        return "(" + getOperand(0) + " + " + getOperand(1) + ")";
-    }
-
-    std::string visitSub(const ExprRef<SubExpr>& expr) {
-        return "(" + getOperand(0) + " - " + getOperand(1) + ")";
-    }
-
-    std::string visitMul(const ExprRef<MulExpr>& expr) {
-        return "(" + getOperand(0) + " * " + getOperand(1) + ")";
-    }
-
-    std::string visitDiv(const ExprRef<DivExpr>& expr) {
-        return "(" + getOperand(0) + " / " + getOperand(1) + ")";
-    }
-
-    std::string visitMod(const ExprRef<ModExpr>& expr) {
-        return "(" + getOperand(0) + " mod " + getOperand(1) + ")";
-    }
-
-    std::string visitAnd(const ExprRef<AndExpr>& expr)
+    std::string visitAnd(const ExprRef<AndExpr>& expr) override
     {
         std::string buffer;
         llvm::raw_string_ostream rso{buffer};
@@ -116,7 +96,7 @@ public:
         return rso.str();
     }
 
-    std::string visitOr(const ExprRef<OrExpr>& expr)
+    std::string visitOr(const ExprRef<OrExpr>& expr) override
     {
         std::string buffer;
         llvm::raw_string_ostream rso{buffer};
@@ -133,43 +113,41 @@ public:
         return rso.str();
     }
 
-    std::string visitImply(const ExprRef<ImplyExpr>& expr) {
-        return "(" + getOperand(0) + " imply " + getOperand(1) + ")";
+    std::string visitNot(const ExprRef<NotExpr>& expr) override {
+        return "(not " + getOperand(0) + ")";
     }
 
-    std::string visitEq(const ExprRef<EqExpr>& expr) {
-        return "(" + getOperand(0) + " = " + getOperand(1) + ")";
-    }
-    
-    std::string visitNotEq(const ExprRef<NotEqExpr>& expr) {
-        return "(" + getOperand(0) + " /= " + getOperand(1) + ")";
+#define PRINT_BINARY_INFIX(NAME, OPERATOR)                                                  \
+    std::string visit##NAME(const ExprRef<NAME##Expr>& expr) override                       \
+    {                                                                                       \
+        return "(" + (getOperand(0)) + " " + (OPERATOR) + " " + (getOperand(1)) + ")";      \
     }
 
-    std::string visitLt(const ExprRef<LtExpr>& expr) {
-        return "(" + getOperand(0) + " < " + getOperand(1) + ")";
-    }
+    PRINT_BINARY_INFIX(Add, "+")
+    PRINT_BINARY_INFIX(Sub, "-")
+    PRINT_BINARY_INFIX(Mul, "*")
+    PRINT_BINARY_INFIX(Div, "/")
+    PRINT_BINARY_INFIX(Mod, "mod")
+    PRINT_BINARY_INFIX(Imply, "imply")
 
-    std::string visitLtEq(const ExprRef<LtEqExpr>& expr) {
-        return "(" + getOperand(0) + " <= " + getOperand(1) + ")";
-    }
+    PRINT_BINARY_INFIX(Eq, "=")
+    PRINT_BINARY_INFIX(NotEq, "/=")
+    PRINT_BINARY_INFIX(Lt, "<")
+    PRINT_BINARY_INFIX(LtEq, "<=")
+    PRINT_BINARY_INFIX(Gt, ">")
+    PRINT_BINARY_INFIX(GtEq, ">=")
 
-    std::string visitGt(const ExprRef<GtExpr>& expr) {
-        return "(" + getOperand(0) + " > " + getOperand(1) + ")";
-    }
+#undef PRINT_BINARY_INFIX
 
-    std::string visitGtEq(const ExprRef<GtEqExpr>& expr) {
-        return "(" + getOperand(0) + " >= " + getOperand(1) + ")";
-    }
-
-    std::string visitSelect(const ExprRef<SelectExpr>& expr) {
+    std::string visitSelect(const ExprRef<SelectExpr>& expr) override {
         return "(if " + getOperand(0) + " then " + getOperand(1) + " else " + getOperand(2) + ")";
     }
 
-    std::string visitArrayRead(const ExprRef<ArrayReadExpr>& expr) {
+    std::string visitArrayRead(const ExprRef<ArrayReadExpr>& expr) override {
         return  "(" + getOperand(0) + ")[" + getOperand(1) + "]";
     }
 
-    std::string visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr) {
+    std::string visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr) override {
         return  "(" + getOperand(0) + ")[" + getOperand(1) + " <- " + getOperand(2) + "]";
     }
 
@@ -186,7 +164,7 @@ std::string gazer::theta::printThetaExpr(const ExprPtr& expr)
 
 std::string gazer::theta::printThetaExpr(const ExprPtr& expr, std::function<std::string(Variable*)> variableNames)
 {
-    ThetaExprPrinter printer(variableNames);
+    ThetaExprPrinter printer(std::move(variableNames));
 
-    return printer.walk(expr);
+    return printer.print(expr);
 }

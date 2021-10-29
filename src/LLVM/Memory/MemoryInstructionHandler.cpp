@@ -59,12 +59,11 @@ void MemorySSABasedInstructionHandler::declareFunctionVariables(
             }
         }
 
+        // See if the function has a return use
         llvm::TinyPtrVector<memory::RetUse*> retUses;
-        for (auto& u : object.uses()) {
-            if (auto retUse = llvm::dyn_cast<memory::RetUse>(&u)) {
-                retUses.push_back(retUse);
-            }
-        }
+        llvm::for_each(classof_range<memory::RetUse>(object.uses()), [&retUses](auto& u) {
+           retUses.push_back(&u);
+        });
 
         assert(retUses.empty() || retUses.size() == 1);
         if (!retUses.empty()) {

@@ -76,7 +76,7 @@ public:
     const_iterator begin() const { return mMap.begin(); }
     const_iterator end() const { return mMap.end(); }
 
-    void print(llvm::raw_ostream& os);
+    void print(llvm::raw_ostream& os) const;
 
 private:
     ValuationMapT mMap;

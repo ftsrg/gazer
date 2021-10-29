@@ -27,7 +27,7 @@ namespace llvm
 {
     class Module;
     class LLVMContext;
-}
+} // namespace llvm
 
 namespace gazer
 {
@@ -52,6 +52,6 @@ std::unique_ptr<llvm::Module> ClangCompileAndLink(
     ClangOptions& settings
 );
 
-}
+} // namespace gazer
 
-#endif //GAZER_CLANGFRONTEND_H
+#endif //GAZER_LLVM_CLANGFRONTEND_H

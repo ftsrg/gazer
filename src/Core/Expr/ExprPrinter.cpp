@@ -81,15 +81,20 @@ std::string castTypeName(const llvm::Twine& name, const Type& from, const Type& 
     return (name + "." + Twine(fromStr) + "." + Twine(toStr)).str();
 }
 
-class InfixPrintVisitor : public ExprWalker<InfixPrintVisitor, std::string>
+class InfixPrintVisitor : public ExprWalker<std::string>
 {
-    friend class ExprWalker<InfixPrintVisitor, std::string>;
 public:
-    InfixPrintVisitor(unsigned radix)
+    explicit InfixPrintVisitor(unsigned radix)
         : mRadix(radix)
     {
         assert(mRadix == 2 || mRadix == 8 || mRadix == 16 || mRadix == 10);
     }
+
+    std::string print(const ExprPtr& expr)
+    {
+        return this->walk(expr);
+    }
+
 private:
     std::string printOp(const ExprRef<NonNullaryExpr>& expr, size_t idx)
     {
@@ -101,28 +106,28 @@ private:
         return (Twine("(") + Twine(opStr) + ")").str();
     }
 
-private:
-    std::string visitExpr(const ExprPtr& expr) { llvm_unreachable("Unknown expression kind!"); }
-    std::string visitUndef(const ExprRef<UndefExpr>& expr) { return "undef"; }
-    std::string visitVarRef(const ExprRef<VarRefExpr>& expr)
+protected:
+    std::string visitExpr(const ExprPtr& expr) override { llvm_unreachable("Unknown expression kind!"); }
+    std::string visitUndef(const ExprRef<UndefExpr>& expr) override { return "undef"; }
+    std::string visitVarRef(const ExprRef<VarRefExpr>& expr) override
     {
         return expr->getVariable().getName();
     }
 
-    std::string visitLiteral(const ExprRef<LiteralExpr>& expr)
+    std::string visitLiteral(const ExprRef<LiteralExpr>& expr) override
     {
         return printLiteral(expr);
     }
 
     // Define some helper macros
     #define PRINT_UNARY_PREFIX(NAME, OPERATOR)                                  \
-    std::string visit##NAME(const ExprRef<NAME##Expr>& expr)                    \
+    std::string visit##NAME(const ExprRef<NAME##Expr>& expr)  override          \
     {                                                                           \
         return (Twine{OPERATOR} + "(" + getOperand(0) + ")").str();             \
     }
 
     #define PRINT_UNARY_CAST(NAME, OPERATOR)                                    \
-    std::string visit##NAME(const ExprRef<NAME##Expr>& expr)                    \
+    std::string visit##NAME(const ExprRef<NAME##Expr>& expr)  override          \
     {                                                                           \
         auto fname = castTypeName(                                              \
             OPERATOR, expr->getOperand()->getType(), expr->getType());          \
@@ -130,13 +135,13 @@ private:
     }
 
     #define PRINT_BINARY_INFIX(NAME, OPERATOR)                                  \
-    std::string visit##NAME(const ExprRef<NAME##Expr>& expr)                    \
+    std::string visit##NAME(const ExprRef<NAME##Expr>& expr) override           \
     {                                                                           \
         return (getOperand(0)) + (OPERATOR) + (getOperand(1));                  \
     }
 
     #define PRINT_BINARY_PREFIX(NAME, OPERATOR)                                 \
-    std::string visit##NAME(const ExprRef<NAME##Expr>& expr)                    \
+    std::string visit##NAME(const ExprRef<NAME##Expr>& expr) override           \
     {                                                                           \
         return (Twine{OPERATOR} + "("                                           \
             + (getOperand(0)) + "," + (getOperand(1)) + ")"                     \
@@ -144,7 +149,7 @@ private:
     }
 
     // Unary
-    std::string visitNot(const ExprRef<NotExpr>& expr)
+    std::string visitNot(const ExprRef<NotExpr>& expr) override
     {
         return "not " + printOp(expr, 0);
     }
@@ -152,7 +157,7 @@ private:
     PRINT_UNARY_CAST(ZExt, "zext")
     PRINT_UNARY_CAST(SExt, "sext")
 
-    std::string visitExtract(const ExprRef<ExtractExpr>& expr)
+    std::string visitExtract(const ExprRef<ExtractExpr>& expr) override
     {
         auto fname = castTypeName("extract", expr->getOperand()->getType(), expr->getType());
         return (fname + "(" + getOperand(0)
@@ -179,7 +184,7 @@ private:
     // Logic
     PRINT_BINARY_INFIX(Imply,   "imply")
 
-    std::string visitAnd(const ExprRef<AndExpr>& expr)
+    std::string visitAnd(const ExprRef<AndExpr>& expr) override
     {
         std::string buffer;
         llvm::raw_string_ostream rso{buffer};
@@ -193,7 +198,7 @@ private:
         return rso.str();
     }
 
-    std::string visitOr(const ExprRef<OrExpr>& expr)
+    std::string visitOr(const ExprRef<OrExpr>& expr) override
     {
         std::string buffer;
         llvm::raw_string_ostream rso{buffer};
@@ -249,7 +254,7 @@ private:
     PRINT_BINARY_PREFIX(FLtEq, "fp.le")
 
     // Ternary
-    std::string visitSelect(const ExprRef<SelectExpr>& expr)
+    std::string visitSelect(const ExprRef<SelectExpr>& expr) override
     {
         return (Twine("if ") + printOp(expr, 0)
             + Twine(" then ") + printOp(expr, 1)
@@ -257,12 +262,12 @@ private:
     }
 
     // Arrays
-    std::string visitArrayRead(const ExprRef<ArrayReadExpr>& expr)
+    std::string visitArrayRead(const ExprRef<ArrayReadExpr>& expr) override
     {
         return this->visitNonNullary(expr);
     }
 
-    std::string visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr)
+    std::string visitArrayWrite(const ExprRef<ArrayWriteExpr>& expr) override
     {
         return this->visitNonNullary(expr);
     }
@@ -299,20 +304,20 @@ private:
             bv->getValue().toStringSigned(buffer, mRadix);
             rso << "bv" << bv->getType().getWidth();
 
-            return rso.str();
+            return rso.str().str();
         }
 
         if (auto fl = llvm::dyn_cast<FloatLiteralExpr>(expr)) {
             fl->getValue().toString(buffer);
             rso << "fp" << fl->getType().getWidth();
 
-            return rso.str();
+            return rso.str().str();
         }
 
         if (auto rl = llvm::dyn_cast<RealLiteralExpr>(expr)) {
             rso << rl->getValue().numerator() << "%" << rl->getValue().denominator();
 
-            return rso.str();
+            return rso.str().str();
         }
 
         if (auto al = llvm::dyn_cast<ArrayLiteralExpr>(expr)) {
@@ -336,7 +341,7 @@ private:
             rso << llvm::join(orderedElems, ", ");
             rso << "]";
 
-            return rso.str();
+            return rso.str().str();
         }
 
         llvm_unreachable("Unknown literal expression kind.");
@@ -351,17 +356,10 @@ private:
 namespace gazer
 {
 
-void FormatPrintExpr(const ExprPtr& expr, llvm::raw_ostream& os)
-{
-    // TODO
-    InfixPrintVisitor visitor{10};
-    os << visitor.walk(expr);
-}
-
 void InfixPrintExpr(const ExprPtr& expr, llvm::raw_ostream& os, unsigned bvRadix)
 {
     InfixPrintVisitor visitor{bvRadix};
-    os << visitor.walk(expr);
+    os << visitor.print(expr);
 }
 
 } // end namespace gazer

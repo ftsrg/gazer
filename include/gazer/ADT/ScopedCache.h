@@ -21,6 +21,7 @@
 #include <llvm/ADT/DenseMap.h>
 
 #include <vector>
+#include <optional>
 
 namespace gazer
 {

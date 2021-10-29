@@ -26,7 +26,7 @@
 #include <llvm/IR/Operator.h>
 #include <llvm/Pass.h>
 #include <llvm/IR/ValueHandle.h>
-#include <llvm/IR/CallSite.h>
+#include <llvm/IR/AbstractCallSite.h>
 
 #include <boost/iterator/indirect_iterator.hpp>
 
@@ -50,7 +50,7 @@ class MemoryAccess
 {
     friend class memory::MemorySSABuilder;
 public:
-    MemoryAccess(MemoryObject* object)
+    explicit MemoryAccess(MemoryObject* object)
         : mObject(object)
     {}
 
@@ -96,7 +96,7 @@ public:
 
     void print(llvm::raw_ostream& os) const;
 
-    virtual ~MemoryObjectDef() {}
+    virtual ~MemoryObjectDef() = default;
 
 protected:
     virtual void doPrint(llvm::raw_ostream& os) const = 0;
@@ -136,7 +136,7 @@ public:
     virtual llvm::Instruction* getInstruction() const = 0;
     virtual void print(llvm::raw_ostream& os) const = 0;
 
-    virtual ~MemoryObjectUse() {}
+    virtual ~MemoryObjectUse() = default;
 
 private:
     Kind mKind;
@@ -185,7 +185,7 @@ public:
     MemoryObjectType getObjectType() const { return mObjectType; }
 
     llvm::Type* getValueType() const { return mValueType; }
-    llvm::StringRef getName() const { return mName; }
+    const std::string& getName() const { return mName; }
 
     unsigned getId() const { return mId; }
 
@@ -210,8 +210,26 @@ public:
     ~MemoryObject();
 
 private:
-    void addDefinition(MemoryObjectDef* def);
-    void addUse(MemoryObjectUse* use);
+    template<class T, class... Args>
+    T* createDef(Args&&... args)
+    {
+        std::unique_ptr<T> ptr = std::make_unique<T>(std::forward<Args>(args)...);
+        T* rawPtr = ptr.get();
+        mDefs.emplace_back(std::move(ptr));
+        return rawPtr;
+    }
+
+    template<class T, class... Args>
+    T* createUse(Args&&... args)
+    {
+        std::unique_ptr<T> ptr = std::make_unique<T>(std::forward<Args>(args)...);
+        T* rawPtr = ptr.get();
+        mUses.emplace_back(std::move(ptr));
+        return rawPtr;
+    }
+
+    MemoryObjectDef* addDefinition(std::unique_ptr<MemoryObjectDef>&& def);
+    MemoryObjectUse* addUse(std::unique_ptr<MemoryObjectUse>&& use);
     void setEntryDef(MemoryObjectDef* def);
     void setExitUse(MemoryObjectUse* use);
 
@@ -334,7 +352,7 @@ private:
 class CallDef : public InstructionAnnotationDef
 {
 public:
-    CallDef(MemoryObject* object, unsigned int version, llvm::CallSite call)
+    CallDef(MemoryObject* object, unsigned int version, llvm::CallBase* call)
         : InstructionAnnotationDef(object, version, MemoryObjectDef::Call), mCall(call)
     {}
 
@@ -342,13 +360,13 @@ public:
         return def->getKind() == MemoryObjectDef::Call;
     }
 
-    llvm::Instruction* getInstruction() const override { return mCall.getInstruction(); }
+    llvm::Instruction* getInstruction() const override { return mCall; }
 
 protected:
     void doPrint(llvm::raw_ostream& os) const override;
 
 private:
-    llvm::CallSite mCall;
+    llvm::CallBase* mCall;
 };
 
 class LiveOnEntryDef : public BlockAnnotationDef
@@ -445,12 +463,11 @@ private:
 class CallUse : public MemoryObjectUse
 {
 public:
-    CallUse(MemoryObject* object, llvm::CallSite callSite)
+    CallUse(MemoryObject* object, llvm::CallBase* callSite)
         : MemoryObjectUse(object, MemoryObjectUse::Call), mCallSite(callSite)
     {}
 
-    llvm::Instruction* getInstruction() const override { return mCallSite.getInstruction(); }
-    llvm::CallSite getCallSite() const { return mCallSite; }
+    llvm::Instruction* getInstruction() const override { return mCallSite; }
 
     void print(llvm::raw_ostream& os) const override;
 
@@ -458,7 +475,7 @@ public:
         return use->getKind() == MemoryObjectUse::Call;
     }
 private:
-    llvm::CallSite mCallSite;
+    llvm::CallBase* mCallSite;
 };
 
 class RetUse : public MemoryObjectUse
